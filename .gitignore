@@ -1,0 +1,8 @@
+node_modules
+.vscode/
+*.backup
+*.pdf
+*.log
+*.DS_Store
+*.pem
+.env
