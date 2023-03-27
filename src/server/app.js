@@ -3,8 +3,8 @@ var path = require('path');
 var cookieParser = require('cookie-parser');
 const logger = require('morgan');
 const fileUpload = require('express-fileupload');
-//const swaggerUi = require('swagger-ui-express');
-//const swaggerDocument = require('./swagger/swagger.json');
+const swaggerUi = require('swagger-ui-express');
+const swaggerDocument = require('./swagger/swagger.json');
 var bodyParser = require('body-parser');
 const dotenv = require('dotenv');
 
@@ -46,7 +46,6 @@ app.use(bodyParser.urlencoded({
   extended: true
 }))
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, '../public')));
 
 // Add headers
 app.use((req, res, next) => {
@@ -81,13 +80,18 @@ app.use('/api/predict', predictRouter);
 app.use('/api/xai', xaiRouter);
 app.use('/api/attacks', attacksRouter);
 app.use('/api/metrics', metricsRouter);
+
+// start Swagger API server 
+app.use('/', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+app.use(express.static(path.join(__dirname, 'swagger')));
+module.exports = app;
+
+// start MAIP server
+/* app.use(express.static(path.join(__dirname, '../public')));
 app.get('/*', function (req, res) {
   res.sendFile(path.join(__dirname, '../public', 'index.html'));
 });
-// start server
-
-//app.use('/', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 var server = app.listen(app.get('port'), env.SERVER_HOST, function () {
   console.log(`[SERVER] MAIP Server started on: http://${env.SERVER_HOST}:${env.SERVER_PORT}`);
-});
+}); */
