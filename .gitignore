@@ -6,3 +6,5 @@ node_modules
 *.DS_Store
 *.pem
 .env
+src/server/logs/*.log
+server/deep-learning/__pycache__/

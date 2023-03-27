@@ -82,16 +82,16 @@ app.use('/api/attacks', attacksRouter);
 app.use('/api/metrics', metricsRouter);
 
 // start Swagger API server 
-app.use('/', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+/* app.use('/', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 app.use(express.static(path.join(__dirname, 'swagger')));
-module.exports = app;
+module.exports = app; */
 
 // start MAIP server
-/* app.use(express.static(path.join(__dirname, '../public')));
+app.use(express.static(path.join(__dirname, '../public')));
 app.get('/*', function (req, res) {
   res.sendFile(path.join(__dirname, '../public', 'index.html'));
 });
 
 var server = app.listen(app.get('port'), env.SERVER_HOST, function () {
   console.log(`[SERVER] MAIP Server started on: http://${env.SERVER_HOST}:${env.SERVER_PORT}`);
-}); */
+});
