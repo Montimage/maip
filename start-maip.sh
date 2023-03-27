@@ -1,1 +1,0 @@
-sudo node src/server/bin/www
