@@ -1,0 +1,11 @@
+.content {
+    max-width: 1200px;
+    margin: 20px auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.content>div {
+    width: 100%;
+}

@@ -1,24 +1,36 @@
-import logo from './logo.svg';
-import './App.css';
+import React from "react";
+//import "antd/dist/antd.css";
+import { Layout } from "antd";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
+
+import ErrorBoundary from "antd/lib/alert/ErrorBoundary";
+import MAIPHeader from "./components/MAIPHeader";
+import MAIPFooter from "./components/MAIPFooter";
+import DummyPage from "./pages/DummyPage";
+import DataGeneratorPage from "./pages/DataGeneratorPage";
 
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <Router>
+      <ErrorBoundary>
+        <Layout className="layout" style={{ height: "100%" }}>
+          <MAIPHeader />
+          <Routes>
+            <Route
+              exact
+              path="/"
+              render={() => <Navigate to="/" />}
+            />
+          </Routes>
+          <MAIPFooter />
+        </Layout>
+      </ErrorBoundary>
+    </Router>
   );
 }
 
