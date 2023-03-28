@@ -24,7 +24,7 @@ function App() {
             <Route
               exact
               path="/"
-              render={() => <Navigate to="/" />}
+              render={() => <Navigate to="/datasets" />}
             />
           </Routes>
           <MAIPFooter />
