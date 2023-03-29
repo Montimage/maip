@@ -13,6 +13,7 @@ import MAIPHeader from "./components/MAIPHeader";
 import MAIPFooter from "./components/MAIPFooter";
 import DummyPage from "./pages/DummyPage";
 import DataGeneratorPage from "./pages/DataGeneratorPage";
+import ModelListPage from "./pages/ModelListPage";
 
 function App() {
   return (
@@ -26,6 +27,7 @@ function App() {
               path="/"
               render={() => <Navigate to="/datasets" />}
             />
+            <Route path="/models" element={<ModelListPage />}/>
           </Routes>
           <MAIPFooter />
         </Layout>

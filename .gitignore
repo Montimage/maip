@@ -7,4 +7,10 @@ node_modules
 *.pem
 .env
 src/server/logs/*.log
-server/deep-learning/__pycache__/
+src/server/deep-learning/__pycache__/
+src/server/mmt/outputs/*
+src/client/build/
+src/server/deep-learning/attacks/*
+src/server/deep-learning/models/*.h5
+src/server/deep-learning/trainings/*
+src/server/mmt/pcaps/*
