@@ -9,3 +9,12 @@ export const requestAllModels = async () => {
   //console.log(`All models returned from server: ${data.models}`);
   return data.models;
 };
+
+export const requestModel = async (modelId) => {
+  const url = `${URL}/api/models/${modelId}/build-config`;
+  const response = await fetch(url);
+  const data = await response.json();
+  console.log(`build-config.json returned from server for model ${modelId}`);
+  console.log(data.buildConfig);
+  return data.buildConfig;
+};

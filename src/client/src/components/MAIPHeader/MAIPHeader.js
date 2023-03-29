@@ -2,7 +2,7 @@ import React, { Component } from "react";
 import { connect } from "react-redux";
 import { Layout, Menu, Row, Col } from "antd";
 import {
-  FolderOpenOutlined, DeploymentUnitOutlined, LineChartOutlined, SolutionOutlined, BugOutlined, ExperimentOutlined
+  DeploymentUnitOutlined, FolderOpenOutlined, BlockOutlined, LineChartOutlined, SolutionOutlined, BugOutlined, SafetyOutlined, ExperimentOutlined
 } from "@ant-design/icons";
 
 import {
@@ -15,11 +15,13 @@ const { Header } = Layout;
 class MAIPHeader extends Component {
   render() {
     const menuLinks = [
-      '/datasets',
       '/build',
+      '/datasets',
+      '/models',
       '/predict',
       '/xai',
       '/attacks',
+      'defenses',
       '/metrics',
     ];
     // Calculate the selected menu
@@ -51,36 +53,48 @@ class MAIPHeader extends Component {
             <Menu theme="light" mode="horizontal" style={{ lineHeight: "64px" }} selectedKeys={`${selectedMenu}`}>
               <Menu.Item key="0">
                 <a href={menuLinks[0]}>
-                  <FolderOpenOutlined />
-                  Datasets
-                </a>
-              </Menu.Item>
-              <Menu.Item key="1">
-                <a href={menuLinks[1]}>
                   <DeploymentUnitOutlined />
                   Build
                 </a>
               </Menu.Item>
+              <Menu.Item key="1">
+                <a href={menuLinks[1]}>
+                  <FolderOpenOutlined />
+                  Datasets
+                </a>
+              </Menu.Item>
               <Menu.Item key="2">
                 <a href={menuLinks[2]}>
-                  <LineChartOutlined />
-                  Predict
+                  <BlockOutlined />
+                  Models
                 </a>
               </Menu.Item>
               <Menu.Item key="3">
                 <a href={menuLinks[3]}>
-                  <SolutionOutlined />
-                  XAI
+                  <LineChartOutlined />
+                  Predict
                 </a>
               </Menu.Item>
               <Menu.Item key="4">
                 <a href={menuLinks[4]}>
-                  <BugOutlined />
-                  Attacks
+                  <SolutionOutlined />
+                  XAI
                 </a>
               </Menu.Item>
               <Menu.Item key="5">
                 <a href={menuLinks[5]}>
+                  <BugOutlined />
+                  Attacks
+                </a>
+              </Menu.Item>
+              <Menu.Item key="6">
+                <a href={menuLinks[6]}>
+                  <SafetyOutlined />
+                  Defenses
+                </a>
+              </Menu.Item>
+              <Menu.Item key="7">
+                <a href={menuLinks[7]}>
                   <ExperimentOutlined />
                   Metrics
                 </a>

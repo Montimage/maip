@@ -1,6 +1,6 @@
 import React from "react";
-//import "antd/dist/antd.css";
-import { Layout } from "antd";
+import { Layout } from 'antd';
+import "antd/dist/reset.css";
 import {
   BrowserRouter as Router,
   Routes,
@@ -11,9 +11,8 @@ import {
 import ErrorBoundary from "antd/lib/alert/ErrorBoundary";
 import MAIPHeader from "./components/MAIPHeader";
 import MAIPFooter from "./components/MAIPFooter";
-import DummyPage from "./pages/DummyPage";
-import DataGeneratorPage from "./pages/DataGeneratorPage";
 import ModelListPage from "./pages/ModelListPage";
+import ModelPage from "./pages/ModelPage";
 
 function App() {
   return (
@@ -25,9 +24,10 @@ function App() {
             <Route
               exact
               path="/"
-              render={() => <Navigate to="/datasets" />}
+              render={() => <Navigate to="/build" />}
             />
             <Route path="/models" element={<ModelListPage />}/>
+            <Route path="/models/:modelId" element={<ModelPage />}/>
           </Routes>
           <MAIPFooter />
         </Layout>

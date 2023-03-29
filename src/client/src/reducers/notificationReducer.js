@@ -2,12 +2,6 @@ import { createReducer } from "redux-act";
 import {
   setNotification,
   resetNotification,
-  addThing,
-  deleteThing,
-  addSimulationSensor,
-  addSimulationActuator,
-  deleteSimulationSensor,
-  deleteSimulationActuator,
 } from "../actions";
 
 export default createReducer(

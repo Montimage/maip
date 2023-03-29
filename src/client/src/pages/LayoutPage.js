@@ -35,7 +35,6 @@ class LayoutPage extends Component {
             {pageSubTitle && <Text type="secondary">{pageSubTitle}</Text>}
             <div style={{ paddingTop: "30px" }} className="site-layout-content">
               {requesting ? <div style={{textAlign: "center", marginTop: 30}}><Spin tip="Loading..." /></div> : this.props.children}
-              <MAIPFooter />
             </div>
           </Content>
         </Layout>
