@@ -24,7 +24,7 @@ router.get('/:modelId/download', (req, res, next) => {
   const modelFilePath = `${MODEL_PATH}${modelId}`;
   isFileExist(modelFilePath, (ret) => {
     if (!ret) {
-      res.status(401).send(`The log file ${modelId} does not exist`);
+      res.status(401).send(`The model file ${modelId} does not exist`);
     } else {
       res.sendFile(modelFilePath);
     }
