@@ -1,4 +1,4 @@
-import React, { Component } from 'react';
+import React, { Component, useState } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
 import { getLastPath, getQuery } from "../utils";
@@ -62,6 +62,9 @@ const handleRandomClick = () => {
 
 let chart;
 let bar;
+//let maxDisplay = 10;
+
+
 
 // Export Image
 const downloadImage = () => {
@@ -82,6 +85,17 @@ const onChange = (values) => {
 };
 
 class XAIPage extends Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      maxDisplay: 10,
+    };
+  }
+
+  onSliderChange(newVal) {
+    this.setState({ maxDisplay: newVal });
+  }
+
   componentDidMount() {
     let modelId = getLastPath();
     console.log(modelId);
@@ -89,10 +103,12 @@ class XAIPage extends Component {
   }
 
   render() {
+    const { maxDisplay } = this.state;
     const {shap} = this.props;
     //console.log(shap);
+    console.log(`maxDisplay: ${maxDisplay}`);
     const shapconfig = {
-      data: shap,
+      data: shap.slice(0, maxDisplay),
       isStack: true,
       xField: 'importance_value',
       yField: 'feature',
@@ -148,9 +164,11 @@ class XAIPage extends Component {
                   15: '15',
                   20: '20',
                   25: '25',
+                  30: '30',
                 }}
-                min={1} max={25} step={null}
-                tipFormatter={null} onChange={onChange} 
+                min={1} max={30} defaultValue={maxDisplay} step={null}
+                tipFormatter={null}
+                onChange={(value) => this.onSliderChange(value)}
               />
           </Form.Item>
         </Form>

@@ -100,7 +100,7 @@ router.get('/explanations/:modelId', (req, res, next) => {
 router.get('/shap/explanations/:modelId', (req, res, next) => {
   const { modelId } = req.params;
   const xaiFilePath = `${XAI_PATH}${modelId.replace('.h5', '')}`;
-  const shapValuesFile = `${xaiFilePath}/shap_values.json`; 
+  const shapValuesFile = `${xaiFilePath}/importance_values.json`; 
   console.log(shapValuesFile);
 
   isFileExist(shapValuesFile, (ret) => {

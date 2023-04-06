@@ -59,7 +59,9 @@ def running_shap(numberBackgroundSamples, maxDisplay):
   #feature_importance.head()
 
   sorted_feature_vals = sorted(list(zip(xai_features,sum(vals))), key = lambda x: x[1], reverse=True)
-  features_to_display = [dict(zip(columns, row)) for row in sorted_feature_vals][:int(maxDisplay)]
+  #features_to_display = [dict(zip(columns, row)) for row in sorted_feature_vals][:int(maxDisplay)]
+  # dump full values and process maxDisplay later ?
+  features_to_display = [dict(zip(columns, row)) for row in sorted_feature_vals]
   print(json.dumps(features_to_display, indent=2, ensure_ascii=False))
 
   explanations_path = deepLearningPath + '/xai/' + model_name
