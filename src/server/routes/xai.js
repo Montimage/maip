@@ -9,6 +9,7 @@ const {
 } = require('../deep-learning/xai-connector');
 const {
   listFiles,
+  isFileExist,
 } = require('../utils/file-utils');
 const {
   XAI_PATH,
@@ -90,6 +91,24 @@ router.get('/explanations/:modelId', (req, res, next) => {
     res.send({
       explanations: files,
     });
+  });
+});
+
+/**
+ * Get SHAP feature importance values of a specific model
+ */
+router.get('/shap/explanations/:modelId', (req, res, next) => {
+  const { modelId } = req.params;
+  const xaiFilePath = `${XAI_PATH}${modelId.replace('.h5', '')}`;
+  const shapValuesFile = `${xaiFilePath}/shap_values.json`; 
+  console.log(shapValuesFile);
+
+  isFileExist(shapValuesFile, (ret) => {
+    if (!ret) {
+      res.status(401).send(`The SHAP values file ${shapValuesFile} does not exist`);
+    } else {
+      res.sendFile(shapValuesFile);
+    }
   });
 });
 

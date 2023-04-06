@@ -50,10 +50,27 @@ def running_shap(numberBackgroundSamples, maxDisplay):
   with warnings.catch_warnings():
     warnings.filterwarnings("ignore")
     shap_values = explainer.shap_values(shap.sample(x_test, int(numberBackgroundSamples)))
+    #print(shap_values[0])
+
+  columns = ['feature','importance_value'] 
+  vals= np.abs(shap_values).mean(0)
+  #feature_importance = pd.DataFrame(list(zip(xai_features,sum(vals))),columns=['feature','importance_value'])
+  #feature_importance.sort_values(by=['importance_value'],ascending=False,inplace=True)  
+  #feature_importance.head()
+
+  sorted_feature_vals = sorted(list(zip(xai_features,sum(vals))), key = lambda x: x[1], reverse=True)
+  features_to_display = [dict(zip(columns, row)) for row in sorted_feature_vals][:int(maxDisplay)]
+  print(json.dumps(features_to_display, indent=2, ensure_ascii=False))
 
   explanations_path = deepLearningPath + '/xai/' + model_name
   if not os.path.exists(explanations_path):
     os.makedirs(explanations_path) 
+
+  jsonfile = os.path.join(explanations_path, 'importance_values.json')
+  print(jsonfile)
+  with open(jsonfile, "w") as outfile:
+    json.dump(features_to_display, outfile)
+
   classes = ['Botnet']
   plt.figure(figsize=(15,10))
   #plt.grid(b=None)
@@ -67,7 +84,7 @@ if __name__ == "__main__":
   print(sys.argv)
   if len(sys.argv) != 4:
     print('Invalid inputs')
-    print('python xai.py modelId numberBackgroundSamples')
+    print('python xai.py modelId numberBackgroundSamples maxDisplay')
   else:
     modelId = sys.argv[1]
     numberBackgroundSamples = sys.argv[2]
@@ -98,7 +115,7 @@ if __name__ == "__main__":
     time_taken = timeit.timeit(lambda: running_shap(numberBackgroundSamples, maxDisplay), number=generation_iters)
     print("Time taken for SHAP in seconds: ", time_taken)
     xai_path = deepLearningPath + '/xai/' + model_name
-    statsfile = os.path.join(xai_path, 'time_stats_shap.txt') 
+    statsfile = os.path.join(xai_path, 'time_stats_shap.txt')
     print(statsfile)
     with open(statsfile, "w") as f:
       f.write(str(time_taken))
