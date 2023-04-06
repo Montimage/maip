@@ -153,10 +153,12 @@ const getLastPath = () => {
   return lastPath;
 }
 
-const getObjectId = (str) => {
-  //return crypto.createHash('md5').update(str).digest('hex');
-  return '1234567890';
-};
+// last-path (id = 1), right-before-last-path (id = 2)
+ const getBeforeLastPath = (id) => {
+  const array = window.location.pathname.split('/');
+  return array[array.length - id];
+}
+
 
 export {
   getQuery,
@@ -168,5 +170,5 @@ export {
   getCreatedTimeFromFileName,
   deepCloneObject,
   getLastPath,
-  getObjectId
+  getBeforeLastPath,
 };
