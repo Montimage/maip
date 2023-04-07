@@ -1468,6 +1468,46 @@
                 }
             }
         },
+        "/xai/lime/explanations/{modelName}": {
+            "get": {
+                "tags": [
+                    "xai"
+                ],
+                "summary": "Get explanations using LIME",
+                "description": "Request producing explanations using LIME",
+                "operationId": "explanationsLIME",
+                "parameters": [
+                    {
+                        "name": "modelName",
+                        "in": "path",
+                        "description": "Name of the model",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "example": "e0a0588e-96c4-4fdf-9237-a8e94a6f5ffe.h5"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "explanations": {
+                                            "type": "string",
+                                            "example": ""
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/xai/explanations/{modelName}": {
             "get": {
                 "tags": [

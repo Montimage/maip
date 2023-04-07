@@ -1,48 +1,18 @@
-import React, { Component, useState } from 'react';
+import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
-import { getLastPath, getQuery } from "../utils";
-import { Line } from '@ant-design/charts';
-import { Col, Row, Divider, Slider, Form, InputNumber, Button } from 'antd';
-import { RedoOutlined } from "@ant-design/icons";
+import { getLastPath } from "../utils";
+import { Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox } from 'antd';
+import { RedoOutlined, UserOutlined } from "@ant-design/icons";
 import { Bar } from '@ant-design/plots';
 import {
   requestShapValues,
+  requestLimeValues,
 } from "../actions";
-
-const data = [
-  { year: '1991', value: 3 },
-  { year: '1992', value: 4 },
-  { year: '1993', value: 3.5 },
-  { year: '1994', value: 5 },
-  { year: '1995', value: 4.9 },
-  { year: '1996', value: 6 },
-  { year: '1997', value: 7 },
-  { year: '1998', value: 9 },
-  { year: '1999', value: 13 },
-];
-
-const config = {
-  data,
-  width: 600,
-  height: 300,
-  autoFit: false,
-  xField: 'year',
-  yField: 'value',
-  point: {
-    size: 5,
-    shape: 'diamond',
-  },
-  label: {
-    style: {
-      fill: '#aaa',
-    },
-  },
-};
 
 const style = {
   //background: '#0092ff',
-  padding: '8px 0',
+  padding: '10px 0',
   border: '1px solid black',
 };
 
@@ -55,26 +25,11 @@ const layout = {
   },
 };
 
-const handleRandomClick = () => {
-  const randomValue = Math.floor(Math.random() * 100); // generate random number between 0 and 100
-  console.log(randomValue.toString());
-};
+let barShap, barLime;
 
-let chart;
-let bar;
-//let maxDisplay = 10;
-
-
-
-// Export Image
-const downloadImage = () => {
-  bar?.downloadImage();
-};
-
-// Get chart base64 string
-const toDataURL = () => {
-  console.log(bar?.toDataURL());
-};
+const downloadShapImage = () => { barShap?.downloadImage(); };
+const downloadLimeImage = () => { barLime?.downloadImage(); };
+const toDataURL = () => { console.log(barShap?.toDataURL()); };
 
 const onFinish = (values) => {
   console.log(values);
@@ -88,26 +43,66 @@ class XAIPage extends Component {
   constructor(props) {
     super(props);
     this.state = {
-      maxDisplay: 10,
+      maxDisplay: 30,
+      sampleId: 20,
+      positiveChecked: true,
+      negativeChecked: true,
     };
+    this.handleRandomClick = this.handleRandomClick.bind(this);
+    this.handleContributionsChange = this.handleContributionsChange.bind(this);
   }
 
   onSliderChange(newVal) {
     this.setState({ maxDisplay: newVal });
   }
+  
+  onSampleIdChange(newId) {
+    this.setState({ sampleId: newId });
+  }
+
+  handleRandomClick() {
+    const randomVal = Math.floor(Math.random() * 100);
+    console.log(randomVal.toString());
+    this.setState({ sampleId: randomVal });
+  };  
+
+  handleContributionsChange(checkedValues){
+    const positiveChecked = checkedValues.includes('Positive');
+    const negativeChecked = checkedValues.includes('Negative');
+    this.setState({ positiveChecked, negativeChecked });
+  };
 
   componentDidMount() {
     let modelId = getLastPath();
     console.log(modelId);
     this.props.fetchShapValues(modelId);
+    this.props.fetchLimeValues(modelId);
   }
 
   render() {
-    const { maxDisplay } = this.state;
-    const {shap} = this.props;
-    //console.log(shap);
+    const { 
+      maxDisplay, 
+      sampleId,
+      positiveChecked,
+      negativeChecked,
+    } = this.state;
+    const { 
+      shap, 
+      lime, 
+    } = this.props;
     console.log(`maxDisplay: ${maxDisplay}`);
-    const shapconfig = {
+    console.log(`sampleId: ${sampleId}`);
+    const sortedLime = lime.slice().sort((a, b) => b.value - a.value);
+    //console.log(sortedLime);
+    const notZeroSortedLime = sortedLime.filter(d => d.value !== 0);
+
+    const filteredLime = notZeroSortedLime.filter((d) => {
+      if (d.value > 0 && positiveChecked) return true;
+      if (d.value < 0 && negativeChecked) return true;
+      return false;
+    });
+
+    const shapConfig = {
       data: shap.slice(0, maxDisplay),
       isStack: true,
       xField: 'importance_value',
@@ -116,20 +111,26 @@ class XAIPage extends Component {
       label: false,
       geometry: 'interval',
       interactions: [{ type: 'zoom' }],
-      /* label: {
-        position: 'middle',
-        layout: [
-          {
-            type: 'interval-adjust-position',
-          },
-          {
-            type: 'interval-hide-overlap',
-          },
-          {
-            type: 'adjust-color',
-          },
-        ],
-      }, */
+    }; 
+    const limeConfig = {
+      data: filteredLime.slice(0, maxDisplay),
+      isStack: true,
+      xField: 'value',
+      yField: 'feature',
+      seriesField: 'type',
+      label: false,
+      /* TODO: check why bars color is not changed */
+      barStyle: {
+        fill: (d) => (d.value > 0 ?'#37D67A' : '#1890FF')
+      },
+      meta: {
+        value: {
+          min: Math.min(...filteredLime.map((d) => d.value)),
+          max: Math.max(...filteredLime.map((d) => d.value))
+        }
+      },
+      geometry: 'interval',
+      interactions: [{ type: 'zoom' }],
     }; 
     return (
       <LayoutPage pageTitle="XAI Page" pageSubTitle="">
@@ -142,62 +143,80 @@ class XAIPage extends Component {
           maxWidth: 600,
         }}
         >
-          <Form.Item label="Sample ID">
+          <Form.Item label="Sample ID" style={{ marginBottom: 10 }}>
             <div style={{ display: 'inline-flex' }}>
               <Form.Item label="id" name="id" noStyle>
-                <InputNumber min={1} defaultValue={1} onChange={(e) => console.log(e)} />
+                <InputNumber min={1} defaultValue={sampleId}
+                  onChange={(e) => this.onSampleIdChange(e)} />
               </Form.Item>
-              <Button icon={<RedoOutlined />} type="text" bordered={false} onClick={handleRandomClick} />
+              {/* TODO: click button doesn't change value of InputNumber? */}
+              <Button icon={<RedoOutlined />} type="text" bordered={false} onClick={this.handleRandomClick} />
             </div>  
           </Form.Item>
-          <Form.Item label="Background samples">
+          <Form.Item label="Background samples" style={{ marginBottom: 10 }}>
             <Form.Item label="bg" name="bg" noStyle>
-              <InputNumber min={1} defaultValue={10} onChange={(e) => console.log(e)} />
+              <InputNumber min={1} defaultValue={10} 
+                onChange={(e) => console.log(e)} 
+              />
             </Form.Item>
           </Form.Item>
-          <Form.Item name="slider" label="Features to display">
+          {/* TODO: display value of slider (really need?), space between Slide and Checkbox is large? */}
+          <Form.Item name="slider" label="Features to display" style={{ marginBottom: 10 }}>
             <Slider
-                marks={{
-                  1: '1',
-                  5: '5',
-                  10: '10',
-                  15: '15',
-                  20: '20',
-                  25: '25',
-                  30: '30',
-                }}
-                min={1} max={30} defaultValue={maxDisplay} step={null}
-                tipFormatter={null}
-                onChange={(value) => this.onSliderChange(value)}
-              />
+              marks={{
+                1: '1',
+                5: '5',
+                10: '10',
+                15: '15',
+                20: '20',
+                25: '25',
+                30: '30',
+              }}
+              min={1} max={30} defaultValue={maxDisplay}
+              value={maxDisplay}
+              onChange={(value) => this.onSliderChange(value)}
+            />
+          </Form.Item>
+          <Form.Item name="checkbox" label="Contributions to display" style={{ flex: 'none', marginBottom: 10 }}>
+            <Checkbox.Group 
+              options={['Positive', 'Negative']} 
+              defaultValue={['Positive', 'Negative']}
+              onChange={this.handleContributionsChange} 
+            />
+          </Form.Item>
+          <Form.Item name="explain" label="" 
+            style={{ marginBottom: 10, marginLeft: 100 }}
+          >
+            <Button icon={<UserOutlined />}>Explain</Button>
           </Form.Item>
         </Form>
         <Divider orientation="left"><h2>Explanations</h2></Divider>
-          <Row gutter={20}>
-            <Col className="gutter-row" span={10}>
+          <Row gutter={24}>
+            <Col className="gutter-row" span={12}>
               <div style={style}>
                 <h2>&nbsp;&nbsp;&nbsp;Feature Importance</h2>
-                <button type="button" onClick={downloadImage} style={{ marginRight: 24 }}>
+                <button type="button" onClick={downloadShapImage} 
+                  style={{ marginLeft: 10, marginRight: 24, marginBottom: 15 }}
+                >
                   Export Image
                 </button>
                 <button type="button" onClick={toDataURL}>
                   Get base64
                 </button>
-                <Bar {...shapconfig} onReady={(barSHAP) => (bar = barSHAP)}/>
+                <Bar {...shapConfig} onReady={(bar) => (barShap = bar)}/>
               </div>
             </Col>
-            {/* <Col className="gutter-row" span={10}>
+            <Col className="gutter-row" span={12}>
               <div style={style}>
-                <h2>&nbsp;&nbsp;&nbsp;Local Explanation - ID ???</h2>
-                <button type="button" onClick={downloadImage} style={{ marginRight: 24 }}>
+                <h2>&nbsp;&nbsp;&nbsp;Local Explanation - Sample ID {sampleId}</h2>
+                <button type="button" onClick={downloadLimeImage} 
+                  style={{ marginLeft: 10, marginRight: 24, marginBottom: 15 }}
+                >
                   Export Image
                 </button>
-                <button type="button" onClick={toDataURL}>
-                  Get base64
-                </button>
-                <Line {...config} onReady={(chartInstance) => (chart = chartInstance)} />
+                <Bar {...limeConfig} onReady={(bar) => (barLime = bar)}/>
               </div>
-            </Col> */}
+            </Col>
           </Row>
         
       </LayoutPage>
@@ -205,12 +224,13 @@ class XAIPage extends Component {
   }
 }
 
-const mapPropsToStates = ({ shap }) => ({
-  shap,
+const mapPropsToStates = ({ shap, lime }) => ({
+  shap, lime,
 });
 
 const mapDispatchToProps = (dispatch) => ({
   fetchShapValues: (modelId) => dispatch(requestShapValues(modelId)),
+  fetchLimeValues: (modelId) => dispatch(requestLimeValues(modelId)),
 });
 
 export default connect(mapPropsToStates, mapDispatchToProps)(XAIPage);

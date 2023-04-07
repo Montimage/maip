@@ -20,6 +20,8 @@ export const setDataset = createAction('SET_DATASET');
 
 export const requestShapValues = createAction('REQUEST_SHAP_VALUES');
 export const setShapValues = createAction('SET_SHAP_VALUES');
+export const requestLimeValues = createAction('REQUEST_LIME_VALUES');
+export const setLimeValues = createAction('SET_LIME_VALUES');
 
 //export const requestBuildModel = createAction('REQUEST_BUILD_MODEL');
 //export const requestRetrainModel = createAction('REQUEST_RETRAIN_MODEL');

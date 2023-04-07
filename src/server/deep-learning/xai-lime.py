@@ -56,10 +56,33 @@ def running_lime(sampleId, numberFeatures):
   explainer = lime_tabular.LimeTabularExplainer(x_test, mode="classification", feature_selection= 'auto', class_names=classes,
                                                   feature_names=xai_features, kernel_width=None, discretize_continuous=True)
   explanation = explainer.explain_instance(x_test[idx], model.predict, labels=(0,), num_features=int(numberFeatures))
+  full_explanation = explainer.explain_instance(x_test[idx], model.predict, labels=(0,), num_features=len(xai_features))
+  full_lime_values = full_explanation.as_list(label=0)
+  print(full_lime_values)
 
   #plt.tight_layout()
   #plt.figure(figsize=(15,10))
   #explanation.show_in_notebook()
+
+  columns = ['feature','value'] 
+  #feature_importance = pd.DataFrame(list(zip(xai_features,sum(vals))),columns=['feature','importance_value'])
+  #feature_importance.sort_values(by=['importance_value'],ascending=False,inplace=True)  
+  #feature_importance.head()
+
+  #sorted_feature_vals = sorted(list(zip(xai_features,sum(vals))), key = lambda x: x[1], reverse=True)
+  #features_to_display = [dict(zip(columns, row)) for row in sorted_feature_vals][:int(maxDisplay)]
+  # dump full values and process maxDisplay later ?
+  features_to_display = [dict(zip(columns, row)) for row in full_lime_values]
+  print(json.dumps(features_to_display, indent=2, ensure_ascii=False))
+
+  explanations_path = deepLearningPath + '/xai/' + model_name
+  if not os.path.exists(explanations_path):
+    os.makedirs(explanations_path) 
+
+  jsonfile = os.path.join(explanations_path, 'lime_values.json')
+  print(jsonfile)
+  with open(jsonfile, "w") as outfile:
+    json.dump(features_to_display, outfile)
 
   explanations_path = deepLearningPath + '/xai/' + model_name
   if not os.path.exists(explanations_path):

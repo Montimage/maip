@@ -112,5 +112,22 @@ router.get('/shap/explanations/:modelId', (req, res, next) => {
   });
 });
 
+/**
+ * Get LIME feature values of a specific model
+ */
+ router.get('/lime/explanations/:modelId', (req, res, next) => {
+  const { modelId } = req.params;
+  const xaiFilePath = `${XAI_PATH}${modelId.replace('.h5', '')}`;
+  const limeValuesFile = `${xaiFilePath}/lime_values.json`; 
+  console.log(limeValuesFile);
+
+  isFileExist(limeValuesFile, (ret) => {
+    if (!ret) {
+      res.status(401).send(`The LIME values file ${limeValuesFile} does not exist`);
+    } else {
+      res.sendFile(limeValuesFile);
+    }
+  });
+});
 
 module.exports = router;

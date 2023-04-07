@@ -6,6 +6,7 @@ import notificationReducer from './notificationReducer';
 import allModelsReducer from './allModelsReducer';
 import modelReducer from './modelReducer';
 import shapReducer from './shapReducer';
+import limeReducer from './limeReducer';
 //import datasetReducer from './datasetReducer';
 //import buildReducer from './buildReducer';
 
@@ -14,6 +15,7 @@ const rootReducer = combineReducers({
   allModels: allModelsReducer,
   model: modelReducer,
   shap: shapReducer,
+  lime: limeReducer,
 //  dataset: datasetReducer,
 //  build: buildReducer,
 });
