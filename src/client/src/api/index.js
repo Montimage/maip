@@ -109,6 +109,35 @@ export const requestDownloadTestingModel = async (modelId) => {
   return data;
 };
 
+export const requestXAIStatus = async () => {
+  const url = `${URL}/api/xai`;
+  const response = await fetch(url);
+  const data = await response.json();
+  if (data.error) {
+    throw data.error;
+  }
+  return data.xaiStatus;
+};
+
+export const requestRunShap = async (modelId, numberSamples, maxDisplay) => {
+  const url = `${URL}/api/xai/shap`;
+  const shapConfig = {
+    "modelId": modelId,
+    "numberSamples": numberSamples,
+    "maxDisplay": maxDisplay,
+  };
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ shapConfig }),
+  });
+  const data = await response.json();
+  console.log(`Run SHAP on server with config ${shapConfig}`);
+  return data;
+};
+
 export const requestShapValues = async (modelId) => {
   const url = `${URL}/api/xai/shap/explanations/${modelId}`;
   const response = await fetch(url);
@@ -116,6 +145,25 @@ export const requestShapValues = async (modelId) => {
   console.log(`Get SHAP values of the model ${modelId} from server`);
   console.log(shap_values);
   return shap_values;
+};
+
+export const requestRunLime = async (modelId, sampleId, numberFeature) => {
+  const url = `${URL}/api/xai/lime`;
+  const limeConfig = {
+    "modelId": modelId,
+    "sampleId": sampleId,
+    "numberFeature": numberFeature,
+  };
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ limeConfig }),
+  });
+  const data = await response.json();
+  console.log(`Run LIME on server with config ${limeConfig}`);
+  return data;
 };
 
 export const requestLimeValues = async (modelId) => {
