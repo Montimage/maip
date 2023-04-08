@@ -3,7 +3,7 @@ header {
     font-family: 'Pacifico';
     text-align: center;
     padding: 6px 24px;
-    color: #424242;
+    /* color: #424242; */
     box-shadow: 1px 1px 8px rgba(0, 0, 0, 0.1);
     position: sticky;
     top: 0;

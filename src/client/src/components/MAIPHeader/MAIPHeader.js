@@ -12,23 +12,6 @@ import "./styles.css";
 
 const { Header } = Layout;
 
-const appOptions = [
-  {
-    label: 'Activity Classification',
-    value: 'Activity Classification',
-    disabled: true,
-  },
-  {
-    label: 'Anomaly Detection',
-    value: 'Anomaly Detection',
-  },
-  {
-    label: 'Root Cause Analysis',
-    value: 'Root Cause Analysis',
-    disabled: true,
-  },
-];
-
 class MAIPHeader extends Component {
   render() {
     const menuLinks = [
@@ -56,22 +39,26 @@ class MAIPHeader extends Component {
     return (
       <Header>
         <Row>
-          <Col span={1} style={{marginRight: '400px'}}>
-            <a href="/">
-              {/* TODO: fix position of the logo */}
-              <img
-                src={'/img/Logo.png'}
-                className="logo"
-                alt="Logo"
-                style={{ maxWidth: "100px", objectFit: "contain" }}
-              />
-            </a>
-          </Col>
-          {/* TODO: make it less ugly */}
-          <Col span={7} style={{ marginRight: '1px', width: '300px' }}>
-            <Radio.Group style={{ height: '100px' }}
-              options={appOptions} optionType="button"
+          <Col span={1} style={{marginRight: '200px', marginTop: '-7px', height: '64px'}}>
+            <img
+              src={'/img/Logo.png'}
+              className="logo"
+              alt="Logo"
+              style={{ maxWidth: "100px", height: '64px', objectFit: "contain" }}
             />
+          </Col>
+          <Col span={7} style={{ marginRight: '200px', width: '250px' }}>
+            <Radio.Group defaultValue="ad" buttonStyle="solid">
+              <Radio.Button value="ac" style={{ width: '120px', height: '52px', lineHeight: '1.7' }}>
+                Activity Classification
+              </Radio.Button>
+              <Radio.Button value="ad" style={{ width: '120px', height: '52px', lineHeight: '1.7' }}>
+                Anomaly Detection
+              </Radio.Button>
+              <Radio.Button value="rca" style={{ width: '120px', height: '52px', lineHeight: '1.7' }}>
+                Root Cause Analysis
+              </Radio.Button>
+            </Radio.Group>
           </Col>
           <Col span={10}>
             <Menu theme="light" mode="horizontal" style={{ lineHeight: "52px", width: "730px" }} selectedKeys={`${selectedMenu}`}>

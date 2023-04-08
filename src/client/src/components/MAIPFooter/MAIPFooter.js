@@ -4,8 +4,8 @@ import VERSION from "../../VERSION";
 
 const { Footer } = Layout;
 const MAIPFooter = () => (
-  <Footer style={{ textAlign: "center", marginTop: "10px" }}>
-    <span style={{ display: "inline-block", textAlign: "center" }}>
+  <Footer style={{ textAlign: "center" }}>
+    <span style={{ display: "inline-block", textAlign: "center", marginTop: "8px"}}>
       MAIP©{new Date().getFullYear()} developed by{" "}
       <a href="https://www.montimage.com">Montimage</a>. Version {VERSION}
     </span>
