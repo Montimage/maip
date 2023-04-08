@@ -1,6 +1,6 @@
 import React, { Component } from "react";
 import { connect } from "react-redux";
-import { Layout, Menu, Row, Col } from "antd";
+import { Layout, Menu, Row, Col, Radio } from "antd";
 import {
   DeploymentUnitOutlined, FolderOpenOutlined, BlockOutlined, LineChartOutlined, SolutionOutlined, BugOutlined, SafetyOutlined, ExperimentOutlined
 } from "@ant-design/icons";
@@ -12,6 +12,23 @@ import "./styles.css";
 
 const { Header } = Layout;
 
+const appOptions = [
+  {
+    label: 'Activity Classification',
+    value: 'Activity Classification',
+    disabled: true,
+  },
+  {
+    label: 'Anomaly Detection',
+    value: 'Anomaly Detection',
+  },
+  {
+    label: 'Root Cause Analysis',
+    value: 'Root Cause Analysis',
+    disabled: true,
+  },
+];
+
 class MAIPHeader extends Component {
   render() {
     const menuLinks = [
@@ -21,7 +38,7 @@ class MAIPHeader extends Component {
       '/predict',
       '/xai',
       '/attacks',
-      'defenses',
+      '/defenses',
       '/metrics',
     ];
     // Calculate the selected menu
@@ -39,8 +56,9 @@ class MAIPHeader extends Component {
     return (
       <Header>
         <Row>
-          <Col span={4}>
+          <Col span={1} style={{marginRight: '400px'}}>
             <a href="/">
+              {/* TODO: fix position of the logo */}
               <img
                 src={'/img/Logo.png'}
                 className="logo"
@@ -49,8 +67,14 @@ class MAIPHeader extends Component {
               />
             </a>
           </Col>
-          <Col span={14} push={6}>
-            <Menu theme="light" mode="horizontal" style={{ lineHeight: "64px" }} selectedKeys={`${selectedMenu}`}>
+          {/* TODO: make it less ugly */}
+          <Col span={7} style={{ marginRight: '1px', width: '300px' }}>
+            <Radio.Group style={{ height: '100px' }}
+              options={appOptions} optionType="button"
+            />
+          </Col>
+          <Col span={10}>
+            <Menu theme="light" mode="horizontal" style={{ lineHeight: "52px", width: "730px" }} selectedKeys={`${selectedMenu}`}>
               <Menu.Item key="0">
                 <a href={menuLinks[0]}>
                   <DeploymentUnitOutlined />
