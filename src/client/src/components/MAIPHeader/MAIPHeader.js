@@ -47,6 +47,7 @@ class MAIPHeader extends Component {
               style={{ maxWidth: "100px", height: '64px', objectFit: "contain" }}
             />
           </Col>
+          {/* TODO: look ugly if the browser is small */}
           <Col span={7} style={{ marginRight: '200px', width: '250px' }}>
             <Radio.Group defaultValue="ad" buttonStyle="solid">
               <Radio.Button value="ac" style={{ width: '120px', height: '52px', lineHeight: '1.7' }}>

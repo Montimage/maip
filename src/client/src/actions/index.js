@@ -18,13 +18,14 @@ export const setModel = createAction('SET_MODEL');
 export const requestDownloadDatasetModel = createAction('REQUEST_DOWNLOAD_DATASET_MODEL');
 export const setDataset = createAction('SET_DATASET');
 
-export const requestRunShap = createAction('REQUEST_RUN_SHAP');
-export const requestRunLime = createAction('REQUEST_RUN_LIME');
 export const requestXAIStatus = createAction('REQUEST_XAI_STATUS');
 export const setXAIStatus = createAction('SET_XAI_STATUS');
 
+export const requestRunShap = createAction('REQUEST_RUN_SHAP');
 export const requestShapValues = createAction('REQUEST_SHAP_VALUES');
 export const setShapValues = createAction('SET_SHAP_VALUES');
+
+export const requestRunLime = createAction('REQUEST_RUN_LIME');
 export const requestLimeValues = createAction('REQUEST_LIME_VALUES');
 export const setLimeValues = createAction('SET_LIME_VALUES');
 
