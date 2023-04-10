@@ -4,6 +4,12 @@ import {createAction } from 'redux-act';
 export const setNotification = createAction('SET_NOTIFICATION');
 export const resetNotification = createAction('RESET_NOTIFICATION');
 
+export const requestBuildModel = createAction('REQUEST_BUILD_MODEL');
+export const requestRetrainModel = createAction('REQUEST_RETRAIN_MODEL');
+export const setBuildModel = createAction('SET_BUILD_MODEL');
+export const requestBuildStatus = createAction('REQUEST_BUILD_STATUS');
+export const setBuildStatus = createAction('SET_BUILD_STATUS');
+
 // All models
 export const requestAllModels = createAction('REQUEST_ALL_MODELS');
 export const setAllModels = createAction('SET_ALL_MODELS');
@@ -28,7 +34,3 @@ export const setShapValues = createAction('SET_SHAP_VALUES');
 export const requestRunLime = createAction('REQUEST_RUN_LIME');
 export const requestLimeValues = createAction('REQUEST_LIME_VALUES');
 export const setLimeValues = createAction('SET_LIME_VALUES');
-
-//export const requestBuildModel = createAction('REQUEST_BUILD_MODEL');
-//export const requestRetrainModel = createAction('REQUEST_RETRAIN_MODEL');
-//export const setBuild = createAction('SET_BUILD');

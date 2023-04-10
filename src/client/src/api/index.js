@@ -174,3 +174,34 @@ export const requestLimeValues = async (modelId) => {
   console.log(lime_values);
   return lime_values;
 };
+
+export const requestBuildStatus = async () => {
+  const url = `${URL}/api/build`;
+  const response = await fetch(url);
+  const data = await response.json();
+  if (data.error) {
+    throw data.error;
+  }
+  return data.buildStatus;
+};
+
+export const requestBuildModel = async (datasets, totalSamples, ratio, params) => {
+  const url = `${URL}/api/build`;
+  const buildConfig = {
+    "datasets": datasets,
+    "total_samples": totalSamples,
+    "training_ratio": ratio,
+    "training_parameters": params,
+  };
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ buildConfig }),
+  });
+  console.log(buildConfig);
+  const data = await response.json();
+  console.log(`Build a model on server with config ${buildConfig}`);
+  return data;
+};
