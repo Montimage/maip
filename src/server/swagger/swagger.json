@@ -807,6 +807,53 @@
                 }
             }
         },    
+        "/retrain/{modelName}": {
+            "post": {
+                "tags": [
+                    "models"
+                ],
+                "summary": "Retraining a model using different training datasets",
+                "description": "Request retraining a model",
+                "operationId": "requestRetrainAModel",
+                "parameters": [
+                    {
+                        "name": "modelName",
+                        "in": "path",
+                        "description": "Name of the model file to return",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "example": "3c6e4cb4-9b74-40c8-8f4a-132c9d5e4ace.h5"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/retrainConfig1"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/retrainStatus"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to process retraining a model"
+                    }
+                }
+            }
+        },
         "/models/": {
             "get": {
                 "tags": [
@@ -2063,6 +2110,45 @@
                                 "type": "string",
                                 "example": "e0a0588e-96c4-4fdf-9237-a8e94a6f5ffe.h5"
                             },
+                            "trainingDataset": {
+                                "type": "string",
+                                "example": "/tmp/Botnet_Train.csv"
+                            },
+                            "testingDataset": {
+                                "type": "string",
+                                "example": "/tmp/Botnet_Test.csv"
+                            },
+                            "training_parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "nb_epoch_cnn":{
+                                        "type":"number",
+                                        "example": 2
+                                    },
+                                    "nb_epoch_sae":{
+                                        "type":"number",
+                                        "example": 5
+                                    },
+                                    "batch_size_cnn":{
+                                        "type":"number",
+                                        "example": 32
+                                    },
+                                    "batch_size_sae":{
+                                        "type":"number",
+                                        "example": 16
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "retrainConfig1": {
+                "type": "object",
+                "properties":{
+                    "retrainConfig1":{
+                        "type": "object",
+                        "properties": {
                             "trainingDataset": {
                                 "type": "string",
                                 "example": "/tmp/Botnet_Train.csv"
