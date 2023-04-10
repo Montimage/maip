@@ -206,9 +206,7 @@ class XAIPage extends Component {
                     onClick={() => {
                       console.log([modelId, sampleId, numberSamples, maxDisplay]);
                       this.props.fetchRunShap(
-                        modelId,
-                        numberSamples,
-                        maxDisplay,
+                        modelId, numberSamples, maxDisplay,
                       );
                     }}
                     >SHAP Explain
@@ -240,9 +238,7 @@ class XAIPage extends Component {
                     onClick={() => {
                       console.log([modelId, sampleId, numberSamples, maxDisplay]);
                       this.props.fetchRunLime(
-                        modelId,
-                        sampleId,
-                        maxDisplay,
+                        modelId, sampleId, maxDisplay,
                       );
                     }}
                     >LIME Explain
@@ -318,9 +314,7 @@ class XAIPage extends Component {
                     onClick={() => {
                       console.log([modelId, sampleId, numberSamples, maxDisplay]);
                       this.props.fetchRunShap(
-                        modelId,
-                        numberSamples,
-                        maxDisplay,
+                        modelId, numberSamples, maxDisplay,
                       );
                     }}
                     >SHAP Explain
@@ -341,9 +335,7 @@ class XAIPage extends Component {
                     onClick={() => {
                       console.log([modelId, sampleId, numberSamples, maxDisplay]);
                       this.props.fetchRunLime(
-                        modelId,
-                        sampleId,
-                        maxDisplay,
+                        modelId, sampleId, maxDisplay,
                       );
                     }}
                     >LIME Explain

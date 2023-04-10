@@ -37,6 +37,7 @@ function App() {
             <Route path="/models/:modelId" element={<ModelPage />}/> 
             <Route path="/models/:modelId/build-config" element={<ModelPage />}/>
             <Route path="/build" element={<BuildPage />}/>
+            <Route path="/retrain/:modelId" element={<RetrainPage />}/>
             <Route path="/models/:modelId/confusion-matrix" element={<ModelPage />}/>
             <Route path="/models/:modelId/datasets/training" element={<DatasetPage />}/>
             <Route path="/models/:modelId/datasets/testing" element={<DatasetPage />}/>

@@ -9,7 +9,7 @@ import {
 
 
 export default createReducer({
-    [setShapValues]: produce((draft, shap_values) => (draft = shap_values)),
+    [setShapValues]: produce((draft, shapValues) => (draft = shapValues)),
   },
   []
 );

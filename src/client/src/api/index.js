@@ -205,3 +205,23 @@ export const requestBuildModel = async (datasets, totalSamples, ratio, params) =
   console.log(`Build a model on server with config ${buildConfig}`);
   return data;
 };
+
+export const requestRetrainModel = async (modelId, trainingDataset, testingDataset, params) => {
+  const url = `${URL}/api/retrain/${modelId}`;
+  const retrainConfig1 = {
+    "trainingDataset": trainingDataset,
+    "testingDataset": testingDataset,
+    "training_parameters": params,
+  };
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ retrainConfig1 }),
+  });
+  console.log(retrainConfig1);
+  const data = await response.json();
+  console.log(`Retrain a model on server with config ${retrainConfig1}`);
+  return data;
+};

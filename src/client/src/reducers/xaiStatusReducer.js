@@ -2,5 +2,5 @@ import { createReducer } from 'redux-act';
 import { setXAIStatus } from '../actions';
 
 export default createReducer({
-  [setXAIStatus] : (state, status) => status
+  [setXAIStatus] : (state, xaiStatus) => xaiStatus
 }, false);

@@ -7,6 +7,7 @@ import {
 
 import {
   requestBuildModel,
+  requestRetrainModel,
 } from '../api';
 import {
   setNotification,
@@ -28,8 +29,24 @@ function* handleRequestBuildModel(action) {
   }
 }
 
+function* handleRequestRetrainModel(action) {
+  try {
+    const { modelId, trainingDataset, testingDataset, params } = action.payload;
+    const retrainStatus = yield call(() => requestRetrainModel(
+      modelId, trainingDataset, testingDataset, params));
+    console.log(retrainStatus);
+    yield put(setBuildStatus(retrainStatus));
+    yield put(setNotification({type: 'success', message: `Retrain a model!`}));
+    // dispatch data
+  } catch (error) {
+    // dispatch error
+    yield put(setNotification({type: 'error', message: error}));
+  }
+}
+
 function* watchDatasets() {
   yield takeEvery('REQUEST_BUILD_MODEL', handleRequestBuildModel);
+  yield takeEvery('REQUEST_RETRAIN_MODEL', handleRequestRetrainModel);
 }
 
 export default watchDatasets;

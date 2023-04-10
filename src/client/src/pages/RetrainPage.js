@@ -5,7 +5,7 @@ import { connect } from "react-redux";
 import { Button, InputNumber, Space, Form, Input, Select, Checkbox } from 'antd';
 import { Collapse } from 'antd';
 import {
-  requestBuildModel,
+  requestRetrainModel,
   requestBuildStatus,
 } from "../actions";
 
@@ -20,15 +20,13 @@ const layout = {
   },
 };
 
-class BuildPage extends Component {
+class RetrainPage extends Component {
   constructor(props) {
     super(props);
     this.state = {
-      attackDataset: "",
-      normalDataset: "",
-      total_samples: 10000,
-      training_ratio: 0.7,
-      training_parameters: {
+      trainingDataset: "",
+      testingDataset: "",
+      trainingParameters: {
         nb_epoch_cnn: 2,
         nb_epoch_sae: 5,
         batch_size_cnn: 32,
@@ -36,38 +34,32 @@ class BuildPage extends Component {
       },
     };
     this.handleInputChange = this.handleInputChange.bind(this);
-    this.handleButtonBuild = this.handleButtonBuild.bind(this);
+    this.handleButtonRetrain = this.handleButtonRetrain.bind(this);
   }
 
   componentDidMount() {
-    this.props.fetchBuildModel();
+    this.props.fetchRetrainModel();
     this.props.fetchBuildStatus();
   }
 
-  handleButtonBuild(values) {
+  handleButtonRetrain(values) {
+    const modelId = getLastPath();
+    console.log(modelId);
     const { 
-      attackDataset, 
-      normalDataset, 
-      total_samples, 
-      training_ratio, 
-      training_parameters,
+      trainingDataset, 
+      testingDataset, 
+      trainingParameters,
     } = this.state;
 
-    const datasets = [
-      { datasetId: attackDataset, isAttack: true },
-      { datasetId: normalDataset, isAttack: false },
-    ];
-
-    const buildConfig = {
-      buildConfig: {
-        datasets,
-        total_samples,
-        training_ratio,
-        training_parameters,
+    const retrainConfig = {
+      retrainConfig: {
+        modelId: modelId,
+        trainingDataset,
+        testingDataset,
+        training_parameters: trainingParameters,
       }
     };
-    //console.log(this.state);
-    console.log(buildConfig);
+    console.log(retrainConfig);
   }
 
   handleInputChange = (event) => {
@@ -78,77 +70,43 @@ class BuildPage extends Component {
   };
 
   render() {
+    const modelId = getLastPath();
     return (
-      <LayoutPage pageTitle="Build Page" pageSubTitle="">
+      <LayoutPage pageTitle="Retrain Page" pageSubTitle={`Retrain model ${modelId}`}>
         <Form
           {...layout}
           style={{
             maxWidth: 700,
           }}>
           <Form.Item
-            label="Attack Dataset"
-            name="attackDataset"
+            label="Training Dataset"
+            name="trainingDataset"
             rules={[
               {
                 required: true,
-                message: 'Please enter an attack dataset!',
+                message: 'Please enter a training dataset!',
               },
             ]}
           >
             <Input
-              name="attackDataset"
-              value={this.state.attackDataset}
+              name="trainingDataset"
+              value={this.state.trainingDataset}
               onChange={this.handleInputChange}
             />
           </Form.Item>
           <Form.Item
-            label="Normal Dataset"
-            name="normalDataset"
+            label="Testing Dataset"
+            name="testingDataset"
             rules={[
               {
                 required: true,
-                message: 'Please enter a normal dataset!',
+                message: 'Please enter a testing dataset!',
               },
             ]}
           >
             <Input
-              name="normalDataset"
-              value={this.state.normalDataset}
-              onChange={this.handleInputChange}
-            />
-          </Form.Item>
-          <Form.Item
-            label="Total Samples"
-            name="total_samples"
-            /* TODO: message is still appeared even with defaultValue */
-            /* rules={[
-              {
-                required: true,
-                message: 'Please enter total samples!',
-              },
-            ]} */
-          >
-            <InputNumber
-              name="total_samples"
-              value={this.state.total_samples}
-              min={1} defaultValue={10000}
-              onChange={this.handleInputChange}
-            />
-          </Form.Item>
-          <Form.Item
-            label="Training Ratio"
-            name="training_ratio"
-            /* rules={[
-              {
-                required: true,
-                message: 'Please enter training ratio!',
-              },
-            ]} */
-          >
-            <InputNumber
-              name="training_ratio"
-              value={this.state.training_ratio}
-              min={0} max={1} step={0.1} defaultValue={0.7}
+              name="testingDataset"
+              value={this.state.testingDataset}
               onChange={this.handleInputChange}
             />
           </Form.Item>
@@ -164,7 +122,7 @@ class BuildPage extends Component {
                   min={1} max={1000} defaultValue={2}
                   onChange={(v) =>
                     this.setState({
-                      training_parameters: { ...this.state.training_parameters, nb_epoch_cnn: v },
+                      trainingParameters: { ...this.state.trainingParameters, nb_epoch_cnn: v },
                     })
                   }
                 />
@@ -179,7 +137,7 @@ class BuildPage extends Component {
                   min={1} max={1000} defaultValue={5}
                   onChange={(v) =>
                     this.setState({
-                      training_parameters: { ...this.state.training_parameters, nb_epoch_sae: v },
+                      trainingParameters: { ...this.state.trainingParameters, nb_epoch_sae: v },
                     })
                   }
                 />
@@ -194,7 +152,7 @@ class BuildPage extends Component {
                   min={1} max={1000} defaultValue={32}
                   onChange={(v) =>
                     this.setState({
-                      training_parameters: { ...this.state.training_parameters, batch_size_cnn: v },
+                      trainingParameters: { ...this.state.trainingParameters, batch_size_cnn: v },
                     })
                   }
                 />
@@ -209,7 +167,7 @@ class BuildPage extends Component {
                   min={1} max={1000} defaultValue={16}
                   onChange={(v) =>
                     this.setState({
-                      training_parameters: { ...this.state.training_parameters, batch_size_sae: v },
+                      trainingParameters: { ...this.state.trainingParameters, batch_size_sae: v },
                     })
                   }
                 />
@@ -219,23 +177,18 @@ class BuildPage extends Component {
           <div style={{ textAlign: 'center' }}>
             <Button
               onClick={() => {
-                this.handleButtonBuild(this.state);
-                const { 
-                  attackDataset, 
-                  normalDataset, 
-                  total_samples, 
-                  training_ratio, 
-                  training_parameters,
+                this.handleButtonRetrain(this.state);
+                const {
+                  trainingDataset, 
+                  testingDataset, 
+                  trainingParameters,
                 } = this.state;
-            
-                const datasets = [
-                  { datasetId: attackDataset, isAttack: true },
-                  { datasetId: normalDataset, isAttack: false },
-                ];
-                this.props.fetchBuildModel(datasets, total_samples, training_ratio, training_parameters);
+                this.props.fetchRetrainModel(
+                  modelId, trainingDataset, testingDataset, trainingParameters,
+                );
               }}
             >
-              Build model
+              Retrain model
             </Button>
           </div>
         </Form>
@@ -250,8 +203,8 @@ const mapPropsToStates = ({ build }) => ({
 
 const mapDispatchToProps = (dispatch) => ({
   fetchBuildStatus: () => dispatch(requestBuildStatus()),
-  fetchBuildModel: (datasets, totalSamples, ratio, params) =>
-    dispatch(requestBuildModel({ datasets, totalSamples, ratio, params })),
+  fetchRetrainModel: (modelId, trainingDataset, testingDataset, params) =>
+    dispatch(requestRetrainModel({ modelId, trainingDataset, testingDataset, params })),
 });
 
-export default connect(mapPropsToStates, mapDispatchToProps)(BuildPage);
+export default connect(mapPropsToStates, mapDispatchToProps)(RetrainPage);
