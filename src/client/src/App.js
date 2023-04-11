@@ -16,9 +16,11 @@ import ModelPage from "./pages/ModelPage";
 import DatasetPage from "./pages/DatasetPage";
 import BuildPage from "./pages/BuildPage";
 import RetrainPage from "./pages/RetrainPage";
-import DummyPage from "./pages/DummyPage";
+//import DummyPage from "./pages/DummyPage";
 import XAIPage from "./pages/XAIPage";
 import XAIModelPage from "./pages/XAIModelPage";
+
+import HistogramPage from "./pages/HistogramPage";
 
 function App() {
   return (
@@ -39,10 +41,10 @@ function App() {
             <Route path="/build" element={<BuildPage />}/>
             <Route path="/retrain/:modelId" element={<RetrainPage />}/>
             <Route path="/models/:modelId/confusion-matrix" element={<ModelPage />}/>
-            <Route path="/models/:modelId/datasets/training" element={<DatasetPage />}/>
-            <Route path="/models/:modelId/datasets/testing" element={<DatasetPage />}/>
+            <Route path="/datasets" element={<DatasetPage />}/>
             <Route path="/xai/" element={<XAIPage />}/>
             <Route path="/xai/:modelId" element={<XAIModelPage />}/>
+            <Route path="/dumb" element={<HistogramPage />}/>
           </Routes>
           <MAIPFooter />
         </Layout>
