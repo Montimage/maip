@@ -139,12 +139,12 @@ export const requestRunShap = async (modelId, numberSamples, maxDisplay) => {
 };
 
 export const requestShapValues = async (modelId) => {
-  const url = `${URL}/api/xai/shap/explanations/${modelId}`;
+  const url = `${URL}/api/xai/shap/importance-values/${modelId}`;
   const response = await fetch(url);
-  const shap_values = await response.json();
+  const shapValues = await response.json();
   console.log(`Get SHAP values of the model ${modelId} from server`);
-  console.log(JSON.stringify(shap_values));
-  return shap_values;
+  console.log(JSON.stringify(shapValues));
+  return shapValues;
 };
 
 export const requestRunLime = async (modelId, sampleId, numberFeature) => {
@@ -167,12 +167,13 @@ export const requestRunLime = async (modelId, sampleId, numberFeature) => {
 };
 
 export const requestLimeValues = async (modelId) => {
+  //const url = `${URL}/api/xai/lime/importance-values/${modelId}`;
   const url = `${URL}/api/xai/lime/explanations/${modelId}`;
   const response = await fetch(url);
-  const lime_values = await response.json();
+  const limeValues = await response.json();
   console.log(`Get LIME values of the model ${modelId} from server`);
-  console.log(JSON.stringify(lime_values));
-  return lime_values;
+  console.log(JSON.stringify(limeValues));
+  return limeValues;
 };
 
 export const requestBuildStatus = async () => {

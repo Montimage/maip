@@ -33,7 +33,7 @@ let intervalXAI;
 
 const downloadShapImage = () => { barShap?.downloadImage(); };
 const downloadLimeImage = () => { barLime?.downloadImage(); };
-const toDataURL = () => { console.log(barShap?.toDataURL()); };
+//const toDataURL = () => { console.log(barShap?.toDataURL()); };
 
 const onFinish = (values) => {
   console.log(values);
@@ -114,13 +114,13 @@ class XAIPage extends Component {
       maskedFeatures,
     } = this.state;
     const {
-      shap, 
-      lime,
+      shapValues, 
+      limeValues,
       xaiStatus, 
     } = this.props;
     console.log(xaiStatus);
 
-    const features = shap.map(obj => obj.feature).sort();
+    const features = shapValues.map(obj => obj.feature).sort();
     console.log(features);
     const selectFeaturesOptions = features.map((label, index) => ({
       value: label, label,
@@ -130,21 +130,22 @@ class XAIPage extends Component {
     if (!xaiStatus.isRunning) {
       //clearInterval(intervalXAI);
       //setInterval(null);
-      const sortedLime = lime.slice().sort((a, b) => b.value - a.value);
-      const notZeroSortedLime = sortedLime.filter(d => d.value !== 0);
-      const filteredLime = notZeroSortedLime.filter((d) => {
+      const sortedValuesLime = limeValues.slice().sort((a, b) => b.value - a.value);
+      const notZeroSortedValuesLime = sortedValuesLime.filter(d => d.value !== 0);
+      const filteredValuesLime = notZeroSortedValuesLime.filter((d) => {
         if (d.value > 0 && positiveChecked) return true;
         if (d.value < 0 && negativeChecked) return true;
         return false;
       });
-      const filteredMaskedLime = filteredLime.filter(obj => 
+
+      const filteredMaskedValuesLime = filteredValuesLime.filter(obj => 
         !maskedFeatures.some(feature => obj.feature.includes(feature)));
-      //console.log(filteredMaskedLime);
-      const filteredMaskedShap = shap.filter(obj => 
+      //console.log(filteredMaskedValuesLime);
+      const filteredMaskedShap = shapValues.filter(obj => 
         !maskedFeatures.some(feature => obj.feature.includes(feature)));
       //console.log(filteredMaskedShap);
 
-      const shapBarConfig = {
+      const shapValuesBarConfig = {
         data: filteredMaskedShap.slice(0, maxDisplay),
         isStack: true,
         xField: 'importance_value',
@@ -154,8 +155,8 @@ class XAIPage extends Component {
         geometry: 'interval',
         interactions: [{ type: 'zoom' }],
       }; 
-      const limeBarConfig = {
-        data: filteredMaskedLime.slice(0, maxDisplay),
+      const limeValuesBarConfig = {
+        data: filteredMaskedValuesLime.slice(0, maxDisplay),
         isStack: true,
         xField: 'value',
         yField: 'feature',
@@ -167,8 +168,8 @@ class XAIPage extends Component {
         },
         meta: {
           value: {
-            min: Math.min(...filteredLime.map((d) => d.value)),
-            max: Math.max(...filteredLime.map((d) => d.value))
+            min: Math.min(...filteredMaskedValuesLime.map((d) => d.value)),
+            max: Math.max(...filteredMaskedValuesLime.map((d) => d.value))
           }
         },
         geometry: 'interval',
@@ -266,7 +267,7 @@ class XAIPage extends Component {
                   Get base64
                 </button> */}
                 &nbsp;&nbsp;&nbsp;
-                <Bar {...shapBarConfig} onReady={(bar) => (barShap = bar)}/>
+                <Bar {...shapValuesBarConfig} onReady={(bar) => (barShap = bar)}/>
               </div>
             </Col>
             <Col className="gutter-row" span={12}>
@@ -307,7 +308,7 @@ class XAIPage extends Component {
                   Get base64
                 </button> */}
                 &nbsp;&nbsp;&nbsp;
-                <Bar {...limeBarConfig} onReady={(bar) => (barLime = bar)}/>
+                <Bar {...limeValuesBarConfig} onReady={(bar) => (barLime = bar)}/>
               </div>
             </Col>
           </Row>
@@ -405,8 +406,8 @@ class XAIPage extends Component {
   }
 }
 
-const mapPropsToStates = ({ shap, lime, xaiStatus }) => ({
-  shap, lime, xaiStatus,
+const mapPropsToStates = ({ shapValues, limeValues, xaiStatus }) => ({
+  shapValues, limeValues, xaiStatus,
 });
 
 const mapDispatchToProps = (dispatch) => ({

@@ -58,8 +58,10 @@ def running_lime(sampleId, numberFeatures):
                                                   feature_names=xai_features, kernel_width=None, discretize_continuous=True)
   explanation = explainer.explain_instance(x_test[idx], model.predict, labels=(0,), num_features=int(numberFeatures))
   full_explanation = explainer.explain_instance(x_test[idx], model.predict, labels=(0,), num_features=len(xai_features))
-  full_lime_values = full_explanation.as_list(label=0)
-  print(full_lime_values)
+  full_lime_exps = full_explanation.as_list(label=0)
+  print(full_lime_exps)
+  full_lime_values = full_explanation.as_map()
+  print(full_lime_values[0])
 
   #plt.tight_layout()
   #plt.figure(figsize=(15,10))
@@ -73,17 +75,24 @@ def running_lime(sampleId, numberFeatures):
   #sorted_feature_vals = sorted(list(zip(xai_features,sum(vals))), key = lambda x: x[1], reverse=True)
   #features_to_display = [dict(zip(columns, row)) for row in sorted_feature_vals][:int(maxDisplay)]
   # dump full values and process maxDisplay later ?
-  features_to_display = [dict(zip(columns, row)) for row in full_lime_values]
-  print(json.dumps(features_to_display, indent=2, ensure_ascii=False))
+  exps_to_display = [dict(zip(columns, row)) for row in full_lime_exps]
+  print(json.dumps(exps_to_display, indent=2, ensure_ascii=False))
+  values_to_display = [{"feature": xai_features[x], "value": y} for x, y in full_lime_values[0]]
+  print(json.dumps(values_to_display, indent=2, ensure_ascii=False))
 
   explanations_path = deepLearningPath + '/xai/' + model_name
   if not os.path.exists(explanations_path):
     os.makedirs(explanations_path) 
 
-  jsonfile = os.path.join(explanations_path, 'lime_values.json')
-  print(jsonfile)
-  with open(jsonfile, "w") as outfile:
-    json.dump(features_to_display, outfile)
+  exps_file = os.path.join(explanations_path, 'lime_explanations.json')
+  print(exps_file)
+  with open(exps_file, "w") as outfile:
+    json.dump(exps_to_display, outfile)
+  
+  values_file = os.path.join(explanations_path, 'lime_values.json')
+  print(values_file)
+  with open(values_file, "w") as outfile:
+    json.dump(values_to_display, outfile)
 
   explanations_path = deepLearningPath + '/xai/' + model_name
   if not os.path.exists(explanations_path):

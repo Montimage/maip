@@ -20,9 +20,9 @@ import {
 function* handleRequestLimeValues(action) {
   try {
     const modelId = action.payload;
-    const lime_values = yield call(() => requestLimeValues(modelId));
+    const limeValues = yield call(() => requestLimeValues(modelId));
     //console.log(lime_values);
-    yield put(setLimeValues(lime_values));
+    yield put(setLimeValues(limeValues));
     // dispatch data
   } catch (error) {
     // dispatch error
