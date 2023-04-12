@@ -2,8 +2,8 @@ import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
 import { getLastPath } from "../utils";
-import { Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Space } from 'antd';
-import { RedoOutlined, UserOutlined, DownloadOutlined, QuestionOutlined } from "@ant-design/icons";
+import { Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select } from 'antd';
+import { UserOutlined, DownloadOutlined, QuestionOutlined } from "@ant-design/icons";
 import { Bar } from '@ant-design/plots';
 import {
   requestRunShap,
@@ -12,8 +12,6 @@ import {
   requestShapValues,
   requestLimeValues,
 } from "../actions";
-
-const { Option } = Select;
 
 const style = {
   //background: '#0092ff',
@@ -54,9 +52,11 @@ class XAIPage extends Component {
       maxDisplay: 30,
       positiveChecked: true,
       negativeChecked: true,
+      maskedFeatures: [],
     };
     this.handleRandomClick = this.handleRandomClick.bind(this);
     this.handleContributionsChange = this.handleContributionsChange.bind(this);
+    this.handleMaskedFeatures = this.handleMaskedFeatures.bind(this);
   }
 
   onSliderChange(newVal) {
@@ -83,8 +83,9 @@ class XAIPage extends Component {
     this.setState({ positiveChecked, negativeChecked });
   };
 
-  handleMaskedFeatures(value){
-    console.log(`selected ${value}`);
+  handleMaskedFeatures(values){
+    console.log(`Masked features ${values}`);
+    this.setState({ maskedFeatures: values });
   };
 
   componentDidMount() {
@@ -110,6 +111,7 @@ class XAIPage extends Component {
       maxDisplay, 
       positiveChecked,
       negativeChecked,
+      maskedFeatures,
     } = this.state;
     const {
       shap, 
@@ -118,7 +120,8 @@ class XAIPage extends Component {
     } = this.props;
     console.log(xaiStatus);
 
-    const features = shap.map(obj => obj.feature);
+    const features = shap.map(obj => obj.feature).sort();
+    console.log(features);
     const selectFeaturesOptions = features.map((label, index) => ({
       value: label, label,
     }));
@@ -134,9 +137,15 @@ class XAIPage extends Component {
         if (d.value < 0 && negativeChecked) return true;
         return false;
       });
+      const filteredMaskedLime = filteredLime.filter(obj => 
+        !maskedFeatures.some(feature => obj.feature.includes(feature)));
+      //console.log(filteredMaskedLime);
+      const filteredMaskedShap = shap.filter(obj => 
+        !maskedFeatures.some(feature => obj.feature.includes(feature)));
+      //console.log(filteredMaskedShap);
 
       const shapBarConfig = {
-        data: shap.slice(0, maxDisplay),
+        data: filteredMaskedShap.slice(0, maxDisplay),
         isStack: true,
         xField: 'importance_value',
         yField: 'feature',
@@ -146,7 +155,7 @@ class XAIPage extends Component {
         interactions: [{ type: 'zoom' }],
       }; 
       const limeBarConfig = {
-        data: filteredLime.slice(0, maxDisplay),
+        data: filteredMaskedLime.slice(0, maxDisplay),
         isStack: true,
         xField: 'value',
         yField: 'feature',
