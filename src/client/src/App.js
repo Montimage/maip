@@ -13,6 +13,7 @@ import MAIPHeader from "./components/MAIPHeader";
 import MAIPFooter from "./components/MAIPFooter";
 import ModelListPage from "./pages/ModelListPage";
 import ModelPage from "./pages/ModelPage";
+import DatasetListPage from "./pages/DatasetListPage";
 import DatasetPage from "./pages/DatasetPage";
 import BuildPage from "./pages/BuildPage";
 import RetrainPage from "./pages/RetrainPage";
@@ -41,7 +42,8 @@ function App() {
             <Route path="/build" element={<BuildPage />}/>
             <Route path="/retrain/:modelId" element={<RetrainPage />}/>
             <Route path="/models/:modelId/confusion-matrix" element={<ModelPage />}/>
-            <Route path="/datasets" element={<DatasetPage />}/>
+            <Route path="/datasets" element={<DatasetListPage />}/>
+            <Route path="/datasets/:datasetId" element={<DatasetPage />}/>
             <Route path="/xai/" element={<XAIPage />}/>
             <Route path="/xai/:modelId" element={<XAIModelPage />}/>
             <Route path="/dumb" element={<HistogramPage />}/>
@@ -53,15 +55,5 @@ function App() {
   );
 }
 
-/* 
-<Route path="/models/:modelId" element={<ModelPage />}/>
-<Route path="/models/:modelId/build-config" element={<ModelPage />}/>
-<Route path="/models/:modelId/download" element={<ModelPage />}/>
-<Route path="/models/:modelId/confusion-matrix" element={<ModelPage />}/>
-<Route path="/build" element={<BuildPage />}/>
-<Route path="/retrain" element={<RetrainPage />}/> 
-<Route path="/models/:modelId/datasets/training" element={<DatasetPage />}/>
-<Route path="/models/:modelId/datasets/testing" element={<DatasetPage />}/>
-*/
 
 export default App;

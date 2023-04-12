@@ -2,8 +2,8 @@ import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
 import { getLastPath } from "../utils";
-import { Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select } from 'antd';
-import { RedoOutlined, UserOutlined, DownloadOutlined } from "@ant-design/icons";
+import { Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Space } from 'antd';
+import { RedoOutlined, UserOutlined, DownloadOutlined, QuestionOutlined } from "@ant-design/icons";
 import { Bar } from '@ant-design/plots';
 import {
   requestRunShap,
@@ -12,6 +12,8 @@ import {
   requestShapValues,
   requestLimeValues,
 } from "../actions";
+
+const { Option } = Select;
 
 const style = {
   //background: '#0092ff',
@@ -81,6 +83,10 @@ class XAIPage extends Component {
     this.setState({ positiveChecked, negativeChecked });
   };
 
+  handleMaskedFeatures(value){
+    console.log(`selected ${value}`);
+  };
+
   componentDidMount() {
     let modelId = getLastPath();
     console.log(modelId);
@@ -111,6 +117,11 @@ class XAIPage extends Component {
       xaiStatus, 
     } = this.props;
     console.log(xaiStatus);
+
+    const features = shap.map(obj => obj.feature);
+    const selectFeaturesOptions = features.map((label, index) => ({
+      value: label, label,
+    }));
 
     /* TODO: wait for the XAI method process finishes and auto display new plots? */
     if (!xaiStatus.isRunning) {
@@ -167,7 +178,8 @@ class XAIPage extends Component {
           }}
           >
             {/* TODO: display value of slider (really need?), space between Slide and Checkbox is large? */}
-            <Form.Item name="slider" label="Features to display" style={{ marginBottom: 10 }}>
+            <Form.Item name="slider" label="Features to display" 
+              style={{ marginBottom: 10 }}>
               <Slider
                 marks={{
                   1: '1',
@@ -183,12 +195,26 @@ class XAIPage extends Component {
                 onChange={(value) => this.onSliderChange(value)}
               />
             </Form.Item>
-            <Form.Item name="checkbox" label="Contributions to display" style={{ flex: 'none', marginBottom: 10 }}>
+            <Form.Item name="checkbox" label="Contributions to display" 
+              style={{ flex: 'none', marginBottom: 10 }}>
               <Checkbox.Group 
                 options={['Positive', 'Negative']}
                 /* TODO: checked values did not display correctly */
                 /* defaultValue={['Positive', 'Negative']} */
                 onChange={this.handleContributionsChange} 
+              />
+            </Form.Item>
+            <Form.Item name="select" label="Features to mask" 
+              style={{ flex: 'none', marginBottom: 10 }}>
+              <Select
+                mode="multiple"
+                style={{
+                  width: '100%',
+                }}
+                placeholder="Select a feature"
+                onChange={this.handleMaskedFeatures}
+                optionLabelProp="label"
+                options={selectFeaturesOptions}
               />
             </Form.Item>
           </Form>
@@ -214,14 +240,23 @@ class XAIPage extends Component {
                 </div>  
               </Form.Item>
               <div style={style}>
-                <h2>&nbsp;&nbsp;&nbsp;Feature Importance</h2>
-                <Button type="button" icon={<DownloadOutlined />} 
-                  onClick={downloadLimeImage} 
-                  style={{ marginLeft: 10, marginRight: 24, marginBottom: 15 }}
-                />
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <h2>&nbsp;&nbsp;&nbsp;Feature Importance</h2>
+                  <Button type="button" icon={<DownloadOutlined />}
+                    style={{ marginLeft: '30rem' }}
+                    titleDelay={50}
+                    title="Download plot as png" 
+                    onClick={downloadShapImage} 
+                  />
+                  <Button type="button" icon={<QuestionOutlined />}
+                    titleDelay={50}
+                    title="Feature importance plot displays the sum of individual contributions, computed on the complete dataset."
+                  />
+                </div>
                 {/* <button type="button" onClick={toDataURL}>
                   Get base64
                 </button> */}
+                &nbsp;&nbsp;&nbsp;
                 <Bar {...shapBarConfig} onReady={(bar) => (barShap = bar)}/>
               </div>
             </Col>
@@ -245,13 +280,24 @@ class XAIPage extends Component {
                   </Button>
                 </div>  
               </Form.Item>
-              
               <div style={style}>
-                <h2>&nbsp;&nbsp;&nbsp;Local Explanation - Sample ID {sampleId}</h2>
-                <Button type="button" icon={<DownloadOutlined />} 
-                  onClick={downloadLimeImage} 
-                  style={{ marginLeft: 10, marginRight: 24, marginBottom: 15 }}
-                />
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <h2>&nbsp;&nbsp;&nbsp;Local Explanation - Sample ID {sampleId}</h2>
+                  <Button type="button" icon={<DownloadOutlined />}
+                    style={{ marginLeft: '22rem' }}
+                    titleDelay={50}
+                    title="Download plot as png" 
+                    onClick={downloadLimeImage} 
+                  />
+                  <Button type="button" icon={<QuestionOutlined />}
+                    titleDelay={50}
+                    title="Local interpretability plot displays each most important feature's contributions for this specific sample."
+                  />
+                </div>
+                {/* <button type="button" onClick={toDataURL}>
+                  Get base64
+                </button> */}
+                &nbsp;&nbsp;&nbsp;
                 <Bar {...limeBarConfig} onReady={(bar) => (barLime = bar)}/>
               </div>
             </Col>

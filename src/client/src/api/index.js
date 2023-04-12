@@ -143,7 +143,7 @@ export const requestShapValues = async (modelId) => {
   const response = await fetch(url);
   const shap_values = await response.json();
   console.log(`Get SHAP values of the model ${modelId} from server`);
-  console.log(shap_values);
+  console.log(JSON.stringify(shap_values));
   return shap_values;
 };
 
@@ -171,7 +171,7 @@ export const requestLimeValues = async (modelId) => {
   const response = await fetch(url);
   const lime_values = await response.json();
   console.log(`Get LIME values of the model ${modelId} from server`);
-  console.log(lime_values);
+  console.log(JSON.stringify(lime_values));
   return lime_values;
 };
 
