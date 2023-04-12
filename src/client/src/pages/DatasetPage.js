@@ -1,7 +1,6 @@
 import React, { Component } from "react";
 import { connect } from "react-redux";
 import LayoutPage from "./LayoutPage";
-import JSONView from "../components/JSONView";
 import {
   requestDownloadDatasetModel,
 } from "../actions";
@@ -11,13 +10,8 @@ import {
 } from "../utils";
 import { CSVReader } from 'react-papaparse';
 import { Select, Col, Row } from 'antd';
-import { Chart, Interval, Axis, Geom } from 'bizcharts';
 import Papa from "papaparse";
-import * as d3 from "d3";
-import { Histogram } from '@ant-design/plots';
-import MyHistogram from "./MyHistogram";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell } from 'recharts';
-import { scaleLinear } from 'd3-scale';
 
 const { Option } = Select;
 
@@ -129,35 +123,35 @@ class DatasetPage extends Component {
                   ))}
                 </tbody>
               </table>
-              <Row gutter={24}>
-                <Col className="gutter-row" span={12}>
-                  {headers.length > 0 && (
-                    <div style={{ marginTop: '1rem' }}>
-                      <span style={{ marginRight: '0.5rem' }}>Select feature:</span>
-                      <Select value={selectedFeature} style={{ width: 'fit-content' }}
-                        onChange={this.handleSelectChange}>
-                        {headers.map((header) => (
-                          <Option key={header} value={header}>
-                            {header}
-                          </Option>
-                        ))}
-                      </Select>
-                      <h3>Histogram feature {selectedFeature}</h3>
-                      <div style={{ width: "100%", height: 400 }}>
-                        <BarChart width={800} height={300} data={histogramData}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis type="number" dataKey="x0" />
-                          <YAxis type="number" />
-                          <Tooltip />
-                          <Bar dataKey="count" fill="#8884d8" barSize={30} />
-                        </BarChart>
-                      </div>
-                    </div>
-                  )}
-                </Col>
-              </Row>
             </div>
           )}
+          <Row gutter={24}>
+            <Col className="gutter-row" span={12}>
+              {headers.length > 0 && (
+                <div style={{ marginTop: '1rem' }}>
+                  <span style={{ marginRight: '0.5rem' }}>Select feature:</span>
+                  <Select value={selectedFeature} style={{ width: 'fit-content' }}
+                    onChange={this.handleSelectChange}>
+                    {headers.map((header) => (
+                      <Option key={header} value={header}>
+                        {header}
+                      </Option>
+                    ))}
+                  </Select>
+                  <h2>Histogram feature {selectedFeature}</h2> 
+                  <div style={{ width: "100%", height: 400 }}>
+                    <BarChart width={800} height={300} data={histogramData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis type="number" dataKey="x0" />
+                      <YAxis type="number" />
+                      <Tooltip />
+                      <Bar dataKey="count" fill="#8884d8" barSize={30} />
+                    </BarChart>
+                  </div>
+                </div>
+              )}
+            </Col>
+          </Row>
         </div>
       </LayoutPage>
     );
