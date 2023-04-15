@@ -8,18 +8,24 @@ import {
 import {
   requestAllModels,
   requestModel,
+  requestDeleteModel,
+  requestBuildConfigModel,
+  requestDownloadModel,
+  requestStatsModel,
+  requestConfusionMatrixModel,
 } from '../api';
 import {
   setNotification,
   setAllModels,
-  setModel, 
+  deleteModel,
+  setModel,
 } from '../actions';
 
 
 function* handleRequestAllModels() {
   try {
-    const models = yield call(() => requestAllModels());
-    yield put(setAllModels(models));
+    const allModels = yield call(() => requestAllModels());
+    yield put(setAllModels(allModels));
     // dispatch data
   } catch (error) {
     // dispatch error
@@ -39,9 +45,78 @@ function* handleRequestModel(action) {
   }
 }
 
+function* handleRequestDeleteModel(action) {
+  try {
+    const modelId = action.payload;
+    yield call(() => requestDeleteModel(modelId));
+    yield put(deleteModel(modelId));
+    yield put(setNotification({
+      type: 'success',
+      message: `Model ${modelId} has been deleted`
+    }));
+    // dispatch data
+  } catch (error) {
+    // dispatch error
+    yield put(setNotification({type: 'error', message: error}));
+  }
+}
+
+function* handleRequestStatsModel(action) {
+  try {
+    const modelId = action.payload;
+    const model = yield call(() => requestStatsModel(modelId));
+    yield put(setModel(model));
+    // dispatch data
+  } catch (error) {
+    // dispatch error
+    yield put(setNotification({type: 'error', message: error}));
+  }
+}
+
+function* handleRequestDownloadModel(action) {
+  try {
+    const modelId = action.payload;
+    const model = yield call(() => requestDownloadModel(modelId));
+    yield put(setModel(model));
+    // dispatch data
+  } catch (error) {
+    // dispatch error
+    yield put(setNotification({type: 'error', message: error}));
+  }
+}
+
+function* handleRequestBuildConfigModel(action) {
+  try {
+    const modelId = action.payload;
+    const model = yield call(() => requestBuildConfigModel(modelId));
+    yield put(setModel(model));
+    // dispatch data
+  } catch (error) {
+    // dispatch error
+    yield put(setNotification({type: 'error', message: error}));
+  }
+}
+
+function* handleRequestConfusionMatrixModel(action) {
+  try {
+    const modelId = action.payload;
+    const model = yield call(() => requestConfusionMatrixModel(modelId));
+    yield put(setModel(model));
+    // dispatch data
+  } catch (error) {
+    // dispatch error
+    yield put(setNotification({type: 'error', message: error}));
+  }
+}
+
 function* watchDatasets() {
   yield takeEvery('REQUEST_ALL_MODELS', handleRequestAllModels);
   yield takeEvery('REQUEST_MODEL', handleRequestModel);
+  yield takeEvery('DELETE_MODEL', handleRequestDeleteModel);
+  yield takeEvery('REQUEST_STATS_MODEL', handleRequestStatsModel);
+  yield takeEvery('REQUEST_BUILD_CONFIG_MODEL', handleRequestBuildConfigModel);
+  yield takeEvery('REQUEST_DOWNLOAD_MODEL', handleRequestDownloadModel);
+  yield takeEvery('REQUEST_CONFUSION_MATRIX_MODEL', handleRequestConfusionMatrixModel);
 }
 
 export default watchDatasets;

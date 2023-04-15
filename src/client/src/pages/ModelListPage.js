@@ -1,9 +1,17 @@
-import React, { Component, Fragment, useMemo } from "react";
+import React, { Component } from "react";
 import { connect } from "react-redux";
-import { Table, Button } from "antd";
+import { Table, Space, Button } from "antd";
+import { Link } from 'react-router-dom';
 import LayoutPage from "./LayoutPage";
+import { 
+  FolderViewOutlined, DownloadOutlined, FileOutlined, TableOutlined, 
+  LineChartOutlined, SolutionOutlined, BugOutlined,
+  HourglassOutlined, RestOutlined, QuestionOutlined,
+} from '@ant-design/icons';
 import {
   requestAllModels,
+  deleteModel,
+  requestDownloadModel,
 } from "../actions";
 
 class ModelListPage extends Component {
@@ -11,46 +19,160 @@ class ModelListPage extends Component {
     this.props.fetchAllModels();
   }
 
+  /* viewDataset(modelId) {
+    const response = await fetch(`/api/models/${modelId}/datasets/training/csv`);
+    const data = await response.text();
+    const rows = data.split('\n').map((row) => row.split(','));
+    const headers = rows[0];
+    const content = rows.slice(1, -1);
+  
+    // TODO: display the content in a table
+  }; */
+
   render() {
-    const {
-      allModels,
-    } = this.props;
-    console.log(allModels);
-    if (!allModels) {
+    const { models, fetchDeleteModel } = this.props;
+    console.log(models);
+
+    if (!models) {
       console.error("No models")
       return null;
     }
-    const dataSource = allModels.map((model, index) => {
+    const dataSource = models.map((model, index) => {
       return {
-        modelId: model.replace(".h5", ""),
+        modelId: model,
         key: index,
       };
     });
     const columns = [
       {
-        title: "Name",
+        title: "Id",
         key: "data",
         render: (model) => (
-          <a href={`/models/${model.modelId}`}>
-            {model.modelId}
-          </a>
+          <div>
+            <a href={`/models/${model.modelId}`}>
+              {model.modelId}
+            </a>
+            {/* <br/>
+             */}
+          </div>
+        ),
+      },
+      {
+        title: "CreatedAt",
+        key: "data",
+        render: (model) => (
+          <div>
+            TODO
+          </div>
+        ),
+      },
+      {
+        title: "Training Dataset",
+        key: "data",
+        render: (model) => (
+          <div>
+            <a href={`/api/models/${model.id}/datasets/training/download`} download>
+              <Space wrap>
+                <Button icon={<FolderViewOutlined />}>
+                  {/* onClick={() => viewDataset(model.id)} */}
+                  View
+                </Button>
+              </Space>
+            </a>
+            &nbsp;&nbsp;
+            <a href={`/api/models/${model.id}/datasets/training/download`} download>
+              <Space wrap>
+                <Button icon={<DownloadOutlined />}>Download</Button>
+              </Space>
+            </a>
+          </div>
+        ),
+      },
+      {
+        title: "Testing Dataset",
+        key: "data",
+        render: (model) => (
+          <div>
+            <a href={`/api/models/${model.id}/datasets/testing/download`} download>
+                <Space wrap>
+                  <Button icon={<FolderViewOutlined />}>
+                    {/* onClick={() => viewDataset(model.id)} */}
+                    View
+                  </Button>
+                </Space>
+              </a>
+              &nbsp;&nbsp;
+              <a href={`/api/models/${model.id}/datasets/testing/download`} download>
+                <Space wrap>
+                  <Button icon={<DownloadOutlined />}>Download</Button>
+                </Space>
+              </a>
+          </div>
+        ),
+      },
+      {
+        title: "Action",
+        key: "data",
+        render: (model) => (
+          <div>
+            <a href={`/retrain/${model.modelId}`}>
+              <Space wrap>
+                <Button icon={<HourglassOutlined />}>Retrain</Button>
+              </Space>
+            </a>
+            &nbsp;&nbsp;
+            <a href={`/predict/${model.modelId}`}>
+              <Space wrap>
+                <Button icon={<LineChartOutlined />}>Predict</Button>
+              </Space>
+            </a>
+            &nbsp;&nbsp;
+            <a href={`/xai/${model.modelId}`}>
+              <Space wrap>
+                <Button icon={<SolutionOutlined />}>XAI</Button>
+              </Space>
+            </a>
+            &nbsp;&nbsp;
+            <a href={`/attacks/${model.modelId}`}>
+              <Space wrap>
+                <Button icon={<BugOutlined />}>Attacks</Button>
+              </Space>
+            </a>
+            &nbsp;&nbsp;
+            <a>
+              <Space wrap>
+                <Button icon={<RestOutlined />}
+                  onClick={() => fetchDeleteModel(model.modelId)}
+                >Delete</Button>
+              </Space>
+            </a>
+          </div>
         ),
       },
     ];
     return (
       <LayoutPage pageTitle="Models" pageSubTitle="All the models">
         <Table columns={columns} dataSource={dataSource} />
+        
+        <a href={`/build`}>
+          <Space wrap>
+            <Button>
+              Add a new model
+            </Button>
+          </Space>
+        </a>
       </LayoutPage>
     );
   }
 }
 
-const mapPropsToStates = ({ allModels }) => ({
-  allModels,
+const mapPropsToStates = ({ models }) => ({
+  models,
 });
 
 const mapDispatchToProps = (dispatch) => ({
   fetchAllModels: () => dispatch(requestAllModels()),
+  fetchDeleteModel: (modelId) => dispatch(deleteModel(modelId)),
 });
 
 export default connect(mapPropsToStates, mapDispatchToProps)(ModelListPage);

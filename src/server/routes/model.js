@@ -146,7 +146,26 @@ router.get('/:modelId', (req, res, next) => {
   });
 });
 
- router.get('/:modelId/datasets/training/view', (req, res, next) => {
+router.delete('/:modelId', (req, res, next) => {
+  const { modelId } = req.params;
+  const modelFilePath = `${MODEL_PATH}${modelId}`;
+  
+  fs.unlink(modelFilePath, (err, ret) => {
+    if (err) {
+      console.error(err);
+      res.send({
+        error: `Error deleting model ${modelId}`,
+      });
+    } else {
+      console.log(`Model ${modelId} has been deleted`);
+      res.send({
+        result: ret,
+      });
+    }
+  });
+});
+
+router.get('/:modelId/datasets/training/view', (req, res, next) => {
   const { modelId } = req.params;
   const trainingSamplesFilePath = `${TRAINING_PATH}${modelId.replace('.h5', '')}/datasets/Train_samples.csv`;
   isFileExist(trainingSamplesFilePath, (ret) => {

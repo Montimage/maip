@@ -10,8 +10,35 @@ export const requestAllModels = async () => {
   return data.models;
 };
 
-export const requestStatsModel = async (modelId) => {
+export const requestModel = async (modelId) => {
   const url = `${URL}/api/models/${modelId}`;
+  const response = await fetch(url, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    }
+  });
+  const data = await response.json();
+  console.log(`Model information returned from server for ${modelId}`);
+  console.log(data);
+  return data;
+};
+
+export const requestDeleteModel = async (modelId) => {
+  const url = `${URL}/api/models/${modelId}`;
+  const response = await fetch(url, {
+    method: "DELETE",
+  });
+  const data = await response.json();
+  if (data.error) {
+    throw data.error;
+  }
+  console.log(`Delete model ${modelId} on server`);
+  return data.result;
+};
+
+export const requestStatsModel = async (modelId) => {
+  const url = `${URL}/api/models/${modelId}/stats`;
   const response = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',

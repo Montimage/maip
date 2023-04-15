@@ -13,7 +13,7 @@ import buildReducer from './buildReducer';
 
 const rootReducer = combineReducers({
   notify: notificationReducer,
-  allModels: allModelsReducer,
+  models: allModelsReducer,
   model: modelReducer,
   shapValues: shapReducer,
   limeValues: limeReducer,

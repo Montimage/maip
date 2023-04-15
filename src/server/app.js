@@ -7,7 +7,7 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerDocument = require('./swagger/swagger.json');
 var bodyParser = require('body-parser');
 const dotenv = require('dotenv');
-
+const cors = require('cors');
 // read and pass the environment variables into reactjs application
 const env = dotenv.config().parsed;
 
@@ -46,7 +46,8 @@ app.use(bodyParser.urlencoded({
   extended: true
 }))
 app.use(cookieParser());
-
+// Set up CORS
+app.use(cors());
 // Add headers
 app.use((req, res, next) => {
   // Website you wish to allow to connect
@@ -67,6 +68,16 @@ app.use((req, res, next) => {
   // Pass to next layer of middleware
   next();
 });
+
+/* TODO: why OPTIONS request is automatically called when calling DELETE request? */
+/* app.options('*', (req, res) => {
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE');
+  res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With, content-type, authorization');
+  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.status(200).send();
+}); */
 
 app.use('/api/mmt', mmtRouter);
 app.use('/api/pcaps', pcapRouter);
