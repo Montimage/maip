@@ -1,6 +1,10 @@
 /* eslint-disable no-unused-vars */
 const express = require('express');
 const fs = require('fs');
+const path = require('path');
+const { promisify } = require('util');
+const readdirAsync = promisify(fs.readdir);
+const readFileAsync = promisify(fs.readFile);
 const router = express.Router();
 const {
   MODEL_PATH, TRAINING_PATH,
@@ -10,12 +14,33 @@ const {
 } = require('../utils/file-utils');
 
 /* GET built models name */
-router.get('/', (req, res, next) => {
+/* router.get('/', (req, res, next) => {
   listFiles(MODEL_PATH, '.h5', (files) => {
     res.send({
       models: files,
     });
   });
+}); */
+
+/* GET built models with lastBuildAt */
+router.get('/', async (req, res, next) => {
+  try {
+    const files = await readdirAsync(MODEL_PATH);
+    const allModels = files.filter(file => path.extname(file) === '.h5');
+    const modelList = [];
+
+    for (const modelId of allModels) {
+      const buildingStatusPath = path.join(TRAINING_PATH, modelId.replace('.h5', ''), 'buildingStatus.json');
+      const buildingStatus = await readFileAsync(buildingStatusPath);
+      const lastBuildAt = JSON.parse(buildingStatus).lastBuildAt;
+      modelList.push({ modelId: modelId, lastBuildAt });
+    }
+
+    res.send({ models: modelList });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error');
+  }
 });
 
 /** Download a model file */
@@ -101,43 +126,55 @@ router.get('/:modelId', (req, res, next) => {
       return;
     }
 
-    // Get the build config for the model
-    readTextFile(`${TRAINING_PATH}${modelId.replace('.h5', '')}/build-config.json`, (err, buildConfig) => {
+    // Get the last build time for the model
+    readTextFile(`${TRAINING_PATH}${modelId.replace('.h5', '')}/buildingStatus.json`, (err, buildingStatus) => {
       if (err) {
         res.status(401).send({ error: 'Something went wrong!' });
         return;
       }
 
-      // Get the confusion matrix for the model
-      readTextFile(`${TRAINING_PATH}${modelId.replace('.h5', '')}/results/conf_matrix_sae_test-cnn.csv`, (err, matrix) => {
+      // Get the build config for the model
+      readTextFile(`${TRAINING_PATH}${modelId.replace('.h5', '')}/build-config.json`, (err, buildConfig) => {
         if (err) {
           res.status(401).send({ error: 'Something went wrong!' });
           return;
         }
 
-        // Get the training samples for the model
-        const trainingSamplesFilePath = `${TRAINING_PATH}${modelId.replace('.h5', '')}/datasets/Train_samples.csv`;
-        isFileExist(trainingSamplesFilePath, (ret) => {
-          if (!ret) {
-            res.status(401).send(`The training samples file ${modelId} does not exist`);
+        // Get the confusion matrix for the model
+        readTextFile(`${TRAINING_PATH}${modelId.replace('.h5', '')}/results/conf_matrix_sae_test-cnn.csv`, (err, matrix) => {
+          if (err) {
+            res.status(401).send({ error: 'Something went wrong!' });
             return;
           }
 
-          // Get the testing samples for the model
-          const testingSamplesFilePath = `${TRAINING_PATH}${modelId.replace('.h5', '')}/datasets/Test_samples.csv`;
-          isFileExist(testingSamplesFilePath, (ret) => {
+          // Get the training samples for the model
+          const trainingSamplesFilePath = `${TRAINING_PATH}${modelId.replace('.h5', '')}/datasets/Train_samples.csv`;
+          isFileExist(trainingSamplesFilePath, (ret) => {
             if (!ret) {
-              res.status(401).send(`The testing samples file ${modelId} does not exist`);
+              res.status(401).send(`The training samples file ${modelId} does not exist`);
               return;
             }
 
-            // Send the response with all the data for the model
-            res.send({
-              stats: stats,
-              buildConfig: buildConfig,
-              confusionMatrix: matrix,
-              trainingSamples: trainingSamplesFilePath,
-              testingSamples: testingSamplesFilePath,
+            // Get the testing samples for the model
+            const testingSamplesFilePath = `${TRAINING_PATH}${modelId.replace('.h5', '')}/datasets/Test_samples.csv`;
+            isFileExist(testingSamplesFilePath, (ret) => {
+              if (!ret) {
+                res.status(401).send(`The testing samples file ${modelId} does not exist`);
+                return;
+              }
+              
+              const status = JSON.parse(buildingStatus);
+              console.log(status.lastBuildAt);
+
+              // Send the response with all the data for the model
+              res.send({
+                stats: stats,
+                lastBuildAt: status.lastBuildAt,
+                buildConfig: buildConfig,
+                confusionMatrix: matrix,
+                trainingSamples: trainingSamplesFilePath,
+                testingSamples: testingSamplesFilePath,
+              });
             });
           });
         });

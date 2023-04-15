@@ -13,6 +13,7 @@ import {
   deleteModel,
   requestDownloadModel,
 } from "../actions";
+import moment from "moment";
 
 class ModelListPage extends Component {
   componentDidMount() {
@@ -37,12 +38,8 @@ class ModelListPage extends Component {
       console.error("No models")
       return null;
     }
-    const dataSource = models.map((model, index) => {
-      return {
-        modelId: model,
-        key: index,
-      };
-    });
+
+    const dataSource = models.map((model, index) => ({ ...model, key: index }));
     const columns = [
       {
         title: "Id",
@@ -58,20 +55,21 @@ class ModelListPage extends Component {
         ),
       },
       {
-        title: "CreatedAt",
+        title: "Build At",
         key: "data",
-        render: (model) => (
-          <div>
-            TODO
-          </div>
-        ),
+        sorter: (a, b) => a.lastBuildAt - b.lastBuildAt,
+        render: (model) => {
+          console.log(model.lastBuildAt);
+          return moment(model.lastBuildAt).format("MMMM Do YYYY, h:mm:ss a");
+        },
+        width: 300,
       },
       {
         title: "Training Dataset",
         key: "data",
         render: (model) => (
           <div>
-            <a href={`/api/models/${model.id}/datasets/training/download`} download>
+            <a href={`/api/models/${model.modelId}/datasets/training/download`} download>
               <Space wrap>
                 <Button icon={<FolderViewOutlined />}>
                   {/* onClick={() => viewDataset(model.id)} */}
@@ -80,7 +78,7 @@ class ModelListPage extends Component {
               </Space>
             </a>
             &nbsp;&nbsp;
-            <a href={`/api/models/${model.id}/datasets/training/download`} download>
+            <a href={`/api/models/${model.modelId}/datasets/training/download`} download>
               <Space wrap>
                 <Button icon={<DownloadOutlined />}>Download</Button>
               </Space>
@@ -93,7 +91,7 @@ class ModelListPage extends Component {
         key: "data",
         render: (model) => (
           <div>
-            <a href={`/api/models/${model.id}/datasets/testing/download`} download>
+            <a href={`/api/models/${model.modelId}/datasets/testing/download`} download>
                 <Space wrap>
                   <Button icon={<FolderViewOutlined />}>
                     {/* onClick={() => viewDataset(model.id)} */}
@@ -102,7 +100,7 @@ class ModelListPage extends Component {
                 </Space>
               </a>
               &nbsp;&nbsp;
-              <a href={`/api/models/${model.id}/datasets/testing/download`} download>
+              <a href={`/api/models/${model.modelId}/datasets/testing/download`} download>
                 <Space wrap>
                   <Button icon={<DownloadOutlined />}>Download</Button>
                 </Space>
@@ -167,7 +165,7 @@ class ModelListPage extends Component {
 }
 
 const mapPropsToStates = ({ models }) => ({
-  models,
+  models
 });
 
 const mapDispatchToProps = (dispatch) => ({

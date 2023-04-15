@@ -4,6 +4,10 @@ const {
   startBuildingModel,
 } = require('../deep-learning/deep-learning-connector');
 
+const {
+  TRAINING_PATH
+} = require('../constants');
+const fs = require('fs');
 const router = express.Router();
 
 /* GET home page. */
@@ -21,7 +25,7 @@ router.post('/', (req, res) => {
     res.status(401).send({
       error: 'Missing building configuration. Please read the docs',
     });
-  } else {
+  } else { 
     const buildingStatus = getBuildingStatus();
     if (buildingStatus.isRunning) {
       res.status(401).send({
@@ -35,6 +39,15 @@ router.post('/', (req, res) => {
           });
         } else {
           console.log(buildStatus);
+          const modelId = buildStatus.lastBuildId;
+          const buildStatusFilePath = `${TRAINING_PATH}${modelId.replace('.h5', '')}/buildingStatus.json`;
+          fs.writeFile(buildStatusFilePath, JSON.stringify(buildStatus), (err) => {
+            if (err) {
+              console.log(`Error saving buildStatus of model ${modelId} to file: ${err}`);
+            } else {
+              console.log(`BuildStatus of model ${modelId} saved to file: ${buildStatusFilePath}`);
+            }
+          });
           res.send(buildStatus);
         }
       });
