@@ -22,6 +22,7 @@ import XAIPage from "./pages/XAIPage";
 import XAIModelPage from "./pages/XAIModelPage";
 
 import HistogramPage from "./pages/HistogramPage";
+import TablePage from "./pages/TablePage";
 
 function App() {
   return (
@@ -47,6 +48,7 @@ function App() {
             <Route path="/xai/" element={<XAIPage />}/>
             <Route path="/xai/:modelId" element={<XAIModelPage />}/>
             <Route path="/dumb" element={<HistogramPage />}/>
+            <Route path="/table" element={<TablePage />}/>
           </Routes>
           <MAIPFooter />
         </Layout>

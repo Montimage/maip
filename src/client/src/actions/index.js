@@ -15,6 +15,7 @@ export const requestAllModels = createAction('REQUEST_ALL_MODELS');
 export const setAllModels = createAction('SET_ALL_MODELS');
 
 // Get model's details
+export const requestModel = createAction('REQUEST_MODEL');
 export const requestStatsModel = createAction('REQUEST_STATS_MODEL');
 export const requestBuildConfigModel = createAction('REQUEST_BUILD_CONFIG_MODEL');
 export const requestDownloadModel = createAction('REQUEST_DOWNLOAD_MODEL');
