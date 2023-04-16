@@ -33,7 +33,10 @@ router.get('/', async (req, res, next) => {
       const buildingStatusPath = path.join(TRAINING_PATH, modelId.replace('.h5', ''), 'buildingStatus.json');
       const buildingStatus = await readFileAsync(buildingStatusPath);
       const lastBuildAt = JSON.parse(buildingStatus).lastBuildAt;
-      modelList.push({ modelId: modelId, lastBuildAt });
+      const buildConfigPath = path.join(TRAINING_PATH, modelId.replace('.h5', ''), 'build-config.json');
+      const buildConfig = await readFileAsync(buildConfigPath);
+      const config = JSON.parse(buildConfig);
+      modelList.push({ modelId: modelId, lastBuildAt, buildConfig: config });
     }
 
     res.send({ models: modelList });

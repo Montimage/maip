@@ -44,6 +44,7 @@ class ModelListPage extends Component {
       {
         title: "Id",
         key: "data",
+        width: '14%',
         render: (model) => (
           <div>
             <a href={`/models/${model.modelId}`}>
@@ -62,11 +63,12 @@ class ModelListPage extends Component {
           console.log(model.lastBuildAt);
           return moment(model.lastBuildAt).format("MMMM Do YYYY, h:mm:ss a");
         },
-        width: 300,
+        width: '10%', /* width: 300, */
       },
       {
         title: "Training Dataset",
         key: "data",
+        width: '18%',
         render: (model) => (
           <div>
             <a href={`/api/models/${model.modelId}/datasets/training/download`} download>
@@ -89,6 +91,7 @@ class ModelListPage extends Component {
       {
         title: "Testing Dataset",
         key: "data",
+        width: '18%',
         render: (model) => (
           <div>
             <a href={`/api/models/${model.modelId}/datasets/testing/download`} download>
@@ -111,6 +114,7 @@ class ModelListPage extends Component {
       {
         title: "Action",
         key: "data",
+        width: '35%',
         render: (model) => (
           <div>
             <a href={`/retrain/${model.modelId}`}>
@@ -150,7 +154,14 @@ class ModelListPage extends Component {
     ];
     return (
       <LayoutPage pageTitle="Models" pageSubTitle="All the models">
-        <Table columns={columns} dataSource={dataSource} />
+        <Table columns={columns} dataSource={dataSource} 
+          expandable={{
+            expandedRowRender: (model) => 
+              <p style={{ margin: 0 }}>
+                <pre>{JSON.stringify(model.buildConfig, null, 2)}</pre>
+              </p>,
+          }}
+        />
         
         <a href={`/build`}>
           <Space wrap>
