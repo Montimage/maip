@@ -3,6 +3,7 @@ import { connect } from "react-redux";
 import { Table, Space, Button } from "antd";
 import { Link } from 'react-router-dom';
 import LayoutPage from "./LayoutPage";
+import Papa from "papaparse";
 import { 
   FolderViewOutlined, DownloadOutlined, FileOutlined, TableOutlined, 
   LineChartOutlined, SolutionOutlined, BugOutlined,
@@ -14,11 +15,35 @@ import {
   requestDownloadModel,
 } from "../actions";
 import moment from "moment";
+const {
+  SERVER_HOST,
+  SERVER_PORT,
+} = require('../constants');
 
 class ModelListPage extends Component {
+
+  /* constructor(props) {
+    super(props);
+    this.state = {
+      tableData: [],
+      datasetId: this.props?.params?.datasetId // use optional chaining to access params
+    };
+  } */
+
   componentDidMount() {
     this.props.fetchAllModels();
   }
+
+  /* componentDidMount() {
+    this.props.fetchAllModels();
+    const { modelId, datasetType } = this.props;
+    fetch(`/models/${modelId}/datasets/${datasetType}/view`)
+      .then(response => response.text())
+      .then(data => {
+        const parsedData = Papa.parse(data, { header: true }).data;
+        this.setState({ tableData: parsedData });
+      });
+  } */
 
   /* viewDataset(modelId) {
     const response = await fetch(`/api/models/${modelId}/datasets/training/csv`);
@@ -30,6 +55,22 @@ class ModelListPage extends Component {
     // TODO: display the content in a table
   }; */
 
+  async handleDownloadDataset(modelId, datasetType) {
+    try {
+      const res = await fetch(`http://${SERVER_HOST}:${SERVER_PORT}/api/models/${modelId}/datasets/${datasetType}/download`);
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const link = document.createElement('a');
+      link.href = url;
+      const datasetFileName = `${modelId}_${datasetType.charAt(0).toUpperCase() + datasetType.slice(1)}_samples.csv`;
+      link.setAttribute('download', datasetFileName);
+      document.body.appendChild(link);
+      link.click();
+    } catch (error) {
+      console.error('Error downloading dataset:', error);
+    }
+  }
+  
   render() {
     const { models, fetchDeleteModel } = this.props;
     console.log(models);
@@ -71,7 +112,7 @@ class ModelListPage extends Component {
         width: '18%',
         render: (model) => (
           <div>
-            <a href={`/api/models/${model.modelId}/datasets/training/download`} download>
+            <a href={`/datasets/Train_samples.csv`} view>
               <Space wrap>
                 <Button icon={<FolderViewOutlined />}>
                   {/* onClick={() => viewDataset(model.id)} */}
@@ -80,11 +121,11 @@ class ModelListPage extends Component {
               </Space>
             </a>
             &nbsp;&nbsp;
-            <a href={`/api/models/${model.modelId}/datasets/training/download`} download>
-              <Space wrap>
-                <Button icon={<DownloadOutlined />}>Download</Button>
-              </Space>
-            </a>
+            <Space wrap>
+              <Button icon={<DownloadOutlined />} 
+                onClick={() => this.handleDownloadDataset(model.modelId, "train")}
+              >Download</Button>
+            </Space>
           </div>
         ),
       },
@@ -94,7 +135,7 @@ class ModelListPage extends Component {
         width: '18%',
         render: (model) => (
           <div>
-            <a href={`/api/models/${model.modelId}/datasets/testing/download`} download>
+            <a href={`/datasets/test`} download>
                 <Space wrap>
                   <Button icon={<FolderViewOutlined />}>
                     {/* onClick={() => viewDataset(model.id)} */}
@@ -103,11 +144,11 @@ class ModelListPage extends Component {
                 </Space>
               </a>
               &nbsp;&nbsp;
-              <a href={`/api/models/${model.modelId}/datasets/testing/download`} download>
-                <Space wrap>
-                  <Button icon={<DownloadOutlined />}>Download</Button>
-                </Space>
-              </a>
+              <Space wrap>
+                <Button icon={<DownloadOutlined />} 
+                  onClick={() => this.handleDownloadDataset(model.modelId, "test")}
+                >Download</Button>
+            </Space>
           </div>
         ),
       },

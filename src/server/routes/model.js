@@ -5,6 +5,7 @@ const path = require('path');
 const { promisify } = require('util');
 const readdirAsync = promisify(fs.readdir);
 const readFileAsync = promisify(fs.readFile);
+const csv = require('csv-parser');
 const router = express.Router();
 const {
   MODEL_PATH, TRAINING_PATH,
@@ -205,14 +206,33 @@ router.delete('/:modelId', (req, res, next) => {
   });
 });
 
-router.get('/:modelId/datasets/training/view', (req, res, next) => {
-  const { modelId } = req.params;
-  const trainingSamplesFilePath = `${TRAINING_PATH}${modelId.replace('.h5', '')}/datasets/Train_samples.csv`;
-  isFileExist(trainingSamplesFilePath, (ret) => {
-    if (!ret) {
+router.get('/:modelId/datasets/:datasetType/view', (req, res, next) => {
+  const { modelId, datasetType } = req.params;
+  const datasetName = `${datasetType.charAt(0).toUpperCase() + datasetType.slice(1)}ing_samples.csv`;
+  const samplesFilePath = `${TRAINING_PATH}${modelId.replace('.h5', '')}/datasets/${datasetName}`;
+  //console.log(samplesFilePath);
+  const rows = [];
+  isFileExist(samplesFilePath, (ret) => {
+    fs.createReadStream(samplesFilePath)
+      .pipe(csv())
+      .on('data', (row) => {
+        rows.push(row);
+      })
+      .on('end', () => {
+        res.send(rows);
+      })
+      .on('error', (err) => {
+        res.status(500).send(`Error reading CSV file: ${err.message}`);
+      });
+    });
+});
+
+    /* if (!ret) {
       res.status(401).send(`The training samples file ${modelId} does not exist`);
     } else {
-      res.sendFile(trainingSamplesFilePath);
+      res.setHeader('Content-Disposition', 'inline; filename=Train_samples.csv');
+      res.setHeader('Content-Type', 'text/csv');
+      res.sendFile(trainingSamplesFilePath); */
       /* // Read the CSV file content
       const csvData = fs.readFileSync(trainingSamplesFilePath, { encoding: 'utf-8' });
 
@@ -236,24 +256,9 @@ router.get('/:modelId/datasets/training/view', (req, res, next) => {
           </tbody>
         </table>
       `); */
-    }
-  });
-});
-
-router.get('/:modelId/datasets/training/download', (req, res, next) => {
-  const { modelId } = req.params;
-  const trainingSamplesFilePath = `${TRAINING_PATH}${modelId.replace('.h5', '')}/datasets/Train_samples.csv`;
-  isFileExist(trainingSamplesFilePath, (ret) => {
-    if (!ret) {
-      res.status(401).send(`The training samples file ${modelId} does not exist`);
-    } else {
-      /* TODO: the downloaded file's name is still download, even clear browser or change file's name */
-      const timestamp = Date.now();
-      res.setHeader('Content-Disposition', `attachment; filename="Train_samples_${timestamp}.csv"`);
-      res.download(trainingSamplesFilePath);
-    }
-  });
-});
+    //}
+  //});
+//});
 
 router.get('/:modelId/datasets/testing/view', (req, res, next) => {
   const { modelId } = req.params;
@@ -263,20 +268,6 @@ router.get('/:modelId/datasets/testing/view', (req, res, next) => {
       res.status(401).send(`The testing samples file ${modelId} does not exist`);
     } else {
       res.sendFile(testingSamplesFilePath);
-    }
-  });
-});
-
-router.get('/models/:modelId/datasets/:datasetId/abc', (req, res, next) => {
-  const { modelId, datasetId } = req.params;
-  console.log(req.params); // Debug statement
-  //const datasetId = req.params.datasetId;
-  const datasetFilePath = `${TRAINING_PATH}${modelId.replace('.h5', '')}/datasets/Test_samples.csv`;
-  isFileExist(datasetFilePath, (ret) => {
-    if (!ret) {
-      res.status(401).send(`The dataset file ${datasetId} does not exist`);
-    } else {
-      res.sendFile(datasetFilePath);
     }
   });
 });
@@ -295,14 +286,18 @@ router.get('/:modelId/datasets/training/csv', (req, res, next) => {
   });
 });
 
-router.get('/:modelId/datasets/testing/download', (req, res, next) => {
-  const { modelId } = req.params;
-  const testingSamplesFilePath = `${TRAINING_PATH}${modelId.replace('.h5', '')}/datasets/Test_samples.csv`;
-  isFileExist(testingSamplesFilePath, (ret) => {
+router.get('/:modelId/datasets/:datasetType/download', (req, res, next) => {
+  const { modelId, datasetType } = req.params;
+  const datasetName = `${datasetType.charAt(0).toUpperCase() + datasetType.slice(1)}_samples.csv`;
+  const datasetFilePath = `${TRAINING_PATH}${modelId.replace('.h5', '')}/datasets/${datasetName}`;
+  isFileExist(datasetFilePath, (ret) => {
     if (!ret) {
-      res.status(401).send(`The testing samples file ${modelId} does not exist`);
+      res.status(401).send(`The ${datasetType} samples of model ${modelId} does not exist`);
     } else {
-      res.download(testingSamplesFilePath);
+      res.setHeader('Content-Type', 'text/csv'); 
+      res.setHeader('Content-Disposition', `attachment; filename="${datasetName}"`);
+      const fileStream = fs.createReadStream(datasetFilePath);
+      fileStream.pipe(res);
     }
   });
 });
