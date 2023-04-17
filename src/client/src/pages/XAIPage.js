@@ -88,12 +88,13 @@ class XAIPage extends Component {
       maxDisplay, 
     } = this.state;
     const {
-      allModels,
+      models,
       xaiStatus, 
     } = this.props;
     console.log(xaiStatus);
-    const selectOptions = allModels.map((label, index) => ({
-      value: label, label,
+    const selectOptions = models.map((model, index) => ({
+      value: model.modelId,
+      label: model.modelId,
     }));
 
     return (
@@ -205,8 +206,8 @@ class XAIPage extends Component {
   }
 }
 
-const mapPropsToStates = ({ allModels, xaiStatus }) => ({
-  allModels, xaiStatus,
+const mapPropsToStates = ({ models, xaiStatus }) => ({
+  models, xaiStatus,
 });
 
 const mapDispatchToProps = (dispatch) => ({
