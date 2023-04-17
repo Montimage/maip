@@ -13,15 +13,9 @@ const {
 const {
   listFiles, readTextFile, isFileExist,
 } = require('../utils/file-utils');
-
-/* GET built models name */
-/* router.get('/', (req, res, next) => {
-  listFiles(MODEL_PATH, '.h5', (files) => {
-    res.send({
-      models: files,
-    });
-  });
-}); */
+const {
+  replaceDelimiterInCsv
+} = require('../utils/utils');
 
 /* GET built models with lastBuildAt */
 router.get('/', async (req, res, next) => {
@@ -39,7 +33,6 @@ router.get('/', async (req, res, next) => {
       const config = JSON.parse(buildConfig);
       modelList.push({ modelId: modelId, lastBuildAt, buildConfig: config });
     }
-
     res.send({ models: modelList });
   } catch (err) {
     console.error(err);
@@ -206,7 +199,7 @@ router.delete('/:modelId', (req, res, next) => {
   });
 });
 
-router.get('/:modelId/datasets/:datasetType/view', (req, res, next) => {
+/* router.get('/:modelId/datasets/:datasetType/view', (req, res, next) => {
   const { modelId, datasetType } = req.params;
   const datasetName = `${datasetType.charAt(0).toUpperCase() + datasetType.slice(1)}ing_samples.csv`;
   const samplesFilePath = `${TRAINING_PATH}${modelId.replace('.h5', '')}/datasets/${datasetName}`;
@@ -225,7 +218,7 @@ router.get('/:modelId/datasets/:datasetType/view', (req, res, next) => {
         res.status(500).send(`Error reading CSV file: ${err.message}`);
       });
     });
-});
+}); */
 
     /* if (!ret) {
       res.status(401).send(`The training samples file ${modelId} does not exist`);
@@ -260,7 +253,7 @@ router.get('/:modelId/datasets/:datasetType/view', (req, res, next) => {
   //});
 //});
 
-router.get('/:modelId/datasets/testing/view', (req, res, next) => {
+/* router.get('/:modelId/datasets/testing/view', (req, res, next) => {
   const { modelId } = req.params;
   const testingSamplesFilePath = `${TRAINING_PATH}${modelId.replace('.h5', '')}/datasets/Test_samples.csv`;
   isFileExist(testingSamplesFilePath, (ret) => {
@@ -284,7 +277,7 @@ router.get('/:modelId/datasets/training/csv', (req, res, next) => {
       res.send(csvData);
     }
   });
-});
+}); */
 
 router.get('/:modelId/datasets/:datasetType/download', (req, res, next) => {
   const { modelId, datasetType } = req.params;
@@ -297,6 +290,27 @@ router.get('/:modelId/datasets/:datasetType/download', (req, res, next) => {
       res.setHeader('Content-Type', 'text/csv'); 
       res.setHeader('Content-Disposition', `attachment; filename="${datasetName}"`);
       const fileStream = fs.createReadStream(datasetFilePath);
+      fileStream.pipe(res);
+    }
+  });
+});
+
+router.get('/:modelId/datasets/:datasetType/view', (req, res, next) => {
+  const { modelId, datasetType } = req.params;
+  const datasetName = `${datasetType.charAt(0).toUpperCase() + datasetType.slice(1)}_samples.csv`;
+  const datasetFilePath = `${TRAINING_PATH}${modelId.replace('.h5', '')}/datasets/${datasetName}`;
+  const datasetToView = `${datasetType.charAt(0).toUpperCase() + datasetType.slice(1)}_samples_view.csv`;
+  const datasetToViewPath = `${TRAINING_PATH}${modelId.replace('.h5', '')}/datasets/${datasetToView}`; 
+  replaceDelimiterInCsv(datasetFilePath, datasetToViewPath);
+  console.log(datasetToViewPath);
+
+  isFileExist(datasetToViewPath, (ret) => {
+    if (!ret) {
+      res.status(401).send(`The ${datasetType} samples of model ${modelId} does not exist`);
+    } else {
+      res.setHeader('Content-Type', 'text/csv'); 
+      res.setHeader('Content-Disposition', `attachment; filename="${datasetName}"`);
+      const fileStream = fs.createReadStream(datasetToViewPath);
       fileStream.pipe(res);
     }
   });

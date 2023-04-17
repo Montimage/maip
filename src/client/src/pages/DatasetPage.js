@@ -8,11 +8,14 @@ import {
   getBeforeLastPath,
   getLastPath,
 } from "../utils";
-import { CSVReader } from 'react-papaparse';
-import { Select, Col, Row } from 'antd';
+import { Select, Col, Row, Table } from 'antd';
 import Papa from "papaparse";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell } from 'recharts';
 
+const {
+  SERVER_HOST,
+  SERVER_PORT,
+} = require('../constants');
 const { Option } = Select;
 
 class DatasetPage extends Component {
@@ -21,38 +24,36 @@ class DatasetPage extends Component {
     this.state = {
       csvData: [],
       headers: [],
-      isLoading: false,
       selectedFeature: '',
       chartData: [],
     };
     this.fileInputRef = React.createRef();
-    this.handleFileUpload = this.handleFileUpload.bind(this);
     this.handleSelectChange = this.handleSelectChange.bind(this);
   }
 
-  handleFileUpload(event) {
-    event.preventDefault();
-    const file = this.fileInputRef.current.files[0];
-    if (file) {
-      this.setState({ isLoading: true });
-      Papa.parse(file, {
-        header: true,
-        skipEmptyLines: true,
-        complete: (results) => {
-          const csvData = results.data;
-          const headers = Object.keys(csvData[0]);
-          this.setState({
-            csvData: csvData,
-            headers: headers,
-            isLoading: false,
-          });
-        },
-        error: () => {
-          console.log('Error parsing CSV file');
-          this.setState({ isLoading: false });
-        },
+  componentDidMount() {
+    const modelId = getBeforeLastPath(2);
+    const datasetType = getLastPath();
+    fetch(`http://${SERVER_HOST}:${SERVER_PORT}/api/models/${modelId}/datasets/${datasetType}/view`)
+      .then(response => response.text())
+      .then(data => {
+        Papa.parse(data, {
+          header: true,
+          skipEmptyLines: true,
+          delimiter: ';',
+          complete: (results) => {
+            const csvData = results.data;
+            const headers = Object.keys(csvData[0]);
+            this.setState({
+              csvData: csvData,
+              headers: headers,
+            });
+          },
+          error: () => {
+            console.log('Error parsing CSV file');
+          },
+        });
       });
-    }
   }
 
   handleSelectChange(value) {
@@ -67,15 +68,29 @@ class DatasetPage extends Component {
 
     if (csvData.length > 0) {
       chartData = csvData.map(row => ({ value: parseFloat(row[feature]) }));
-      console.log(JSON.stringify(chartData));
+      //console.log(JSON.stringify(chartData));
     }
     return chartData;
   }
 
   render() {
-    const { csvData, headers, isLoading, selectedFeature, chartData } = this.state;
-    console.log(JSON.stringify(chartData));
-    const displayedCsvData = csvData.slice(0, 10);
+    const modelId = getBeforeLastPath(2);
+    const datasetType = getLastPath();
+    const { csvData, headers, selectedFeature, chartData } = this.state;
+    //const displayedCsvData = csvData.slice(0, 100);
+
+    const columns = csvData.length > 0 ? Object.keys(csvData[0]).map(key => ({
+      title: key,
+      dataIndex: key,
+      sorter: (a, b) => {
+        if (typeof a[key] === 'number' && typeof b[key] === 'number') {
+          return a[key] - b[key];
+        } else {
+          return a[key].localeCompare(b[key]);
+        }
+      },
+    })) : [];
+
     const values = chartData.map((d) => d.value);
     const histogramData = values.reduce((acc, value) => {
       const bin = acc.find((bin) => bin.x0 === value || (bin.x0 < value && value < bin.x1));
@@ -89,15 +104,55 @@ class DatasetPage extends Component {
     console.log(JSON.stringify(histogramData));
 
     return (
-      <LayoutPage pageTitle="Dataset" pageSubTitle="">
-        <div>
-          <form onSubmit={this.handleFileUpload}>
-            <input type="file" ref={this.fileInputRef} />
-            <button type="submit" disabled={isLoading}>
-              Load CSV
-            </button>
-          </form>
-          {isLoading && <div>Loading...</div>}
+      <LayoutPage pageTitle="Dataset" 
+        pageSubTitle={`${datasetType.charAt(0).toUpperCase() + datasetType.slice(1)}ing dataset of the model ${modelId}`}>
+        {/* TODO: Fix "ResizeObserver loop limit exceeded", fixed header ? */}
+        <div style={{ maxWidth: '100vw', overflowX: 'auto', /* overflowY: 'auto', */ height: 500 }}>
+          <Table columns={columns} 
+            dataSource={csvData} 
+            size="small" bordered
+            scroll={{ x: 'max-content', /* y: 400 */ }}
+            pagination={{ pageSize: 50 }}
+          />
+        </div>
+
+        <Row gutter={24}>
+          <Col className="gutter-row" span={12}>
+            {headers.length > 0 && (
+              <div style={{ marginTop: '1rem' }}>
+                {/* <span style={{ marginRight: '0.5rem' }}>Select feature:</span> */}
+                <Select /* value={selectedFeature} */ /* style={{ width: 'fit-content' }} */
+                  showSearch
+                  /* showSearch={false} */
+                  placeholder="Select a feature"
+                  onChange={this.handleSelectChange}
+                  optionFilterProp="children"
+                  filterOption={(input, option) => (option?.value ?? '').includes(input)}
+                  style={{ width: 200 }}
+                >
+                  {headers.map((header) => (
+                    <Option key={header} value={header}>
+                      {header}
+                    </Option>
+                  ))}
+                </Select>
+                <h2>Histogram feature {selectedFeature}</h2> 
+                <div style={{ width: "100%", height: 400 }}>
+                  <BarChart width={800} height={300} data={histogramData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis type="number" dataKey="x0" />
+                    <YAxis type="number" />
+                    <Tooltip />
+                    <Bar dataKey="count" fill="#8884d8" barSize={30} />
+                  </BarChart>
+                </div>
+              </div>
+            )}
+          </Col>
+        </Row>
+
+        {/* Another way to display csv in (more static) table format  */}
+        {/* <div>
           {displayedCsvData.length > 0 && (
             <div style={{ overflow: 'auto', width: '100%' }}>
               <table style={{ borderCollapse: 'collapse', border: '1px solid black' }}>
@@ -125,34 +180,7 @@ class DatasetPage extends Component {
               </table>
             </div>
           )}
-          <Row gutter={24}>
-            <Col className="gutter-row" span={12}>
-              {headers.length > 0 && (
-                <div style={{ marginTop: '1rem' }}>
-                  <span style={{ marginRight: '0.5rem' }}>Select feature:</span>
-                  <Select value={selectedFeature} style={{ width: 'fit-content' }}
-                    onChange={this.handleSelectChange}>
-                    {headers.map((header) => (
-                      <Option key={header} value={header}>
-                        {header}
-                      </Option>
-                    ))}
-                  </Select>
-                  <h2>Histogram feature {selectedFeature}</h2> 
-                  <div style={{ width: "100%", height: 400 }}>
-                    <BarChart width={800} height={300} data={histogramData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis type="number" dataKey="x0" />
-                      <YAxis type="number" />
-                      <Tooltip />
-                      <Bar dataKey="count" fill="#8884d8" barSize={30} />
-                    </BarChart>
-                  </div>
-                </div>
-              )}
-            </Col>
-          </Row>
-        </div>
+        </div> */}
       </LayoutPage>
     );
   }

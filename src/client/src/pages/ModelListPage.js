@@ -22,38 +22,9 @@ const {
 
 class ModelListPage extends Component {
 
-  /* constructor(props) {
-    super(props);
-    this.state = {
-      tableData: [],
-      datasetId: this.props?.params?.datasetId // use optional chaining to access params
-    };
-  } */
-
   componentDidMount() {
     this.props.fetchAllModels();
   }
-
-  /* componentDidMount() {
-    this.props.fetchAllModels();
-    const { modelId, datasetType } = this.props;
-    fetch(`/models/${modelId}/datasets/${datasetType}/view`)
-      .then(response => response.text())
-      .then(data => {
-        const parsedData = Papa.parse(data, { header: true }).data;
-        this.setState({ tableData: parsedData });
-      });
-  } */
-
-  /* viewDataset(modelId) {
-    const response = await fetch(`/api/models/${modelId}/datasets/training/csv`);
-    const data = await response.text();
-    const rows = data.split('\n').map((row) => row.split(','));
-    const headers = rows[0];
-    const content = rows.slice(1, -1);
-  
-    // TODO: display the content in a table
-  }; */
 
   async handleDownloadDataset(modelId, datasetType) {
     try {
@@ -91,8 +62,6 @@ class ModelListPage extends Component {
             <a href={`/models/${model.modelId}`}>
               {model.modelId}
             </a>
-            {/* <br/>
-             */}
           </div>
         ),
       },
@@ -112,12 +81,9 @@ class ModelListPage extends Component {
         width: '18%',
         render: (model) => (
           <div>
-            <a href={`/datasets/Train_samples.csv`} view>
+            <a href={`/datasets/${model.modelId}/train`} view>
               <Space wrap>
-                <Button icon={<FolderViewOutlined />}>
-                  {/* onClick={() => viewDataset(model.id)} */}
-                  View
-                </Button>
+                <Button icon={<FolderViewOutlined />}>View</Button>
               </Space>
             </a>
             &nbsp;&nbsp;
@@ -135,12 +101,9 @@ class ModelListPage extends Component {
         width: '18%',
         render: (model) => (
           <div>
-            <a href={`/datasets/test`} download>
+            <a href={`/datasets/${model.modelId}/test`} view>
                 <Space wrap>
-                  <Button icon={<FolderViewOutlined />}>
-                    {/* onClick={() => viewDataset(model.id)} */}
-                    View
-                  </Button>
+                  <Button icon={<FolderViewOutlined />}>View</Button>
                 </Space>
               </a>
               &nbsp;&nbsp;
@@ -202,11 +165,13 @@ class ModelListPage extends Component {
             </Button>
           </Space>
         </a>
+        &nbsp;&nbsp;
         <Table columns={columns} dataSource={dataSource} 
           pagination={{ pageSize: 5 }}
           expandable={{
             expandedRowRender: (model) => 
               <p style={{ margin: 0 }}>
+                <h3>Build config:</h3>
                 <pre>{JSON.stringify(model.buildConfig, null, 2)}</pre>
               </p>,
           }}

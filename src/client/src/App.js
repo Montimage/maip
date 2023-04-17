@@ -44,7 +44,7 @@ function App() {
             <Route path="/retrain/:modelId" element={<RetrainPage />}/>
             <Route path="/models/:modelId/confusion-matrix" element={<ModelPage />}/>
             <Route path="/datasets" element={<DatasetListPage />}/>
-            <Route path="/datasets/:datasetId" element={<DatasetPage />}/>
+            <Route path="/datasets/:modelId/:datasetType" element={<DatasetPage />}/>
             <Route path="/xai/" element={<XAIPage />}/>
             <Route path="/xai/:modelId" element={<XAIModelPage />}/>
             <Route path="/dumb" element={<HistogramPage />}/>

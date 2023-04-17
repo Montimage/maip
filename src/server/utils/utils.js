@@ -82,10 +82,38 @@ const interfaceExist = (interfaceName) => {
 
 const getUniqueId = () => uuidv4();
 
+function replaceCommas(str) {
+  let inQuotes = false;
+  let result = "";
+  for (let i = 0; i < str.length; i++) {
+    let char = str.charAt(i);
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    }
+    if (char === ',' && !inQuotes) {
+      char = ';';
+    }
+    result += char;
+  }
+  return result;
+}
+
+/**
+ * Replace , with ; of a csv file to better display
+ */
+function replaceDelimiterInCsv(inputFilePath, outputFilePath) {
+  const inputCsv = fs.readFileSync(inputFilePath, 'utf-8');
+  const rows = inputCsv.split('\n');
+  const updatedRows = [replaceCommas(rows[0])].concat(rows.slice(1).map(row => row.replace(/,/g, ';')));
+  const outputCsv = updatedRows.join('\n');
+  fs.writeFileSync(outputFilePath, outputCsv, 'utf-8');
+}
+
 module.exports = {
   spawnCommand,
   getInterfaceByName,
   getAllInterfacesName,
   interfaceExist,
   getUniqueId,
+  replaceDelimiterInCsv,
 };
