@@ -154,15 +154,6 @@ class ModelListPage extends Component {
     ];
     return (
       <LayoutPage pageTitle="Models" pageSubTitle="All the models">
-        <Table columns={columns} dataSource={dataSource} 
-          expandable={{
-            expandedRowRender: (model) => 
-              <p style={{ margin: 0 }}>
-                <pre>{JSON.stringify(model.buildConfig, null, 2)}</pre>
-              </p>,
-          }}
-        />
-        
         <a href={`/build`}>
           <Space wrap>
             <Button>
@@ -170,6 +161,15 @@ class ModelListPage extends Component {
             </Button>
           </Space>
         </a>
+        <Table columns={columns} dataSource={dataSource} 
+          pagination={{ pageSize: 5 }}
+          expandable={{
+            expandedRowRender: (model) => 
+              <p style={{ margin: 0 }}>
+                <pre>{JSON.stringify(model.buildConfig, null, 2)}</pre>
+              </p>,
+          }}
+        />
       </LayoutPage>
     );
   }
