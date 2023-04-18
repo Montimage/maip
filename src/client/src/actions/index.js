@@ -36,3 +36,7 @@ export const setShapValues = createAction('SET_SHAP_VALUES');
 export const requestRunLime = createAction('REQUEST_RUN_LIME');
 export const requestLimeValues = createAction('REQUEST_LIME_VALUES');
 export const setLimeValues = createAction('SET_LIME_VALUES');
+
+// All reports
+export const requestAllReports = createAction('REQUEST_ALL_REPORTS');
+export const setAllReports = createAction('SET_ALL_REPORTS');

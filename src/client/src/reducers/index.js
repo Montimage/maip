@@ -10,6 +10,7 @@ import shapReducer from './shapReducer';
 import limeReducer from './limeReducer';
 //import datasetReducer from './datasetReducer';
 import buildReducer from './buildReducer';
+import reportsReducer from './reportsReducer';
 
 const rootReducer = combineReducers({
   notify: notificationReducer,
@@ -20,6 +21,7 @@ const rootReducer = combineReducers({
   xaiStatus: xaiStatusReducer,
 //  dataset: datasetReducer,
   build: buildReducer,
+  reports: reportsReducer,
 });
 
 export default rootReducer;

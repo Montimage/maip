@@ -7,6 +7,7 @@ import { Collapse } from 'antd';
 import {
   requestBuildModel,
   requestBuildStatus,
+  requestAllReports,
 } from "../actions";
 
 const { Panel } = Collapse;
@@ -41,6 +42,7 @@ class BuildPage extends Component {
 
   componentDidMount() {
     this.props.fetchBuildModel();
+    this.props.fetchAllReports();
     this.props.fetchBuildStatus();
   }
 
@@ -78,6 +80,14 @@ class BuildPage extends Component {
   };
 
   render() {
+    const { reports } = this.props;
+    console.log(reports);
+
+    const reportsOptions = reports.map(report => ({
+      value: report,
+      label: report,
+    }));
+
     return (
       <LayoutPage pageTitle="Build Page" pageSubTitle="">
         <Form
@@ -91,14 +101,15 @@ class BuildPage extends Component {
             rules={[
               {
                 required: true,
-                message: 'Please enter an attack dataset!',
+                message: 'Please select an attack dataset!',
               },
             ]}
           >
-            <Input
-              name="attackDataset"
+            <Select
+              placeholder="Select an attack dataset"
               value={this.state.attackDataset}
-              onChange={this.handleInputChange}
+              onChange={value => this.setState({ attackDataset: value })}
+              options={reportsOptions}
             />
           </Form.Item>
           <Form.Item
@@ -107,14 +118,15 @@ class BuildPage extends Component {
             rules={[
               {
                 required: true,
-                message: 'Please enter a normal dataset!',
+                message: 'Please select a normal dataset!',
               },
             ]}
           >
-            <Input
-              name="normalDataset"
+            <Select
+              placeholder="Select a normal dataset"
               value={this.state.normalDataset}
-              onChange={this.handleInputChange}
+              onChange={value => this.setState({ normalDataset: value })}
+              options={reportsOptions}
             />
           </Form.Item>
           <Form.Item
@@ -218,6 +230,7 @@ class BuildPage extends Component {
           </Collapse>
           <div style={{ textAlign: 'center' }}>
             <Button
+              style={{ marginTop: '16px' }}
               onClick={() => {
                 this.handleButtonBuild(this.state);
                 const { 
@@ -244,14 +257,15 @@ class BuildPage extends Component {
   }
 }
 
-const mapPropsToStates = ({ build }) => ({
-  build,
+const mapPropsToStates = ({ build, reports }) => ({
+  build, reports,
 });
 
 const mapDispatchToProps = (dispatch) => ({
   fetchBuildStatus: () => dispatch(requestBuildStatus()),
   fetchBuildModel: (datasets, totalSamples, ratio, params) =>
     dispatch(requestBuildModel({ datasets, totalSamples, ratio, params })),
+  fetchAllReports: () => dispatch(requestAllReports()),
 });
 
 export default connect(mapPropsToStates, mapDispatchToProps)(BuildPage);
