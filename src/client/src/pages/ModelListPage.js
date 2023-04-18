@@ -1,6 +1,6 @@
 import React, { Component } from "react";
 import { connect } from "react-redux";
-import { Table, Space, Button } from "antd";
+import { Table, Space, Button, Select } from "antd";
 import { Link } from 'react-router-dom';
 import LayoutPage from "./LayoutPage";
 import Papa from "papaparse";
@@ -20,8 +20,9 @@ const {
   SERVER_PORT,
 } = require('../constants');
 
-class ModelListPage extends Component {
+const { Option } = Select;
 
+class ModelListPage extends Component {
   componentDidMount() {
     this.props.fetchAllModels();
   }
@@ -41,6 +42,18 @@ class ModelListPage extends Component {
       console.error('Error downloading dataset:', error);
     }
   }
+
+  handleDeleteModel = (modelId) => {
+    fetch(`http://${SERVER_HOST}:${SERVER_PORT}/api/models/${modelId}/`, {
+      method: 'DELETE'
+    })
+      .then(() => {
+        this.props.fetchAllModels();
+      })
+      .catch((error) => {
+        console.log(error);
+      });
+  };
   
   render() {
     const { models, fetchDeleteModel } = this.props;
@@ -51,12 +64,20 @@ class ModelListPage extends Component {
       return null;
     }
 
+    const handleOptionClick = (option) => {
+      if (option.url) {
+        window.location.href = option.url;
+      } else if (option.onClick) {
+        option.onClick();
+      }
+    };    
+
     const dataSource = models.map((model, index) => ({ ...model, key: index }));
     const columns = [
       {
-        title: "Id",
+        title: "Model Id",
         key: "data",
-        width: '14%',
+        width: '25%',
         render: (model) => (
           <div>
             <a href={`/models/${model.modelId}`}>
@@ -66,19 +87,19 @@ class ModelListPage extends Component {
         ),
       },
       {
-        title: "Build At",
+        title: "Built At",
         key: "data",
         sorter: (a, b) => a.lastBuildAt - b.lastBuildAt,
         render: (model) => {
           console.log(model.lastBuildAt);
           return moment(model.lastBuildAt).format("MMMM Do YYYY, h:mm:ss a");
         },
-        width: '10%', /* width: 300, */
+        width: '20%', /* width: 300, */
       },
       {
         title: "Training Dataset",
         key: "data",
-        width: '18%',
+        width: '20%',
         render: (model) => (
           <div>
             <a href={`/datasets/${model.modelId}/train`} view>
@@ -98,7 +119,7 @@ class ModelListPage extends Component {
       {
         title: "Testing Dataset",
         key: "data",
-        width: '18%',
+        width: '20%',
         render: (model) => (
           <div>
             <a href={`/datasets/${model.modelId}/test`} view>
@@ -116,63 +137,75 @@ class ModelListPage extends Component {
         ),
       },
       {
-        title: "Action",
+        title: "Actions",
         key: "data",
-        width: '35%',
-        render: (model) => (
-          <div>
-            <a href={`/retrain/${model.modelId}`}>
-              <Space wrap>
-                <Button icon={<HourglassOutlined />}>Retrain</Button>
-              </Space>
-            </a>
-            &nbsp;&nbsp;
-            <a href={`/predict/${model.modelId}`}>
-              <Space wrap>
-                <Button icon={<LineChartOutlined />}>Predict</Button>
-              </Space>
-            </a>
-            &nbsp;&nbsp;
-            <a href={`/xai/${model.modelId}`}>
-              <Space wrap>
-                <Button icon={<SolutionOutlined />}>XAI</Button>
-              </Space>
-            </a>
-            &nbsp;&nbsp;
-            <a href={`/attacks/${model.modelId}`}>
-              <Space wrap>
-                <Button icon={<BugOutlined />}>Attacks</Button>
-              </Space>
-            </a>
-            &nbsp;&nbsp;
-            <a>
-              <Space wrap>
-                <Button icon={<RestOutlined />}
-                  onClick={() => fetchDeleteModel(model.modelId)}
-                >Delete</Button>
-              </Space>
-            </a>
-          </div>
-        ),
+        width: '15%',
+        render: (model) => {
+          const options = [
+            {
+              label: 'Retrain',
+              icon: <HourglassOutlined />,
+              url: `/retrain/${model.modelId}`
+            },
+            {
+              label: 'Predict',
+              icon: <LineChartOutlined />,
+              url: `/predict/${model.modelId}`
+            },
+            {
+              label: 'XAI',
+              icon: <SolutionOutlined />,
+              url: `/xai/${model.modelId}`
+            },
+            {
+              label: 'Attacks',
+              icon: <BugOutlined />,
+              url: `/attacks/${model.modelId}`
+            },
+            {
+              label: 'Delete',
+              icon: <RestOutlined />,
+              onClick: () => this.handleDeleteModel(model.modelId)
+            }
+          ];
+          return (
+            <Select placeholder="Select an action"
+              style={{ width: 200 }}
+              options={options.map(option => ({
+                value: option.url || "",
+                label: (
+                  <Space wrap>
+                    {option.icon}
+                    {option.label}
+                  </Space>
+                ),
+                onClick: option.onClick,
+              }))} 
+              onChange={(value, option) => handleOptionClick(option)}
+            />
+          );
+        },
       },
     ];
+        
     return (
       <LayoutPage pageTitle="Models" pageSubTitle="All the models">
         <a href={`/build`}>
           <Space wrap>
-            <Button>
+            <Button style={{ marginBottom: '16px' }}>
               Add a new model
             </Button>
           </Space>
         </a>
-        &nbsp;&nbsp;
-        <Table columns={columns} dataSource={dataSource} 
-          pagination={{ pageSize: 5 }}
+        <Table columns={columns} dataSource={dataSource}
+          pagination={{ pageSize: 10 }}
           expandable={{
             expandedRowRender: (model) => 
               <p style={{ margin: 0 }}>
-                <h3>Build config:</h3>
-                <pre>{JSON.stringify(model.buildConfig, null, 2)}</pre>
+                <h3><b>Build config:</b></h3>
+                <pre style={{ fontSize: "12px" }}>
+                  {JSON.stringify(model.buildConfig, null, 2)}
+                </pre>
               </p>,
           }}
         />
@@ -187,7 +220,7 @@ const mapPropsToStates = ({ models }) => ({
 
 const mapDispatchToProps = (dispatch) => ({
   fetchAllModels: () => dispatch(requestAllModels()),
-  fetchDeleteModel: (modelId) => dispatch(deleteModel(modelId)),
+  //fetchDeleteModel: (modelId) => dispatch(deleteModel(modelId)),
 });
 
 export default connect(mapPropsToStates, mapDispatchToProps)(ModelListPage);
