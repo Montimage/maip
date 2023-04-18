@@ -23,6 +23,14 @@ const {
 const { Option } = Select;
 
 class ModelListPage extends Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      models: [],
+      selectedOption: "",
+    };
+  }
+
   componentDidMount() {
     this.props.fetchAllModels();
   }
@@ -43,6 +51,7 @@ class ModelListPage extends Component {
     }
   }
 
+  /* TODO: action Delete is automatically set to the next row */
   handleDeleteModel = (modelId) => {
     fetch(`http://${SERVER_HOST}:${SERVER_PORT}/api/models/${modelId}/`, {
       method: 'DELETE'
@@ -64,13 +73,17 @@ class ModelListPage extends Component {
       return null;
     }
 
-    const handleOptionClick = (option) => {
-      if (option.url) {
-        window.location.href = option.url;
-      } else if (option.onClick) {
-        option.onClick();
+    const handleOptionClick = (option, modelId) => {
+      //console.log(option);
+      if (option.onClick) {
+        /* if (option.label.props.children[1] != "Delete") {
+          this.setState({ selectedOption: option.label.props.children[1] });
+        } else {
+          this.setState({ selectedOption: "" });
+        } */ 
+        option.onClick(modelId);
       }
-    };    
+  };
 
     const dataSource = models.map((model, index) => ({ ...model, key: index }));
     const columns = [
@@ -145,27 +158,47 @@ class ModelListPage extends Component {
             {
               label: 'Retrain',
               icon: <HourglassOutlined />,
-              url: `/retrain/${model.modelId}`
+              url: `/retrain/${model.modelId}`,
+              onClick: () => {
+                console.log("Option Retrain clicked!");
+                window.location.href = `/retrain/${model.modelId}`;
+              }
             },
             {
               label: 'Predict',
               icon: <LineChartOutlined />,
-              url: `/predict/${model.modelId}`
+              url: `/predict/${model.modelId}`,
+              onClick: () => {
+                console.log("Option Predict clicked!");
+                window.location.href = `/predict/${model.modelId}`;
+              }
             },
             {
               label: 'XAI',
               icon: <SolutionOutlined />,
-              url: `/xai/${model.modelId}`
+              url: `/xai/${model.modelId}`,
+              onClick: () => {
+                console.log("Option XAI clicked!");
+                window.location.href = `/xai/${model.modelId}`;
+              }
             },
             {
               label: 'Attacks',
               icon: <BugOutlined />,
-              url: `/attacks/${model.modelId}`
+              url: `/attacks/${model.modelId}`,
+              onClick: () => {
+                console.log("Option Attacks clicked!");
+                window.location.href = `/attacks/${model.modelId}`;
+              }
             },
             {
               label: 'Delete',
               icon: <RestOutlined />,
-              onClick: () => this.handleDeleteModel(model.modelId)
+              onClick: () => {
+                console.log(`Option Delete clicked! ${this.state.selectedOption}`);
+                this.handleDeleteModel(model.modelId);
+                console.log(`Finish deleting ${this.state.selectedOption}`);
+              }
             }
           ];
           return (
@@ -181,7 +214,7 @@ class ModelListPage extends Component {
                 ),
                 onClick: option.onClick,
               }))} 
-              onChange={(value, option) => handleOptionClick(option)}
+              onChange={(value, option) => handleOptionClick(option, model.modelId)}
             />
           );
         },
