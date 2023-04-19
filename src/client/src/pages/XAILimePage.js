@@ -6,10 +6,8 @@ import { Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select 
 import { UserOutlined, DownloadOutlined, QuestionOutlined } from "@ant-design/icons";
 import { Bar } from '@ant-design/plots';
 import {
-  requestRunShap,
   requestRunLime,
   requestXAIStatus,
-  requestShapValues,
   requestLimeValues,
 } from "../actions";
 
@@ -28,11 +26,11 @@ const layout = {
   },
 };
 
-let barShap, barLime;
+let barLime;
 let intervalXAI;
 
 const downloadLimeImage = () => { barLime?.downloadImage(); };
-//const toDataURL = () => { console.log(barShap?.toDataURL()); };
+//const toDataURL = () => { console.log(barLime?.toDataURL()); };
 
 const onFinish = (values) => {
   console.log(values);
@@ -190,11 +188,11 @@ class XAIPage extends Component {
               />
             </Form.Item>
             <Form.Item name="checkbox" label="Contributions to display" 
+              valuePropName="checked"
               style={{ flex: 'none', marginBottom: 10 }}>
               <Checkbox.Group 
                 options={['Positive', 'Negative']}
-                /* TODO: checked values did not display correctly */
-                /* defaultValue={['Positive', 'Negative']} */
+                defaultValue={['Positive', 'Negative']}
                 onChange={this.handleContributionsChange} 
               />
             </Form.Item>

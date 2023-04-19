@@ -138,11 +138,12 @@ class XAIPage extends Component {
               onChange={(value) => this.onSliderChange(value)}
             />
           </Form.Item>
-          <Form.Item name="checkbox" label="Contributions to display" style={{ flex: 'none', marginBottom: 10 }}>
+          <Form.Item name="checkbox" label="Contributions to display"
+            valuePropName="checked"
+            style={{ flex: 'none', marginBottom: 10 }}>
             <Checkbox.Group 
               options={['Positive', 'Negative']}
-              /* TODO: checked values did not display correctly */
-              /* defaultValue={['Positive', 'Negative']} */
+              defaultValue={['Positive', 'Negative']}
               onChange={this.handleContributionsChange} 
             />
           </Form.Item>
