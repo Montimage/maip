@@ -20,6 +20,8 @@ import RetrainPage from "./pages/RetrainPage";
 //import DummyPage from "./pages/DummyPage";
 import XAIPage from "./pages/XAIPage";
 import XAIModelPage from "./pages/XAIModelPage";
+import XAIShapPage from "./pages/XAIShapPage";
+import XAILimePage from "./pages/XAILimePage";
 
 import HistogramPage from "./pages/HistogramPage";
 import TablePage from "./pages/TablePage";
@@ -47,6 +49,8 @@ function App() {
             <Route path="/datasets/:modelId/:datasetType" element={<DatasetPage />}/>
             <Route path="/xai/" element={<XAIPage />}/>
             <Route path="/xai/:modelId" element={<XAIModelPage />}/>
+            <Route path="/xai/shap/:modelId" element={<XAIShapPage />}/>
+            <Route path="/xai/lime/:modelId" element={<XAILimePage />}/>
             <Route path="/dumb" element={<HistogramPage />}/>
             <Route path="/table" element={<TablePage />}/>
           </Routes>

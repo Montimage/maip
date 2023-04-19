@@ -173,13 +173,23 @@ class ModelListPage extends Component {
                 window.location.href = `/predict/${model.modelId}`;
               }
             },
+            /* TODO: group 2 XAI options */
             {
-              label: 'XAI',
+              label: 'XAI Shap',
               icon: <SolutionOutlined />,
-              url: `/xai/${model.modelId}`,
+              url: `/xai/shap/${model.modelId}`,
               onClick: () => {
-                console.log("Option XAI clicked!");
-                window.location.href = `/xai/${model.modelId}`;
+                console.log("Option XAI Shap clicked!");
+                window.location.href = `/xai/shap/${model.modelId}`;
+              }
+            },
+            {
+              label: 'XAI Lime',
+              icon: <SolutionOutlined />,
+              url: `/xai/lime/${model.modelId}`,
+              onClick: () => {
+                console.log("Option XAI Lime clicked!");
+                window.location.href = `/xai/lime/${model.modelId}`;
               }
             },
             {
