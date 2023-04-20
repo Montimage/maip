@@ -122,9 +122,16 @@ class XAIPage extends Component {
     if (!xaiStatus.isRunning) {
       //clearInterval(intervalXAI);
       //setInterval(null);
-      const filteredMaskedShap = shapValues.filter(obj => 
+      console.log(shapValues);
+      const filteredValuesShap = shapValues.filter((d) => {
+        if (d.importance_value > 0 && positiveChecked) return true;
+        if (d.importance_value < 0 && negativeChecked) return true;
+        return false;
+      });
+
+      const filteredMaskedShap = filteredValuesShap.filter(obj => 
         !maskedFeatures.some(feature => obj.feature.includes(feature)));
-      //console.log(filteredMaskedShap);
+      console.log(filteredMaskedShap);
 
       const shapValuesBarConfig = {
         data: filteredMaskedShap.slice(0, maxDisplay),
@@ -214,8 +221,9 @@ class XAIPage extends Component {
               <div style={style}>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
                   <h2>&nbsp;&nbsp;&nbsp;Feature Importance</h2>
+                  {/* TODO: make position of buttons are flexible */}
                   <Button type="button" icon={<DownloadOutlined />}
-                    style={{ marginLeft: '30rem' }}
+                    style={{ marginLeft: '20rem' }}
                     titleDelay={50}
                     title="Download plot as png" 
                     onClick={downloadShapImage} 
