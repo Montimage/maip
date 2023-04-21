@@ -142,11 +142,14 @@ class XAIPage extends Component {
         isStack: true,
         xField: 'value',
         yField: 'feature',
-        seriesField: 'type',
+        seriesField: "value",
         label: false,
-        /* TODO: check why bars color is not changed */
-        barStyle: {
-          fill: (d) => (d.value > 0 ?'#37D67A' : '#1890FF')
+        barStyle: (d) => {
+          //console.log(d)
+          return {
+            /* https://casesandberg.github.io/react-color/ */
+            fill: d.value > 0 ? "#0693e3" : "#EB144C"
+          };
         },
         meta: {
           value: {
@@ -169,9 +172,17 @@ class XAIPage extends Component {
             maxWidth: 600,
           }}
           >
-            {/* TODO: display value of slider (really need?), space between Slide and Checkbox is large? */}
+            <Form.Item label="Sample ID" style={{ marginBottom: 10 }}>
+              <div style={{ display: 'inline-flex' }}>
+                <Form.Item label="id" name="id" noStyle>
+                  <InputNumber min={1} defaultValue={sampleId}
+                    onChange={(e) => this.onSampleIdChange(e)}
+                  />
+                </Form.Item>
+              </div>  
+            </Form.Item>
             <Form.Item name="slider" label="Features to display" 
-              style={{ marginBottom: 10 }}>
+              style={{ marginBottom: -5 }}>
               <Slider
                 marks={{
                   1: '1',
@@ -210,34 +221,28 @@ class XAIPage extends Component {
                 options={selectFeaturesOptions}
               />
             </Form.Item>
+            <div style={{ textAlign: 'center' }}>
+              <Button icon={<UserOutlined />}
+                /* style={{ marginLeft: '5px' }} */
+                onClick={() => {
+                  console.log([modelId, sampleId, numberSamples, maxDisplay]);
+                  this.props.fetchRunLime(
+                    modelId, sampleId, maxDisplay,
+                  );
+                }}
+                >LIME Explain
+              </Button>
+            </div>
           </Form>
 
           <Row gutter={24}>
             <Col className="gutter-row" span={12}>
               <Divider orientation="left"><h3>LIME Explanations</h3></Divider>
-              <Form.Item label="Sample ID" style={{ marginBottom: 10 }}>
-                <div style={{ display: 'inline-flex' }}>
-                  <Form.Item label="id" name="id" noStyle>
-                    <InputNumber min={1} defaultValue={sampleId}
-                      onChange={(e) => this.onSampleIdChange(e)}
-                    />
-                  </Form.Item>
-                  <Button icon={<UserOutlined />}
-                    onClick={() => {
-                      console.log([modelId, sampleId, numberSamples, maxDisplay]);
-                      this.props.fetchRunLime(
-                        modelId, sampleId, maxDisplay,
-                      );
-                    }}
-                    >LIME Explain
-                  </Button>
-                </div>  
-              </Form.Item>
               <div style={style}>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
                   <h2>&nbsp;&nbsp;&nbsp;Local Explanation - Sample ID {sampleId}</h2>
                   <Button type="button" icon={<DownloadOutlined />}
-                    style={{ marginLeft: '22rem' }}
+                    style={{ marginRight: '20rem' }}
                     titleDelay={50}
                     title="Download plot as png" 
                     onClick={downloadLimeImage} 
@@ -310,6 +315,7 @@ class XAIPage extends Component {
                     />
                   </Form.Item>
                   <Button icon={<UserOutlined />}
+                    style={{ marginLeft: '5px' }}
                     onClick={() => {
                       console.log([modelId, sampleId, numberSamples, maxDisplay]);
                       this.props.fetchRunLime(

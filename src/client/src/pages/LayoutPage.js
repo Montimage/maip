@@ -32,7 +32,7 @@ class LayoutPage extends Component {
         <Layout style={{ padding: "0px 48px 48px", margin: "30px 50px 50px" }}>
           <Content>
             {pageTitle && <Title level={2} style={{ marginTop: '10px' }}>{pageTitle}</Title>}
-            {pageSubTitle && <Text type="secondary">{pageSubTitle}</Text>}
+            {pageSubTitle && <Text /* type="secondary" */ italic>{pageSubTitle}</Text>}
             <div style={{ paddingTop: "30px" }} className="site-layout-content">
               {requesting ? <div style={{textAlign: "center", marginTop: 30}}><Spin tip="Loading..." /></div> : this.props.children}
             </div>
