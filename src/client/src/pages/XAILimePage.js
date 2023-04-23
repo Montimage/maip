@@ -3,7 +3,7 @@ import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
 import { getLastPath } from "../utils";
 import { Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select } from 'antd';
-import { UserOutlined, DownloadOutlined, QuestionOutlined } from "@ant-design/icons";
+import { UserOutlined, DownloadOutlined, QuestionOutlined, CameraOutlined } from "@ant-design/icons";
 import { Bar } from '@ant-design/plots';
 import {
   requestRunLime,
@@ -142,7 +142,7 @@ class XAIPage extends Component {
         isStack: true,
         xField: 'value',
         yField: 'feature',
-        seriesField: "value",
+        //seriesField: "value",
         label: false,
         barStyle: (d) => {
           //console.log(d)
@@ -151,6 +151,11 @@ class XAIPage extends Component {
             fill: d.value > 0 ? "#0693e3" : "#EB144C"
           };
         },
+        /* TODO: add title of Bar chart */
+        /* barTitle: {
+          text: "My Bar Chart Title",
+          style: { fontSize: 16 }
+        }, */
         meta: {
           value: {
             min: Math.min(...filteredMaskedValuesLime.map((d) => d.value)),
@@ -207,7 +212,7 @@ class XAIPage extends Component {
                 onChange={this.handleContributionsChange} 
               />
             </Form.Item>
-            <Form.Item name="select" label="Features to mask" 
+            <Form.Item name="select" label="Feature(s) to mask" 
               style={{ flex: 'none', marginBottom: 10 }}>
               <Select
                 mode="multiple"
@@ -215,7 +220,7 @@ class XAIPage extends Component {
                   width: '100%',
                 }}
                 allowClear
-                placeholder="Select a feature"
+                placeholder="Select ..."
                 onChange={this.handleMaskedFeatures}
                 optionLabelProp="label"
                 options={selectFeaturesOptions}
@@ -241,7 +246,7 @@ class XAIPage extends Component {
               <div style={style}>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
                   <h2>&nbsp;&nbsp;&nbsp;Local Explanation - Sample ID {sampleId}</h2>
-                  <Button type="button" icon={<DownloadOutlined />}
+                  <Button type="button" icon={<CameraOutlined />}
                     style={{ marginRight: '20rem' }}
                     titleDelay={50}
                     title="Download plot as png" 

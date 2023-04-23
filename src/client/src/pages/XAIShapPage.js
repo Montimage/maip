@@ -2,14 +2,17 @@ import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
 import { getLastPath } from "../utils";
-import { Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select } from 'antd';
-import { UserOutlined, DownloadOutlined, QuestionOutlined } from "@ant-design/icons";
+import { Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select } from 'antd';
+import { UserOutlined, DownloadOutlined, QuestionOutlined, CameraOutlined } from "@ant-design/icons";
 import { Bar } from '@ant-design/plots';
 import {
   requestRunShap,
   requestXAIStatus,
   requestShapValues,
 } from "../actions";
+import {
+  FEATURES_DESCRIPTIONS,
+} from "../constants";
 
 const style = {
   //background: '#0092ff',
@@ -46,7 +49,7 @@ class XAIPage extends Component {
     this.state = {
       sampleId: 20,
       numberSamples: 10,
-      maxDisplay: 30,
+      maxDisplay: 10,
       positiveChecked: true,
       negativeChecked: true,
       maskedFeatures: [],
@@ -184,13 +187,13 @@ class XAIPage extends Component {
       const filteredMaskedShap = filteredValuesShap.filter(obj => 
         !maskedFeatures.some(feature => obj.feature.includes(feature)));
       //console.log(filteredMaskedShap);
-
+      const toDisplayShap = filteredMaskedShap.slice(0, maxDisplay); 
       const shapValuesBarConfig = {
-        data: filteredMaskedShap.slice(0, maxDisplay),
+        data: toDisplayShap,
         isStack: true,
         xField: 'importance_value',
         yField: 'feature',
-        seriesField: 'importance_value',
+        //seriesField: 'feature',
         label: false,
         barStyle: (d) => {
           //console.log(d)
@@ -201,6 +204,32 @@ class XAIPage extends Component {
         geometry: 'interval',
         interactions: [{ type: 'zoom' }],
       };
+
+      const topFeatures = toDisplayShap.map((item, index) => ({
+        key: index + 1,
+        name: item.feature,
+        description: FEATURES_DESCRIPTIONS[item.feature] || 'N/A',
+      }));
+      //console.log(topFeatures);
+      
+      const columnsTopFeatures = [
+        {
+          title: 'ID',
+          dataIndex: 'key',
+          key: 'key',
+          sorter: (a, b) => a.key - b.key,
+        },
+        {
+          title: 'Name',
+          dataIndex: 'name',
+          key: 'name',
+        },
+        {
+          title: 'Description',
+          dataIndex: 'description',
+          key: 'description',
+        },
+      ];
 
       return (
         <LayoutPage pageTitle="XAI Page" pageSubTitle={`Model ${modelId}`}>
@@ -251,7 +280,7 @@ class XAIPage extends Component {
                 onChange={this.handleContributionsChange} 
               />
             </Form.Item>
-            <Form.Item name="select" label="Features to mask" 
+            <Form.Item name="select" label="Feature(s)to mask" 
               style={{ flex: 'none', marginBottom: 10 }}
             > 
               <Select
@@ -260,7 +289,7 @@ class XAIPage extends Component {
                   width: '100%',
                 }}
                 allowClear
-                placeholder="Select a feature"
+                placeholder="Select ..."
                 onChange={this.handleMaskedFeatures}
                 optionLabelProp="label"
                 options={selectFeaturesOptions}
@@ -279,14 +308,14 @@ class XAIPage extends Component {
               >SHAP Explain</Button>
             </div>
           </Form>
+          <Divider orientation="left"><h3>SHAP Explanations</h3></Divider>
           <Row gutter={24}>
             <Col className="gutter-row" span={12}>
-              <Divider orientation="left"><h3>SHAP Explanations</h3></Divider>
               <div style={style}>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
                   <h2>&nbsp;&nbsp;&nbsp;Feature Importance</h2>
                   {/* TODO: make position of buttons are flexible */}
-                  <Button type="button" icon={<DownloadOutlined />}
+                  <Button type="button" icon={<CameraOutlined />}
                     style={{ marginLeft: '20rem' }}
                     titleDelay={50}
                     title="Download plot as png" 
@@ -302,6 +331,14 @@ class XAIPage extends Component {
                 </button> */}
                 &nbsp;&nbsp;&nbsp;
                 <Bar {...shapValuesBarConfig} onReady={(bar) => (barShap = bar)}/>
+              </div>
+            </Col>
+            <Col className="gutter-row" span={12}>
+              <div style={style}>
+                <h2>&nbsp;&nbsp;&nbsp;{`Top ${maxDisplay} most important features`}</h2>
+                <Table dataSource={topFeatures} columns={columnsTopFeatures} 
+                  size="small" style={{ marginBottom: 0 }}
+                />
               </div>
             </Col>
           </Row>
