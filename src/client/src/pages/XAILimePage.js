@@ -2,9 +2,9 @@ import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
 import { getLastPath } from "../utils";
-import { Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select } from 'antd';
+import { Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select } from 'antd';
 import { UserOutlined, DownloadOutlined, QuestionOutlined, CameraOutlined } from "@ant-design/icons";
-import { Bar } from '@ant-design/plots';
+import { Bar, Pie } from '@ant-design/plots';
 import {
   requestRunLime,
   requestXAIStatus,
@@ -44,7 +44,7 @@ class XAIPage extends Component {
   constructor(props) {
     super(props);
     this.state = {
-      sampleId: 20,
+      sampleId: 5,
       numberSamples: 10,
       maxDisplay: 30,
       positiveChecked: true,
@@ -54,6 +54,10 @@ class XAIPage extends Component {
     this.handleRandomClick = this.handleRandomClick.bind(this);
     this.handleContributionsChange = this.handleContributionsChange.bind(this);
     this.handleMaskedFeatures = this.handleMaskedFeatures.bind(this);
+  }
+
+  handleRowClick = (record) => {
+    this.setState({ sampleId: record.key });
   }
 
   onSliderChange(newVal) {
@@ -114,6 +118,75 @@ class XAIPage extends Component {
       xaiStatus, 
     } = this.props;
     console.log(xaiStatus);
+
+    const yProb = [
+      [0.3, 0.7],
+      [0.6, 0.4],
+      [0.1, 0.9],
+      [0.8, 0.2],
+      [0.4, 0.6],
+      [0.2, 0.8],
+      [0.9, 0.1],
+      [0.5, 0.5],
+      [0.7, 0.3],
+      [0.2, 0.8]
+    ];
+    const data = [
+      {
+        key: 0,
+        label: 'Normal traffic',
+        probability: `${(yProb[sampleId][0] * 100).toFixed(0)}%`
+      },
+      {
+        key: 1,
+        label: 'Malware traffic',
+        probability: `${(yProb[sampleId][1] * 100).toFixed(0)}%`
+      }
+    ];
+
+    const columns = [
+      {
+        title: 'Label',
+        dataIndex: 'label',
+        key: 'label'
+      },
+      {
+        title: 'Probability',
+        dataIndex: 'probability',
+        key: 'probability'
+      }
+    ];
+
+    // Create data for pie chart
+    const pieData = yProb[this.state.sampleId].map((prob, i) => {
+      const label = i === 0 ? "Normal traffic" : "Malware traffic";
+      const percentage = (prob * 100).toFixed(0);
+      return {
+        type: label,
+        value: prob,
+      };
+    });
+
+    // Set options for pie chart
+    const pieConfig = {
+      appendPadding: 10,
+      data: pieData,
+      angleField: 'value',
+      colorField: 'type',
+      radius: 1,
+      label: {
+        type: 'inner',
+        offset: '-50%',
+        content: '{value}',
+        style: {
+          textAlign: 'center',
+          fontSize: 18,
+          fill: '#fff',
+        },
+        autoRotate: false,
+      },
+      interactions: [{ type: 'element-active' }],
+    };
 
     const features = limeValues.map(obj => obj.feature).sort();
     console.log(features);
@@ -240,9 +313,9 @@ class XAIPage extends Component {
             </div>
           </Form>
 
+          <Divider orientation="left"><h3>LIME Explanations</h3></Divider>
           <Row gutter={24}>
             <Col className="gutter-row" span={12}>
-              <Divider orientation="left"><h3>LIME Explanations</h3></Divider>
               <div style={style}>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
                   <h2>&nbsp;&nbsp;&nbsp;Local Explanation - Sample ID {sampleId}</h2>
@@ -262,6 +335,22 @@ class XAIPage extends Component {
                 </button> */}
                 &nbsp;&nbsp;&nbsp;
                 <Bar {...limeValuesBarConfig} onReady={(bar) => (barLime = bar)}/>
+              </div>
+            </Col>
+            <Col className="gutter-row" span={12}>
+              <div style={style}>
+                <h2>&nbsp;&nbsp;&nbsp;Prediction</h2>
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                  <Table
+                    columns={columns}
+                    dataSource={data}
+                    pagination={false}
+                    style={{ marginLeft: '10px', marginRight: '10px', marginTop: '-50px', width: '280px' }}
+                  />
+                  <div style={{ width: '400px', marginRight: '10px', marginTop: '-50px' }}>
+                    <Pie {...pieConfig} />
+                  </div>
+                </div>
               </div>
             </Col>
           </Row>
@@ -309,9 +398,9 @@ class XAIPage extends Component {
             </Form.Item>
           </Form>
 
+          <Divider orientation="left"><h3>LIME Explanations</h3></Divider>
           <Row gutter={24}>
             <Col className="gutter-row" span={12}>
-              <Divider orientation="left"><h3>LIME Explanations</h3></Divider>
               <Form.Item label="Sample ID" style={{ marginBottom: 10 }}>
                 <div style={{ display: 'inline-flex' }}>
                   <Form.Item label="id" name="id" noStyle>
