@@ -22,9 +22,7 @@ import XAIPage from "./pages/XAIPage";
 import XAIModelPage from "./pages/XAIModelPage";
 import XAIShapPage from "./pages/XAIShapPage";
 import XAILimePage from "./pages/XAILimePage";
-
-import HistogramPage from "./pages/HistogramPage";
-import TablePage from "./pages/TablePage";
+import MetricsPage from "./pages/MetricsPage";
 
 function App() {
   return (
@@ -51,8 +49,7 @@ function App() {
             <Route path="/xai/:modelId" element={<XAIModelPage />}/>
             <Route path="/xai/shap/:modelId" element={<XAIShapPage />}/>
             <Route path="/xai/lime/:modelId" element={<XAILimePage />}/>
-            <Route path="/dumb" element={<HistogramPage />}/>
-            <Route path="/table" element={<TablePage />}/>
+            <Route path="/metrics/:modelId" element={<MetricsPage />}/>
           </Routes>
           <MAIPFooter />
         </Layout>
