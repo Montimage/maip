@@ -203,11 +203,18 @@ class MetricsPage extends Component {
     };
 
     return (
-      <LayoutPage pageTitle="Metrics Page" pageSubTitle={`Model ${modelId}`}>
+      <LayoutPage pageTitle="Accountability & Resilience Metrics" pageSubTitle={`Model ${modelId}`}>
         <Row gutter={24}>
           <Col className="gutter-row" span={12}>
             <div style={style}>
               <h2>&nbsp;&nbsp;&nbsp;Model Performance</h2>
+              <div style={{ position: 'absolute', top: 10, right: 10 }}>
+                <Tooltip title="Shows a list of various model performance metrics for each class.">
+                  <Button style={{ fontSize: '15px', border: 'none' }} type="link">
+                    <QuestionOutlined style={{ opacity: 0.5 }} />
+                  </Button>
+                </Tooltip>
+              </div>
               <Table columns={columnsTableStats} dataSource={dataStats} pagination={false}
                style={{marginTop: '20px'}} />
             </div>

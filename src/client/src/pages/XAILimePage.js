@@ -240,7 +240,8 @@ class XAIPage extends Component {
       };
 
       return (
-        <LayoutPage pageTitle="XAI Page" pageSubTitle={`Model ${modelId}`}>
+        <LayoutPage pageTitle="Explainable AI with Local Interpretable Model-Agnostic Explanations (LIME)" 
+          pageSubTitle={`Model ${modelId}`}>
           <Divider orientation="left"><h3>Parameters</h3></Divider>
           <Form
           {...layout}
@@ -354,7 +355,7 @@ class XAIPage extends Component {
                   <div style={{ width: '400px', marginRight: '10px', marginTop: '-50px' }}>
                     <Pie {...pieConfig} />
                     <div style={{ position: 'absolute', top: 10, right: 10 }}>
-                      <Tooltip title="Show predicted probability for each sample.">
+                      <Tooltip title="Shows predicted probability for each sample.">
                         <Button style={{ fontSize: '15px', border: 'none' }} type="link">
                           <QuestionOutlined style={{ opacity: 0.5 }} />
                         </Button>

@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
 import { getLastPath } from "../utils";
-import { Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Tooltip } from 'antd';
+import { Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Tooltip, Typography } from 'antd';
 import { UserOutlined, DownloadOutlined, QuestionOutlined, CameraOutlined } from "@ant-design/icons";
 import { Bar } from '@ant-design/plots';
 import {
@@ -203,6 +203,14 @@ class XAIPage extends Component {
         },
         geometry: 'interval',
         interactions: [{ type: 'zoom' }],
+        title: {
+          text: 'Feature Importance',
+          style: {
+            fontSize: 18,
+            fontWeight: 'bold',
+            textAlign: 'center'
+          }
+        }
       };
 
       const topFeatures = toDisplayShap.map((item, index) => ({
@@ -232,7 +240,7 @@ class XAIPage extends Component {
       ];
 
       return (
-        <LayoutPage pageTitle="XAI SHAP Page" pageSubTitle={`Model ${modelId}`}>
+        <LayoutPage pageTitle="Explainable AI with SHapley Additive exPlanations (SHAP)" pageSubTitle={`Model ${modelId}`}>
           <Divider orientation="left"><h3>Parameters</h3></Divider>
           <Form
           {...layout}
@@ -280,7 +288,7 @@ class XAIPage extends Component {
                 onChange={this.handleContributionsChange} 
               />
             </Form.Item>
-            <Form.Item name="select" label="Feature(s)to mask" 
+            <Form.Item name="select" label="Feature(s) to mask" 
               style={{ flex: 'none', marginBottom: 10 }}
             > 
               <Select
@@ -313,7 +321,7 @@ class XAIPage extends Component {
             <Col className="gutter-row" span={12}>
               <div style={style}>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <h2>&nbsp;&nbsp;&nbsp;Feature Importance</h2>
+                  <h2>&nbsp;&nbsp;&nbsp;Feature Importances</h2>
                   {/* TODO: make position of buttons are flexible */}
                   <div style={{ position: 'absolute', top: 10, right: 10 }}>
                     <Tooltip title="Download plot as png">
@@ -326,7 +334,7 @@ class XAIPage extends Component {
                         onClick={downloadShapImage}
                       />
                     </Tooltip>
-                    <Tooltip title="Feature importance plot displays the sum of individual contributions, computed on the complete dataset.">
+                    <Tooltip title="Feature importances plot displays the sum of individual contributions, computed on the complete dataset.">
                       <Button style={{ fontSize: '15px', border: 'none' }} type="link">
                         <QuestionOutlined style={{ opacity: 0.5 }} />
                       </Button>
@@ -334,12 +342,22 @@ class XAIPage extends Component {
                   </div>
                 </div>
                 &nbsp;&nbsp;&nbsp;
+                <Typography.Title level={4} style={{ textAlign: 'center', fontSize: '16px' }}>
+                  Average impact on predicted Malware traffic <br /> (mean absolute SHAP value)
+                </Typography.Title>
                 <Bar {...shapValuesBarConfig} onReady={(bar) => (barShap = bar)}/>
               </div>
             </Col>
             <Col className="gutter-row" span={12}>
               <div style={style}>
                 <h2>&nbsp;&nbsp;&nbsp;{`Top ${maxDisplay} most important features`}</h2>
+                <div style={{ position: 'absolute', top: 10, right: 10 }}>
+                  <Tooltip title={`Displays the top ${maxDisplay} most important features with detailed description.`}>
+                    <Button style={{ fontSize: '15px', border: 'none' }} type="link">
+                      <QuestionOutlined style={{ opacity: 0.5 }} />
+                    </Button>
+                  </Tooltip>
+                </div>
                 <Table dataSource={topFeatures} columns={columnsTopFeatures} 
                   size="small" style={{ marginTop: '20px', marginBottom: 0 }}
                 />

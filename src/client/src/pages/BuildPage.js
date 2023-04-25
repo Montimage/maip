@@ -89,7 +89,7 @@ class BuildPage extends Component {
     }));
 
     return (
-      <LayoutPage pageTitle="Build Page" pageSubTitle="">
+      <LayoutPage pageTitle="Build Models" pageSubTitle="">
         <Form
           {...layout}
           style={{
