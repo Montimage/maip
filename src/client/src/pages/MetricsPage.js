@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
 import { getLastPath } from "../utils";
-import { Form, Slider, Switch, Table, Col, Row, Button} from 'antd';
+import { Form, Slider, Switch, Table, Col, Row, Button, Tooltip } from 'antd';
 import { QuestionOutlined, CameraOutlined } from "@ant-design/icons";
 import { Heatmap } from '@ant-design/plots';
 import {
@@ -124,12 +124,11 @@ class MetricsPage extends Component {
       }));
     });
 
+    /*// TODO: code related to cutoff does not work
     const filteredData = data.filter(d => d.predicted === 'Malware traffic' && d.percentage.slice(0, -1) >= cutoff);
-
     const totalMalwareTrafficCount = data.filter(d => d.predicted === 'Malware traffic').reduce((acc, d) => acc + d.count, 0);
     const totalFilteredMalwareTrafficCount = filteredData.reduce((acc, d) => acc + d.count, 0);
     const percentageOfFilteredMalwareTraffic = (totalFilteredMalwareTrafficCount / totalMalwareTrafficCount * 100).toFixed(2);
-
     const updatedData = data.map(d => {
       if (d.predicted === 'Malware traffic') {
         if (d.percentage.slice(0, -1) >= cutoff) {
@@ -142,7 +141,7 @@ class MetricsPage extends Component {
       }
       return d;
     });
-    console.log(updatedData);
+    console.log(updatedData);*/
 
     /*const data = rows.flatMap((row, i) => {
       const cols = row.split(',');
@@ -173,22 +172,24 @@ class MetricsPage extends Component {
       yField: 'actual',
       colorField: 'count',
       shape: 'square',
-      tooltip: {
+      // TODO: percentage of label is undefined, not necessary ?
+      /*tooltip: {
         formatter: (datum) => {
           return {
             name: `${datum.actual} -> ${datum.predicted}`,
-            // TODO: percentage of label is undefined
+            
             value: `Count: ${datum.count}, Percentage: ${datum.percentage}`,
           };
         },
-      },
+      },*/
+      tooltip: false,
       xAxis: { title: { style: { fontSize: 20 }, text: 'Predicted', } },
       yAxis: { title: { style: { fontSize: 20 }, text: 'Observed', } },
       label: {
         visible: true,
         position: 'middle',
         style: {
-          fontSize: '16',
+          fontSize: '18',
         },
         formatter: (datum) => {
           return `${datum.count}\n(${datum.percentage})`;
@@ -207,12 +208,20 @@ class MetricsPage extends Component {
           <Col className="gutter-row" span={12}>
             <div style={style}>
               <h2>&nbsp;&nbsp;&nbsp;Model Performance</h2>
-              <Table columns={columnsTableStats} dataSource={dataStats} pagination={false} />
+              <Table columns={columnsTableStats} dataSource={dataStats} pagination={false}
+               style={{marginTop: '20px'}} />
             </div>
           </Col>
           <Col className="gutter-row" span={12}>
             <div style={style}>
               <h2>&nbsp;&nbsp;&nbsp;Confusion Matrix</h2>
+              <div style={{ position: 'absolute', top: 10, right: 10 }}>
+                <Tooltip title="The confusion matrix shows the number of True Negatives (predicted negative, observed negative), True Positives (predicted positive, observed positive), False Negatives (predicted negative, but observed positive) and False Positives (predicted positive, but observed negative).">
+                  <Button style={{ fontSize: '15px', border: 'none' }} type="link">
+                    <QuestionOutlined style={{ opacity: 0.5 }} />
+                  </Button>
+                </Tooltip>
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                 <Form.Item name="slider" label="Cutoff" style={{ marginLeft: '50px', marginRight: '50px', marginBottom: '10px' }}>
                   <div style={{ width: '100%', display: 'inline-block', alignItems: 'center' }}>

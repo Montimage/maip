@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
 import { getLastPath } from "../utils";
-import { Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select } from 'antd';
+import { Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Tooltip } from 'antd';
 import { UserOutlined, DownloadOutlined, QuestionOutlined, CameraOutlined } from "@ant-design/icons";
 import { Bar } from '@ant-design/plots';
 import {
@@ -315,20 +315,24 @@ class XAIPage extends Component {
                 <div style={{ display: 'flex', alignItems: 'center' }}>
                   <h2>&nbsp;&nbsp;&nbsp;Feature Importance</h2>
                   {/* TODO: make position of buttons are flexible */}
-                  <Button type="button" icon={<CameraOutlined />}
-                    style={{ marginLeft: '20rem' }}
-                    titleDelay={50}
-                    title="Download plot as png" 
-                    onClick={downloadShapImage} 
-                  />
-                  <Button type="button" icon={<QuestionOutlined />}
-                    titleDelay={50}
-                    title="Feature importance plot displays the sum of individual contributions, computed on the complete dataset."
-                  />
+                  <div style={{ position: 'absolute', top: 10, right: 10 }}>
+                    <Tooltip title="Download plot as png">
+                      <Button
+                        type="link"
+                        icon={<CameraOutlined />}
+                        style={{
+                          marginLeft: '20rem',
+                        }}
+                        onClick={downloadShapImage}
+                      />
+                    </Tooltip>
+                    <Tooltip title="Feature importance plot displays the sum of individual contributions, computed on the complete dataset.">
+                      <Button style={{ fontSize: '15px', border: 'none' }} type="link">
+                        <QuestionOutlined style={{ opacity: 0.5 }} />
+                      </Button>
+                    </Tooltip>
+                  </div>
                 </div>
-                {/* <button type="button" onClick={toDataURL}>
-                  Get base64
-                </button> */}
                 &nbsp;&nbsp;&nbsp;
                 <Bar {...shapValuesBarConfig} onReady={(bar) => (barShap = bar)}/>
               </div>
@@ -337,7 +341,7 @@ class XAIPage extends Component {
               <div style={style}>
                 <h2>&nbsp;&nbsp;&nbsp;{`Top ${maxDisplay} most important features`}</h2>
                 <Table dataSource={topFeatures} columns={columnsTopFeatures} 
-                  size="small" style={{ marginBottom: 0 }}
+                  size="small" style={{ marginTop: '20px', marginBottom: 0 }}
                 />
               </div>
             </Col>

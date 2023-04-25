@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
 import { getLastPath } from "../utils";
-import { Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select } from 'antd';
+import { Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Tooltip } from 'antd';
 import { UserOutlined, DownloadOutlined, QuestionOutlined, CameraOutlined } from "@ant-design/icons";
 import { Bar, Pie } from '@ant-design/plots';
 import {
@@ -319,20 +319,24 @@ class XAIPage extends Component {
               <div style={style}>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
                   <h2>&nbsp;&nbsp;&nbsp;Local Explanation - Sample ID {sampleId}</h2>
-                  <Button type="button" icon={<CameraOutlined />}
-                    style={{ marginRight: '20rem' }}
-                    titleDelay={50}
-                    title="Download plot as png" 
-                    onClick={downloadLimeImage} 
-                  />
-                  <Button type="button" icon={<QuestionOutlined />}
-                    titleDelay={50}
-                    title="Local interpretability plot displays each most important feature's contributions for this specific sample."
-                  />
+                  <div style={{ position: 'absolute', top: 10, right: 10 }}>
+                    <Tooltip title="Download plot as png">
+                      <Button
+                        type="link"
+                        icon={<CameraOutlined />}
+                        style={{
+                          marginLeft: '15rem',
+                        }}
+                        onClick={downloadLimeImage}
+                      />
+                    </Tooltip>
+                    <Tooltip title="Local interpretability plot displays each most important feature's contributions for this specific sample.">
+                      <Button style={{ fontSize: '15px', border: 'none' }} type="link">
+                        <QuestionOutlined style={{ opacity: 0.5 }} />
+                      </Button>
+                    </Tooltip>
+                  </div>
                 </div>
-                {/* <button type="button" onClick={toDataURL}>
-                  Get base64
-                </button> */}
                 &nbsp;&nbsp;&nbsp;
                 <Bar {...limeValuesBarConfig} onReady={(bar) => (barLime = bar)}/>
               </div>
@@ -349,6 +353,13 @@ class XAIPage extends Component {
                   />
                   <div style={{ width: '400px', marginRight: '10px', marginTop: '-50px' }}>
                     <Pie {...pieConfig} />
+                    <div style={{ position: 'absolute', top: 10, right: 10 }}>
+                      <Tooltip title="Show predicted probability for each sample.">
+                        <Button style={{ fontSize: '15px', border: 'none' }} type="link">
+                          <QuestionOutlined style={{ opacity: 0.5 }} />
+                        </Button>
+                      </Tooltip>
+                    </div>
                   </div>
                 </div>
               </div>

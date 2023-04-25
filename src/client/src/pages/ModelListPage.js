@@ -257,20 +257,6 @@ class ModelListPage extends Component {
                 }
               })}
             </Select>
-            /*<Select placeholder="Select an action"
-              style={{ width: 200 }}
-              options={options.map(option => ({
-                value: option.url || "",
-                label: (
-                  <Space wrap>
-                    {option.icon}
-                    {option.label}
-                  </Space>
-                ),
-                onClick: option.onClick,
-              }))} 
-              onChange={(value, option) => handleOptionClick(option, model.modelId)}
-            />*/
           );
         },
       },
