@@ -148,7 +148,7 @@ router.get('/:modelId', (req, res, next) => {
           const trainingSamplesFilePath = `${TRAINING_PATH}${modelId.replace('.h5', '')}/datasets/Train_samples.csv`;
           isFileExist(trainingSamplesFilePath, (ret) => {
             if (!ret) {
-              res.status(401).send(`The training samples file ${modelId} does not exist`);
+              res.status(401).send(`The training samples file of model ${modelId} does not exist`);
               return;
             }
 
@@ -156,21 +156,30 @@ router.get('/:modelId', (req, res, next) => {
             const testingSamplesFilePath = `${TRAINING_PATH}${modelId.replace('.h5', '')}/datasets/Test_samples.csv`;
             isFileExist(testingSamplesFilePath, (ret) => {
               if (!ret) {
-                res.status(401).send(`The testing samples file ${modelId} does not exist`);
+                res.status(401).send(`The testing samples file of model ${modelId} does not exist`);
                 return;
               }
-              
-              const status = JSON.parse(buildingStatus);
-              console.log(status.lastBuildAt);
 
-              // Send the response with all the data for the model
-              res.send({
-                stats: stats,
-                lastBuildAt: status.lastBuildAt,
-                buildConfig: buildConfig,
-                confusionMatrix: matrix,
-                trainingSamples: trainingSamplesFilePath,
-                testingSamples: testingSamplesFilePath,
+              // Get the testing samples for the model
+              readTextFile(`${TRAINING_PATH}${modelId.replace('.h5', '')}/results/predicted_probabilities.csv`, (err, predictedProbs) => {
+                if (!ret) {
+                  res.status(401).send(`The predicted probabilities file of model ${modelId} does not exist`);
+                  return;
+                }
+              
+                const status = JSON.parse(buildingStatus);
+                console.log(status.lastBuildAt);
+
+                // Send the response with all the data for the model
+                res.send({
+                  stats: stats,
+                  lastBuildAt: status.lastBuildAt,
+                  buildConfig: buildConfig,
+                  confusionMatrix: matrix,
+                  trainingSamples: trainingSamplesFilePath,
+                  testingSamples: testingSamplesFilePath,
+                  predictedProbs: predictedProbs,
+                });
               });
             });
           });

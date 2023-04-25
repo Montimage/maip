@@ -21,7 +21,7 @@ function* handleRequestLimeValues(action) {
   try {
     const modelId = action.payload;
     const limeValues = yield call(() => requestLimeValues(modelId));
-    //console.log(lime_values);
+    //console.log(limeValues);
     yield put(setLimeValues(limeValues));
     // dispatch data
   } catch (error) {

@@ -6,6 +6,7 @@ import { Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, 
 import { UserOutlined, DownloadOutlined, QuestionOutlined, CameraOutlined } from "@ant-design/icons";
 import { Bar, Pie } from '@ant-design/plots';
 import {
+  requestModel,
   requestRunLime,
   requestXAIStatus,
   requestLimeValues,
@@ -50,6 +51,7 @@ class XAIPage extends Component {
       positiveChecked: true,
       negativeChecked: true,
       maskedFeatures: [],
+      predictedProbs: "",
     };
     this.handleRandomClick = this.handleRandomClick.bind(this);
     this.handleContributionsChange = this.handleContributionsChange.bind(this);
@@ -92,6 +94,7 @@ class XAIPage extends Component {
   componentDidMount() {
     let modelId = getLastPath();
     console.log(modelId);
+    this.props.fetchModel(modelId);
     this.props.fetchLimeValues(modelId);
     this.props.fetchXAIStatus();
     /* this.xaiStatusTimer = setInterval(() => {
@@ -99,12 +102,20 @@ class XAIPage extends Component {
     }, 3000); */
   }
 
+  componentDidUpdate(prevProps) {
+    // Check if the model data has been updated
+    if (this.props.model !== prevProps.model) {
+      const { predictedProbs } = this.props.model;
+      this.setState({ predictedProbs });
+    }
+  }
+
   componentWillUnmount() {
     clearInterval(this.xaiStatusTimer);
   }
 
   render() {
-    const modelId = getLastPath();
+    const modelId = getLastPath();    
     const { 
       sampleId,
       numberSamples,
@@ -114,37 +125,36 @@ class XAIPage extends Component {
       maskedFeatures,
     } = this.state;
     const { 
+      model,
       limeValues,
       xaiStatus, 
     } = this.props;
     console.log(xaiStatus);
 
-    const yProb = [
-      [0.3, 0.7],
-      [0.6, 0.4],
-      [0.1, 0.9],
-      [0.8, 0.2],
-      [0.4, 0.6],
-      [0.2, 0.8],
-      [0.9, 0.1],
-      [0.5, 0.5],
-      [0.7, 0.3],
-      [0.2, 0.8]
-    ];
-    const data = [
+    const { stats, buildConfig, confusionMatrix, trainingSamples, testingSamples, predictedProbs } = model;
+    // Check if the predictedProbs have been loaded
+    if (!predictedProbs) {
+      return <div>Loading...</div>;
+    }
+    //console.log(predictedProbs);
+
+    const linesProbs = predictedProbs.split('\n');
+    const dataProbs = linesProbs.slice(1).map(line => line.split(','));
+    const yProbs = dataProbs.map(row => row.map(val => parseFloat(val)));
+    const dataTableProbs = [
       {
         key: 0,
         label: 'Normal traffic',
-        probability: `${(yProb[sampleId][0] * 100).toFixed(0)}%`
+        probability: `${(yProbs[sampleId][0] * 100).toFixed(0)}%`
       },
       {
         key: 1,
         label: 'Malware traffic',
-        probability: `${(yProb[sampleId][1] * 100).toFixed(0)}%`
+        probability: `${(yProbs[sampleId][1] * 100).toFixed(0)}%`
       }
     ];
 
-    const columns = [
+    const columnsTableProbs = [
       {
         title: 'Label',
         dataIndex: 'label',
@@ -157,8 +167,7 @@ class XAIPage extends Component {
       }
     ];
 
-    // Create data for pie chart
-    const pieData = yProb[this.state.sampleId].map((prob, i) => {
+    const pieData = yProbs[this.state.sampleId].map((prob, i) => {
       const label = i === 0 ? "Normal traffic" : "Malware traffic";
       const percentage = (prob * 100).toFixed(0);
       return {
@@ -167,7 +176,6 @@ class XAIPage extends Component {
       };
     });
 
-    // Set options for pie chart
     const pieConfig = {
       appendPadding: 10,
       data: pieData,
@@ -195,256 +203,186 @@ class XAIPage extends Component {
     }));
 
     /* TODO: wait for the XAI method process finishes and auto display new plots? */
-    if (!xaiStatus.isRunning) {
-      //clearInterval(intervalXAI);
-      //setInterval(null);
-      const sortedValuesLime = limeValues.slice().sort((a, b) => b.value - a.value);
-      const notZeroSortedValuesLime = sortedValuesLime.filter(d => d.value !== 0);
-      const filteredValuesLime = notZeroSortedValuesLime.filter((d) => {
-        if (d.value > 0 && positiveChecked) return true;
-        if (d.value < 0 && negativeChecked) return true;
-        return false;
-      });
 
-      const filteredMaskedValuesLime = filteredValuesLime.filter(obj => 
-        !maskedFeatures.some(feature => obj.feature.includes(feature)));
-      //console.log(filteredMaskedValuesLime);
+    const sortedValuesLime = limeValues.slice().sort((a, b) => b.value - a.value);
+    const notZeroSortedValuesLime = sortedValuesLime.filter(d => d.value !== 0);
+    const filteredValuesLime = notZeroSortedValuesLime.filter((d) => {
+      if (d.value > 0 && positiveChecked) return true;
+      if (d.value < 0 && negativeChecked) return true;
+      return false;
+    });
 
-      const limeValuesBarConfig = {
-        data: filteredMaskedValuesLime.slice(0, maxDisplay),
-        isStack: true,
-        xField: 'value',
-        yField: 'feature',
-        //seriesField: "value",
-        label: false,
-        barStyle: (d) => {
-          //console.log(d)
-          return {
-            /* https://casesandberg.github.io/react-color/ */
-            fill: d.value > 0 ? "#0693e3" : "#EB144C"
-          };
-        },
-        /* TODO: add title of Bar chart */
-        /* barTitle: {
-          text: "My Bar Chart Title",
-          style: { fontSize: 16 }
-        }, */
-        meta: {
-          value: {
-            min: Math.min(...filteredMaskedValuesLime.map((d) => d.value)),
-            max: Math.max(...filteredMaskedValuesLime.map((d) => d.value))
-          }
-        },
-        geometry: 'interval',
-        interactions: [{ type: 'zoom' }],
-      };
+    const filteredMaskedValuesLime = filteredValuesLime.filter(obj => 
+      !maskedFeatures.some(feature => obj.feature.includes(feature)));
+    //console.log(filteredMaskedValuesLime);
 
-      return (
-        <LayoutPage pageTitle="Explainable AI with Local Interpretable Model-Agnostic Explanations (LIME)" 
-          pageSubTitle={`Model ${modelId}`}>
-          <Divider orientation="left"><h3>Parameters</h3></Divider>
-          <Form
-          {...layout}
-          name="control-hooks"
-          onFinish={onFinish}
-          style={{
-            maxWidth: 600,
-          }}
-          >
-            <Form.Item label="Sample ID" style={{ marginBottom: 10 }}>
-              <div style={{ display: 'inline-flex' }}>
-                <Form.Item label="id" name="id" noStyle>
-                  <InputNumber min={1} defaultValue={sampleId}
-                    onChange={(e) => this.onSampleIdChange(e)}
-                  />
-                </Form.Item>
-              </div>  
-            </Form.Item>
-            <Form.Item name="slider" label="Features to display" 
-              style={{ marginBottom: -5 }}>
-              <Slider
-                marks={{
-                  1: '1',
-                  5: '5',
-                  10: '10',
-                  15: '15',
-                  20: '20',
-                  25: '25',
-                  30: '30',
-                }}
-                min={1} max={30} defaultValue={maxDisplay}
-                value={maxDisplay}
-                onChange={(value) => this.onSliderChange(value)}
-              />
-            </Form.Item>
-            <Form.Item name="checkbox" label="Contributions to display" 
-              valuePropName="checked"
-              style={{ flex: 'none', marginBottom: 10 }}>
-              <Checkbox.Group 
-                options={['Positive', 'Negative']}
-                defaultValue={['Positive', 'Negative']}
-                onChange={this.handleContributionsChange} 
-              />
-            </Form.Item>
-            <Form.Item name="select" label="Feature(s) to mask" 
-              style={{ flex: 'none', marginBottom: 10 }}>
-              <Select
-                mode="multiple"
-                style={{
-                  width: '100%',
-                }}
-                allowClear
-                placeholder="Select ..."
-                onChange={this.handleMaskedFeatures}
-                optionLabelProp="label"
-                options={selectFeaturesOptions}
-              />
-            </Form.Item>
-            <div style={{ textAlign: 'center' }}>
-              <Button icon={<UserOutlined />}
-                /* style={{ marginLeft: '5px' }} */
-                onClick={() => {
-                  console.log([modelId, sampleId, numberSamples, maxDisplay]);
-                  this.props.fetchRunLime(
-                    modelId, sampleId, maxDisplay,
-                  );
-                }}
-                >LIME Explain
-              </Button>
+    const limeValuesBarConfig = {
+      data: filteredMaskedValuesLime.slice(0, maxDisplay),
+      isStack: true,
+      xField: 'value',
+      yField: 'feature',
+      //seriesField: "value",
+      label: false,
+      barStyle: (d) => {
+        //console.log(d)
+        return {
+          /* https://casesandberg.github.io/react-color/ */
+          fill: d.value > 0 ? "#0693e3" : "#EB144C"
+        };
+      },
+      /* TODO: add title of Bar chart */
+      /* barTitle: {
+        text: "My Bar Chart Title",
+        style: { fontSize: 16 }
+      }, */
+      /*meta: {
+        value: {
+          min: Math.min(...filteredMaskedValuesLime.map((d) => d.value)),
+          max: Math.max(...filteredMaskedValuesLime.map((d) => d.value))
+        }
+      },*/
+      geometry: 'interval',
+      interactions: [{ type: 'zoom' }],
+    };
+
+    return (
+      <LayoutPage pageTitle="Explainable AI with Local Interpretable Model-Agnostic Explanations (LIME)" 
+        pageSubTitle={`Model ${modelId}`}>
+        <Divider orientation="left"><h3>Parameters</h3></Divider>
+        <Form
+        {...layout}
+        name="control-hooks"
+        onFinish={onFinish}
+        style={{
+          maxWidth: 600,
+        }}
+        >
+          <Form.Item label="Sample ID" style={{ marginBottom: 10 }}>
+            <div style={{ display: 'inline-flex' }}>
+              <Form.Item label="id" name="id" noStyle>
+                <InputNumber min={1} defaultValue={sampleId}
+                  onChange={(e) => this.onSampleIdChange(e)}
+                />
+              </Form.Item>
+            </div>  
+          </Form.Item>
+          <Form.Item name="slider" label="Features to display" 
+            style={{ marginBottom: -5 }}>
+            <Slider
+              marks={{
+                1: '1',
+                5: '5',
+                10: '10',
+                15: '15',
+                20: '20',
+                25: '25',
+                30: '30',
+              }}
+              min={1} max={30} defaultValue={maxDisplay}
+              value={maxDisplay}
+              onChange={(value) => this.onSliderChange(value)}
+            />
+          </Form.Item>
+          <Form.Item name="checkbox" label="Contributions to display" 
+            valuePropName="checked"
+            style={{ flex: 'none', marginBottom: 10 }}>
+            <Checkbox.Group 
+              options={['Positive', 'Negative']}
+              defaultValue={['Positive', 'Negative']}
+              onChange={this.handleContributionsChange} 
+            />
+          </Form.Item>
+          <Form.Item name="select" label="Feature(s) to mask" 
+            style={{ flex: 'none', marginBottom: 10 }}>
+            <Select
+              mode="multiple"
+              style={{
+                width: '100%',
+              }}
+              allowClear
+              placeholder="Select ..."
+              onChange={this.handleMaskedFeatures}
+              optionLabelProp="label"
+              options={selectFeaturesOptions}
+            />
+          </Form.Item>
+          <div style={{ textAlign: 'center' }}>
+            <Button icon={<UserOutlined />}
+              /* style={{ marginLeft: '5px' }} */
+              onClick={() => {
+                console.log([modelId, sampleId, numberSamples, maxDisplay]);
+                this.props.fetchRunLime(
+                  modelId, sampleId, maxDisplay,
+                );
+              }}
+              >LIME Explain
+            </Button>
+          </div>
+        </Form>
+
+        <Divider orientation="left"><h3>LIME Explanations</h3></Divider>
+        <Row gutter={24}>
+          <Col className="gutter-row" span={12}>
+            <div style={style}>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <h2>&nbsp;&nbsp;&nbsp;Local Explanation - Sample ID {sampleId}</h2>
+                <div style={{ position: 'absolute', top: 10, right: 10 }}>
+                  <Tooltip title="Download plot as png">
+                    <Button
+                      type="link"
+                      icon={<CameraOutlined />}
+                      style={{
+                        marginLeft: '15rem',
+                      }}
+                      onClick={downloadLimeImage}
+                    />
+                  </Tooltip>
+                  <Tooltip title="Local interpretability plot displays each most important feature's contributions for this specific sample.">
+                    <Button style={{ fontSize: '15px', border: 'none' }} type="link">
+                      <QuestionOutlined style={{ opacity: 0.5 }} />
+                    </Button>
+                  </Tooltip>
+                </div>
+              </div>
+              &nbsp;&nbsp;&nbsp;
+              <Bar {...limeValuesBarConfig} onReady={(bar) => (barLime = bar)}/>
             </div>
-          </Form>
-
-          <Divider orientation="left"><h3>LIME Explanations</h3></Divider>
-          <Row gutter={24}>
-            <Col className="gutter-row" span={12}>
-              <div style={style}>
-                <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <h2>&nbsp;&nbsp;&nbsp;Local Explanation - Sample ID {sampleId}</h2>
+          </Col>
+          <Col className="gutter-row" span={12}>
+            <div style={style}>
+              <h2>&nbsp;&nbsp;&nbsp;Prediction - Sample ID {sampleId}</h2>
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                <Table
+                  columns={columnsTableProbs}
+                  dataSource={dataTableProbs}
+                  pagination={false}
+                  style={{ marginLeft: '10px', marginRight: '10px', marginTop: '-50px', width: '280px' }}
+                />
+                <div style={{ width: '400px', marginRight: '10px', marginTop: '-50px' }}>
+                  <Pie {...pieConfig} />
                   <div style={{ position: 'absolute', top: 10, right: 10 }}>
-                    <Tooltip title="Download plot as png">
-                      <Button
-                        type="link"
-                        icon={<CameraOutlined />}
-                        style={{
-                          marginLeft: '15rem',
-                        }}
-                        onClick={downloadLimeImage}
-                      />
-                    </Tooltip>
-                    <Tooltip title="Local interpretability plot displays each most important feature's contributions for this specific sample.">
+                    <Tooltip title="Shows predicted probability for each sample.">
                       <Button style={{ fontSize: '15px', border: 'none' }} type="link">
                         <QuestionOutlined style={{ opacity: 0.5 }} />
                       </Button>
                     </Tooltip>
                   </div>
                 </div>
-                &nbsp;&nbsp;&nbsp;
-                <Bar {...limeValuesBarConfig} onReady={(bar) => (barLime = bar)}/>
               </div>
-            </Col>
-            <Col className="gutter-row" span={12}>
-              <div style={style}>
-                <h2>&nbsp;&nbsp;&nbsp;Prediction</h2>
-                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                  <Table
-                    columns={columns}
-                    dataSource={data}
-                    pagination={false}
-                    style={{ marginLeft: '10px', marginRight: '10px', marginTop: '-50px', width: '280px' }}
-                  />
-                  <div style={{ width: '400px', marginRight: '10px', marginTop: '-50px' }}>
-                    <Pie {...pieConfig} />
-                    <div style={{ position: 'absolute', top: 10, right: 10 }}>
-                      <Tooltip title="Shows predicted probability for each sample.">
-                        <Button style={{ fontSize: '15px', border: 'none' }} type="link">
-                          <QuestionOutlined style={{ opacity: 0.5 }} />
-                        </Button>
-                      </Tooltip>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </Col>
-          </Row>
-        </LayoutPage>
-      );
-    } else {
-      /* intervalXAI = setInterval(() => {
-        this.props.fetchXAIStatus();
-      }, 10000); */
-      return (
-        <LayoutPage pageTitle="XAI LIME Page" pageSubTitle={`Model ${modelId}`}>
-          <Divider orientation="left"><h3>Parameters</h3></Divider>
-          <Form
-          {...layout}
-          name="control-hooks"
-          onFinish={onFinish}
-          style={{
-            maxWidth: 600,
-          }}
-          >
-            {/* TODO: display value of slider (really need?), space between Slide and Checkbox is large? */}
-            <Form.Item name="slider" label="Features to display" style={{ marginBottom: 10 }}>
-              <Slider
-                marks={{
-                  1: '1',
-                  5: '5',
-                  10: '10',
-                  15: '15',
-                  20: '20',
-                  25: '25',
-                  30: '30',
-                }}
-                min={1} max={30} defaultValue={maxDisplay}
-                value={maxDisplay}
-                onChange={(value) => this.onSliderChange(value)}
-              />
-            </Form.Item>
-            <Form.Item name="checkbox" label="Contributions to display" style={{ flex: 'none', marginBottom: 10 }}>
-              <Checkbox.Group 
-                options={['Positive', 'Negative']}
-                /* TODO: checked values did not display correctly */
-                /* defaultValue={['Positive', 'Negative']} */
-                onChange={this.handleContributionsChange} 
-              />
-            </Form.Item>
-          </Form>
-
-          <Divider orientation="left"><h3>LIME Explanations</h3></Divider>
-          <Row gutter={24}>
-            <Col className="gutter-row" span={12}>
-              <Form.Item label="Sample ID" style={{ marginBottom: 10 }}>
-                <div style={{ display: 'inline-flex' }}>
-                  <Form.Item label="id" name="id" noStyle>
-                    <InputNumber min={1} defaultValue={sampleId}
-                      onChange={(e) => this.onSampleIdChange(e)}
-                    />
-                  </Form.Item>
-                  <Button icon={<UserOutlined />}
-                    style={{ marginLeft: '5px' }}
-                    onClick={() => {
-                      console.log([modelId, sampleId, numberSamples, maxDisplay]);
-                      this.props.fetchRunLime(
-                        modelId, sampleId, maxDisplay,
-                      );
-                    }}
-                    >LIME Explain
-                  </Button>
-                </div>    
-              </Form.Item>
-            </Col>
-          </Row>
-        </LayoutPage>
-      );
-    }
-  }
+            </div>
+          </Col>
+        </Row>
+      </LayoutPage>
+    );
+  } 
 }
 
-const mapPropsToStates = ({ limeValues, xaiStatus }) => ({
-  limeValues, xaiStatus,
+const mapPropsToStates = ({ model, limeValues, xaiStatus }) => ({
+  model, limeValues, xaiStatus,
 });
 
 const mapDispatchToProps = (dispatch) => ({
+  fetchModel: (modelId) => dispatch(requestModel(modelId)),
   fetchXAIStatus: () => dispatch(requestXAIStatus()),
   fetchRunLime: (modelId, sampleId, numberFeatures) =>
     dispatch(requestRunLime({ modelId, sampleId, numberFeatures })),

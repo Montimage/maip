@@ -343,9 +343,13 @@ class XAIPage extends Component {
                 </div>
                 &nbsp;&nbsp;&nbsp;
                 <Typography.Title level={4} style={{ textAlign: 'center', fontSize: '16px' }}>
-                  Average impact on predicted Malware traffic <br /> (mean absolute SHAP value)
+                  Average impact on predicted Malware traffic <br />
                 </Typography.Title>
+                <center>(Total number of features: {features.length})</center>
                 <Bar {...shapValuesBarConfig} onReady={(bar) => (barShap = bar)}/>
+                <Typography.Title level={4} style={{ textAlign: 'center', fontSize: '16px', marginTop: '10px' }}>
+                  Mean absolute SHAP value
+                </Typography.Title>
               </div>
             </Col>
             <Col className="gutter-row" span={12}>

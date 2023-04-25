@@ -59,7 +59,7 @@ class MetricsPage extends Component {
     console.log(model);
     let modelId = getLastPath();
 
-    const { stats, buildConfig, confusionMatrix, trainingSamples, testingSamples } = model;
+    const { stats, buildConfig, confusionMatrix, trainingSamples, testingSamples, predictedProbs } = model;
 
     const { 
       cutoff,
