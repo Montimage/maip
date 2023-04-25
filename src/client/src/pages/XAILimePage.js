@@ -361,7 +361,7 @@ class XAIPage extends Component {
         this.props.fetchXAIStatus();
       }, 10000); */
       return (
-        <LayoutPage pageTitle="XAI Page" pageSubTitle={`Model ${modelId}`}>
+        <LayoutPage pageTitle="XAI LIME Page" pageSubTitle={`Model ${modelId}`}>
           <Divider orientation="left"><h3>Parameters</h3></Divider>
           <Form
           {...layout}

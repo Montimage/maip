@@ -6,7 +6,7 @@ import LayoutPage from "./LayoutPage";
 import Papa from "papaparse";
 import { 
   FolderViewOutlined, DownloadOutlined, FileOutlined, TableOutlined, 
-  LineChartOutlined, SolutionOutlined, BugOutlined,
+  LineChartOutlined, SolutionOutlined, BugOutlined, ExperimentOutlined,
   HourglassOutlined, RestOutlined, QuestionOutlined,
 } from '@ant-design/icons';
 import {
@@ -20,7 +20,7 @@ const {
   SERVER_PORT,
 } = require('../constants');
 
-const { Option } = Select;
+const { Option, OptGroup } = Select;
 
 class ModelListPage extends Component {
   constructor(props) {
@@ -173,23 +173,38 @@ class ModelListPage extends Component {
                 window.location.href = `/predict/${model.modelId}`;
               }
             },
-            /* TODO: group 2 XAI options */
             {
-              label: 'XAI Shap',
-              icon: <SolutionOutlined />,
-              url: `/xai/shap/${model.modelId}`,
-              onClick: () => {
-                console.log("Option XAI Shap clicked!");
-                window.location.href = `/xai/shap/${model.modelId}`;
-              }
+              label: (
+                <span style={{ fontSize: '16px' }}>XAI</span>
+              ),
+              options: [
+                {
+                  label: 'Shap',
+                  icon: <SolutionOutlined />,
+                  url: `/xai/shap/${model.modelId}`,
+                  onClick: () => {
+                    console.log("Option XAI Shap clicked!");
+                    window.location.href = `/xai/shap/${model.modelId}`;
+                  }
+                },
+                {
+                  label: 'Lime',
+                  icon: <SolutionOutlined />,
+                  url: `/xai/lime/${model.modelId}`,
+                  onClick: () => {
+                    console.log("Option XAI Lime clicked!");
+                    window.location.href = `/xai/lime/${model.modelId}`;
+                  }
+                },
+              ]
             },
             {
-              label: 'XAI Lime',
-              icon: <SolutionOutlined />,
-              url: `/xai/lime/${model.modelId}`,
+              label: 'Metrics',
+              icon: <ExperimentOutlined />,
+              url: `/metrics/${model.modelId}`,
               onClick: () => {
-                console.log("Option XAI Lime clicked!");
-                window.location.href = `/xai/lime/${model.modelId}`;
+                console.log("Option Metrics clicked!");
+                window.location.href = `/metrics/${model.modelId}`;
               }
             },
             {
@@ -214,6 +229,36 @@ class ModelListPage extends Component {
           return (
             <Select placeholder="Select an action"
               style={{ width: 200 }}
+              onChange={(value, option) => handleOptionClick(option, model.modelId)}
+            >
+              {options.map(option => {
+                if (option.options) {
+                  return (
+                    <OptGroup key={option.label} label={option.label}>
+                      {option.options.map(subOption => (
+                        <Option key={subOption.label} value={subOption.url} onClick={subOption.onClick}>
+                          <Space wrap>
+                            {subOption.icon}
+                            {subOption.label}
+                          </Space>
+                        </Option>
+                      ))}
+                    </OptGroup>
+                  );
+                } else {
+                  return (
+                    <Option key={option.label} value={option.url} onClick={option.onClick}>
+                      <Space wrap>
+                        {option.icon}
+                        {option.label}
+                      </Space>
+                    </Option>
+                  );
+                }
+              })}
+            </Select>
+            /*<Select placeholder="Select an action"
+              style={{ width: 200 }}
               options={options.map(option => ({
                 value: option.url || "",
                 label: (
@@ -225,18 +270,18 @@ class ModelListPage extends Component {
                 onClick: option.onClick,
               }))} 
               onChange={(value, option) => handleOptionClick(option, model.modelId)}
-            />
+            />*/
           );
         },
       },
     ];
         
     return (
-      <LayoutPage pageTitle="Models" pageSubTitle="All the models">
+      <LayoutPage pageTitle="Models" pageSubTitle="All the deep learning models">
         <a href={`/build`}>
           <Space wrap>
             <Button style={{ marginBottom: '16px' }}>
-              Add a new model
+              Build a new model
             </Button>
           </Space>
         </a>

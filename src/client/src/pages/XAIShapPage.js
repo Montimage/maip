@@ -232,7 +232,7 @@ class XAIPage extends Component {
       ];
 
       return (
-        <LayoutPage pageTitle="XAI Page" pageSubTitle={`Model ${modelId}`}>
+        <LayoutPage pageTitle="XAI SHAP Page" pageSubTitle={`Model ${modelId}`}>
           <Divider orientation="left"><h3>Parameters</h3></Divider>
           <Form
           {...layout}

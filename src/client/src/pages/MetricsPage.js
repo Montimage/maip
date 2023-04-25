@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
 import { getLastPath } from "../utils";
-import { Slider, Switch, Table, Col, Row, Button} from 'antd';
+import { Form, Slider, Switch, Table, Col, Row, Button} from 'antd';
 import { QuestionOutlined, CameraOutlined } from "@ant-design/icons";
 import { Heatmap } from '@ant-design/plots';
 import {
@@ -31,6 +31,7 @@ class MetricsPage extends Component {
     this.state = {
       stats: "",
       confusionMatrix: "",
+      cutoff: 0.5,
     }
   }
 
@@ -47,6 +48,10 @@ class MetricsPage extends Component {
     }
   }
 
+  handleCutoffChange = (value) => {
+    this.setState({ cutoff: value });
+  }
+
   render() {
     const {
       model,
@@ -55,6 +60,11 @@ class MetricsPage extends Component {
     let modelId = getLastPath();
 
     const { stats, buildConfig, confusionMatrix, trainingSamples, testingSamples } = model;
+
+    const { 
+      cutoff,
+    } = this.state;
+    console.log(`cutoff: ${cutoff}`);
 
     const columnsTableStats = [
       {
@@ -113,6 +123,47 @@ class MetricsPage extends Component {
         percentage: `${((Number(val) / rowTotal) * 100).toFixed(2)}%`,
       }));
     });
+
+    const filteredData = data.filter(d => d.predicted === 'Malware traffic' && d.percentage.slice(0, -1) >= cutoff);
+
+    const totalMalwareTrafficCount = data.filter(d => d.predicted === 'Malware traffic').reduce((acc, d) => acc + d.count, 0);
+    const totalFilteredMalwareTrafficCount = filteredData.reduce((acc, d) => acc + d.count, 0);
+    const percentageOfFilteredMalwareTraffic = (totalFilteredMalwareTrafficCount / totalMalwareTrafficCount * 100).toFixed(2);
+
+    const updatedData = data.map(d => {
+      if (d.predicted === 'Malware traffic') {
+        if (d.percentage.slice(0, -1) >= cutoff) {
+          d.count = `${d.count} (${d.percentage})`;
+          d.percentage = `${((d.count / totalFilteredMalwareTrafficCount) * 100).toFixed(2)}%`;
+        } else {
+          d.count = 0;
+          d.percentage = '0%';
+        }
+      }
+      return d;
+    });
+    console.log(updatedData);
+
+    /*const data = rows.flatMap((row, i) => {
+      const cols = row.split(',');
+      const rowTotal = cols.slice(1).reduce((acc, val) => acc + Number(val), 0);
+      const total = rows.map((r) => r.split(',')[i+1]).reduce((acc, val) => acc + Number(val), 0);
+      if (total / rows.length < cutoff) {
+        return [];
+      }
+      return cols.slice(1).map((val, j) => {
+        if (cols[0] / rowTotal < cutoff || headers[j+1] === 'Total') {
+          return null;
+        }
+        return {
+          actual: headers[i+1],
+          predicted: headers[j+1],
+          count: Number(val),
+          percentage: `${((Number(val) / rowTotal) * 100).toFixed(2)}%`,
+        };
+      }).filter((val) => val !== null);
+    }).filter((val) => val !== null);*/
+
     console.log(data);
 
     const config = {
@@ -126,22 +177,13 @@ class MetricsPage extends Component {
         formatter: (datum) => {
           return {
             name: `${datum.actual} -> ${datum.predicted}`,
-            value: `Count: ${datum.count}\nPercentage: ${datum.percentage}`,
+            // TODO: percentage of label is undefined
+            value: `Count: ${datum.count}, Percentage: ${datum.percentage}`,
           };
         },
       },
-      xAxis: {
-        title: { 
-          style: { fontSize: 20 }, 
-          text: 'Predicted' 
-        }
-      },
-      yAxis: {
-        title: { 
-          style: { fontSize: 20 }, 
-          text: 'Observed' 
-        }
-      },
+      xAxis: { title: { style: { fontSize: 20 }, text: 'Predicted', } },
+      yAxis: { title: { style: { fontSize: 20 }, text: 'Observed', } },
       label: {
         visible: true,
         position: 'middle',
@@ -151,6 +193,11 @@ class MetricsPage extends Component {
         formatter: (datum) => {
           return `${datum.count}\n(${datum.percentage})`;
         },
+      },
+      heatmapStyle: {
+        padding: 0,  
+        stroke: '#fff',
+        lineWidth: 1,
       },
     };
 
@@ -166,26 +213,39 @@ class MetricsPage extends Component {
           <Col className="gutter-row" span={12}>
             <div style={style}>
               <h2>&nbsp;&nbsp;&nbsp;Confusion Matrix</h2>
-              <div style={{ width: '400px', alignItems: 'center' }}>
-                &nbsp;&nbsp;&nbsp;
-                Cutoff:
-                <Slider
-                  marks={{
-                    0.01: '0.01',
-                    0.25: '0.25',
-                    0.50: '0.50',
-                    0.75: '0.75',
-                    0.99: '0.99',
-                  }}
-                  min={0.01} max={0.99} step={0.01} 
-                  /*value={cutoff} defaultValue={cutoff}*/
-                  /*onChange={(value) => this.handleCutoffChange(value)}*/
-                  /*style={{ marginLeft: '100px' }}*/
-                />    
+              <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <Form.Item name="slider" label="Cutoff" style={{ marginLeft: '50px', marginRight: '50px', marginBottom: '10px' }}>
+                  <div style={{ width: '100%', display: 'inline-block', alignItems: 'center' }}>
+                    <Slider
+                      marks={{
+                        0.01: '0.01',
+                        0.25: '0.25',
+                        0.50: '0.50',
+                        0.75: '0.75',
+                        0.99: '0.99',
+                      }}
+                      min={0.01}
+                      max={0.99}
+                      step={0.01}
+                      value={cutoff}
+                      defaultValue={cutoff}
+                      onChange={(value) => this.handleCutoffChange(value)}
+                    />
+                  </div>
+                </Form.Item>
+                <div style={{ display: 'flex', justifyContent: 'center', width: '100%', flex: 1, flexWrap: 'wrap' }}>
+                  <div style={{ position: 'relative', height: '410px', width: '100%', maxWidth: '480px' }}>
+                    <Heatmap {...config} />
+                  </div>
+                </div>
               </div>
-              <div style={{position: 'relative',height:'450px',width:'450px',marginLeft:'50px'}}>
-                <Heatmap {...config} />
-              </div>
+            </div>
+          </Col>
+        </Row>
+        <Row gutter={24}>
+          <Col className="gutter-row" span={12}>
+            <div style={style}>
+              <h2>&nbsp;&nbsp;&nbsp;Predict</h2>
             </div>
           </Col>
         </Row>

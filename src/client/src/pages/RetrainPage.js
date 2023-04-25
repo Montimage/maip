@@ -174,7 +174,7 @@ class RetrainPage extends Component {
               </Form.Item>
             </Panel>
           </Collapse>
-          <div style={{ textAlign: 'center' }}>
+          <div style={{ textAlign: 'center', marginTop: 10 }}>
             <Button
               onClick={() => {
                 this.handleButtonRetrain(this.state);

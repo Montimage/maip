@@ -22,11 +22,11 @@ class MAIPHeader extends Component {
       '/models',
       '/predict',
       /* '/xai', */
-      '/shap',
-      '/lime',
+      '/xai/shap',
+      '/xai/lime',
+      '/metrics',
       '/attacks',
       '/defenses',
-      '/metrics',
       '/reports',
     ];
     const menuItems = [
@@ -74,20 +74,20 @@ class MAIPHeader extends Component {
       },
       {
         key: '5',
-        label: 'Attacks',
-        icon: <BugOutlined />,
+        label: 'Metrics',
+        icon: <ExperimentOutlined />,
         link: menuLinks[6],
       },
       {
         key: '6',
-        label: 'Defenses',
-        icon: <SafetyOutlined />,
+        label: 'Attacks',
+        icon: <BugOutlined />,
         link: menuLinks[7],
       },
       {
         key: '7',
-        label: 'Metrics',
-        icon: <ExperimentOutlined />,
+        label: 'Defenses',
+        icon: <SafetyOutlined />,
         link: menuLinks[8],
       },
       {
