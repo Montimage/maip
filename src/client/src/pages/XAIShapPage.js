@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
 import { getLastPath } from "../utils";
-import { Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Tooltip, Typography } from 'antd';
+import { Spin, Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Tooltip, Typography } from 'antd';
 import { UserOutlined, DownloadOutlined, QuestionOutlined, CameraOutlined } from "@ant-design/icons";
 import { Bar } from '@ant-design/plots';
 import {
@@ -299,7 +299,11 @@ class XAIShapPage extends Component {
             <Button icon={<UserOutlined />}
               onClick={this.handleShapClick}
               >SHAP Explain
-              {isRunning && <p>SHAP values are building...</p>}
+              {isRunning && 
+                <Spin size="large" style={{ marginBottom: '8px' }}>
+                  <div className="content" />
+                </Spin>
+              }
             </Button>
           </div>
         </Form>

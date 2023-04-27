@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
 import { getLastPath } from "../utils";
-import { Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Tooltip } from 'antd';
+import { Spin, Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Tooltip } from 'antd';
 import { UserOutlined, DownloadOutlined, QuestionOutlined, CameraOutlined } from "@ant-design/icons";
 import { Bar, Pie } from '@ant-design/plots';
 import isEqual from 'lodash/isEqual';
@@ -345,7 +345,11 @@ class XAILimePage extends Component {
             <Button icon={<UserOutlined />}
               onClick={this.handleLimeClick}
               >LIME Explain
-              {isRunning && <p>LIME values are building...</p>}
+              {isRunning && 
+                <Spin size="large" style={{ marginBottom: '8px' }}>
+                  <div className="content" />
+                </Spin>
+              }
             </Button>
           </div>
         </Form>
