@@ -209,10 +209,8 @@ class MetricsPage extends Component {
             <div style={style}>
               <h2>&nbsp;&nbsp;&nbsp;Model Performance</h2>
               <div style={{ position: 'absolute', top: 10, right: 10 }}>
-                <Tooltip title="Shows a list of various model performance metrics for each class.">
-                  <Button style={{ fontSize: '15px', border: 'none' }} type="link">
-                    <QuestionOutlined style={{ opacity: 0.5 }} />
-                  </Button>
+                <Tooltip title={`Shows a list of various model performance metrics for each class.`}>
+                  <Button type="link" icon={<QuestionOutlined />} />
                 </Tooltip>
               </div>
               <Table columns={columnsTableStats} dataSource={dataStats} pagination={false}
@@ -224,9 +222,7 @@ class MetricsPage extends Component {
               <h2>&nbsp;&nbsp;&nbsp;Confusion Matrix</h2>
               <div style={{ position: 'absolute', top: 10, right: 10 }}>
                 <Tooltip title="The confusion matrix shows the number of True Negatives (predicted negative, observed negative), True Positives (predicted positive, observed positive), False Negatives (predicted negative, but observed positive) and False Positives (predicted positive, but observed negative).">
-                  <Button style={{ fontSize: '15px', border: 'none' }} type="link">
-                    <QuestionOutlined style={{ opacity: 0.5 }} />
-                  </Button>
+                  <Button type="link" icon={<QuestionOutlined />} />
                 </Tooltip>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -257,11 +253,14 @@ class MetricsPage extends Component {
               </div>
             </div>
           </Col>
-        </Row>
-        <Row gutter={24}>
-          <Col className="gutter-row" span={12}>
+          <Col className="gutter-row" span={12} style={{ marginTop: "24px" }}>
             <div style={style}>
-              <h2>&nbsp;&nbsp;&nbsp;Predict</h2>
+              <h2>&nbsp;&nbsp;&nbsp;Currentness Metric</h2>
+            </div>
+          </Col>
+          <Col className="gutter-row" span={12} style={{ marginTop: "24px" }}>
+            <div style={style}>
+              <h2>&nbsp;&nbsp;&nbsp;Impact Metric</h2>
             </div>
           </Col>
         </Row>
