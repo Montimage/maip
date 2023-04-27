@@ -12,8 +12,10 @@ import {
 } from "../actions";
 import {
   FEATURES_DESCRIPTIONS,
+  SERVER_HOST,
+  SERVER_PORT,
 } from "../constants";
-
+const SHAP_URL = `http://${SERVER_HOST}:${SERVER_PORT}/api/xai/shap`;
 const style = {
   //background: '#0092ff',
   padding: '10px 0',
@@ -30,20 +32,11 @@ const layout = {
 };
 
 let barShap;
-let intervalXAI;
 
 const downloadShapImage = () => { barShap?.downloadImage(); };
 //const toDataURL = () => { console.log(barShap?.toDataURL()); };
 
-const onFinish = (values) => {
-  console.log(values);
-};
-
-const onChange = (values) => {
-  console.log(values);
-};
-
-class XAIPage extends Component {
+class XAIShapPage extends Component {
   constructor(props) {
     super(props);
     this.state = {
@@ -53,12 +46,13 @@ class XAIPage extends Component {
       positiveChecked: true,
       negativeChecked: true,
       maskedFeatures: [],
-      loading: false,
+      isRunning: props.xaiStatus.isRunning,
+      shapValues: [],
     };
     this.handleRandomClick = this.handleRandomClick.bind(this);
     this.handleContributionsChange = this.handleContributionsChange.bind(this);
-    this.handleMaskedFeatures = this.handleMaskedFeatures.bind(this);
-    this.handleShapExplain = this.handleShapExplain.bind(this);
+    this.handleMaskedFeatures = this.handleMaskedFeatures.bind(this);  
+    this.handleShapClick = this.handleShapClick.bind(this);
   }
 
   onSliderChange(newVal) {
@@ -90,65 +84,68 @@ class XAIPage extends Component {
     this.setState({ maskedFeatures: values });
   };
 
-  /* handleShapExplain() {
-    this.setState({ loading: true });
-    const modelId = getLastPath();
-    this.props.requestRunShap(modelId).then(() => {
-      this.props.requestShapValues(modelId).then(() => {
-        this.setState({ loading: false });
-      });
-    });
-  } */
-  handleShapExplain(modelId, numberSamples, maxDisplay) {
-    this.setState({ loading: true });
-    //const modelId = getLastPath();
-    /* this.props.fetchRunShap(modelId, numberSamples, maxDisplay)
-      .then((response) => {
-        // Handle successful response
-      })
-      .catch((error) => {
-        // Handle error
-      }); */
-    this.props.fetchRunShap(modelId, numberSamples, maxDisplay)
-      /* .then(() => {
-      requestShapValues(modelId).then(() => {
-        this.setState({ loading: false });
-      }); */
-      .then(() => {
-        window.location.reload(); // reload the current page
-        this.setState({ loading: false });
-      })
-      .catch(error => {
-        console.log(error);
-      });
-  };
-  /* handleShapExplain(modelId, numberSamples, maxDisplay) {
-    this.setState({ loading: true });
-    //const modelId = getLastPath();
-    //fetch(`/xai/shap?model_id=${modelId}`, { method: 'POST' })
-    this.props.fetchRunShap(
-      modelId, numberSamples, maxDisplay,
-    )
-      .then(() => {
-        this.props.fetchShapValues(modelId).then(() => {
-          this.setState({ loading: false });
-        });
-      })
-      .catch(error => {
-        console.error(error);
-        this.setState({ loading: false });
-      });
-  } */
-
   componentDidMount() {
-    let modelId = getLastPath();
-    console.log(modelId);
-    this.props.fetchShapValues(modelId);
+    // TODO: only fetchXAIStatus whenever button Shap Explain is clicked
     this.props.fetchXAIStatus();
+    this.intervalId = setInterval(() => {
+      this.props.fetchXAIStatus();
+    }, 10000);
+  }
+
+  async componentDidUpdate(prevProps, prevState) {
+    const modelId = getLastPath();
+    const { isRunning } = this.state;
+    const { xaiStatus } = this.props;
+    
+    if (prevProps.xaiStatus.isRunning !== this.props.xaiStatus.isRunning) {
+      console.log('isRunning has been changed');
+      this.setState({ isRunning: this.props.xaiStatus.isRunning });
+      if (!this.props.xaiStatus.isRunning) {
+        console.log('isRunning changed from True to False');
+        await this.fetchNewValues(modelId);  
+      }
+    }
   }
 
   componentWillUnmount() {
-    clearInterval(this.xaiStatusTimer);
+    clearInterval(this.intervalId);
+  }
+
+  async handleShapClick() {
+    const { numberSamples, maxDisplay, isRunning, shapValuesBarConfig } = this.state;
+    const modelId = getLastPath();
+    const shapConfig = {
+      "modelId": modelId,
+      "numberSamples": numberSamples,
+      "maxDisplay": maxDisplay,
+    };
+    console.log(shapConfig);
+    if (!isRunning) {
+      console.log("update isRunning state!");
+      this.setState({ isRunning: true });        
+      const response = await fetch(SHAP_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ shapConfig }),
+      });
+      const data = await response.json();
+
+      console.log(`Building SHAP values of the model ${modelId}`);
+      console.log(JSON.stringify(data));
+    }
+  }
+
+  async fetchNewValues(modelId) {
+    const shapValuesUrl = `${SHAP_URL}/explanations/${modelId}`;
+    const shapValues = await fetch(shapValuesUrl).then(res => res.json());
+    console.log(`Get new SHAP values of the model ${modelId} from server`);
+    console.log(JSON.stringify(shapValues));
+    // Update state only if new data is different than old data
+    if (JSON.stringify(shapValues) !== JSON.stringify(this.state.shapValues)) {
+      this.setState({ shapValues });
+    }
   }
 
   render() {
@@ -160,12 +157,13 @@ class XAIPage extends Component {
       positiveChecked,
       negativeChecked,
       maskedFeatures,
-    } = this.state;
-    const {
+      isRunning,
       shapValues,
+    } = this.state;
+    console.log(`XAI isRunning: ${isRunning}`);
+    const {
       xaiStatus, 
     } = this.props;
-    console.log(xaiStatus);
 
     const features = shapValues.map(obj => obj.feature).sort();
     console.log(features);
@@ -173,237 +171,206 @@ class XAIPage extends Component {
       value: label, label,
     }));
 
-    /* TODO: wait for the XAI method process finishes and auto display new plots? */
-    if (!xaiStatus.isRunning) {
-      //clearInterval(intervalXAI);
-      //setInterval(null);
-      //console.log(shapValues);
-      const filteredValuesShap = shapValues.filter((d) => {
-        if (d.importance_value > 0 && positiveChecked) return true;
-        if (d.importance_value < 0 && negativeChecked) return true;
-        return false;
-      });
+    const filteredValuesShap = shapValues.filter((d) => {
+      if (d.importance_value > 0 && positiveChecked) return true;
+      if (d.importance_value < 0 && negativeChecked) return true;
+      return false;
+    });
 
-      const filteredMaskedShap = filteredValuesShap.filter(obj => 
-        !maskedFeatures.some(feature => obj.feature.includes(feature)));
-      //console.log(filteredMaskedShap);
-      const toDisplayShap = filteredMaskedShap.slice(0, maxDisplay); 
-      const shapValuesBarConfig = {
-        data: toDisplayShap,
-        isStack: true,
-        xField: 'importance_value',
-        yField: 'feature',
-        //seriesField: 'feature',
-        label: false,
-        barStyle: (d) => {
-          //console.log(d)
-          return {
-            fill: d.importance_value > 0 ? "#0693e3" : "#EB144C"
-          };
-        },
-        geometry: 'interval',
-        interactions: [{ type: 'zoom' }],
-        title: {
-          text: 'Feature Importance',
-          style: {
-            fontSize: 18,
-            fontWeight: 'bold',
-            textAlign: 'center'
-          }
+    const filteredMaskedShap = filteredValuesShap.filter(obj => 
+      !maskedFeatures.some(feature => obj.feature.includes(feature)));
+    //console.log(filteredMaskedShap);
+    const toDisplayShap = filteredMaskedShap.slice(0, maxDisplay); 
+
+    // TODO: only render Bar chart whenever shapValues has been updated
+    const shapValuesBarConfig = {
+      data: toDisplayShap,
+      isStack: true,
+      xField: 'importance_value',
+      yField: 'feature',
+      //seriesField: 'feature',
+      label: false,
+      barStyle: (d) => {
+        //console.log(d)
+        return {
+          fill: d.importance_value > 0 ? "#0693e3" : "#EB144C"
+        };
+      },
+      /*title: {
+        text: 'Feature Importance',
+        style: {
+          fontSize: 18,
+          fontWeight: 'bold',
+          textAlign: 'center'
         }
-      };
+      }*/
+    };
 
-      const topFeatures = toDisplayShap.map((item, index) => ({
-        key: index + 1,
-        name: item.feature,
-        description: FEATURES_DESCRIPTIONS[item.feature] || 'N/A',
-      }));
-      //console.log(topFeatures);
-      
-      const columnsTopFeatures = [
-        {
-          title: 'ID',
-          dataIndex: 'key',
-          key: 'key',
-          sorter: (a, b) => a.key - b.key,
-        },
-        {
-          title: 'Name',
-          dataIndex: 'name',
-          key: 'name',
-        },
-        {
-          title: 'Description',
-          dataIndex: 'description',
-          key: 'description',
-        },
-      ];
+    const topFeatures = toDisplayShap.map((item, index) => ({
+      key: index + 1,
+      name: item.feature,
+      description: FEATURES_DESCRIPTIONS[item.feature] || 'N/A',
+    }));
+    //console.log(topFeatures);
+    
+    const columnsTopFeatures = [
+      {
+        title: 'ID',
+        dataIndex: 'key',
+        key: 'key',
+        sorter: (a, b) => a.key - b.key,
+      },
+      {
+        title: 'Name',
+        dataIndex: 'name',
+        key: 'name',
+      },
+      {
+        title: 'Description',
+        dataIndex: 'description',
+        key: 'description',
+      },
+    ];
 
-      return (
-        <LayoutPage pageTitle="Explainable AI with SHapley Additive exPlanations (SHAP)" pageSubTitle={`Model ${modelId}`}>
-          <Divider orientation="left"><h3>Parameters</h3></Divider>
-          <Form
-          {...layout}
-          name="control-hooks"
-          onFinish={onFinish}
-          style={{
-            maxWidth: 600,
-          }}
-          >
-            <Form.Item label="Background samples" style={{ marginBottom: 10 }} > 
-              <div style={{ display: 'inline-flex' }}>
-                <Form.Item label="bg" name="bg" noStyle>
-                  <InputNumber min={1} defaultValue={10} 
-                    onChange={(e) => this.onNumberSamplesChange(e)} 
-                  />
-                </Form.Item>
-              </div>
-            </Form.Item>
-            {/* TODO: display value of slider (really need?), space between Slide and Checkbox is large? */}
-            <Form.Item name="slider" label="Features to display"
-              style={{ marginBottom: -5 }}
-            >
-              <Slider
-                marks={{
-                  1: '1',
-                  5: '5',
-                  10: '10',
-                  15: '15',
-                  20: '20',
-                  25: '25',
-                  30: '30',
-                }}
-                min={1} max={30} defaultValue={maxDisplay}
-                value={maxDisplay}
-                onChange={(value) => this.onSliderChange(value)}
-              />
-            </Form.Item>
-            <Form.Item name="checkbox" label="Contributions to display" 
-              valuePropName="checked"
-              style={{ flex: 'none', marginBottom: 10 }}
-            >
-              <Checkbox.Group 
-                options={['Positive', 'Negative']}
-                defaultValue={['Positive', 'Negative']}
-                onChange={this.handleContributionsChange} 
-              />
-            </Form.Item>
-            <Form.Item name="select" label="Feature(s) to mask" 
-              style={{ flex: 'none', marginBottom: 10 }}
-            > 
-              <Select
-                mode="multiple"
-                style={{
-                  width: '100%',
-                }}
-                allowClear
-                placeholder="Select ..."
-                onChange={this.handleMaskedFeatures}
-                optionLabelProp="label"
-                options={selectFeaturesOptions}
-              />
-            </Form.Item>
-            <div style={{ textAlign: 'center' }}>
-              <Button icon={<UserOutlined />}
-                onClick={() => {
-                  console.log([modelId, sampleId, numberSamples, maxDisplay]);
-                  //this.handleShapExplain(modelId, numberSamples, maxDisplay);
-                  /* this.props.fetchRunShap(
-                    modelId, numberSamples, maxDisplay,
-                  ); */
-                  this.handleShapExplain(modelId, numberSamples, maxDisplay);
-                }}
-              >SHAP Explain</Button>
+    return (
+      <LayoutPage pageTitle="Explainable AI with SHapley Additive exPlanations (SHAP)" pageSubTitle={`Model ${modelId}`}>
+        <Divider orientation="left"><h3>Parameters</h3></Divider>
+        <Form
+        {...layout}
+        name="control-hooks"
+        style={{
+          maxWidth: 600,
+        }}
+        >
+          <Form.Item label="Background samples" style={{ marginBottom: 10 }} > 
+            <div style={{ display: 'inline-flex' }}>
+              <Form.Item label="bg" name="bg" noStyle>
+                <InputNumber min={1} defaultValue={10} 
+                  onChange={(e) => this.onNumberSamplesChange(e)} 
+                />
+              </Form.Item>
             </div>
-          </Form>
-          <Divider orientation="left"><h3>SHAP Explanations</h3></Divider>
-          <Row gutter={24}>
-            <Col className="gutter-row" span={12}>
-              <div style={style}>
-                <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <h2>&nbsp;&nbsp;&nbsp;Feature Importances</h2>
-                  {/* TODO: make position of buttons are flexible */}
-                  <div style={{ position: 'absolute', top: 10, right: 10 }}>
-                    <Tooltip title="Download plot as png">
-                      <Button
-                        type="link"
-                        icon={<CameraOutlined />}
-                        style={{
-                          marginLeft: '20rem',
-                        }}
-                        onClick={downloadShapImage}
-                      />
-                    </Tooltip>
-                    <Tooltip title="Feature importances plot displays the sum of individual contributions, computed on the complete dataset.">
-                      <Button type="link" icon={<QuestionOutlined />} />
-                    </Tooltip>
-                  </div>
-                </div>
-                &nbsp;&nbsp;&nbsp;
-                <Typography.Title level={4} style={{ textAlign: 'center', fontSize: '16px' }}>
-                  Average impact on predicted Malware traffic <br />
-                </Typography.Title>
-                <center>(Total number of features: {features.length})</center>
-                <Bar {...shapValuesBarConfig} onReady={(bar) => (barShap = bar)}/>
-                <Typography.Title level={4} style={{ textAlign: 'center', fontSize: '16px', marginTop: '10px' }}>
-                  Mean absolute SHAP value
-                </Typography.Title>
-              </div>
-            </Col>
-            <Col className="gutter-row" span={12}>
-              <div style={style}>
-                <h2>&nbsp;&nbsp;&nbsp;{`Top ${maxDisplay} most important features`}</h2>
+          </Form.Item>
+          {/* TODO: display value of slider (really need?), space between Slide and Checkbox is large? */}
+          <Form.Item name="slider" label="Features to display"
+            style={{ marginBottom: -5 }}
+          >
+            <Slider
+              marks={{
+                1: '1',
+                5: '5',
+                10: '10',
+                15: '15',
+                20: '20',
+                25: '25',
+                30: '30',
+              }}
+              min={1} max={30} defaultValue={maxDisplay}
+              value={maxDisplay}
+              onChange={(value) => this.onSliderChange(value)}
+            />
+          </Form.Item>
+          <Form.Item name="checkbox" label="Contributions to display" 
+            valuePropName="checked"
+            style={{ flex: 'none', marginBottom: 10 }}
+          >
+            <Checkbox.Group 
+              options={['Positive', 'Negative']}
+              defaultValue={['Positive', 'Negative']}
+              onChange={this.handleContributionsChange} 
+            />
+          </Form.Item>
+          <Form.Item name="select" label="Feature(s) to mask" 
+            style={{ flex: 'none', marginBottom: 10 }}
+          > 
+            <Select
+              mode="multiple"
+              style={{
+                width: '100%',
+              }}
+              allowClear
+              placeholder="Select ..."
+              onChange={this.handleMaskedFeatures}
+              optionLabelProp="label"
+              options={selectFeaturesOptions}
+            />
+          </Form.Item>
+          <div style={{ textAlign: 'center' }}>
+            <Button icon={<UserOutlined />}
+              onClick={this.handleShapClick}
+              >SHAP Explain
+              {isRunning && <p>SHAP values are building...</p>}
+            </Button>
+          </div>
+        </Form>
+        <Divider orientation="left"><h3>SHAP Explanations</h3></Divider>
+        <Row gutter={24}>
+          <Col className="gutter-row" span={12}>
+            <div style={style}>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <h2>&nbsp;&nbsp;&nbsp;Feature Importances</h2>
+                {/* TODO: make position of buttons are flexible */}
                 <div style={{ position: 'absolute', top: 10, right: 10 }}>
-                  <Tooltip title={`Displays the top ${maxDisplay} most important features with detailed description.`}>
+                  <Tooltip title="Download plot as png">
+                    <Button
+                      type="link"
+                      icon={<CameraOutlined />}
+                      style={{
+                        marginLeft: '20rem',
+                      }}
+                      onClick={downloadShapImage}
+                    />
+                  </Tooltip>
+                  <Tooltip title="Feature importances plot displays the sum of individual contributions, computed on the complete dataset.">
                     <Button type="link" icon={<QuestionOutlined />} />
                   </Tooltip>
                 </div>
-                <Table dataSource={topFeatures} columns={columnsTopFeatures} 
-                  size="small" style={{ marginTop: '20px', marginBottom: 0 }}
-                />
               </div>
-            </Col>
-            <Col span={12} style={{ marginTop: "24px" }}>
-              <div style={style}>
-                <h2>&nbsp;&nbsp;&nbsp;Feature Dependence</h2>
+              &nbsp;&nbsp;&nbsp;
+              <Typography.Title level={4} style={{ textAlign: 'center', fontSize: '16px' }}>
+                Average impact on predicted Malware traffic <br />
+              </Typography.Title>
+              <center>(Total number of features: {features.length})</center>
+              {shapValuesBarConfig && (
+                <Bar {...shapValuesBarConfig} onReady={(bar) => (barShap = bar)}/>
+              )}
+              <Typography.Title level={4} style={{ textAlign: 'center', fontSize: '16px', marginTop: '10px' }}>
+                Mean absolute SHAP value
+              </Typography.Title>
+            </div>
+          </Col>
+          <Col className="gutter-row" span={12}>
+            <div style={style}>
+              <h2>&nbsp;&nbsp;&nbsp;{`Top ${maxDisplay} most important features`}</h2>
+              <div style={{ position: 'absolute', top: 10, right: 10 }}>
+                <Tooltip title={`Displays the top ${maxDisplay} most important features with detailed description.`}>
+                  <Button type="link" icon={<QuestionOutlined />} />
+                </Tooltip>
               </div>
-            </Col>
-          </Row>
-        </LayoutPage>
-      );
-    }
+              <Table dataSource={topFeatures} columns={columnsTopFeatures} 
+                size="small" style={{ marginTop: '20px', marginBottom: 0 }}
+              />
+            </div>
+          </Col>
+          <Col span={12} style={{ marginTop: "24px" }}>
+            <div style={style}>
+              <h2>&nbsp;&nbsp;&nbsp;Feature Dependence</h2>
+            </div>
+          </Col>
+        </Row>
+      </LayoutPage>
+    );
   }
 }
 
-const mapPropsToStates = ({ shapValues, xaiStatus }) => ({
-  shapValues, xaiStatus,
+const mapPropsToStates = ({ xaiStatus }) => ({
+  xaiStatus,
 });
 
 const mapDispatchToProps = (dispatch) => ({
   fetchXAIStatus: () => dispatch(requestXAIStatus()),
-  fetchShapValues: (modelId) => dispatch(requestShapValues(modelId)),
   fetchRunShap: (modelId, numberSamples, maxDisplay) =>
     dispatch(requestRunShap({ modelId, numberSamples, maxDisplay })),
-  /* fetchRunShap: (modelId, numberSamples, maxDisplay) => {
-    return dispatch(requestRunShap({ modelId, numberSamples, maxDisplay }))
-      .then(() => {
-        return fetchShapValues(modelId)
-          .then(modelId => {
-            dispatch(requestShapValues(modelId));
-          });
-      }); */
-    /* return new Promise((resolve, reject) => {
-      dispatch(requestRunShap({ modelId, numberSamples, maxDisplay }))
-        .then((response) => {
-          // Handle successful response
-          resolve(response);
-        })
-        .catch((error) => {
-          // Handle error
-          reject(error);
-        });
-    }); */
-  /* }, */
 });
 
-export default connect(mapPropsToStates, mapDispatchToProps)(XAIPage);
+export default connect(mapPropsToStates, mapDispatchToProps)(XAIShapPage);

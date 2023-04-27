@@ -33,18 +33,9 @@ const layout = {
 };
 
 let barLime;
-let intervalXAI;
 
 const downloadLimeImage = () => { barLime?.downloadImage(); };
 //const toDataURL = () => { console.log(barLime?.toDataURL()); };
-
-const onFinish = (values) => {
-  console.log(values);
-};
-
-const onChange = (values) => {
-  console.log(values);
-};
 
 class XAILimePage extends Component {
   constructor(props) {
@@ -103,7 +94,7 @@ class XAILimePage extends Component {
     let modelId = getLastPath();
     console.log(modelId);
     this.props.fetchModel(modelId);
-    //this.props.fetchLimeValues(modelId);
+    // TODO: only fetchXAIStatus whenever button Lime Explain is clicked
     this.props.fetchXAIStatus();
     this.intervalId = setInterval(() => {
       this.props.fetchXAIStatus();
@@ -273,6 +264,7 @@ class XAILimePage extends Component {
       !maskedFeatures.some(feature => obj.feature.includes(feature)));
     //console.log(filteredMaskedValuesLime);
 
+    // TODO: only render Bar chart whenever limeValues has been updated
     const limeValuesBarConfig = {
       data: filteredMaskedValuesLime.slice(0, maxDisplay),
       isStack: true,
@@ -296,7 +288,6 @@ class XAILimePage extends Component {
         <Form
         {...layout}
         name="control-hooks"
-        onFinish={onFinish}
         style={{
           maxWidth: 600,
         }}
@@ -380,7 +371,7 @@ class XAILimePage extends Component {
               </div>
               &nbsp;&nbsp;&nbsp;
               {limeValuesBarConfig && (
-              <Bar {...limeValuesBarConfig} onReady={(bar) => (barLime = bar)}/>
+                <Bar {...limeValuesBarConfig} onReady={(bar) => (barLime = bar)}/>
               )}
             </div>
           </Col>

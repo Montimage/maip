@@ -16,25 +16,28 @@ from pydoc import classname
 from datetime import datetime
 from tools import dataScale_cnn
 
-#deepLearningPath = str(os.path.join(Path.cwd(),'deep-learning'))
-deepLearningPath = "/home/strongcourage/maip-app/src/server/deep-learning"
+from sklearn.inspection import permutation_importance
 
-xai_features = ['ip', 'ip.pkts_per_flow', 'duration', 'ip.header_len',
-                    'ip.payload_len', 'ip.avg_bytes_tot_len', 'time_between_pkts_sum',
-                    'time_between_pkts_avg', 'time_between_pkts_max',
-                    'time_between_pkts_min', 'time_between_pkts_std', '(-0.001, 50.0]',
-                    '(50.0, 100.0]', '(100.0, 150.0]', '(150.0, 200.0]', '(200.0, 250.0]',
-                    '(250.0, 300.0]', '(300.0, 350.0]', '(350.0, 400.0]', '(400.0, 450.0]',
-                    '(450.0, 500.0]', '(500.0, 550.0]', 'tcp_pkts_per_flow', 'pkts_rate',
-                    'tcp_bytes_per_flow', 'byte_rate', 'tcp.tcp_session_payload_up_len',
-                    'tcp.tcp_session_payload_down_len', '(-0.001, 150.0]',
-                    '(150.0, 300.0]', '(300.0, 450.0]', '(450.0, 600.0]', '(600.0, 750.0]',
-                    '(750.0, 900.0]', '(900.0, 1050.0]', '(1050.0, 1200.0]',
-                    '(1200.0, 1350.0]', '(1350.0, 1500.0]', '(1500.0, 10000.0]', 'tcp.fin',
-                    'tcp.syn', 'tcp.rst', 'tcp.psh', 'tcp.ack', 'tcp.urg', 'sport_g', 'sport_le', 'dport_g',
-                    'dport_le', 'mean_tcp_pkts', 'std_tcp_pkts', 'min_tcp_pkts',
-                    'max_tcp_pkts', 'entropy_tcp_pkts', 'mean_tcp_len', 'std_tcp_len',
-                    'min_tcp_len', 'max_tcp_len', 'entropy_tcp_len', 'ssl.tls_version']
+#deepLearningPath = str(os.path.join(Path.cwd(),'deep-learning'))
+#deepLearningPath = "/home/strongcourage/maip-app/src/server/deep-learning"
+deepLearningPath = "/Users/strongcourage/maip-app/src/server/deep-learning"
+
+xai_features = ['ip.pkts_per_flow', 'duration', 'ip.header_len',
+                'ip.payload_len', 'ip.avg_bytes_tot_len', 'time_between_pkts_sum',
+                'time_between_pkts_avg', 'time_between_pkts_max',
+                'time_between_pkts_min', 'time_between_pkts_std', '(-0.001, 50.0]',
+                '(50.0, 100.0]', '(100.0, 150.0]', '(150.0, 200.0]', '(200.0, 250.0]',
+                '(250.0, 300.0]', '(300.0, 350.0]', '(350.0, 400.0]', '(400.0, 450.0]',
+                '(450.0, 500.0]', '(500.0, 550.0]', 'tcp_pkts_per_flow', 'pkts_rate',
+                'tcp_bytes_per_flow', 'byte_rate', 'tcp.tcp_session_payload_up_len',
+                'tcp.tcp_session_payload_down_len', '(-0.001, 150.0]',
+                '(150.0, 300.0]', '(300.0, 450.0]', '(450.0, 600.0]', '(600.0, 750.0]',
+                '(750.0, 900.0]', '(900.0, 1050.0]', '(1050.0, 1200.0]',
+                '(1200.0, 1350.0]', '(1350.0, 1500.0]', '(1500.0, 10000.0]', 'tcp.fin',
+                'tcp.syn', 'tcp.rst', 'tcp.psh', 'tcp.ack', 'tcp.urg', 'sport_g', 'sport_le', 'dport_g',
+                'dport_le', 'mean_tcp_pkts', 'std_tcp_pkts', 'min_tcp_pkts',
+                'max_tcp_pkts', 'entropy_tcp_pkts', 'mean_tcp_len', 'std_tcp_len',
+                'min_tcp_len', 'max_tcp_len', 'entropy_tcp_len', 'ssl.tls_version']
 
 def running_shap(numberBackgroundSamples, maxDisplay):
 
@@ -46,12 +49,40 @@ def running_shap(numberBackgroundSamples, maxDisplay):
     :return:
   """
 
+  explanations_path = deepLearningPath + '/xai/' + model_name
+  if not os.path.exists(explanations_path):
+    os.makedirs(explanations_path) 
+
+  x_train_df = pd.DataFrame(x_train, columns=xai_features)
+  x_test_df = pd.DataFrame(x_test, columns=xai_features)
+  x_train_df = x_train_df.reset_index(drop=True)
+
   background = x_train[np.random.choice(x_train.shape[0], int(numberBackgroundSamples), replace=False)]
   explainer = shap.KernelExplainer(model.predict, background)
   with warnings.catch_warnings():
     warnings.filterwarnings("ignore")
-    shap_values = explainer.shap_values(shap.sample(x_test, int(numberBackgroundSamples)))
-    #print(shap_values[0])
+    x_samples = shap.sample(x_test_df, int(numberBackgroundSamples))
+    shap_values = explainer.shap_values(x_samples)
+    print(shap_values[0])
+    # Compute the permutation importance of each feature
+    #perm_importance = shap.permutation_importance(explainer, x_test)
+    #print(perm_importance.importances_mean)
+    shap_df = pd.DataFrame(shap_values[0], columns=xai_features)
+    #shap_df = shap_df.reset_index(drop=True)
+    #shap.plots.heatmap(shap_df, max_display=int(maxDisplay))
+    #shap.plots.heatmap(shap_values, max_display=int(maxDisplay))
+
+    #plt.figure(figsize=(15,10))
+    #shap.dependence_plot(1, shap_values[0], x_samples)
+    #plt.savefig(os.path.join(explanations_path, 'dependence_plot.png')) 
+
+    # Compute the interaction values between features
+    #interaction_values = explainer.shap_interaction_values(x_samples)
+    #print(interaction_values)
+
+  #shap_dict = dict(zip(xai_features, shap_values[0][0]))
+  #shap.plots.bar(shap_dict, max_display=10)
+  #plt.savefig(os.path.join(explanations_path, 'shap_instance.png'))
 
   columns = ['feature','importance_value'] 
   vals= np.abs(shap_values).mean(0)
@@ -65,21 +96,18 @@ def running_shap(numberBackgroundSamples, maxDisplay):
   features_to_display = [dict(zip(columns, row)) for row in sorted_feature_vals]
   print(json.dumps(features_to_display, indent=2, ensure_ascii=False))
 
-  explanations_path = deepLearningPath + '/xai/' + model_name
-  if not os.path.exists(explanations_path):
-    os.makedirs(explanations_path) 
-
+  
   jsonfile = os.path.join(explanations_path, 'importance_values.json')
   print(jsonfile)
   with open(jsonfile, "w") as outfile:
     json.dump(features_to_display, outfile)
 
   classes = ['Botnet']
-  plt.figure(figsize=(15,10))
+  #plt.figure(figsize=(15,10))
   #plt.grid(b=None)
-  shap.summary_plot(shap_values, x_test, color_bar_label='Feature value for all', 
-    feature_names=xai_features, max_display=int(maxDisplay), class_names=classes, plot_size=None)
-  plt.savefig(os.path.join(explanations_path, 'shap.png'))
+  #shap.summary_plot(shap_values, x_test, color_bar_label='Feature value for all', 
+  #  feature_names=xai_features, max_display=int(maxDisplay), class_names=classes, plot_size=None)
+  #plt.savefig(os.path.join(explanations_path, 'shap.png'))
 
 
 if __name__ == "__main__":

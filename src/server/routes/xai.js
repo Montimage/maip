@@ -97,7 +97,7 @@ router.get('/explanations/:modelId', (req, res, next) => {
 /**
  * Get SHAP feature importance values of a specific model
  */
-router.get('/shap/importance-values/:modelId', (req, res, next) => {
+router.get('/shap/explanations/:modelId', (req, res, next) => {
   const { modelId } = req.params;
   const xaiFilePath = `${XAI_PATH}${modelId.replace('.h5', '')}`;
   const shapValuesFile = `${xaiFilePath}/importance_values.json`; 
