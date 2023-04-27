@@ -47,7 +47,7 @@ class XAIPage extends Component {
     this.state = {
       sampleId: 5,
       numberSamples: 10,
-      maxDisplay: 30,
+      maxDisplay: 15,
       positiveChecked: true,
       negativeChecked: true,
       maskedFeatures: [],
@@ -202,11 +202,9 @@ class XAIPage extends Component {
       value: label, label,
     }));
 
-    /* TODO: wait for the XAI method process finishes and auto display new plots? */
-
-    const sortedValuesLime = limeValues.slice().sort((a, b) => b.value - a.value);
-    const notZeroSortedValuesLime = sortedValuesLime.filter(d => d.value !== 0);
-    const filteredValuesLime = notZeroSortedValuesLime.filter((d) => {
+    //const sortedValuesLime = limeValues.slice().sort((a, b) => b.value - a.value);
+    //const notZeroSortedValuesLime = sortedValuesLime.filter(d => d.value !== 0);
+    const filteredValuesLime = limeValues.filter((d) => {
       if (d.value > 0 && positiveChecked) return true;
       if (d.value < 0 && negativeChecked) return true;
       return false;
@@ -230,17 +228,6 @@ class XAIPage extends Component {
           fill: d.value > 0 ? "#0693e3" : "#EB144C"
         };
       },
-      /* TODO: add title of Bar chart */
-      /* barTitle: {
-        text: "My Bar Chart Title",
-        style: { fontSize: 16 }
-      }, */
-      /*meta: {
-        value: {
-          min: Math.min(...filteredMaskedValuesLime.map((d) => d.value)),
-          max: Math.max(...filteredMaskedValuesLime.map((d) => d.value))
-        }
-      },*/
       geometry: 'interval',
       interactions: [{ type: 'zoom' }],
     };
@@ -338,9 +325,7 @@ class XAIPage extends Component {
                     />
                   </Tooltip>
                   <Tooltip title="Local interpretability plot displays each most important feature's contributions for this specific sample.">
-                    <Button style={{ fontSize: '15px', border: 'none' }} type="link">
-                      <QuestionOutlined style={{ opacity: 0.5 }} />
-                    </Button>
+                    <Button type="link" icon={<QuestionOutlined />} />
                   </Tooltip>
                 </div>
               </div>
@@ -362,9 +347,7 @@ class XAIPage extends Component {
                   <Pie {...pieConfig} />
                   <div style={{ position: 'absolute', top: 10, right: 10 }}>
                     <Tooltip title="Shows predicted probability for each sample.">
-                      <Button style={{ fontSize: '15px', border: 'none' }} type="link">
-                        <QuestionOutlined style={{ opacity: 0.5 }} />
-                      </Button>
+                      <Button type="link" icon={<QuestionOutlined />} />
                     </Tooltip>
                   </div>
                 </div>

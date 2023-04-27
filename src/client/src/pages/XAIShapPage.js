@@ -335,9 +335,7 @@ class XAIPage extends Component {
                       />
                     </Tooltip>
                     <Tooltip title="Feature importances plot displays the sum of individual contributions, computed on the complete dataset.">
-                      <Button style={{ fontSize: '15px', border: 'none' }} type="link">
-                        <QuestionOutlined style={{ opacity: 0.5 }} />
-                      </Button>
+                      <Button type="link" icon={<QuestionOutlined />} />
                     </Tooltip>
                   </div>
                 </div>
@@ -357,14 +355,17 @@ class XAIPage extends Component {
                 <h2>&nbsp;&nbsp;&nbsp;{`Top ${maxDisplay} most important features`}</h2>
                 <div style={{ position: 'absolute', top: 10, right: 10 }}>
                   <Tooltip title={`Displays the top ${maxDisplay} most important features with detailed description.`}>
-                    <Button style={{ fontSize: '15px', border: 'none' }} type="link">
-                      <QuestionOutlined style={{ opacity: 0.5 }} />
-                    </Button>
+                    <Button type="link" icon={<QuestionOutlined />} />
                   </Tooltip>
                 </div>
                 <Table dataSource={topFeatures} columns={columnsTopFeatures} 
                   size="small" style={{ marginTop: '20px', marginBottom: 0 }}
                 />
+              </div>
+            </Col>
+            <Col span={12} style={{ marginTop: "24px" }}>
+              <div style={style}>
+                <h2>&nbsp;&nbsp;&nbsp;Feature Dependence</h2>
               </div>
             </Col>
           </Row>
