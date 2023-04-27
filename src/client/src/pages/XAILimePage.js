@@ -5,13 +5,18 @@ import { getLastPath } from "../utils";
 import { Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Tooltip } from 'antd';
 import { UserOutlined, DownloadOutlined, QuestionOutlined, CameraOutlined } from "@ant-design/icons";
 import { Bar, Pie } from '@ant-design/plots';
+import isEqual from 'lodash/isEqual';
 import {
   requestModel,
   requestRunLime,
   requestXAIStatus,
   requestLimeValues,
 } from "../actions";
-
+import {
+  SERVER_HOST,
+  SERVER_PORT,
+} from "../constants";
+const LIME_URL = `http://${SERVER_HOST}:${SERVER_PORT}/api/xai/lime`;
 const style = {
   //background: '#0092ff',
   padding: '10px 0',
@@ -41,7 +46,7 @@ const onChange = (values) => {
   console.log(values);
 };
 
-class XAIPage extends Component {
+class XAILimePage extends Component {
   constructor(props) {
     super(props);
     this.state = {
@@ -52,10 +57,13 @@ class XAIPage extends Component {
       negativeChecked: true,
       maskedFeatures: [],
       predictedProbs: "",
+      isRunning: props.xaiStatus.isRunning,
+      limeValues: [],
     };
     this.handleRandomClick = this.handleRandomClick.bind(this);
     this.handleContributionsChange = this.handleContributionsChange.bind(this);
     this.handleMaskedFeatures = this.handleMaskedFeatures.bind(this);
+    this.handleLimeClick = this.handleLimeClick.bind(this);
   }
 
   handleRowClick = (record) => {
@@ -95,23 +103,73 @@ class XAIPage extends Component {
     let modelId = getLastPath();
     console.log(modelId);
     this.props.fetchModel(modelId);
-    this.props.fetchLimeValues(modelId);
+    //this.props.fetchLimeValues(modelId);
     this.props.fetchXAIStatus();
-    /* this.xaiStatusTimer = setInterval(() => {
+    this.intervalId = setInterval(() => {
       this.props.fetchXAIStatus();
-    }, 3000); */
+    }, 10000);
   }
 
-  componentDidUpdate(prevProps) {
+  async componentDidUpdate(prevProps, prevState) {
+    const modelId = getLastPath();
+    const { isRunning } = this.state;
+    const { xaiStatus } = this.props;
+
     // Check if the model data has been updated
     if (this.props.model !== prevProps.model) {
       const { predictedProbs } = this.props.model;
       this.setState({ predictedProbs });
     }
+    
+    if (prevProps.xaiStatus.isRunning !== this.props.xaiStatus.isRunning) {
+      console.log('isRunning has been changed');
+      this.setState({ isRunning: this.props.xaiStatus.isRunning });
+      if (!this.props.xaiStatus.isRunning) {
+        console.log('isRunning changed from True to False');
+        await this.fetchNewValues(modelId);  
+      }
+    }
   }
 
   componentWillUnmount() {
-    clearInterval(this.xaiStatusTimer);
+    clearInterval(this.intervalId);
+  }
+
+  async handleLimeClick() {
+    const { sampleId, maxDisplay, isRunning, limeValuesBarConfig } = this.state;
+    const modelId = getLastPath();
+    const limeConfig = {
+      "modelId": modelId,
+      "sampleId": sampleId,
+      "numberFeature": maxDisplay,
+    };
+    console.log(limeConfig);
+    if (!isRunning) {
+      console.log("update isRunning state!");
+      this.setState({ isRunning: true });        
+      const response = await fetch(LIME_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ limeConfig }),
+      });
+      const data = await response.json();
+
+      console.log(`Building LIME values of the model ${modelId}`);
+      console.log(JSON.stringify(data));
+    }
+  }
+
+  async fetchNewValues(modelId) {
+    const limeValuesUrl = `${LIME_URL}/explanations/${modelId}`;
+    const limeValues = await fetch(limeValuesUrl).then(res => res.json());
+    console.log(`Get new LIME values of the model ${modelId} from server`);
+    console.log(JSON.stringify(limeValues));
+    // Update state only if new data is different than old data
+    if (JSON.stringify(limeValues) !== JSON.stringify(this.state.limeValues)) {
+      this.setState({ limeValues });
+    }
   }
 
   render() {
@@ -123,13 +181,14 @@ class XAIPage extends Component {
       positiveChecked,
       negativeChecked,
       maskedFeatures,
+      isRunning,
+      limeValues,
     } = this.state;
+    console.log(`XAI isRunning: ${isRunning}`);
     const { 
       model,
-      limeValues,
       xaiStatus, 
     } = this.props;
-    console.log(xaiStatus);
 
     const { stats, buildConfig, confusionMatrix, trainingSamples, testingSamples, predictedProbs } = model;
     // Check if the predictedProbs have been loaded
@@ -145,12 +204,12 @@ class XAIPage extends Component {
       {
         key: 0,
         label: 'Normal traffic',
-        probability: `${(yProbs[sampleId][0] * 100).toFixed(0)}%`
+        probability: sampleId && yProbs[sampleId] ? `${(yProbs[sampleId][0] * 100).toFixed(0)}%` : '-'
       },
       {
         key: 1,
         label: 'Malware traffic',
-        probability: `${(yProbs[sampleId][1] * 100).toFixed(0)}%`
+        probability: sampleId && yProbs[sampleId] ? `${(yProbs[sampleId][1] * 100).toFixed(0)}%` : '-'
       }
     ];
 
@@ -167,14 +226,14 @@ class XAIPage extends Component {
       }
     ];
 
-    const pieData = yProbs[this.state.sampleId].map((prob, i) => {
+    const pieData = this.state.sampleId ? yProbs[this.state.sampleId].map((prob, i) => {
       const label = i === 0 ? "Normal traffic" : "Malware traffic";
       const percentage = (prob * 100).toFixed(0);
       return {
         type: label,
         value: prob,
       };
-    });
+    }) : [];
 
     const pieConfig = {
       appendPadding: 10,
@@ -228,8 +287,6 @@ class XAIPage extends Component {
           fill: d.value > 0 ? "#0693e3" : "#EB144C"
         };
       },
-      geometry: 'interval',
-      interactions: [{ type: 'zoom' }],
     };
 
     return (
@@ -295,14 +352,9 @@ class XAIPage extends Component {
           </Form.Item>
           <div style={{ textAlign: 'center' }}>
             <Button icon={<UserOutlined />}
-              /* style={{ marginLeft: '5px' }} */
-              onClick={() => {
-                console.log([modelId, sampleId, numberSamples, maxDisplay]);
-                this.props.fetchRunLime(
-                  modelId, sampleId, maxDisplay,
-                );
-              }}
+              onClick={this.handleLimeClick}
               >LIME Explain
+              {isRunning && <p>LIME values are building...</p>}
             </Button>
           </div>
         </Form>
@@ -316,11 +368,8 @@ class XAIPage extends Component {
                 <div style={{ position: 'absolute', top: 10, right: 10 }}>
                   <Tooltip title="Download plot as png">
                     <Button
-                      type="link"
-                      icon={<CameraOutlined />}
-                      style={{
-                        marginLeft: '15rem',
-                      }}
+                      type="link" icon={<CameraOutlined />}
+                      style={{ marginLeft: '15rem' }}
                       onClick={downloadLimeImage}
                     />
                   </Tooltip>
@@ -330,7 +379,9 @@ class XAIPage extends Component {
                 </div>
               </div>
               &nbsp;&nbsp;&nbsp;
+              {limeValuesBarConfig && (
               <Bar {...limeValuesBarConfig} onReady={(bar) => (barLime = bar)}/>
+              )}
             </div>
           </Col>
           <Col className="gutter-row" span={12}>
@@ -360,8 +411,8 @@ class XAIPage extends Component {
   } 
 }
 
-const mapPropsToStates = ({ model, limeValues, xaiStatus }) => ({
-  model, limeValues, xaiStatus,
+const mapPropsToStates = ({ model, xaiStatus }) => ({
+  model, xaiStatus,
 });
 
 const mapDispatchToProps = (dispatch) => ({
@@ -369,7 +420,6 @@ const mapDispatchToProps = (dispatch) => ({
   fetchXAIStatus: () => dispatch(requestXAIStatus()),
   fetchRunLime: (modelId, sampleId, numberFeatures) =>
     dispatch(requestRunLime({ modelId, sampleId, numberFeatures })),
-  fetchLimeValues: (modelId) => dispatch(requestLimeValues(modelId)),
 });
 
-export default connect(mapPropsToStates, mapDispatchToProps)(XAIPage);
+export default connect(mapPropsToStates, mapDispatchToProps)(XAILimePage);
