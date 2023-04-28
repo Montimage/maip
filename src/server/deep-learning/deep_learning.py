@@ -28,7 +28,7 @@ def prepare_training_location(buildId):
     os.makedirs(output_result_location)
   return output_pickle_files_location, output_datasets_location, output_result_location
 
-def train_model_from_csv(datasets, total_samples, training_ratio, buildId, training_parameters = {
+def train_model_from_csv(datasets, training_ratio, buildId, training_parameters = {
   "nb_epoch_cnn": 5,
   "batch_size_cnn": 32,
   "nb_epoch_sae": 2,
@@ -38,7 +38,6 @@ def train_model_from_csv(datasets, total_samples, training_ratio, buildId, train
 
   Args:
     datasets (Array): List of dataset to be used for training
-    total_samples (Number): Total number of sample
     training_ratio (Number): the ratio of training dataset and testing dataset
     training_parameters (Object): Parameter for training
   """
@@ -55,7 +54,7 @@ def train_model_from_csv(datasets, total_samples, training_ratio, buildId, train
     print('A new pickle file at: ' + pickle_file_path + '(' + str(isAttack) + ')')
 
   # Create dataset
-  createTrainTestSet(output_pickle_files_location , total_samples,training_ratio,output_datasets_location)
+  createTrainTestSet(output_pickle_files_location, training_ratio, output_datasets_location)
   print('Datasets have been created at: ' + output_datasets_location)
   train_data_path = os.path.join(output_datasets_location,'Train_samples.csv')
   test_data_path = os.path.join(output_datasets_location,'Test_samples.csv')
@@ -74,10 +73,9 @@ def start_training_model(buildId, path_to_training_config_file):
     f = open(path_to_training_config_file)
     trainingConfig = json.load(f)
     datasets = trainingConfig['datasets']
-    total_samples = trainingConfig['total_samples']
     training_ratio = trainingConfig['training_ratio']
     training_parameters = trainingConfig['training_parameters']
-    return train_model_from_csv(datasets, total_samples, training_ratio, buildId, training_parameters)
+    return train_model_from_csv(datasets, training_ratio, buildId, training_parameters)
 
 if __name__ == "__main__":
   import sys

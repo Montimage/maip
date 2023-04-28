@@ -504,4 +504,5 @@ def eventsToFeatures(in_csv):
         print("Extracted {} features".format(p1_features.shape[0]))
         return ips, p1_features
     else:
-        return [],[]
+        print("There is no ip traffic")
+        return {},{}

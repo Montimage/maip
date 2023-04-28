@@ -82,10 +82,12 @@ const prepareTraining = (buildConfig, callback) => {
     }
     const csvFiles = listFilesAsync(datasetDataPath, '.csv');
     for (let index2 = 0; index2 < csvFiles.length; index2++) {
-      buildDatasets.push({
-        csvPath: `${datasetDataPath}${csvFiles[index2]}`,
-        isAttack,
-      });
+      if (csvFiles[index2] !== 'security-reports.csv') {
+        buildDatasets.push({
+          csvPath: `${datasetDataPath}${csvFiles[index2]}`,
+          isAttack,
+        });
+      }
     }
   }
 
@@ -419,6 +421,12 @@ const startPredicting = (predictConfig, callback) => {
               startOnlinePrediction(csvRootPath, modelPath, predictionPath, logFile, 0);
             }
           });
+          break;
+        case 'pcap':
+          // get the pcap file
+          // move the pcap file to the pcaps/ folder
+          // execute startMMTOffline
+          // analysing based on the result of startMMTOffline
           break;
         default:
           callback({

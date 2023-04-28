@@ -13,7 +13,7 @@ sys.path.append(sys.path[0] + '/..')
 Functions creating training and testing datasets
 """
 
-def createTrainTestSet(pickle_files, nb_total_samples, training_ratio, dataset_output_path):
+def createTrainTestSet(pickle_files, training_ratio, dataset_output_path):
     """
     Creates a training and testing .csv files with balanced 0/1 classes
     :param path: folder with .pkl files (already calculated dataframes with ML features)
@@ -23,11 +23,11 @@ def createTrainTestSet(pickle_files, nb_total_samples, training_ratio, dataset_o
     """
     m_ndt = pd.DataFrame()
     no_ndt = pd.DataFrame()
-    norm_rest = int(nb_total_samples / 2)
-    mal_rest = norm_rest
-    if norm_rest <= 0:
-        print('Number of sample must be a positive number')
-        return False
+    # norm_rest = int(nb_total_samples / 2)
+    # mal_rest = norm_rest
+    # if norm_rest <= 0:
+    #     print('Number of sample must be a positive number')
+    #     return False
     all_pickle_files = listFiles(pickle_files,'.pkl')
     if len(all_pickle_files) <= 0:
         print('There is no .pkl file in ' + pickle_file_path)
@@ -46,44 +46,53 @@ def createTrainTestSet(pickle_files, nb_total_samples, training_ratio, dataset_o
         print("Malicious samples: {}".format(mal_nb))
 
         mal = shuffle(mal)
-        if mal_nb < mal_rest:
-            mal_samples = mal.sample(n=mal_nb)
-        else:
-            mal_samples = mal.sample(mal_rest)
-        m_ndt = m_ndt.append(mal_samples)
-        mal_rest -= mal_samples.shape[0]
+        # if mal_nb < mal_rest:
+        #     mal_samples = mal.sample(n=mal_nb)
+        # else:
+        #     mal_samples = mal.sample(mal_rest)
+        m_ndt = m_ndt.append(mal)
+        # mal_rest -= mal_samples.shape[0]
 
-        print("Added malicious: {}".format(mal_samples.shape[0]))
+        print("Added malicious: {}".format(mal.shape[0]))
 
         # if norm_rest > 0:
         norm = data.loc[data['malware'] == 0]
         norm_nb = norm.shape[0]
         print("Normal samples: {}".format(norm.shape[0]))
         norm = shuffle(norm)
-        if norm_nb < norm_rest:
-            norm_samples = norm.sample(n=norm_nb)
-        else:
-            norm_samples = norm.sample(n=norm_rest)
-        no_ndt = no_ndt.append(norm_samples)
-        norm_rest -= norm_samples.shape[0]
-        print("Added normal: {}".format(norm_samples.shape[0]))
+        # if norm_nb < norm_rest:
+        #     norm_samples = norm.sample(n=norm_nb)
+        # else:
+        #     norm_samples = norm.sample(n=norm_rest)
+        no_ndt = no_ndt.append(norm)
+        # norm_rest -= norm_samples.shape[0]
+        print("Added normal: {}".format(norm.shape[0]))
 
     m_ndt = shuffle(m_ndt)
     no_ndt = shuffle(no_ndt)
     print("malicious total: {}".format(m_ndt.shape[0]))
     print("normal total: {}".format(no_ndt.shape[0]))
 
-    halfset_idx = math.ceil(nb_total_samples * training_ratio / 2)
-    train = m_ndt[0:halfset_idx]
-    train = train.append(no_ndt[0:halfset_idx])
+    # Make sure number of malware = number of normal
+    halfset_idx = m_ndt.shape[0]
+    if halfset_idx > no_ndt.shape[0]:
+        halfset_idx = no_ndt.shape[0]
+        m_ndt = m_ndt[:halfset_idx]
+    else:
+        no_ndt = no_ndt[:halfset_idx]
+    print(f"Half of dataset: {halfset_idx}")
+    # Devide data to training/testing dataset
+    training_index = math.ceil(halfset_idx * training_ratio)
+
+    train = m_ndt[:training_index]
+    print(f"Number of malware samples in training set: {train.shape}")
+    train = train.append(no_ndt[:training_index])
     train = shuffle(train)
 
-    test = m_ndt[halfset_idx:]
-    print(str(test.shape[0]))
-    test = test.append(no_ndt[halfset_idx:])
-    print(str(test.shape[0]))
+    test = m_ndt[training_index:]
+    print(f"Number of malware samples in testing set: {test.shape}")
+    test = test.append(no_ndt[training_index:])
     test = shuffle(test)
-    print(str(test.shape[0]))
     print("train total: {}".format(train.shape[0]))
     print("test total: {}".format(test.shape[0]))
 
@@ -94,15 +103,14 @@ def createTrainTestSet(pickle_files, nb_total_samples, training_ratio, dataset_o
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 5:
+    if len(sys.argv) != 4:
         print('Invalid input')
-        print('python createDatasetMMT.py <pickle_files> <nb_total_samples> <training_ratio> <dataset_output_path>')
+        print('python createDatasetMMT.py <pickle_files> <training_ratio> <dataset_output_path>')
     else:
         pickle_input_files = sys.argv[1]
-        nb_total_samples = int(sys.argv[2])
-        training_ratio = float(sys.argv[3])
-        dataset_path = sys.argv[4]
-        createTrainTestSet(pickle_input_files, nb_total_samples, training_ratio, dataset_path)
+        training_ratio = float(sys.argv[2])
+        dataset_path = sys.argv[3]
+        createTrainTestSet(pickle_input_files, training_ratio, dataset_path)
 
 # def createSetFromCSV(in_file_normal, out_file_normal, in_file_mal, out_file_mal, train_test_path, nb_train_samples_no,
 #                      nb_test_samples_no):
