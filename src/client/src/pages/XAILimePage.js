@@ -92,13 +92,7 @@ class XAILimePage extends Component {
 
   componentDidMount() {
     let modelId = getLastPath();
-    console.log(modelId);
     this.props.fetchModel(modelId);
-    // TODO: only fetchXAIStatus whenever button Lime Explain is clicked
-    this.props.fetchXAIStatus();
-    this.intervalId = setInterval(() => {
-      this.props.fetchXAIStatus();
-    }, 10000);
   }
 
   async componentDidUpdate(prevProps, prevState) {
@@ -120,10 +114,18 @@ class XAILimePage extends Component {
         await this.fetchNewValues(modelId);  
       }
     }
+
+    // Check if limeValues state is updated and clear the interval if it is
+    if (prevState.limeValues !== this.state.limeValues && this.state.limeValues.length > 0) {
+      clearInterval(this.intervalId);
+    }
   }
 
-  componentWillUnmount() {
-    clearInterval(this.intervalId);
+  shouldComponentUpdate(nextProps, nextState) {
+    return (
+      this.state.limeValues !== nextState.limeValues ||
+      this.props.xaiStatus.isRunning !== nextProps.xaiStatus.isRunning
+    );
   }
 
   async handleLimeClick() {
@@ -134,22 +136,22 @@ class XAILimePage extends Component {
       "sampleId": sampleId,
       "numberFeature": maxDisplay,
     };
-    console.log(limeConfig);
-    if (!isRunning) {
-      console.log("update isRunning state!");
-      this.setState({ isRunning: true });        
-      const response = await fetch(LIME_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ limeConfig }),
-      });
-      const data = await response.json();
+    console.log("update isRunning state!");
+    this.setState({ isRunning: true });        
+    const response = await fetch(LIME_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ limeConfig }),
+    });
+    const data = await response.json();
 
-      console.log(`Building LIME values of the model ${modelId}`);
-      console.log(JSON.stringify(data));
-    }
+    console.log(`Building LIME values of the model ${modelId}`);
+    console.log(JSON.stringify(data));
+    this.intervalId = setInterval(() => { // start interval when button is clicked
+      this.props.fetchXAIStatus();
+    }, 1000);
   }
 
   async fetchNewValues(modelId) {
@@ -343,7 +345,7 @@ class XAILimePage extends Component {
           </Form.Item>
           <div style={{ textAlign: 'center' }}>
             <Button icon={<UserOutlined />}
-              onClick={this.handleLimeClick}
+              onClick={this.handleLimeClick} disabled={isRunning}
               >LIME Explain
               {isRunning && 
                 <Spin size="large" style={{ marginBottom: '8px' }}>

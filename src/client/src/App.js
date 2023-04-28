@@ -20,9 +20,11 @@ import RetrainPage from "./pages/RetrainPage";
 //import DummyPage from "./pages/DummyPage";
 import XAIPage from "./pages/XAIPage";
 import XAIModelPage from "./pages/XAIModelPage";
-import XAIShapPage from "./pages/XAIShapPage";
+import XAITestPage from "./pages/XAITestPage";
 import XAILimePage from "./pages/XAILimePage";
+import XAIShapPage from "./pages/XAIShapPage";
 import MetricsPage from "./pages/MetricsPage";
+import MetricsTestPage from "./pages/MetricsTestPage";
 
 function App() {
   return (
@@ -47,9 +49,11 @@ function App() {
             <Route path="/datasets/:modelId/:datasetType" element={<DatasetPage />}/>
             <Route path="/xai/" element={<XAIPage />}/>
             <Route path="/xai/:modelId" element={<XAIModelPage />}/>
+            <Route path="/xai/test/:modelId" element={<XAITestPage />}/>
             <Route path="/xai/shap/:modelId" element={<XAIShapPage />}/>
             <Route path="/xai/lime/:modelId" element={<XAILimePage />}/>
             <Route path="/metrics/:modelId" element={<MetricsPage />}/>
+            <Route path="/metrics/test" element={<MetricsTestPage />}/>
           </Routes>
           <MAIPFooter />
         </Layout>
