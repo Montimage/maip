@@ -84,12 +84,11 @@ class XAIShapPage extends Component {
     this.setState({ maskedFeatures: values });
   };
 
-  componentDidMount() {
-    // TODO: only fetchXAIStatus whenever button Shap Explain is clicked
-    this.props.fetchXAIStatus();
-    this.intervalId = setInterval(() => {
-      this.props.fetchXAIStatus();
-    }, 10000);
+  shouldComponentUpdate(nextProps, nextState) {
+    return (
+      this.state.shapValues !== nextState.shapValues ||
+      this.props.xaiStatus.isRunning !== nextProps.xaiStatus.isRunning
+    );
   }
 
   async componentDidUpdate(prevProps, prevState) {
@@ -105,10 +104,11 @@ class XAIShapPage extends Component {
         await this.fetchNewValues(modelId);  
       }
     }
-  }
 
-  componentWillUnmount() {
-    clearInterval(this.intervalId);
+    // Check if shapValues state is updated and clear the interval if it is
+    if (prevState.shapValues !== this.state.shapValues && this.state.shapValues.length > 0) {
+      clearInterval(this.intervalId);
+    }
   }
 
   async handleShapClick() {
@@ -134,6 +134,9 @@ class XAIShapPage extends Component {
 
       console.log(`Building SHAP values of the model ${modelId}`);
       console.log(JSON.stringify(data));
+      this.intervalId = setInterval(() => { // start interval when button is clicked
+        this.props.fetchXAIStatus();
+      }, 1000);
     }
   }
 
@@ -182,7 +185,6 @@ class XAIShapPage extends Component {
     //console.log(filteredMaskedShap);
     const toDisplayShap = filteredMaskedShap.slice(0, maxDisplay); 
 
-    // TODO: only render Bar chart whenever shapValues has been updated
     const shapValuesBarConfig = {
       data: toDisplayShap,
       isStack: true,
@@ -196,14 +198,6 @@ class XAIShapPage extends Component {
           fill: d.importance_value > 0 ? "#0693e3" : "#EB144C"
         };
       },
-      /*title: {
-        text: 'Feature Importance',
-        style: {
-          fontSize: 18,
-          fontWeight: 'bold',
-          textAlign: 'center'
-        }
-      }*/
     };
 
     const topFeatures = toDisplayShap.map((item, index) => ({
@@ -251,7 +245,6 @@ class XAIShapPage extends Component {
               </Form.Item>
             </div>
           </Form.Item>
-          {/* TODO: display value of slider (really need?), space between Slide and Checkbox is large? */}
           <Form.Item name="slider" label="Features to display"
             style={{ marginBottom: -5 }}
           >
@@ -297,7 +290,7 @@ class XAIShapPage extends Component {
           </Form.Item>
           <div style={{ textAlign: 'center' }}>
             <Button icon={<UserOutlined />}
-              onClick={this.handleShapClick}
+              onClick={this.handleShapClick} disabled={isRunning}
               >SHAP Explain
               {isRunning && 
                 <Spin size="large" style={{ marginBottom: '8px' }}>

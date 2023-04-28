@@ -266,7 +266,6 @@ class XAILimePage extends Component {
       !maskedFeatures.some(feature => obj.feature.includes(feature)));
     //console.log(filteredMaskedValuesLime);
 
-    // TODO: only render Bar chart whenever limeValues has been updated
     const limeValuesBarConfig = {
       data: filteredMaskedValuesLime.slice(0, maxDisplay),
       isStack: true,
