@@ -1,9 +1,10 @@
 // read and pass the environment variables into reactjs application
-export const URL = `http://localhost:31057`;
-//export const URL = "";
+const {
+  SERVER_URL,
+} = require('../constants');
 
 export const requestAllReports = async () => {
-  const url = `${URL}/api/reports`;
+  const url = `${SERVER_URL}/api/reports`;
   const response = await fetch(url);
   const data = await response.json();
   console.log(`All reports returned from server: ${data.reports}`);
@@ -11,7 +12,7 @@ export const requestAllReports = async () => {
 };
 
 export const requestAllModels = async () => {
-  const url = `${URL}/api/models`;
+  const url = `${SERVER_URL}/api/models`;
   const response = await fetch(url);
   const data = await response.json();
   //console.log(`All models returned from server: ${data.models}`);
@@ -19,7 +20,7 @@ export const requestAllModels = async () => {
 };
 
 export const requestModel = async (modelId) => {
-  const url = `${URL}/api/models/${modelId}`;
+  const url = `${SERVER_URL}/api/models/${modelId}`;
   const response = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',
@@ -33,7 +34,7 @@ export const requestModel = async (modelId) => {
 };
 
 export const requestDeleteModel = async (modelId) => {
-  const url = `${URL}/api/models/${modelId}`;
+  const url = `${SERVER_URL}/api/models/${modelId}`;
   const response = await fetch(url, {
     method: "DELETE",
   });
@@ -46,7 +47,7 @@ export const requestDeleteModel = async (modelId) => {
 };
 
 export const requestStatsModel = async (modelId) => {
-  const url = `${URL}/api/models/${modelId}/stats`;
+  const url = `${SERVER_URL}/api/models/${modelId}/stats`;
   const response = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',
@@ -60,7 +61,7 @@ export const requestStatsModel = async (modelId) => {
 };
 
 export const requestBuildConfigModel = async (modelId) => {
-  const url = `${URL}/api/models/${modelId}/build-config`;
+  const url = `${SERVER_URL}/api/models/${modelId}/build-config`;
   const response = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',
@@ -74,7 +75,7 @@ export const requestBuildConfigModel = async (modelId) => {
 };
 
 export const requestDownloadModel = async (modelId) => {
-  const url = `${URL}/api/models/${modelId}/download`;
+  const url = `${SERVER_URL}/api/models/${modelId}/download`;
   const response = await fetch(url);
   const blob = await response.blob();
   const a = document.createElement('a');
@@ -88,7 +89,7 @@ export const requestDownloadModel = async (modelId) => {
 };
 
 export const requestConfusionMatrixModel = async (modelId) => {
-  const url = `${URL}/api/models/${modelId}/confusion-matrix`;
+  const url = `${SERVER_URL}/api/models/${modelId}/confusion-matrix`;
   const response = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',
@@ -102,7 +103,7 @@ export const requestConfusionMatrixModel = async (modelId) => {
 };
 
 export const requestXAIStatus = async () => {
-  const url = `${URL}/api/xai`;
+  const url = `${SERVER_URL}/api/xai`;
   const response = await fetch(url);
   const data = await response.json();
   if (data.error) {
@@ -112,7 +113,7 @@ export const requestXAIStatus = async () => {
 };
 
 export const requestRunShap = async (modelId, numberSamples, maxDisplay) => {
-  const url = `${URL}/api/xai/shap`;
+  const url = `${SERVER_URL}/api/xai/shap`;
   const shapConfig = {
     "modelId": modelId,
     "numberSamples": numberSamples,
@@ -131,7 +132,7 @@ export const requestRunShap = async (modelId, numberSamples, maxDisplay) => {
 };
 
 export const requestShapValues = async (modelId) => {
-  const url = `${URL}/api/xai/shap/importance-values/${modelId}`;
+  const url = `${SERVER_URL}/api/xai/shap/importance-values/${modelId}`;
   const response = await fetch(url);
   const shapValues = await response.json();
   console.log(`Get SHAP values of the model ${modelId} from server`);
@@ -140,7 +141,7 @@ export const requestShapValues = async (modelId) => {
 };
 
 export const requestRunLime = async (modelId, sampleId, numberFeature) => {
-  const url = `${URL}/api/xai/lime`;
+  const url = `${SERVER_URL}/api/xai/lime`;
   const limeConfig = {
     "modelId": modelId,
     "sampleId": sampleId,
@@ -159,8 +160,7 @@ export const requestRunLime = async (modelId, sampleId, numberFeature) => {
 };
 
 export const requestLimeValues = async (modelId) => {
-  //const url = `${URL}/api/xai/lime/importance-values/${modelId}`;
-  const url = `${URL}/api/xai/lime/explanations/${modelId}`;
+  const url = `${SERVER_URL}/api/xai/lime/explanations/${modelId}`;
   const response = await fetch(url);
   const limeValues = await response.json();
   console.log(`Get LIME values of the model ${modelId} from server`);
@@ -169,7 +169,7 @@ export const requestLimeValues = async (modelId) => {
 };
 
 export const requestBuildStatus = async () => {
-  const url = `${URL}/api/build`;
+  const url = `${SERVER_URL}/api/build`;
   const response = await fetch(url);
   const data = await response.json();
   if (data.error) {
@@ -179,7 +179,7 @@ export const requestBuildStatus = async () => {
 };
 
 export const requestBuildModel = async (datasets, ratio, params) => {
-  const url = `${URL}/api/build`;
+  const url = `${SERVER_URL}/api/build`;
   const buildConfig = {
     "datasets": datasets,
     "training_ratio": ratio,
@@ -199,7 +199,7 @@ export const requestBuildModel = async (datasets, ratio, params) => {
 };
 
 export const requestRetrainModel = async (modelId, trainingDataset, testingDataset, params) => {
-  const url = `${URL}/api/retrain/${modelId}`;
+  const url = `${SERVER_URL}/api/retrain/${modelId}`;
   const retrainConfig1 = {
     "trainingDataset": trainingDataset,
     "testingDataset": testingDataset,

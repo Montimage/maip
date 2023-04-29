@@ -16,8 +16,7 @@ import {
 } from "../actions";
 import moment from "moment";
 const {
-  SERVER_HOST,
-  SERVER_PORT,
+  SERVER_URL,
 } = require('../constants');
 
 const { Option, OptGroup } = Select;
@@ -52,9 +51,10 @@ class ModelListPage extends Component {
     this.props.fetchAllModels();
   }
 
+  // TODO: move this function to Sage & Redux ???
   async handleDownloadDataset(modelId, datasetType) {
     try {
-      const res = await fetch(`http://${SERVER_HOST}:${SERVER_PORT}/api/models/${modelId}/datasets/${datasetType}/download`);
+      const res = await fetch(`${SERVER_URL}/api/models/${modelId}/datasets/${datasetType}/download`);
       const blob = await res.blob();
       const url = window.URL.createObjectURL(new Blob([blob]));
       const link = document.createElement('a');
@@ -68,9 +68,24 @@ class ModelListPage extends Component {
     }
   }
 
+  async handleDownloadModel(modelId) {
+    try {
+      const res = await fetch(`${SERVER_URL}/api/models/${modelId}/download`);
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', modelId);
+      document.body.appendChild(link);
+      link.click();
+    } catch (error) {
+      console.error('Error downloading model:', error);
+    }
+  }
+
   /* TODO: action Delete is automatically set to the next row */
   handleDeleteModel = (modelId) => {
-    fetch(`http://${SERVER_HOST}:${SERVER_PORT}/api/models/${modelId}/`, {
+    fetch(`${SERVER_URL}/api/models/${modelId}/`, {
       method: 'DELETE'
     })
       .then(() => {
@@ -109,11 +124,10 @@ class ModelListPage extends Component {
         key: "data",
         width: '25%',
         render: (model) => (
-          <div>
-            <a href={`/models/${model.modelId}`}>
-              {model.modelId}
-            </a>
-          </div>
+          <a
+            onClick={() => this.handleDownloadModel(model.modelId)}>
+            <div>{model.modelId}</div>
+          </a>
         ),
       },
       {

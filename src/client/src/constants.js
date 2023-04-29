@@ -1,5 +1,6 @@
 const SERVER_HOST = "localhost";
 const SERVER_PORT = 31057;
+const SERVER_URL = `http://${SERVER_HOST}:${SERVER_PORT}`;
 
 const FEATURES_DESCRIPTIONS = {
   'ip.session_id': 'Session ID', // don't use
@@ -72,5 +73,6 @@ const description = FEATURES_DESCRIPTIONS['ip.pkts_per_flow']; */
 module.exports = {
   SERVER_HOST,
   SERVER_PORT,
+  SERVER_URL,
   FEATURES_DESCRIPTIONS,
 };

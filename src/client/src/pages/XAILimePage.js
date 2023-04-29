@@ -13,10 +13,9 @@ import {
   requestLimeValues,
 } from "../actions";
 import {
-  SERVER_HOST,
-  SERVER_PORT,
+  SERVER_URL,
 } from "../constants";
-const LIME_URL = `http://${SERVER_HOST}:${SERVER_PORT}/api/xai/lime`;
+const LIME_URL = `${SERVER_URL}/api/xai/lime`;
 const style = {
   //background: '#0092ff',
   padding: '10px 0',
@@ -184,6 +183,8 @@ class XAILimePage extends Component {
     } = this.props;
 
     const { stats, buildConfig, confusionMatrix, trainingSamples, testingSamples, predictedProbs } = model;
+
+    // TODO: sometimes this message is displayed ?
     // Check if the predictedProbs have been loaded
     if (!predictedProbs) {
       return <div>Loading...</div>;

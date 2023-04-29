@@ -12,10 +12,9 @@ import {
 } from "../actions";
 import {
   FEATURES_DESCRIPTIONS,
-  SERVER_HOST,
-  SERVER_PORT,
+  SERVER_URL,
 } from "../constants";
-const SHAP_URL = `http://${SERVER_HOST}:${SERVER_PORT}/api/xai/shap`;
+const SHAP_URL = `${SERVER_URL}/api/xai/shap`;
 const style = {
   //background: '#0092ff',
   padding: '10px 0',
