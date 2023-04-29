@@ -2,13 +2,14 @@ import React, { Component, useState } from 'react';
 import LayoutPage from './LayoutPage';
 import { getLastPath, getQuery } from "../utils";
 import { connect } from "react-redux";
-import { Button, InputNumber, Space, Form, Input, Select, Checkbox } from 'antd';
+import { Spin, Button, InputNumber, Space, Form, Input, Select, Checkbox } from 'antd';
 import { Collapse } from 'antd';
 import {
   requestBuildModel,
   requestBuildStatus,
   requestAllReports,
 } from "../actions";
+import { useNavigate } from "react-router";
 
 const { Panel } = Collapse;
 
@@ -21,13 +22,14 @@ const layout = {
   },
 };
 
+// TODO: add Spin, continuously check buildingStatus, if done, jump to ModelsPage
+
 class BuildPage extends Component {
   constructor(props) {
     super(props);
     this.state = {
       attackDataset: "",
       normalDataset: "",
-      total_samples: 10000,
       training_ratio: 0.7,
       training_parameters: {
         nb_epoch_cnn: 2,
@@ -43,14 +45,13 @@ class BuildPage extends Component {
   componentDidMount() {
     this.props.fetchBuildModel();
     this.props.fetchAllReports();
-    this.props.fetchBuildStatus();
+    //this.props.fetchBuildStatus();
   }
 
   handleButtonBuild(values) {
     const { 
       attackDataset, 
       normalDataset, 
-      total_samples, 
       training_ratio, 
       training_parameters,
     } = this.state;
@@ -63,7 +64,6 @@ class BuildPage extends Component {
     const buildConfig = {
       buildConfig: {
         datasets,
-        total_samples,
         training_ratio,
         training_parameters,
       }
@@ -72,21 +72,20 @@ class BuildPage extends Component {
     console.log(buildConfig);
   }
 
-  handleInputChange = (event) => {
-    const { name, value, type, checked } = event.target;
+  handleInputChange = (name, value) => {
     this.setState({
-      [name]: type === 'checkbox' ? checked : value,
+      [name]: value,
     });
   };
 
   render() {
     const { reports } = this.props;
-    console.log(reports);
+    //console.log(reports);
 
-    const reportsOptions = reports.map(report => ({
+    const reportsOptions = reports ? reports.map(report => ({
       value: report,
       label: report,
-    }));
+    })) : [];
 
     return (
       <LayoutPage pageTitle="Build Models" pageSubTitle="">
@@ -95,9 +94,7 @@ class BuildPage extends Component {
           style={{
             maxWidth: 700,
           }}>
-          <Form.Item
-            label="Attack Dataset"
-            name="attackDataset"
+          <Form.Item label="Attack Dataset" name="attackDataset"
             rules={[
               {
                 required: true,
@@ -112,9 +109,7 @@ class BuildPage extends Component {
               options={reportsOptions}
             />
           </Form.Item>
-          <Form.Item
-            label="Normal Dataset"
-            name="normalDataset"
+          <Form.Item label="Normal Dataset" name="normalDataset"
             rules={[
               {
                 required: true,
@@ -129,47 +124,17 @@ class BuildPage extends Component {
               options={reportsOptions}
             />
           </Form.Item>
-          <Form.Item
-            label="Total Samples"
-            name="total_samples"
-            /* TODO: message is still appeared even with defaultValue */
-            /* rules={[
-              {
-                required: true,
-                message: 'Please enter total samples!',
-              },
-            ]} */
-          >
-            <InputNumber
-              name="total_samples"
-              value={this.state.total_samples}
-              min={1} defaultValue={10000}
-              onChange={this.handleInputChange}
-            />
-          </Form.Item>
-          <Form.Item
-            label="Training Ratio"
-            name="training_ratio"
-            /* rules={[
-              {
-                required: true,
-                message: 'Please enter training ratio!',
-              },
-            ]} */
-          >
+          <Form.Item label="Training Ratio" name="training_ratio">
             <InputNumber
               name="training_ratio"
               value={this.state.training_ratio}
               min={0} max={1} step={0.1} defaultValue={0.7}
-              onChange={this.handleInputChange}
+              onChange={(v) => this.setState({ training_ratio: v })}
             />
           </Form.Item>
           <Collapse>
             <Panel header="Training Parameters">
-              <Form.Item
-                label="Number of Epochs (CNN)"
-                name="nb_epoch_cnn"
-              >
+              <Form.Item label="Number of Epochs (CNN)" name="nb_epoch_cnn">
                 <InputNumber
                   name="nb_epoch_cnn"
                   value={this.state.nb_epoch_cnn}
@@ -181,10 +146,7 @@ class BuildPage extends Component {
                   }
                 />
               </Form.Item>
-              <Form.Item
-                label="Number of Epochs (SAE)"
-                name="nb_epoch_sae"
-              >
+              <Form.Item label="Number of Epochs (SAE)" name="nb_epoch_sae">
                 <InputNumber
                   name="nb_epoch_sae"
                   value={this.state.nb_epoch_sae}
@@ -196,10 +158,7 @@ class BuildPage extends Component {
                   }
                 />
               </Form.Item>
-              <Form.Item
-                label="Batch Size (CNN)"
-                name="batch_size_cnn"
-              >
+              <Form.Item label="Batch Size (CNN)" name="batch_size_cnn">
                 <InputNumber
                   name="batch_size_cnn"
                   value={this.state.batch_size_cnn}
@@ -211,10 +170,7 @@ class BuildPage extends Component {
                   }
                 />
               </Form.Item>
-              <Form.Item
-                label="Batch Size (SAE)"
-                name="batch_size_sae"
-              >
+              <Form.Item label="Batch Size (SAE)" name="batch_size_sae">
                 <InputNumber
                   name="batch_size_sae"
                   value={this.state.batch_size_sae}
@@ -236,7 +192,6 @@ class BuildPage extends Component {
                 const { 
                   attackDataset, 
                   normalDataset, 
-                  total_samples, 
                   training_ratio, 
                   training_parameters,
                 } = this.state;
@@ -245,7 +200,7 @@ class BuildPage extends Component {
                   { datasetId: attackDataset, isAttack: true },
                   { datasetId: normalDataset, isAttack: false },
                 ];
-                this.props.fetchBuildModel(datasets, total_samples, training_ratio, training_parameters);
+                this.props.fetchBuildModel(datasets, training_ratio, training_parameters);
               }}
             >
               Build model
@@ -263,8 +218,8 @@ const mapPropsToStates = ({ build, reports }) => ({
 
 const mapDispatchToProps = (dispatch) => ({
   fetchBuildStatus: () => dispatch(requestBuildStatus()),
-  fetchBuildModel: (datasets, totalSamples, ratio, params) =>
-    dispatch(requestBuildModel({ datasets, totalSamples, ratio, params })),
+  fetchBuildModel: (datasets, ratio, params) =>
+    dispatch(requestBuildModel({ datasets, ratio, params })),
   fetchAllReports: () => dispatch(requestAllReports()),
 });
 

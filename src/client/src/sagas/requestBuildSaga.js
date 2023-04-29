@@ -17,8 +17,8 @@ import {
 
 function* handleRequestBuildModel(action) {
   try {
-    const { datasets, totalSamples, ratio, params } = action.payload;
-    const buildStatus = yield call(() => requestBuildModel(datasets, totalSamples, ratio, params));
+    const { datasets, ratio, params } = action.payload;
+    const buildStatus = yield call(() => requestBuildModel(datasets, ratio, params));
     console.log(buildStatus);
     yield put(setBuildStatus(buildStatus));
     yield put(setNotification({type: 'success', message: `Build a model!`}));

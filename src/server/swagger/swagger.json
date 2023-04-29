@@ -2051,10 +2051,6 @@
                                     }
                                 }
                             },
-                            "total_samples": {
-                                "type": "number",
-                                "example": 10000
-                            },
                             "training_ratio": {
                                 "type": "number",
                                 "example": 0.7
