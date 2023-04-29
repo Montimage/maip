@@ -47,7 +47,11 @@ app.use(bodyParser.urlencoded({
 }))
 app.use(cookieParser());
 // Set up CORS
-app.use(cors());
+//app.use(cors());
+app.use(cors({
+  origin: 'http://localhost:3000', // replace with your client origin
+  methods: ['GET', 'POST'],
+}));
 // Add headers
 app.use((req, res, next) => {
   // Website you wish to allow to connect
@@ -92,16 +96,30 @@ app.use('/api/xai', xaiRouter);
 app.use('/api/attacks', attacksRouter);
 app.use('/api/metrics', metricsRouter);
 
-// start Swagger API server 
-/* app.use('/', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+/*// start Swagger API server 
+app.use('/', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 app.use(express.static(path.join(__dirname, 'swagger')));
-module.exports = app; */
+module.exports = app;
 
 // start MAIP server
 app.use(express.static(path.join(__dirname, '../public')));
 app.get('/*', function (req, res) {
   res.sendFile(path.join(__dirname, '../public', 'index.html'));
-});
+});*/
+
+if (process.env.MODE === 'SERVER') {
+  app.use(express.static(path.join(__dirname, '../public')));
+  app.get('/*', function (req, res) {
+    res.sendFile(path.join(__dirname, '../public', 'index.html'));
+  });
+} else if (process.env.MODE === 'API') {
+  // start Swagger API server 
+  app.use('/', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+  app.use(express.static(path.join(__dirname, 'swagger')));
+  module.exports = app;
+}
+
+module.exports = app;
 
 var server = app.listen(app.get('port'), env.SERVER_HOST, function () {
   console.log(`[SERVER] MAIP Server started on: http://${env.SERVER_HOST}:${env.SERVER_PORT}`);

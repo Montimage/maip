@@ -7,7 +7,8 @@ const MMT_PROBE_CONFIG_PATH = `${MMT_PATH}/mmt-probe.conf`;
 const allowExtensions = ['.pcap', '.pcapng', '.cap'];
 // Deep learning constants paths
 //const DEEP_LEARNING_PATH = `${__dirname}/deep-learning/`;
-const MAIP_PATH = `/home/strongcourage/maip-app/src/server`;
+//const MAIP_PATH = `/home/strongcourage/maip-app/src/server`;
+const MAIP_PATH = `/Users/strongcourage/maip-app/src/server`;
 const DEEP_LEARNING_PATH = `${MAIP_PATH}/deep-learning/`;
 const MODEL_PATH = `${DEEP_LEARNING_PATH}/models/`;
 const PREDICTION_PATH = `${DEEP_LEARNING_PATH}/predictions/`;
