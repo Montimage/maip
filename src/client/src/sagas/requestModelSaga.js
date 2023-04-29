@@ -17,7 +17,7 @@ import {
 import {
   setNotification,
   setAllModels,
-  deleteModel,
+  deleteModelOK,
   setModel,
 } from '../actions';
 
@@ -49,11 +49,14 @@ function* handleRequestDeleteModel(action) {
   try {
     const modelId = action.payload;
     yield call(() => requestDeleteModel(modelId));
-    yield put(deleteModel(modelId));
+    yield put(deleteModelOK(modelId));
     yield put(setNotification({
       type: 'success',
       message: `Model ${modelId} has been deleted`
     }));
+    // Fetch the updated list of models
+    const models = yield call(requestAllModels);
+    yield put(setAllModels(models));
     // dispatch data
   } catch (error) {
     // dispatch error
@@ -112,7 +115,7 @@ function* handleRequestConfusionMatrixModel(action) {
 function* watchDatasets() {
   yield takeEvery('REQUEST_ALL_MODELS', handleRequestAllModels);
   yield takeEvery('REQUEST_MODEL', handleRequestModel);
-  yield takeEvery('DELETE_MODEL', handleRequestDeleteModel);
+  yield takeEvery('REQUEST_DELETE_MODEL', handleRequestDeleteModel);
   yield takeEvery('REQUEST_STATS_MODEL', handleRequestStatsModel);
   yield takeEvery('REQUEST_BUILD_CONFIG_MODEL', handleRequestBuildConfigModel);
   yield takeEvery('REQUEST_DOWNLOAD_MODEL', handleRequestDownloadModel);

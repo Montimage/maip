@@ -50,10 +50,10 @@ app.use(cookieParser());
 //app.use(cors());
 app.use(cors({
   origin: 'http://localhost:3000', // replace with your client origin
-  methods: ['GET', 'POST'],
+  methods: ['GET', 'POST', 'DELETE'],
 }));
 // Add headers
-app.use((req, res, next) => {
+/*app.use((req, res, next) => {
   // Website you wish to allow to connect
   res.setHeader('Access-Control-Allow-Origin', '*');
 
@@ -71,17 +71,7 @@ app.use((req, res, next) => {
   // logInfo(`${req.method} ${req.protocol}://${req.hostname}${req.path} ${res.statusCode}`);
   // Pass to next layer of middleware
   next();
-});
-
-/* TODO: why OPTIONS request is automatically called when calling DELETE request? */
-/* app.options('*', (req, res) => {
-  // Set CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE');
-  res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With, content-type, authorization');
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.status(200).send();
-}); */
+});*/
 
 app.use('/api/mmt', mmtRouter);
 app.use('/api/pcaps', pcapRouter);
@@ -95,17 +85,6 @@ app.use('/api/predict', predictRouter);
 app.use('/api/xai', xaiRouter);
 app.use('/api/attacks', attacksRouter);
 app.use('/api/metrics', metricsRouter);
-
-/*// start Swagger API server 
-app.use('/', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
-app.use(express.static(path.join(__dirname, 'swagger')));
-module.exports = app;
-
-// start MAIP server
-app.use(express.static(path.join(__dirname, '../public')));
-app.get('/*', function (req, res) {
-  res.sendFile(path.join(__dirname, '../public', 'index.html'));
-});*/
 
 if (process.env.MODE === 'SERVER') {
   app.use(express.static(path.join(__dirname, '../public')));

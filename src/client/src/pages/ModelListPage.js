@@ -11,7 +11,7 @@ import {
 } from '@ant-design/icons';
 import {
   requestAllModels,
-  deleteModel,
+  requestDeleteModel,
   requestDownloadModel,
 } from "../actions";
 import moment from "moment";
@@ -82,22 +82,10 @@ class ModelListPage extends Component {
       console.error('Error downloading model:', error);
     }
   }
-
-  /* TODO: action Delete is automatically set to the next row */
-  handleDeleteModel = (modelId) => {
-    fetch(`${SERVER_URL}/api/models/${modelId}/`, {
-      method: 'DELETE'
-    })
-      .then(() => {
-        this.props.fetchAllModels();
-      })
-      .catch((error) => {
-        console.log(error);
-      });
-  };
   
   render() {
-    const { models, fetchDeleteModel } = this.props;
+    const { models, deleteModel } = this.props;
+    const { selectedOption } = this.state;
     console.log(models);
 
     if (!models) {
@@ -106,16 +94,11 @@ class ModelListPage extends Component {
     }
 
     const handleOptionClick = (option, modelId) => {
-      //console.log(option);
       if (option.onClick) {
-        /* if (option.label.props.children[1] != "Delete") {
-          this.setState({ selectedOption: option.label.props.children[1] });
-        } else {
-          this.setState({ selectedOption: "" });
-        } */ 
         option.onClick(modelId);
       }
-  };
+      this.setState({ selectedOption: null });
+    };
 
     const dataSource = models.map((model, index) => ({ ...model, key: index }));
     const columns = [
@@ -250,16 +233,13 @@ class ModelListPage extends Component {
             {
               label: 'Delete',
               icon: <RestOutlined />,
-              onClick: () => {
-                console.log(`Option Delete clicked! ${this.state.selectedOption}`);
-                this.handleDeleteModel(model.modelId);
-                console.log(`Finish deleting ${this.state.selectedOption}`);
-              }
+              onClick: () => deleteModel(model.modelId)
             }
           ];
           return (
             <Select placeholder="Select an action"
               style={{ width: 200 }}
+              value={selectedOption}
               onChange={(value, option) => handleOptionClick(option, model.modelId)}
             >
               {options.map(option => {
@@ -303,7 +283,7 @@ class ModelListPage extends Component {
           </Space>
         </a>
         <Table columns={columns} dataSource={dataSource}
-          pagination={{ pageSize: 10 }}
+          pagination={{ pageSize: 5 }}
           expandable={{
             expandedRowRender: (model) => 
               <p style={{ margin: 0 }}>
@@ -325,7 +305,7 @@ const mapPropsToStates = ({ models }) => ({
 
 const mapDispatchToProps = (dispatch) => ({
   fetchAllModels: () => dispatch(requestAllModels()),
-  //fetchDeleteModel: (modelId) => dispatch(deleteModel(modelId)),
+  deleteModel: (modelId) => dispatch(requestDeleteModel(modelId)),
 });
 
 export default connect(mapPropsToStates, mapDispatchToProps)(ModelListPage);
