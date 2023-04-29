@@ -22,6 +22,23 @@ const {
 
 const { Option, OptGroup } = Select;
 
+function removeCsvPath(buildConfig) {
+  const newDatasets = buildConfig.datasets.map((dataset) => {
+    const parts = dataset.csvPath.split('/');
+    const newCsvPath = parts.slice(parts.indexOf('outputs') + 1).join('/');
+    //console.log(newCsvPath);
+    return {
+      ...dataset,
+      csvPath: newCsvPath,
+    };
+  });
+
+  return {
+    ...buildConfig,
+    datasets: newDatasets,
+  };
+}
+
 class ModelListPage extends Component {
   constructor(props) {
     super(props);
@@ -278,7 +295,7 @@ class ModelListPage extends Component {
               <p style={{ margin: 0 }}>
                 <h3><b>Build config:</b></h3>
                 <pre style={{ fontSize: "12px" }}>
-                  {JSON.stringify(model.buildConfig, null, 2)}
+                  {JSON.stringify(removeCsvPath(model.buildConfig), null, 2)}
                 </pre>
               </p>,
           }}

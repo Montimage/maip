@@ -101,49 +101,6 @@ export const requestConfusionMatrixModel = async (modelId) => {
   return data.matrix;
 };
 
-export const requestDownloadDatasetModel = async (modelId) => {
-  const url = `${URL}/api/models/${modelId}/datasets/testing`;
-  const response = await fetch(url);
-  const blob = await response.blob();
-  //const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = response;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  //const data = await response.json();
-  console.log(`Download dataset of the model ${modelId} from server`);
-  console.log(response);
-  return response;
-};
-
-export const requestDownloadDatasetModel2 = async (modelId, typeDataset) => {
-  const url = `${URL}/api/models/${modelId}/datasets/${typeDataset}`;
-  const response = await fetch(url);
-  const blob = await response.blob();
-  //const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = response;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  //const data = await response.json();
-  console.log(`Download dataset of the model ${modelId} from server`);
-  console.log(response);
-  return response;
-};
-
-export const requestDownloadTestingModel = async (modelId) => {
-  const url = `${URL}/api/models/${modelId}/datasets/testing`;
-  const response = await fetch(url);
-  const data = await response.json();
-  console.log(`Download testing dataset of the model ${modelId} from server`);
-  console.log(data);
-  return data;
-};
-
 export const requestXAIStatus = async () => {
   const url = `${URL}/api/xai`;
   const response = await fetch(url);
@@ -221,11 +178,10 @@ export const requestBuildStatus = async () => {
   return data.buildStatus;
 };
 
-export const requestBuildModel = async (datasets, totalSamples, ratio, params) => {
+export const requestBuildModel = async (datasets, ratio, params) => {
   const url = `${URL}/api/build`;
   const buildConfig = {
     "datasets": datasets,
-    "total_samples": totalSamples,
     "training_ratio": ratio,
     "training_parameters": params,
   };
