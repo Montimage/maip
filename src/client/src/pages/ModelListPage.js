@@ -32,18 +32,19 @@ function removeCsvPath(buildConfig) {
     };
   });
 
-  return {
-    ...buildConfig,
-    datasets: newDatasets,
-  };
+  // remove "total_samples" for old buildConfig
+  const { total_samples, ...newBuildConfig } = buildConfig;
+  return newBuildConfig;
 }
+
+// TODO: change model's name ?
 
 class ModelListPage extends Component {
   constructor(props) {
     super(props);
     this.state = {
       models: [],
-      selectedOption: "",
+      selectedOption: null, // if "", don't see placeholder
     };
   }
 
