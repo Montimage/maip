@@ -9,6 +9,7 @@ import {
   requestAllModels,
   requestModel,
   requestDeleteModel,
+  requestUpdateModel,
   requestBuildConfigModel,
   requestDownloadModel,
   requestStatsModel,
@@ -57,7 +58,23 @@ function* handleRequestDeleteModel(action) {
     // Fetch the updated list of models
     const models = yield call(requestAllModels);
     yield put(setAllModels(models));
-    // dispatch data
+  } catch (error) {
+    // dispatch error
+    yield put(setNotification({type: 'error', message: error}));
+  }
+}
+
+function* handleRequestUpdateModel(action) {
+  try {
+    const { modelId, newModelId } = action.payload;
+    yield call(() => requestUpdateModel(modelId, newModelId));
+    yield put(setNotification({
+      type: 'success',
+      message: `Model ${modelId} name has been updated`
+    }));
+    // Fetch the updated list of models
+    const models = yield call(requestAllModels);
+    yield put(setAllModels(models));
   } catch (error) {
     // dispatch error
     yield put(setNotification({type: 'error', message: error}));
@@ -116,6 +133,7 @@ function* watchDatasets() {
   yield takeEvery('REQUEST_ALL_MODELS', handleRequestAllModels);
   yield takeEvery('REQUEST_MODEL', handleRequestModel);
   yield takeEvery('REQUEST_DELETE_MODEL', handleRequestDeleteModel);
+  yield takeEvery('REQUEST_UPDATE_MODEL', handleRequestUpdateModel);
   yield takeEvery('REQUEST_STATS_MODEL', handleRequestStatsModel);
   yield takeEvery('REQUEST_BUILD_CONFIG_MODEL', handleRequestBuildConfigModel);
   yield takeEvery('REQUEST_DOWNLOAD_MODEL', handleRequestDownloadModel);

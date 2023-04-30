@@ -46,6 +46,24 @@ export const requestDeleteModel = async (modelId) => {
   return data.result;
 };
 
+export const requestUpdateModel = async (modelId, newModelId) => {
+  const url = `${SERVER_URL}/api/models/${modelId}`;
+  const newId = { newModelId: newModelId };
+  const response = await fetch(url, {
+    method: "PUT",
+    headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(newId),
+  });
+  const data = await response.json();
+  if (data.error) {
+    throw data.error;
+  }
+  console.log(`Model ${modelId} has been updated`);
+  return data.result;
+};
+
 export const requestStatsModel = async (modelId) => {
   const url = `${SERVER_URL}/api/models/${modelId}/stats`;
   const response = await fetch(url, {

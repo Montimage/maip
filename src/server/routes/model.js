@@ -189,6 +189,46 @@ router.get('/:modelId', (req, res, next) => {
   });
 });
 
+router.put('/:modelId', (req, res, next) => {
+  const { modelId } = req.params;
+  const { newModelId } = req.body;
+  const modelFilePath = `${MODEL_PATH}${modelId}`;
+  const newModelFilePath = `${MODEL_PATH}${newModelId}`;
+  const trainingModelDirPath = `${TRAINING_PATH}${modelId.replace('.h5', '')}`;
+  const newTrainingModelDirPath = `${TRAINING_PATH}${newModelId.replace('.h5', '')}`;
+
+  // Check if new model directory already exists
+  if (fs.existsSync(newModelFilePath)) {
+    return res.status(400).send({
+      error: `Model ${newModelId} already exists`,
+    });
+  }
+
+  // Rename model's name
+  fs.rename(modelFilePath, newModelFilePath, (err) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).send({
+        error: `Error renaming model's name from ${modelId} to ${newModelId}`,
+      });
+    }
+    // Rename model's training directory
+    fs.rename(trainingModelDirPath, newTrainingModelDirPath, (err) => {
+      if (err) {
+        console.error(err);
+        return res.status(500).send({
+          error: `Error renaming model's training directory from ${modelId} to ${newModelId}`,
+        });
+      }
+          
+      console.log(`Model ${modelId} has been renamed to ${newModelId}`);
+      res.send({
+        result: `Model ${modelId} has been renamed to ${newModelId}`,
+      });
+    });
+  });
+});
+
 router.delete('/:modelId', (req, res, next) => {
   const { modelId } = req.params;
   const modelFilePath = `${MODEL_PATH}${modelId}`;

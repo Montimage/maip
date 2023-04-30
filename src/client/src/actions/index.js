@@ -17,6 +17,7 @@ export const setAllModels = createAction('SET_ALL_MODELS');
 // Get model's details
 export const requestModel = createAction('REQUEST_MODEL');
 export const requestDeleteModel = createAction('REQUEST_DELETE_MODEL');
+export const requestUpdateModel = createAction('REQUEST_UPDATE_MODEL');
 export const deleteModelOK = createAction('DELETE_MODEL_OK');
 export const requestStatsModel = createAction('REQUEST_STATS_MODEL');
 export const requestBuildConfigModel = createAction('REQUEST_BUILD_CONFIG_MODEL');

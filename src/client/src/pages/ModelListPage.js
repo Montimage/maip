@@ -1,6 +1,6 @@
 import React, { Component } from "react";
 import { connect } from "react-redux";
-import { Table, Space, Button, Select } from "antd";
+import { Typography, Form, Table, Space, Button, Select } from "antd";
 import { Link } from 'react-router-dom';
 import LayoutPage from "./LayoutPage";
 import Papa from "papaparse";
@@ -12,17 +12,18 @@ import {
 import {
   requestAllModels,
   requestDeleteModel,
+  requestUpdateModel,
   requestDownloadModel,
 } from "../actions";
 import moment from "moment";
 const {
   SERVER_URL,
 } = require('../constants');
-
+const { Text } = Typography;
 const { Option, OptGroup } = Select;
 
 function removeCsvPath(buildConfig) {
-  const newDatasets = buildConfig.datasets.map((dataset) => {
+  const updatedDatasets = buildConfig.datasets.map((dataset) => {
     const parts = dataset.csvPath.split('/');
     const newCsvPath = parts.slice(parts.indexOf('outputs') + 1).join('/');
     //console.log(newCsvPath);
@@ -34,10 +35,11 @@ function removeCsvPath(buildConfig) {
 
   // remove "total_samples" for old buildConfig
   const { total_samples, ...newBuildConfig } = buildConfig;
-  return newBuildConfig;
+  return {
+    ...newBuildConfig,
+    datasets: updatedDatasets,
+  };
 }
-
-// TODO: change model's name ?
 
 class ModelListPage extends Component {
   constructor(props) {
@@ -83,9 +85,9 @@ class ModelListPage extends Component {
       console.error('Error downloading model:', error);
     }
   }
-  
+
   render() {
-    const { models, deleteModel } = this.props;
+    const { models, deleteModel, updateModel } = this.props;
     const { selectedOption } = this.state;
     console.log(models);
 
@@ -108,10 +110,14 @@ class ModelListPage extends Component {
         key: "data",
         width: '25%',
         render: (model) => (
-          <a
-            onClick={() => this.handleDownloadModel(model.modelId)}>
-            <div>{model.modelId}</div>
-          </a>
+          <Text
+            editable={{
+              onChange: (newModelId) => {
+                updateModel(model.modelId, newModelId);
+              },
+            }}
+            code
+          > {model.modelId}</Text>
         ),
       },
       {
@@ -307,6 +313,10 @@ const mapPropsToStates = ({ models }) => ({
 const mapDispatchToProps = (dispatch) => ({
   fetchAllModels: () => dispatch(requestAllModels()),
   deleteModel: (modelId) => dispatch(requestDeleteModel(modelId)),
+  updateModel: (modelId, newModelId) => {
+    // should dispatch with both modelId and newModelId as the payload
+    dispatch(requestUpdateModel({modelId, newModelId}))
+  },
 });
 
 export default connect(mapPropsToStates, mapDispatchToProps)(ModelListPage);

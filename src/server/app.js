@@ -50,7 +50,7 @@ app.use(cookieParser());
 //app.use(cors());
 app.use(cors({
   origin: 'http://localhost:3000', // replace with your client origin
-  methods: ['GET', 'POST', 'DELETE'],
+  methods: ['GET', 'POST', 'DELETE', 'PUT'],
 }));
 // Add headers
 /*app.use((req, res, next) => {
