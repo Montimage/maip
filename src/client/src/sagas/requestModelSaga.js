@@ -12,6 +12,7 @@ import {
   requestUpdateModel,
   requestBuildConfigModel,
   requestDownloadModel,
+  requestDownloadDatasets,
   requestStatsModel,
   requestConfusionMatrixModel,
 } from '../api';
@@ -105,6 +106,18 @@ function* handleRequestDownloadModel(action) {
   }
 }
 
+function* handleRequestDownloadDatasets(action) {
+  try {
+    const { modelId, datasetType } = action.payload;
+    const model = yield call(() => requestDownloadDatasets(modelId, datasetType));
+    yield put(setModel(model));
+    // dispatch data
+  } catch (error) {
+    // dispatch error
+    yield put(setNotification({type: 'error', message: error}));
+  }
+}
+
 function* handleRequestBuildConfigModel(action) {
   try {
     const modelId = action.payload;
@@ -137,6 +150,7 @@ function* watchDatasets() {
   yield takeEvery('REQUEST_STATS_MODEL', handleRequestStatsModel);
   yield takeEvery('REQUEST_BUILD_CONFIG_MODEL', handleRequestBuildConfigModel);
   yield takeEvery('REQUEST_DOWNLOAD_MODEL', handleRequestDownloadModel);
+  yield takeEvery('REQUEST_DOWNLOAD_DATASETS', handleRequestDownloadDatasets);
   yield takeEvery('REQUEST_CONFUSION_MATRIX_MODEL', handleRequestConfusionMatrixModel);
 }
 

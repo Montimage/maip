@@ -1,25 +1,27 @@
 import React, { Component } from "react";
 import { connect } from "react-redux";
-import { Typography, Form, Table, Space, Button, Select } from "antd";
+import { Tooltip, Typography, Form, Table, Space, Button, Select } from "antd";
 import { Link } from 'react-router-dom';
 import LayoutPage from "./LayoutPage";
 import Papa from "papaparse";
 import { 
   FolderViewOutlined, DownloadOutlined, FileOutlined, TableOutlined, 
   LineChartOutlined, SolutionOutlined, BugOutlined, ExperimentOutlined,
-  HourglassOutlined, RestOutlined, QuestionOutlined,
+  HourglassOutlined, RestOutlined, QuestionOutlined, CopyOutlined, HighlightOutlined
 } from '@ant-design/icons';
 import {
   requestAllModels,
   requestDeleteModel,
   requestUpdateModel,
   requestDownloadModel,
+  requestDownloadDatasets,
 } from "../actions";
 import moment from "moment";
 const {
   SERVER_URL,
 } = require('../constants');
 const { Text } = Typography;
+const { Paragraph } = Typography;
 const { Option, OptGroup } = Select;
 
 function removeCsvPath(buildConfig) {
@@ -54,40 +56,14 @@ class ModelListPage extends Component {
     this.props.fetchAllModels();
   }
 
-  // TODO: move this function to Sage & Redux ???
-  async handleDownloadDataset(modelId, datasetType) {
-    try {
-      const res = await fetch(`${SERVER_URL}/api/models/${modelId}/datasets/${datasetType}/download`);
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(new Blob([blob]));
-      const link = document.createElement('a');
-      link.href = url;
-      const datasetFileName = `${modelId}_${datasetType.charAt(0).toUpperCase() + datasetType.slice(1)}_samples.csv`;
-      link.setAttribute('download', datasetFileName);
-      document.body.appendChild(link);
-      link.click();
-    } catch (error) {
-      console.error('Error downloading dataset:', error);
-    }
-  }
-
-  async handleDownloadModel(modelId) {
-    try {
-      const res = await fetch(`${SERVER_URL}/api/models/${modelId}/download`);
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(new Blob([blob]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', modelId);
-      document.body.appendChild(link);
-      link.click();
-    } catch (error) {
-      console.error('Error downloading model:', error);
-    }
-  }
-
   render() {
-    const { models, deleteModel, updateModel } = this.props;
+    const { 
+      models, 
+      downloadModel, 
+      downloadDatasets,
+      deleteModel, 
+      updateModel,
+    } = this.props;
     const { selectedOption } = this.state;
     console.log(models);
 
@@ -108,16 +84,34 @@ class ModelListPage extends Component {
       {
         title: "Model Id",
         key: "data",
-        width: '25%',
+        width: '30%',
         render: (model) => (
           <Text
+            copyable={{
+              text: model.modelId,
+              tooltip: 'Copy',
+              icon: <CopyOutlined style={{ fontSize: '16px' }} />,
+            }}
             editable={{
+              icon: <HighlightOutlined style={{ fontSize: '16px' }}/>,
+              tooltip: 'Edit',
               onChange: (newModelId) => {
                 updateModel(model.modelId, newModelId);
               },
             }}
-            code
-          > {model.modelId}</Text>
+            keyboard
+            style={{ display: 'flex', alignItems: 'center', gap: '24px' }}
+          > 
+            {model.modelId}
+            <span style={{ marginLeft: '10px' }}>
+              <Tooltip title="Download">
+                <a href="#" title="Download"
+                  onClick={() => downloadModel(model.modelId)}>
+                  <DownloadOutlined style={{ fontSize: '16px' }} />
+                </a>
+              </Tooltip>
+            </span>
+          </Text>
         ),
       },
       {
@@ -144,7 +138,7 @@ class ModelListPage extends Component {
             &nbsp;&nbsp;
             <Space wrap>
               <Button icon={<DownloadOutlined />} 
-                onClick={() => this.handleDownloadDataset(model.modelId, "train")}
+                onClick={() => downloadDatasets(model.modelId, "train")}
               >Download</Button>
             </Space>
           </div>
@@ -164,7 +158,7 @@ class ModelListPage extends Component {
               &nbsp;&nbsp;
               <Space wrap>
                 <Button icon={<DownloadOutlined />} 
-                  onClick={() => this.handleDownloadDataset(model.modelId, "test")}
+                  onClick={() => downloadDatasets(model.modelId, "test")}
                 >Download</Button>
             </Space>
           </div>
@@ -312,6 +306,10 @@ const mapPropsToStates = ({ models }) => ({
 
 const mapDispatchToProps = (dispatch) => ({
   fetchAllModels: () => dispatch(requestAllModels()),
+  downloadModel: (modelId) => dispatch(requestDownloadModel(modelId)),
+  downloadDatasets: (modelId, datasetType) => {
+    dispatch(requestDownloadDatasets({modelId, datasetType}))
+  },
   deleteModel: (modelId) => dispatch(requestDeleteModel(modelId)),
   updateModel: (modelId, newModelId) => {
     // should dispatch with both modelId and newModelId as the payload

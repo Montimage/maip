@@ -93,17 +93,35 @@ export const requestBuildConfigModel = async (modelId) => {
 };
 
 export const requestDownloadModel = async (modelId) => {
-  const url = `${SERVER_URL}/api/models/${modelId}/download`;
-  const response = await fetch(url);
-  const blob = await response.blob();
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = response;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  console.log(`Download the model ${modelId} from server`);
-  return response.modelFilePath;
+  try {
+    const res = await fetch(`${SERVER_URL}/api/models/${modelId}/download`);
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(new Blob([blob]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', modelId);
+    document.body.appendChild(link);
+    link.click();
+  } catch (error) {
+    console.error('Error downloading model:', error);
+  }
+};
+
+export const requestDownloadDatasets = async (modelId, datasetType) => {
+  try {
+    const res = await fetch(`${SERVER_URL}/api/models/${modelId}/datasets/${datasetType}/download`);
+    console.log(res);
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(new Blob([blob]));
+    const link = document.createElement('a');
+    link.href = url;
+    const datasetFileName = `${modelId}_${datasetType.charAt(0).toUpperCase() + datasetType.slice(1)}_samples.csv`;
+    link.setAttribute('download', datasetFileName);
+    document.body.appendChild(link);
+    link.click();
+  } catch (error) {
+    console.error('Error downloading dataset:', error);
+  }
 };
 
 export const requestConfusionMatrixModel = async (modelId) => {

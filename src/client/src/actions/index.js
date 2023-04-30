@@ -25,7 +25,7 @@ export const requestDownloadModel = createAction('REQUEST_DOWNLOAD_MODEL');
 export const requestConfusionMatrixModel = createAction('REQUEST_CONFUSION_MATRIX_MODEL');
 export const setModel = createAction('SET_MODEL');
 
-export const requestDownloadDatasetModel = createAction('REQUEST_DOWNLOAD_DATASET_MODEL');
+export const requestDownloadDatasets = createAction('REQUEST_DOWNLOAD_DATASETS');
 export const setDataset = createAction('SET_DATASET');
 
 export const requestXAIStatus = createAction('REQUEST_XAI_STATUS');
