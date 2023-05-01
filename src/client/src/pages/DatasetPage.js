@@ -15,6 +15,7 @@ import { Histogram } from '@ant-design/plots';
 
 const {
   SERVER_URL,
+  FEATURES_DESCRIPTIONS,
 } = require('../constants');
 const { Option } = Select;
 
@@ -265,6 +266,34 @@ class DatasetPage extends Component {
       },
     ];
 
+    const allFeatures = Object.keys(FEATURES_DESCRIPTIONS).map((feature, index) => {
+      return {
+        key: index + 1,
+        name: feature,
+        description: FEATURES_DESCRIPTIONS[feature],
+      };
+    });
+    //console.log(topFeatures);
+    
+    const columnsAllFeatures = [
+      {
+        title: 'ID',
+        dataIndex: 'key',
+        key: 'key',
+        sorter: (a, b) => a.key - b.key,
+      },
+      {
+        title: 'Name',
+        dataIndex: 'name',
+        key: 'name',
+      },
+      {
+        title: 'Description',
+        dataIndex: 'description',
+        key: 'description',
+      },
+    ];
+
     return (
       <LayoutPage pageTitle="Dataset" 
         pageSubTitle={`${datasetType.charAt(0).toUpperCase() + datasetType.slice(1)}ing dataset of the model ${modelId}`}>
@@ -278,12 +307,28 @@ class DatasetPage extends Component {
           />
         </div>
 
-        <Row gutter={24}>
+        <Row gutter={24} style={{ marginTop: '20px' }}>
+          <Col className="gutter-row" span={24}>
+            <div style={style}>
+              <h2>&nbsp;&nbsp;&nbsp;Feature Descriptions</h2>
+              <div style={{ position: 'absolute', top: 10, right: 10 }}>
+                <Tooltip title={`Displays all features with detailed description.`}>
+                  <Button type="link" icon={<QuestionOutlined />} />
+                </Tooltip>
+              </div>
+              <Table dataSource={allFeatures} columns={columnsAllFeatures} 
+                size="small"
+              />
+            </div>
+          </Col>
+        </Row>
+
+        <Row gutter={24} style={{ marginTop: '20px' }}>
           <Col className="gutter-row" span={24}>
             {headers.length > 0 && (
               <div style={style}>
                 <h2>&nbsp;&nbsp;&nbsp;Histogram Plot</h2>
-                <div style={{ marginBottom: '30px' }}>
+                <div style={{ marginBottom: '30px', marginTop: '30px' }}>
                   <div style={{ position: 'absolute', top: 10, right: 10 }}>
                     <Tooltip title="A table contains different statistics of the feature, such as the number of unique values, number of missing values, mean, standard deviation, median, minimum, and maximum value. A histogram plot for each feature of the database shows the distribution of values in that feature.">
                       <Button type="link" icon={<QuestionOutlined />} />
@@ -292,7 +337,7 @@ class DatasetPage extends Component {
                   &nbsp;&nbsp;&nbsp;
                   <Tooltip title="Select the feature to plot on the histogram">
                     <Select
-                      showSearch
+                      showSearch allowClear
                       placeholder="Select a feature"
                       onChange={value => this.setState({ selectedFeature: value })}
                       optionFilterProp="children"
@@ -309,7 +354,7 @@ class DatasetPage extends Component {
                   &nbsp;&nbsp;&nbsp;
                   <Tooltip title="Select the bin selection algorithm">
                     <Select
-                      showSearch
+                      showSearch allowClear
                       placeholder="Select bin width"
                       options={binWidthOptions}
                       defaultValue="square-root"
