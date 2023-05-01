@@ -11,6 +11,7 @@ import {
   requestRunLime,
   requestXAIStatus,
   requestLimeValues,
+  requestPredictedProbsModel,
 } from "../actions";
 import {
   SERVER_URL,
@@ -46,7 +47,8 @@ class XAILimePage extends Component {
       positiveChecked: true,
       negativeChecked: true,
       maskedFeatures: [],
-      predictedProbs: "",
+      pieData: [],
+      dataTableProbs: [],
       isRunning: props.xaiStatus.isRunning,
       limeValues: [],
     };
@@ -98,12 +100,6 @@ class XAILimePage extends Component {
     const modelId = getLastPath();
     const { isRunning } = this.state;
     const { xaiStatus } = this.props;
-
-    // Check if the model data has been updated
-    if (this.props.model !== prevProps.model) {
-      const { predictedProbs } = this.props.model;
-      this.setState({ predictedProbs });
-    }
     
     if (prevProps.xaiStatus.isRunning !== this.props.xaiStatus.isRunning) {
       console.log('isRunning has been changed');
@@ -128,7 +124,7 @@ class XAILimePage extends Component {
   }
 
   async handleLimeClick() {
-    const { sampleId, maxDisplay, isRunning, limeValuesBarConfig } = this.state;
+    const { sampleId, maxDisplay, isRunning, limeValues } = this.state;
     const modelId = getLastPath();
     const limeConfig = {
       "modelId": modelId,
@@ -136,7 +132,13 @@ class XAILimePage extends Component {
       "numberFeature": maxDisplay,
     };
     console.log("update isRunning state!");
-    this.setState({ isRunning: true });        
+    this.setState({ isRunning: true });     
+
+    // reset Bar chart to avoid confusion
+    if (limeValues) {
+      this.setState({ limeValues: [] });           
+    }
+
     const response = await fetch(LIME_URL, {
       method: 'POST',
       headers: {
@@ -151,6 +153,42 @@ class XAILimePage extends Component {
     this.intervalId = setInterval(() => { // start interval when button is clicked
       this.props.fetchXAIStatus();
     }, 1000);
+
+    // TODO: refactor code ?
+    const predictedProbsResponse = await fetch(`${SERVER_URL}/api/models/${modelId}/probabilities`, {
+      method: 'GET',
+    });
+    const predictedProbsData = await predictedProbsResponse.json();
+    const predictedProbs = predictedProbsData.probs;
+    const linesProbs = predictedProbs.split('\n');
+    const dataProbs = linesProbs.slice(1).map(line => line.split(','));
+    const yProbs = dataProbs.map(row => row.map(val => parseFloat(val)));
+    const dataTableProbs = [
+      {
+        key: 0,
+        label: 'Normal traffic',
+        probability: sampleId && yProbs[sampleId] ? `${(yProbs[sampleId][0] * 100).toFixed(0)}%` : '-'
+      },
+      {
+        key: 1,
+        label: 'Malware traffic',
+        probability: sampleId && yProbs[sampleId] ? `${(yProbs[sampleId][1] * 100).toFixed(0)}%` : '-'
+      }
+    ];
+
+    const pieData = sampleId ? yProbs[sampleId].map((prob, i) => {
+      const label = i === 0 ? "Normal traffic" : "Malware traffic";
+      const percentage = (prob * 100).toFixed(0);
+      return {
+        type: label,
+        value: prob,
+      };
+    }) : [];
+    
+    this.setState({ 
+      pieData: pieData,
+      dataTableProbs: dataTableProbs,
+    });
   }
 
   async fetchNewValues(modelId) {
@@ -175,6 +213,8 @@ class XAILimePage extends Component {
       maskedFeatures,
       isRunning,
       limeValues,
+      pieData,
+      dataTableProbs,
     } = this.state;
     console.log(`XAI isRunning: ${isRunning}`);
     const { 
@@ -182,30 +222,7 @@ class XAILimePage extends Component {
       xaiStatus, 
     } = this.props;
 
-    const { stats, buildConfig, confusionMatrix, trainingSamples, testingSamples, predictedProbs } = model;
-
-    // TODO: sometimes this message is displayed ?
-    // Check if the predictedProbs have been loaded
-    if (!predictedProbs) {
-      return <div>Loading...</div>;
-    }
-    //console.log(predictedProbs);
-
-    const linesProbs = predictedProbs.split('\n');
-    const dataProbs = linesProbs.slice(1).map(line => line.split(','));
-    const yProbs = dataProbs.map(row => row.map(val => parseFloat(val)));
-    const dataTableProbs = [
-      {
-        key: 0,
-        label: 'Normal traffic',
-        probability: sampleId && yProbs[sampleId] ? `${(yProbs[sampleId][0] * 100).toFixed(0)}%` : '-'
-      },
-      {
-        key: 1,
-        label: 'Malware traffic',
-        probability: sampleId && yProbs[sampleId] ? `${(yProbs[sampleId][1] * 100).toFixed(0)}%` : '-'
-      }
-    ];
+    const { stats, buildConfig, confusionMatrix, trainingSamples, testingSamples } = model;
 
     const columnsTableProbs = [
       {
@@ -219,15 +236,6 @@ class XAILimePage extends Component {
         key: 'probability'
       }
     ];
-
-    const pieData = this.state.sampleId ? yProbs[this.state.sampleId].map((prob, i) => {
-      const label = i === 0 ? "Normal traffic" : "Malware traffic";
-      const percentage = (prob * 100).toFixed(0);
-      return {
-        type: label,
-        value: prob,
-      };
-    }) : [];
 
     const pieConfig = {
       appendPadding: 10,
@@ -385,20 +393,24 @@ class XAILimePage extends Component {
             <div style={style}>
               <h2>&nbsp;&nbsp;&nbsp;Prediction - Sample ID {sampleId}</h2>
               <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                <Table
-                  columns={columnsTableProbs}
-                  dataSource={dataTableProbs}
-                  pagination={false}
-                  style={{ marginLeft: '10px', marginRight: '10px', marginTop: '-50px', width: '280px' }}
-                />
-                <div style={{ width: '400px', marginRight: '10px', marginTop: '-50px' }}>
-                  <Pie {...pieConfig} />
-                  <div style={{ position: 'absolute', top: 10, right: 10 }}>
-                    <Tooltip title="Shows predicted probability for each sample.">
-                      <Button type="link" icon={<QuestionOutlined />} />
-                    </Tooltip>
-                  </div>
-                </div>
+                {pieConfig && (
+                  <>
+                    <Table
+                      columns={columnsTableProbs}
+                      dataSource={dataTableProbs}
+                      pagination={false}
+                      style={{ marginLeft: '10px', marginRight: '10px', marginTop: '-50px', width: '280px' }}
+                    />
+                    <div style={{ width: '400px', marginRight: '10px', marginTop: '-50px' }}>
+                      <Pie {...pieConfig} />
+                      <div style={{ position: 'absolute', top: 10, right: 10 }}>
+                        <Tooltip title="Shows predicted probability for each sample.">
+                          <Button type="link" icon={<QuestionOutlined />} />
+                        </Tooltip>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </Col>

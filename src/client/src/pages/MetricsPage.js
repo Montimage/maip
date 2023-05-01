@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
 import { getLastPath } from "../utils";
-import { Form, Slider, Switch, Table, Col, Row, Button, Tooltip } from 'antd';
+import { Divider, Form, Slider, Switch, Table, Col, Row, Button, Tooltip } from 'antd';
 import { QuestionOutlined, CameraOutlined } from "@ant-design/icons";
 import { Heatmap } from '@ant-design/plots';
 import {
@@ -204,6 +204,9 @@ class MetricsPage extends Component {
 
     return (
       <LayoutPage pageTitle="Accountability & Resilience Metrics" pageSubTitle={`Model ${modelId}`}>
+        <Divider orientation="left">
+          <h1 style={{ fontSize: '24px' }}>Accountability Metrics</h1>
+        </Divider>
         <Row gutter={24}>
           <Col className="gutter-row" span={12}>
             <div style={style}>
@@ -258,7 +261,12 @@ class MetricsPage extends Component {
               <h2>&nbsp;&nbsp;&nbsp;Currentness Metric</h2>
             </div>
           </Col>
-          <Col className="gutter-row" span={12} style={{ marginTop: "24px" }}>
+        </Row>
+        <Divider orientation="left">
+          <h1 style={{ fontSize: '24px' }}>Resilience Metrics</h1>
+        </Divider>
+        <Row gutter={24}>
+          <Col className="gutter-row" span={12}>
             <div style={style}>
               <h2>&nbsp;&nbsp;&nbsp;Impact Metric</h2>
             </div>

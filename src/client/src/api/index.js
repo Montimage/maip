@@ -138,6 +138,20 @@ export const requestConfusionMatrixModel = async (modelId) => {
   return data.matrix;
 };
 
+export const requestPredictedProbsModel = async (modelId) => {
+  const url = `${SERVER_URL}/api/models/${modelId}/probabilities`;
+  const response = await fetch(url, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    }
+  });
+  const data = await response.json();
+  console.log(`Predicted probabilities returned from server for model ${modelId}`);
+  console.log(data.probs);
+  return data.probs;
+};
+
 export const requestXAIStatus = async () => {
   const url = `${SERVER_URL}/api/xai`;
   const response = await fetch(url);

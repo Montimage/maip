@@ -227,7 +227,9 @@ class XAIShapPage extends Component {
 
     return (
       <LayoutPage pageTitle="Explainable AI with SHapley Additive exPlanations (SHAP)" pageSubTitle={`Model ${modelId}`}>
-        <Divider orientation="left"><h3>Parameters</h3></Divider>
+        <Divider orientation="left">
+          <h1 style={{ fontSize: '24px' }}>SHAP Parameters</h1>
+        </Divider>
         <Form
         {...layout}
         name="control-hooks"
@@ -299,7 +301,9 @@ class XAIShapPage extends Component {
             </Button>
           </div>
         </Form>
-        <Divider orientation="left"><h3>SHAP Explanations</h3></Divider>
+        <Divider orientation="left">
+          <h1 style={{ fontSize: '24px' }}>SHAP Explanations</h1>
+        </Divider>
         <Row gutter={24}>
           <Col className="gutter-row" span={12}>
             <div style={style}>
@@ -326,7 +330,7 @@ class XAIShapPage extends Component {
               <Typography.Title level={4} style={{ textAlign: 'center', fontSize: '16px' }}>
                 Average impact on predicted Malware traffic <br />
               </Typography.Title>
-              <center>(Total number of features: {features.length})</center>
+              <center>(Total number of features: {Object.keys(FEATURES_DESCRIPTIONS).length - 3})</center>
               {shapValuesBarConfig && (
                 <Bar {...shapValuesBarConfig} onReady={(bar) => (barShap = bar)}/>
               )}

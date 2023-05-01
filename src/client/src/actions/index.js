@@ -23,6 +23,7 @@ export const requestStatsModel = createAction('REQUEST_STATS_MODEL');
 export const requestBuildConfigModel = createAction('REQUEST_BUILD_CONFIG_MODEL');
 export const requestDownloadModel = createAction('REQUEST_DOWNLOAD_MODEL');
 export const requestConfusionMatrixModel = createAction('REQUEST_CONFUSION_MATRIX_MODEL');
+export const requestPredictedProbsModel = createAction('REQUEST_PREDICTED_PROBS_MODEL');
 export const setModel = createAction('SET_MODEL');
 
 export const requestDownloadDatasets = createAction('REQUEST_DOWNLOAD_DATASETS');

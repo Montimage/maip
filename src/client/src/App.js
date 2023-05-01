@@ -39,16 +39,11 @@ function App() {
               render={() => <Navigate to="/build" />}
             />          
             <Route path="/models" element={<ModelListPage />}/>
-            <Route path="/models/:modelId/download" element={<ModelListPage />}/>
             <Route path="/models/:modelId" element={<ModelPage />}/> 
-            <Route path="/models/:modelId/build-config" element={<ModelPage />}/>
             <Route path="/build" element={<BuildPage />}/>
             <Route path="/retrain/:modelId" element={<RetrainPage />}/>
-            <Route path="/models/:modelId/confusion-matrix" element={<ModelPage />}/>
             <Route path="/datasets" element={<DatasetListPage />}/>
             <Route path="/datasets/:modelId/:datasetType" element={<DatasetPage />}/>
-            <Route path="/xai/" element={<XAIPage />}/>
-            <Route path="/xai/:modelId" element={<XAIModelPage />}/>
             <Route path="/xai/test/:modelId" element={<XAITestPage />}/>
             <Route path="/xai/shap/:modelId" element={<XAIShapPage />}/>
             <Route path="/xai/lime/:modelId" element={<XAILimePage />}/>

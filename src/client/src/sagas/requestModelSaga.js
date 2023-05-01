@@ -15,6 +15,7 @@ import {
   requestDownloadDatasets,
   requestStatsModel,
   requestConfusionMatrixModel,
+  requestPredictedProbsModel,
 } from '../api';
 import {
   setNotification,
@@ -39,6 +40,18 @@ function* handleRequestModel(action) {
   try {
     const modelId = action.payload;
     const model = yield call(() => requestModel(modelId));
+    yield put(setModel(model));
+    // dispatch data
+  } catch (error) {
+    // dispatch error
+    yield put(setNotification({type: 'error', message: error}));
+  }
+}
+
+function* handleRequestPredictedProbsModel(action) {
+  try {
+    const modelId = action.payload;
+    const model = yield call(() => requestPredictedProbsModel(modelId));
     yield put(setModel(model));
     // dispatch data
   } catch (error) {
@@ -152,6 +165,7 @@ function* watchDatasets() {
   yield takeEvery('REQUEST_DOWNLOAD_MODEL', handleRequestDownloadModel);
   yield takeEvery('REQUEST_DOWNLOAD_DATASETS', handleRequestDownloadDatasets);
   yield takeEvery('REQUEST_CONFUSION_MATRIX_MODEL', handleRequestConfusionMatrixModel);
+  yield takeEvery('REQUEST_PREDICTED_PROBS_MODEL', handleRequestPredictedProbsModel);
 }
 
 export default watchDatasets;

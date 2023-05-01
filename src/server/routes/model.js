@@ -160,32 +160,37 @@ router.get('/:modelId', (req, res, next) => {
                 return;
               }
 
-              // Get the testing samples for the model
-              readTextFile(`${TRAINING_PATH}${modelId.replace('.h5', '')}/results/predicted_probabilities.csv`, (err, predictedProbs) => {
-                if (!ret) {
-                  res.status(401).send(`The predicted probabilities file of model ${modelId} does not exist`);
-                  return;
-                }
-              
-                const status = JSON.parse(buildingStatus);
-                console.log(status.lastBuildAt);
+              const status = JSON.parse(buildingStatus);
+              console.log(status.lastBuildAt);
 
-                // Send the response with all the data for the model
-                res.send({
-                  stats: stats,
-                  lastBuildAt: status.lastBuildAt,
-                  buildConfig: buildConfig,
-                  confusionMatrix: matrix,
-                  trainingSamples: trainingSamplesFilePath,
-                  testingSamples: testingSamplesFilePath,
-                  predictedProbs: predictedProbs,
-                });
+              // Send the response with all the data for the model
+              res.send({
+                stats: stats,
+                lastBuildAt: status.lastBuildAt,
+                buildConfig: buildConfig,
+                confusionMatrix: matrix,
+                trainingSamples: trainingSamplesFilePath,
+                testingSamples: testingSamplesFilePath,
               });
             });
           });
         });
       });
     });
+  });
+});
+
+router.get('/:modelId/probabilities', (req, res, next) => {
+  const { modelId } = req.params;
+  readTextFile(`${TRAINING_PATH}${modelId.replace('.h5', '')}/results/predicted_probabilities.csv`, (err, predictedProbs) => {
+    if (err) {
+      res.status(401).send(`The predicted probabilities file of model ${modelId} does not exist`);
+      return;
+    } else {
+      res.send({
+        probs: predictedProbs,
+      });  
+    }
   });
 });
 
