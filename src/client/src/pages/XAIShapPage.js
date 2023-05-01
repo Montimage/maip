@@ -199,6 +199,7 @@ class XAIShapPage extends Component {
           fill: d.importance_value > 0 ? "#0693e3" : "#EB144C"
         };
       },
+      interactions: [{ type: 'element-active' }],
     };
 
     const topFeatures = toDisplayShap.map((item, index) => ({

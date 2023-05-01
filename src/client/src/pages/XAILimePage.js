@@ -258,7 +258,7 @@ class XAILimePage extends Component {
         },
         autoRotate: false,
       },
-      interactions: [{ type: 'element-active' }],
+      interactions: [{ type: 'element-highlight' }],
     };
 
     const features = limeValues.map(obj => obj.feature).sort();
@@ -292,6 +292,7 @@ class XAILimePage extends Component {
           fill: d.value > 0 ? "#0693e3" : "#EB144C"
         };
       },
+      interactions: [{ type: 'element-active' }],
     };
 
     return (
