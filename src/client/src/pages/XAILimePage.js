@@ -87,7 +87,6 @@ class XAILimePage extends Component {
   };
 
   handleMaskedFeatures(values){
-    console.log(`Masked features ${values}`);
     this.setState({ maskedFeatures: values });
   };
 
@@ -119,7 +118,12 @@ class XAILimePage extends Component {
   shouldComponentUpdate(nextProps, nextState) {
     return (
       this.state.limeValues !== nextState.limeValues ||
-      this.props.xaiStatus.isRunning !== nextProps.xaiStatus.isRunning
+      this.props.xaiStatus.isRunning !== nextProps.xaiStatus.isRunning ||
+      (this.state.limeValues === nextState.limeValues &&
+        (this.state.positiveChecked !== nextState.positiveChecked ||
+          this.state.negativeChecked !== nextState.negativeChecked ||
+          this.state.maxDisplay !== nextState.maxDisplay ||
+          this.state.maskedFeatures !== nextState.maskedFeatures))
     );
   }
 
@@ -149,7 +153,7 @@ class XAILimePage extends Component {
     const data = await response.json();
 
     console.log(`Building LIME values of the model ${modelId}`);
-    console.log(JSON.stringify(data));
+    //console.log(JSON.stringify(data));
     this.intervalId = setInterval(() => { // start interval when button is clicked
       this.props.fetchXAIStatus();
     }, 1000);
@@ -195,7 +199,7 @@ class XAILimePage extends Component {
     const limeValuesUrl = `${LIME_URL}/explanations/${modelId}`;
     const limeValues = await fetch(limeValuesUrl).then(res => res.json());
     console.log(`Get new LIME values of the model ${modelId} from server`);
-    console.log(JSON.stringify(limeValues));
+    //console.log(JSON.stringify(limeValues));
     // Update state only if new data is different than old data
     if (JSON.stringify(limeValues) !== JSON.stringify(this.state.limeValues)) {
       this.setState({ limeValues });
@@ -258,7 +262,6 @@ class XAILimePage extends Component {
     };
 
     const features = limeValues.map(obj => obj.feature).sort();
-    console.log(features);
     const selectFeaturesOptions = features.map((label, index) => ({
       value: label, label,
     }));
@@ -294,7 +297,9 @@ class XAILimePage extends Component {
     return (
       <LayoutPage pageTitle="Explainable AI with Local Interpretable Model-Agnostic Explanations (LIME)" 
         pageSubTitle={`Model ${modelId}`}>
-        <Divider orientation="left"><h3>Parameters</h3></Divider>
+        <Divider orientation="left">
+          <h1 style={{ fontSize: '24px' }}>LIME Parameters</h1>
+        </Divider>
         <Form
         {...layout}
         name="control-hooks"
@@ -364,7 +369,9 @@ class XAILimePage extends Component {
           </div>
         </Form>
 
-        <Divider orientation="left"><h3>LIME Explanations</h3></Divider>
+        <Divider orientation="left">
+          <h1 style={{ fontSize: '24px' }}>LIME Explanations</h1>
+        </Divider>
         <Row gutter={24}>
           <Col className="gutter-row" span={12}>
             <div style={style}>

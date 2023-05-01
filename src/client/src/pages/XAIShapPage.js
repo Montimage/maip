@@ -79,14 +79,18 @@ class XAIShapPage extends Component {
   };
 
   handleMaskedFeatures(values) {
-    console.log(`Masked features ${values}`);
     this.setState({ maskedFeatures: values });
   };
 
   shouldComponentUpdate(nextProps, nextState) {
     return (
       this.state.shapValues !== nextState.shapValues ||
-      this.props.xaiStatus.isRunning !== nextProps.xaiStatus.isRunning
+      this.props.xaiStatus.isRunning !== nextProps.xaiStatus.isRunning ||
+      (this.state.limeValues === nextState.limeValues &&
+        (this.state.positiveChecked !== nextState.positiveChecked ||
+          this.state.negativeChecked !== nextState.negativeChecked ||
+          this.state.maxDisplay !== nextState.maxDisplay ||
+          this.state.maskedFeatures !== nextState.maskedFeatures))
     );
   }
 
@@ -118,7 +122,6 @@ class XAIShapPage extends Component {
       "numberSamples": numberSamples,
       "maxDisplay": maxDisplay,
     };
-    console.log(shapConfig);
     if (!isRunning) {
       console.log("update isRunning state!");
       this.setState({ isRunning: true });        
@@ -132,7 +135,7 @@ class XAIShapPage extends Component {
       const data = await response.json();
 
       console.log(`Building SHAP values of the model ${modelId}`);
-      console.log(JSON.stringify(data));
+      //console.log(JSON.stringify(data));
       this.intervalId = setInterval(() => { // start interval when button is clicked
         this.props.fetchXAIStatus();
       }, 1000);
@@ -143,7 +146,7 @@ class XAIShapPage extends Component {
     const shapValuesUrl = `${SHAP_URL}/explanations/${modelId}`;
     const shapValues = await fetch(shapValuesUrl).then(res => res.json());
     console.log(`Get new SHAP values of the model ${modelId} from server`);
-    console.log(JSON.stringify(shapValues));
+    //console.log(JSON.stringify(shapValues));
     // Update state only if new data is different than old data
     if (JSON.stringify(shapValues) !== JSON.stringify(this.state.shapValues)) {
       this.setState({ shapValues });
@@ -168,7 +171,6 @@ class XAIShapPage extends Component {
     } = this.props;
 
     const features = shapValues.map(obj => obj.feature).sort();
-    console.log(features);
     const selectFeaturesOptions = features.map((label, index) => ({
       value: label, label,
     }));
