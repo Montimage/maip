@@ -11,7 +11,7 @@ import {
 } from "../utils";
 import { Button, Tooltip, Select, Col, Row, Table } from 'antd';
 import Papa from "papaparse";
-import { Scatter, Histogram } from '@ant-design/plots';
+import { Bar, Scatter, Histogram } from '@ant-design/plots';
 
 const {
   SERVER_URL,
@@ -96,6 +96,7 @@ class DatasetPage extends Component {
       binWidthChoice: 'square-root',
       xScatterFeature: '',
       yScatterFeature: '',
+      barFeature: '',
     };
   }
 
@@ -147,6 +148,7 @@ class DatasetPage extends Component {
       binWidthChoice,
       xScatterFeature,
       yScatterFeature,
+      barFeature,
     } = this.state;
     //console.log({selectedFeature, binWidthChoice});
     //const displayedCsvData = csvData.slice(0, 100);
@@ -274,10 +276,14 @@ class DatasetPage extends Component {
       return {
         key: index + 1,
         name: feature,
-        description: FEATURES_DESCRIPTIONS[feature],
+        description: FEATURES_DESCRIPTIONS[feature].description,
+        type: FEATURES_DESCRIPTIONS[feature].type,
       };
     });
-    //console.log(topFeatures);
+    const categoricalFeatures = Object.entries(FEATURES_DESCRIPTIONS)
+      .filter(([key, value]) => value.type === 'categorical')
+      .map(([key, value]) => key);
+    //console.log(categoricalFeatures);
     
     const columnsAllFeatures = [
       {
@@ -290,11 +296,17 @@ class DatasetPage extends Component {
         title: 'Name',
         dataIndex: 'name',
         key: 'name',
+        sorter: (a, b) => a.name.localeCompare(b.name),
       },
       {
         title: 'Description',
         dataIndex: 'description',
         key: 'description',
+      },
+      {
+        title: 'Type',
+        dataIndex: 'type',
+        key: 'type',
       },
     ];
 
@@ -352,16 +364,59 @@ class DatasetPage extends Component {
       },*/
     };
 
+    const countByFeature = csvData.reduce((acc, row) => {
+      const category = row[barFeature];
+      return { ...acc, [category]: (acc[category] || 0) + 1 };
+    }, {});
+
+    const dataBar = Object.entries(countByFeature).map(([category, count]) => ({
+      feature: category,
+      count,
+    }));
+
+    const configBar = {
+      data: dataBar,
+      xField: 'count',
+      yField: 'feature',
+      seriesField: 'feature',
+      legend: {
+        position: 'top-left',
+      },
+      label: {
+        position: 'middle',
+        style: {
+          fill: '#FFFFFF',
+        },
+        formatter: (datum) => `${datum.count}`,
+      },
+      xAxis: {
+        title: {
+          text: barFeature,
+        },
+      },
+      yAxis: {
+        title: {
+          text: 'Frequency',
+        },
+      },
+      interactions: [{ type: 'element-highlight' }],
+    };
+    //console.log(dataBar);
+
     return (
       <LayoutPage pageTitle="Dataset" 
         pageSubTitle={`${datasetType.charAt(0).toUpperCase() + datasetType.slice(1)}ing dataset of the model ${modelId}`}>
         {/* TODO: Fix "ResizeObserver loop limit exceeded", fixed header ? */}
-        <div style={{ maxWidth: '100vw', overflowX: 'auto', marginBottom: '30px', height: 500 }}>
+        <h4>
+          Total number of samples: {csvData.length};
+          Total number of features: {Object.keys(FEATURES_DESCRIPTIONS).length - 3}
+        </h4>
+        <div style={{ maxWidth: '100vw', overflowX: 'auto', marginTop: '10px', marginBottom: '30px', height: 870 }}>
           <Table columns={columns} 
             dataSource={csvData} 
             size="small" bordered
             scroll={{ x: 'max-content', /* y: 400 */ }}
-            pagination={{ pageSize: 50 }}
+            pagination={{ pageSize: 20 }}
           />
         </div>
 
@@ -375,7 +430,7 @@ class DatasetPage extends Component {
                 </Tooltip>
               </div>
               <Table dataSource={allFeatures} columns={columnsAllFeatures} 
-                size="small"
+                size="small" style={{ marginTop: '10px' }}
               />
             </div>
           </Col>
@@ -431,7 +486,7 @@ class DatasetPage extends Component {
                 </div>
                 {selectedFeature && (
                   <Table columns={columnsTableStats} dataSource={dataStats} pagination={false}
-                    style={{marginTop: '20px'}}
+                    style={{marginTop: '10px'}}
                   />
                 )}
                 {selectedFeature && binWidthChoice && (
@@ -446,50 +501,83 @@ class DatasetPage extends Component {
           <Col className="gutter-row" span={24}>
             <div style={style}>
               <h2>&nbsp;&nbsp;&nbsp;Scatter Plot</h2>
-                <div style={{ marginBottom: '2ÒÒ0px', marginTop: '10px' }}>
-                  <div style={{ position: 'absolute', top: 10, right: 10 }}>
-                    <Tooltip title="The scatter plot represents the relationship between two features of a dataset, each data point as a circle on a two-dimensional coordinate system. The color of each circle represents whether the traffic was Malware or Normal. Malware traffic is denoted with the color blue, while Normal traffic is denoted with the color red.">
-                      <Button type="link" icon={<QuestionOutlined />} />
-                    </Tooltip>
-                  </div>
-                  &nbsp;&nbsp;&nbsp;
-                  <Tooltip title="Select a feature displayed on x-axis">
-                    <Select
-                      showSearch allowClear
-                      placeholder="Select a feature"
-                      onChange={value => this.setState({ xScatterFeature: value })}
-                      optionFilterProp="children"
-                      filterOption={(input, option) => (option?.value ?? '').includes(input)}
-                      style={{ width: 300, marginTop: '10px' }}
-                    >
-                      {headers.map((header) => (
-                        <Option key={header} value={header}>
-                          {header}
-                        </Option>
-                      ))}
-                    </Select>
-                  </Tooltip>
-                  &nbsp;&nbsp;&nbsp;
-                  <Tooltip title="Select a feature displayed on y-axis">
-                    <Select
-                      showSearch allowClear
-                      placeholder="Select a feature"
-                      onChange={value => this.setState({ yScatterFeature: value })}
-                      optionFilterProp="children"
-                      filterOption={(input, option) => (option?.value ?? '').includes(input)}
-                      style={{ width: 300, marginTop: '10px' }}
-                    >
-                      {headers.map((header) => (
-                        <Option key={header} value={header}>
-                          {header}
-                        </Option>
-                      ))}
-                    </Select>
+              <div style={{ marginBottom: '30px', marginTop: '10px' }}>
+                <div style={{ position: 'absolute', top: 10, right: 10 }}>
+                  <Tooltip title="The scatter plot represents the relationship between two features of a dataset, each data point as a circle on a two-dimensional coordinate system. The color of each circle represents whether the traffic was Malware or Normal. Malware traffic is denoted with the color blue, while Normal traffic is denoted with the color red.">
+                    <Button type="link" icon={<QuestionOutlined />} />
                   </Tooltip>
                 </div>
+                &nbsp;&nbsp;&nbsp;
+                <Tooltip title="Select a feature displayed on x-axis">
+                  <Select
+                    showSearch allowClear
+                    placeholder="Select a feature"
+                    onChange={value => this.setState({ xScatterFeature: value })}
+                    optionFilterProp="children"
+                    filterOption={(input, option) => (option?.value ?? '').includes(input)}
+                    style={{ width: 300, marginTop: '10px' }}
+                  >
+                    {headers.map((header) => (
+                      <Option key={header} value={header}>
+                        {header}
+                      </Option>
+                    ))}
+                  </Select>
+                </Tooltip>
+                &nbsp;&nbsp;&nbsp;
+                <Tooltip title="Select a feature displayed on y-axis">
+                  <Select
+                    showSearch allowClear
+                    placeholder="Select a feature"
+                    onChange={value => this.setState({ yScatterFeature: value })}
+                    optionFilterProp="children"
+                    filterOption={(input, option) => (option?.value ?? '').includes(input)}
+                    style={{ width: 300, marginTop: '10px' }}
+                  >
+                    {headers.map((header) => (
+                      <Option key={header} value={header}>
+                        {header}
+                      </Option>
+                    ))}
+                  </Select>
+                </Tooltip>
+              </div>
               {xScatterFeature && yScatterFeature &&
-                <Scatter {...configScatter} style={{ margin: '10px' }}/>
+                <Scatter {...configScatter} style={{ margin: '20px' }}/>
               }
+            </div>
+          </Col>
+        </Row>
+
+        <Row gutter={24} style={{ marginTop: '20px' }}>
+          <Col className="gutter-row" span={12}>
+            <div style={style}>
+              <h2>&nbsp;&nbsp;&nbsp;Bar Plot</h2>
+              <div style={{ marginBottom: '30px', marginTop: '10px' }}>
+                <div style={{ position: 'absolute', top: 10, right: 10 }}>
+                  <Tooltip title="The bar plot displays the frequency or proportion of a categorical feature.">
+                    <Button type="link" icon={<QuestionOutlined />} />
+                  </Tooltip>
+                </div>
+                &nbsp;&nbsp;&nbsp;
+                <Tooltip title="Select a categorical feature">
+                  <Select
+                    showSearch allowClear
+                    placeholder="Select a feature"
+                    onChange={value => this.setState({ barFeature: value })}
+                    optionFilterProp="children"
+                    filterOption={(input, option) => (option?.value ?? '').includes(input)}
+                    style={{ width: 300, marginTop: '10px' }}
+                  >
+                    {categoricalFeatures.map((header) => (
+                      <Option key={header} value={header}>
+                        {header}
+                      </Option>
+                    ))}
+                  </Select>
+                </Tooltip>
+              </div>
+              {barFeature && <Bar {...configBar} style={{ margin: '10px' }} />}
             </div>
           </Col>
         </Row>

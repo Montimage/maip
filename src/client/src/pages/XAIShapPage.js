@@ -205,7 +205,7 @@ class XAIShapPage extends Component {
     const topFeatures = toDisplayShap.map((item, index) => ({
       key: index + 1,
       name: item.feature,
-      description: FEATURES_DESCRIPTIONS[item.feature] || 'N/A',
+      description: FEATURES_DESCRIPTIONS[item.feature].description || 'N/A',
     }));
     //console.log(topFeatures);
     
