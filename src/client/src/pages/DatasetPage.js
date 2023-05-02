@@ -11,7 +11,7 @@ import {
 } from "../utils";
 import { Button, Tooltip, Select, Col, Row, Table } from 'antd';
 import Papa from "papaparse";
-import { Histogram } from '@ant-design/plots';
+import { Scatter, Histogram } from '@ant-design/plots';
 
 const {
   SERVER_URL,
@@ -94,6 +94,8 @@ class DatasetPage extends Component {
       selectedFeature: '',
       chartData: [],
       binWidthChoice: 'square-root',
+      xScatterFeature: '',
+      yScatterFeature: '',
     };
   }
 
@@ -143,8 +145,10 @@ class DatasetPage extends Component {
       selectedFeature, 
       chartData,
       binWidthChoice,
+      xScatterFeature,
+      yScatterFeature,
     } = this.state;
-    console.log({selectedFeature, binWidthChoice});
+    //console.log({selectedFeature, binWidthChoice});
     //const displayedCsvData = csvData.slice(0, 100);
     //console.log(JSON.stringify(csvData));
     const columns = csvData.length > 0 ? Object.keys(csvData[0]).map(key => ({
@@ -294,6 +298,60 @@ class DatasetPage extends Component {
       },
     ];
 
+    const newCsvData = csvData.map((data) => {
+      const malware = data.malware === "0" ? "Normal traffic" : "Malware traffic";
+      return { ...data, malware };
+    });
+
+    const configScatter = {
+      appendPadding: 10,
+      data: newCsvData,
+      xField: xScatterFeature,
+      yField: yScatterFeature,
+      shape: 'circle',
+      colorField: 'malware',
+      color: ['#0693e3', '#EB144C'],
+      size: 4,
+      yAxis: {
+        title: {
+          text: yScatterFeature,
+          style: {
+            fontSize: 16,
+          },
+        },
+        nice: true,
+        line: {
+          style: {
+            stroke: '#aaa',
+          },
+        },
+      },
+      xAxis: {
+        title: {
+          text: xScatterFeature,
+          style: {
+            fontSize: 16,
+          },
+        },
+        grid: {
+          line: {
+            style: {
+              stroke: '#eee',
+            },
+          },
+        },
+        nice: true,
+        line: {
+          style: {
+            stroke: '#aaa',
+          },
+        },
+      },
+      /*regressionLine: {
+        type: 'linear', // linear, exp, loess, log, poly, pow, quad
+      },*/
+    };
+
     return (
       <LayoutPage pageTitle="Dataset" 
         pageSubTitle={`${datasetType.charAt(0).toUpperCase() + datasetType.slice(1)}ing dataset of the model ${modelId}`}>
@@ -328,7 +386,7 @@ class DatasetPage extends Component {
             {headers.length > 0 && (
               <div style={style}>
                 <h2>&nbsp;&nbsp;&nbsp;Histogram Plot</h2>
-                <div style={{ marginBottom: '30px', marginTop: '30px' }}>
+                <div style={{ marginBottom: '30px', marginTop: '10px' }}>
                   <div style={{ position: 'absolute', top: 10, right: 10 }}>
                     <Tooltip title="A table contains different statistics of the feature, such as the number of unique values, number of missing values, mean, standard deviation, median, minimum, and maximum value. A histogram plot for each feature of the database shows the distribution of values in that feature.">
                       <Button type="link" icon={<QuestionOutlined />} />
@@ -381,6 +439,58 @@ class DatasetPage extends Component {
                 )}
               </div>
             )}
+          </Col>
+        </Row>
+
+        <Row gutter={24} style={{ marginTop: '20px' }}>
+          <Col className="gutter-row" span={24}>
+            <div style={style}>
+              <h2>&nbsp;&nbsp;&nbsp;Scatter Plot</h2>
+                <div style={{ marginBottom: '2ÒÒ0px', marginTop: '10px' }}>
+                  <div style={{ position: 'absolute', top: 10, right: 10 }}>
+                    <Tooltip title="The scatter plot represents the relationship between two features of a dataset, each data point as a circle on a two-dimensional coordinate system. The color of each circle represents whether the traffic was Malware or Normal. Malware traffic is denoted with the color blue, while Normal traffic is denoted with the color red.">
+                      <Button type="link" icon={<QuestionOutlined />} />
+                    </Tooltip>
+                  </div>
+                  &nbsp;&nbsp;&nbsp;
+                  <Tooltip title="Select a feature displayed on x-axis">
+                    <Select
+                      showSearch allowClear
+                      placeholder="Select a feature"
+                      onChange={value => this.setState({ xScatterFeature: value })}
+                      optionFilterProp="children"
+                      filterOption={(input, option) => (option?.value ?? '').includes(input)}
+                      style={{ width: 300, marginTop: '10px' }}
+                    >
+                      {headers.map((header) => (
+                        <Option key={header} value={header}>
+                          {header}
+                        </Option>
+                      ))}
+                    </Select>
+                  </Tooltip>
+                  &nbsp;&nbsp;&nbsp;
+                  <Tooltip title="Select a feature displayed on y-axis">
+                    <Select
+                      showSearch allowClear
+                      placeholder="Select a feature"
+                      onChange={value => this.setState({ yScatterFeature: value })}
+                      optionFilterProp="children"
+                      filterOption={(input, option) => (option?.value ?? '').includes(input)}
+                      style={{ width: 300, marginTop: '10px' }}
+                    >
+                      {headers.map((header) => (
+                        <Option key={header} value={header}>
+                          {header}
+                        </Option>
+                      ))}
+                    </Select>
+                  </Tooltip>
+                </div>
+              {xScatterFeature && yScatterFeature &&
+                <Scatter {...configScatter} style={{ margin: '10px' }}/>
+              }
+            </div>
           </Col>
         </Row>
       </LayoutPage>
