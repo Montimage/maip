@@ -11,7 +11,7 @@ import {
 } from "../utils";
 import { Button, Tooltip, Select, Col, Row, Table } from 'antd';
 import Papa from "papaparse";
-import { Bar, Scatter, Histogram } from '@ant-design/plots';
+import { Heatmap, Bar, Scatter, Histogram } from '@ant-design/plots';
 
 const {
   SERVER_URL,
@@ -181,13 +181,13 @@ class DatasetPage extends Component {
       binWidth,
       xAxis: {
         title: {
-          text: `Histogram bins`,
+          text: `histogram bins`,
           style: { fontSize: 16 }
         },
       },
       yAxis: {
         title: {
-          text: 'Count',
+          text: 'count',
           style: { fontSize: 16 }
         },
       },
@@ -368,10 +368,11 @@ class DatasetPage extends Component {
       const category = row[barFeature];
       return { ...acc, [category]: (acc[category] || 0) + 1 };
     }, {});
-
+    const totalCount = Object.values(countByFeature).reduce((acc, count) => acc + count, 0);
     const dataBar = Object.entries(countByFeature).map(([category, count]) => ({
       feature: category,
       count,
+      percentage: (count / totalCount) * 100,
     }));
 
     const configBar = {
@@ -380,7 +381,7 @@ class DatasetPage extends Component {
       yField: 'feature',
       seriesField: 'feature',
       legend: {
-        position: 'top-left',
+        position: 'top-right',
       },
       label: {
         position: 'middle',
@@ -389,14 +390,29 @@ class DatasetPage extends Component {
         },
         formatter: (datum) => `${datum.count}`,
       },
+      label: {
+        position: 'middle',
+        /*content: ({ percentage }) => `${percentage.toFixed(2)}%`,*/
+        formatter: (datum) => `${datum.count} (${datum.percentage.toFixed(2)}%)`,
+        style: {
+          fill: '#FFFFFF',
+          fontSize: 16,
+        },
+      },
       xAxis: {
         title: {
           text: barFeature,
+          style: {
+            fontSize: 16,
+          },
         },
       },
       yAxis: {
         title: {
-          text: 'Frequency',
+          text: 'frequency',
+          style: {
+            fontSize: 16,
+          },
         },
       },
       interactions: [{ type: 'element-highlight' }],
@@ -411,12 +427,12 @@ class DatasetPage extends Component {
           Total number of samples: {csvData.length};
           Total number of features: {Object.keys(FEATURES_DESCRIPTIONS).length - 3}
         </h4>
-        <div style={{ maxWidth: '100vw', overflowX: 'auto', marginTop: '10px', marginBottom: '30px', height: 870 }}>
+        <div style={{ maxWidth: '100vw', overflowX: 'auto', marginTop: '10px', marginBottom: '30px', height: 490 }}>
           <Table columns={columns} 
             dataSource={csvData} 
             size="small" bordered
             scroll={{ x: 'max-content', /* y: 400 */ }}
-            pagination={{ pageSize: 20 }}
+            pagination={{ pageSize: 10 }}
           />
         </div>
 
@@ -580,10 +596,20 @@ class DatasetPage extends Component {
               {barFeature && <Bar {...configBar} style={{ margin: '10px' }} />}
             </div>
           </Col>
+
+
+          <Col className="gutter-row" span={12}>
+            <div style={style}>
+              <h2>&nbsp;&nbsp;&nbsp;Heatmap Plot (TODO)</h2>
+            </div>
+          </Col>
         </Row>
+        
       </LayoutPage>
     );
   }
 }
+
+/**/
 
 export default DatasetPage;
