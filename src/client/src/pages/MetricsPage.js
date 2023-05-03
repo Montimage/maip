@@ -33,7 +33,7 @@ class MetricsPage extends Component {
     super(props);
 
     this.state = {
-      stats: "",
+      stats: [],
       predictions: [],
       confusionMatrix: [],
       cutoff: 0.5,
@@ -65,16 +65,43 @@ class MetricsPage extends Component {
 
   updateConfusionMatrix() {
     const { predictions, cutoff } = this.state;
-    const truePositives = predictions.filter((d) => d.trueLabel === 1 && d.prediction >= cutoff).length;
-    const falsePositives = predictions.filter((d) => d.trueLabel === 0 && d.prediction >= cutoff).length;
-    const trueNegatives = predictions.filter((d) => d.trueLabel === 0 && d.prediction < cutoff).length;
-    const falseNegatives = predictions.filter((d) => d.trueLabel === 1 && d.prediction < cutoff).length;
+    const TP = predictions.filter((d) => d.trueLabel === 1 && d.prediction >= cutoff).length;
+    const FP = predictions.filter((d) => d.trueLabel === 0 && d.prediction >= cutoff).length;
+    const TN = predictions.filter((d) => d.trueLabel === 0 && d.prediction < cutoff).length;
+    const FN = predictions.filter((d) => d.trueLabel === 1 && d.prediction < cutoff).length;
     const confusionMatrix = [
-      [truePositives, falsePositives],
-      [falseNegatives, trueNegatives],
+      [TP, FP],
+      [FN, TN],
     ];
 
     this.setState({ confusionMatrix });
+
+    const accuracy = (TP + TN) / (TP + TN + FP + FN);
+    const precision = TP / (TP + FP);
+    const recall = TP / (TP + FN);
+    const f1Score = (2 * precision * recall) / (precision + recall);
+
+    const precisionPositive = TP / (TP + FP);
+    const recallPositive = TP / (TP + FN);
+    const f1ScorePositive = (2 * precisionPositive * recallPositive) / (precisionPositive + recallPositive);
+    const supportPositive = TP + FN;
+
+    const precisionNegative = TN / (TN + FN);
+    const recallNegative = TN / (TN + FP);
+    const f1ScoreNegative = (2 * precisionNegative * recallNegative) / (precisionNegative + recallNegative);
+    const supportNegative = TN + FP;
+
+    //console.log({accuracy, precision, recall, f1Score});
+    //console.log({precisionPositive, recallPositive, f1ScorePositive, supportPositive});
+    //console.log({precisionNegative, recallNegative, f1ScoreNegative, supportNegative});
+
+    const stats = [
+      [precisionPositive, recallPositive, f1ScorePositive, supportPositive],
+      [precisionNegative, recallNegative, f1ScoreNegative, supportNegative],
+      [accuracy],
+    ];
+
+    this.setState({ stats: stats });
   }
 
   handleCutoffChange(value) {
@@ -90,14 +117,14 @@ class MetricsPage extends Component {
     //console.log(model);
     let modelId = getLastPath();
 
-    const { stats, buildConfig, trainingSamples, testingSamples } = model;
-
     const { 
       cutoff,
       predictions,
       confusionMatrix,
+      stats,
     } = this.state;
     console.log(`cutoff: ${cutoff}`);
+    console.log(stats);
 
     const columnsTableStats = [
       {
@@ -117,32 +144,27 @@ class MetricsPage extends Component {
       },
     ];
 
-    // Check if the stats have been loaded
-    if (!stats) {
-      return <div>Loading...</div>;
+    const statsStr = stats.map((row, i) => `${i},${row.join(',')}`).join('\n');
+    const rowsStats = statsStr.split('\n').map(row => row.split(','));
+    const headerStats = ["precision", "recall", "f1score", "support"];
+    let dataStats = [];
+    if(rowsStats.length == 3) {
+      const accuracy = parseFloat(rowsStats[2][1]);
+      dataStats = headerStats.map((metric, i) => ({
+        key: (i).toString(),
+        metric,
+        class0: +rowsStats[0][i+1],
+        class1: +rowsStats[1][i+1],
+      }));
+      dataStats.push({
+        key: '5',
+        metric: 'accuracy',
+        class0: accuracy,
+        class1: accuracy,
+      });
     }
 
-    const rowsStats = stats.trim().split('\n').map(row => row.split(','));
-    const headerStats = rowsStats[0].slice(1);
-    const accuracy = parseFloat(rowsStats[rowsStats.length - 3][1]);
-    const dataStats = headerStats.map((metric, i) => ({
-      key: (i+1).toString(),
-      metric,
-      class0: +rowsStats[1][i+1],
-      class1: +rowsStats[2][i+1],
-    }));
-    dataStats.push({
-      key: '5',
-      metric: 'accuracy',
-      class0: accuracy,
-      class1: accuracy,
-    });
-    console.log(dataStats);
-
-    const highlightPercentage = true;
-    //console.log(confusionMatrix);
     const cmStr = confusionMatrix.map((row, i) => `${i},${row.join(',')}`).join('\n');
-    console.log(cmStr);
     const headers = ["Normal traffic", "Malware traffic"];
     const rows = cmStr.trim().split('\n');
     const data = rows.flatMap((row, i) => {
@@ -198,6 +220,25 @@ class MetricsPage extends Component {
         <Divider orientation="left">
           <h1 style={{ fontSize: '24px' }}>Accountability Metrics</h1>
         </Divider>
+        <Form.Item name="slider" label="Cutoff prediction probability" style={{ marginLeft: '50px', marginRight: '50px', marginBottom: '10px' }}>
+          <div style={{ width: '100%', display: 'inline-block', alignItems: 'center' }}>
+            <Slider
+              marks={{
+                0.01: '0.01',
+                0.25: '0.25',
+                0.50: '0.50',
+                0.75: '0.75',
+                0.99: '0.99',
+              }}
+              min={0.01}
+              max={0.99}
+              step={0.01}
+              value={cutoff}
+              defaultValue={cutoff}
+              onChange={(value) => this.handleCutoffChange(value)}
+            />
+          </div>
+        </Form.Item>
         <Row gutter={24}>
           <Col className="gutter-row" span={12}>
             <div style={style}>
@@ -207,8 +248,8 @@ class MetricsPage extends Component {
                   <Button type="link" icon={<QuestionOutlined />} />
                 </Tooltip>
               </div>
-              <Table columns={columnsTableStats} dataSource={dataStats} pagination={false}
-               style={{marginTop: '20px'}} />
+              {dataStats && <Table columns={columnsTableStats} dataSource={dataStats} pagination={false}
+               style={{marginTop: '20px'}} />}
             </div>
           </Col>
           <Col className="gutter-row" span={12}>
@@ -219,32 +260,9 @@ class MetricsPage extends Component {
                   <Button type="link" icon={<QuestionOutlined />} />
                 </Tooltip>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                <Form.Item name="slider" label="Cutoff" style={{ marginLeft: '50px', marginRight: '50px', marginBottom: '10px' }}>
-                  <div style={{ width: '100%', display: 'inline-block', alignItems: 'center' }}>
-                    <Tooltip title="Download plot as png">
-                      <Slider
-                        marks={{
-                          0.01: '0.01',
-                          0.25: '0.25',
-                          0.50: '0.50',
-                          0.75: '0.75',
-                          0.99: '0.99',
-                        }}
-                        min={0.01}
-                        max={0.99}
-                        step={0.01}
-                        value={cutoff}
-                        defaultValue={cutoff}
-                        onChange={(value) => this.handleCutoffChange(value)}
-                      />
-                    </Tooltip>
-                  </div>
-                </Form.Item>
-                <div style={{ display: 'flex', justifyContent: 'center', width: '100%', flex: 1, flexWrap: 'wrap' }}>
-                  <div style={{ position: 'relative', height: '410px', width: '100%', maxWidth: '480px' }}>
-                    <Heatmap {...config} />
-                  </div>
+              <div style={{ display: 'flex', justifyContent: 'center', width: '100%', flex: 1, flexWrap: 'wrap', marginTop: '20px' }}>
+                <div style={{ position: 'relative', height: '360px', width: '100%', maxWidth: '430px' }}>
+                  <Heatmap {...config} />
                 </div>
               </div>
             </div>

@@ -37,7 +37,7 @@ def train_model(train_data_path, test_data_path, result_path, nb_epoch_cnn, nb_e
     true_labels = test_data['malware']
     df = pd.DataFrame({'prediction': y_pred, 'true_label': true_labels})
     df.to_csv(f'{result_path}/predictions.csv', index=False, header=False)
-    
+
     # apply sigmoid to convert output to probability for both classes
     y_prob = 1 / (1 + np.exp(-y_pred))
     y_prob = np.hstack((1 - y_prob, y_prob))  # stack probabilities for both classes horizontally
@@ -53,7 +53,7 @@ def train_model(train_data_path, test_data_path, result_path, nb_epoch_cnn, nb_e
     # print(y_pred)
     # print(y_test)
 
-    """
+
     print(classification_report(y_test, y_pred))
     saveConfMatrix(y_true=y_test, y_pred=y_pred,
                    filepath_csv=f'{result_path}/conf_matrix_sae_test-cnn.csv',
@@ -61,6 +61,7 @@ def train_model(train_data_path, test_data_path, result_path, nb_epoch_cnn, nb_e
     saveScores(y_true=y_test, y_pred=y_pred,
                filepath=f'{result_path}/stats.csv')
 
+    """
     preds = np.array([y_pred]).T
     res = np.append(x_test, preds, axis=1)
     pd.DataFrame(res).to_csv(f'{result_path}/predictions.csv',
