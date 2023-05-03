@@ -5,9 +5,13 @@ import { getLastPath } from "../utils";
 import { Divider, Form, Slider, Switch, Table, Col, Row, Button, Tooltip } from 'antd';
 import { QuestionOutlined, CameraOutlined } from "@ant-design/icons";
 import { Heatmap } from '@ant-design/plots';
+import Papa from "papaparse";
 import {
   requestModel,
 } from "../actions";
+import {
+  SERVER_URL,
+} from "../constants";
 
 const style = {
   //background: '#0092ff',
@@ -30,7 +34,8 @@ class MetricsPage extends Component {
 
     this.state = {
       stats: "",
-      confusionMatrix: "",
+      predictions: [],
+      confusionMatrix: [],
       cutoff: 0.5,
     }
   }
@@ -38,31 +43,59 @@ class MetricsPage extends Component {
   componentDidMount() {
     let modelId = getLastPath();
     this.props.fetchModel(modelId);
+    this.loadPredictions();
   }
 
-  componentDidUpdate(prevProps) {
-    // Check if the model data has been updated
-    if (this.props.model !== prevProps.model) {
-      const { stats, confusionMatrix } = this.props.model;
-      this.setState({ stats, confusionMatrix });
-    }
+  async loadPredictions() {
+    const modelId = getLastPath();
+
+    const predictionsResponse = await fetch(`${SERVER_URL}/api/models/${modelId}/predictions`, {
+      method: 'GET',
+    });
+    const predictionsData = await predictionsResponse.json();
+    const predictionsValues = predictionsData.predictions;
+    //console.log(predictionsData);
+    const predictions = predictionsValues.split('\n').map((d) => ({
+      prediction: parseFloat(d.split(',')[0]),
+      trueLabel: parseInt(d.split(',')[1]),
+    }));
+    //console.log(predictions);
+    this.setState({ predictions }, this.updateConfusionMatrix);
   }
 
-  handleCutoffChange = (value) => {
-    this.setState({ cutoff: value });
+  updateConfusionMatrix() {
+    const { predictions, cutoff } = this.state;
+    const truePositives = predictions.filter((d) => d.trueLabel === 1 && d.prediction >= cutoff).length;
+    const falsePositives = predictions.filter((d) => d.trueLabel === 0 && d.prediction >= cutoff).length;
+    const trueNegatives = predictions.filter((d) => d.trueLabel === 0 && d.prediction < cutoff).length;
+    const falseNegatives = predictions.filter((d) => d.trueLabel === 1 && d.prediction < cutoff).length;
+    const confusionMatrix = [
+      [truePositives, falsePositives],
+      [falseNegatives, trueNegatives],
+    ];
+
+    this.setState({ confusionMatrix });
+  }
+
+  handleCutoffChange(value) {
+    this.setState({ cutoff: value }, () => {
+      this.updateConfusionMatrix();
+    });
   }
 
   render() {
     const {
       model,
     } = this.props;
-    console.log(model);
+    //console.log(model);
     let modelId = getLastPath();
 
-    const { stats, buildConfig, confusionMatrix, trainingSamples, testingSamples, predictedProbs } = model;
+    const { stats, buildConfig, trainingSamples, testingSamples } = model;
 
     const { 
       cutoff,
+      predictions,
+      confusionMatrix,
     } = this.state;
     console.log(`cutoff: ${cutoff}`);
 
@@ -84,8 +117,8 @@ class MetricsPage extends Component {
       },
     ];
 
-    // Check if the stats and confusionMatrix have been loaded
-    if (!stats || !confusionMatrix) {
+    // Check if the stats have been loaded
+    if (!stats) {
       return <div>Loading...</div>;
     }
 
@@ -107,66 +140,24 @@ class MetricsPage extends Component {
     console.log(dataStats);
 
     const highlightPercentage = true;
-    console.log(confusionMatrix);
-
-    const rows = confusionMatrix.trim().split('\n');
-    const headers = rows.shift().split(',');
-    headers[1] = "Normal traffic";
-    headers[2] = "Malware traffic";
+    //console.log(confusionMatrix);
+    const cmStr = confusionMatrix.map((row, i) => `${i},${row.join(',')}`).join('\n');
+    console.log(cmStr);
+    const headers = ["Normal traffic", "Malware traffic"];
+    const rows = cmStr.trim().split('\n');
     const data = rows.flatMap((row, i) => {
       const cols = row.split(',');
       const rowTotal = cols.slice(1).reduce((acc, val) => acc + Number(val), 0);
       return cols.slice(1).map((val, j) => ({
-        actual: headers[i+1],
-        predicted: headers[j+1],
+        actual: headers[i],
+        predicted: headers[j],
         count: Number(val),
         percentage: `${((Number(val) / rowTotal) * 100).toFixed(2)}%`,
       }));
     });
 
-    /*// TODO: code related to cutoff does not work
-    const filteredData = data.filter(d => d.predicted === 'Malware traffic' && d.percentage.slice(0, -1) >= cutoff);
-    const totalMalwareTrafficCount = data.filter(d => d.predicted === 'Malware traffic').reduce((acc, d) => acc + d.count, 0);
-    const totalFilteredMalwareTrafficCount = filteredData.reduce((acc, d) => acc + d.count, 0);
-    const percentageOfFilteredMalwareTraffic = (totalFilteredMalwareTrafficCount / totalMalwareTrafficCount * 100).toFixed(2);
-    const updatedData = data.map(d => {
-      if (d.predicted === 'Malware traffic') {
-        if (d.percentage.slice(0, -1) >= cutoff) {
-          d.count = `${d.count} (${d.percentage})`;
-          d.percentage = `${((d.count / totalFilteredMalwareTrafficCount) * 100).toFixed(2)}%`;
-        } else {
-          d.count = 0;
-          d.percentage = '0%';
-        }
-      }
-      return d;
-    });
-    console.log(updatedData);*/
-
-    /*const data = rows.flatMap((row, i) => {
-      const cols = row.split(',');
-      const rowTotal = cols.slice(1).reduce((acc, val) => acc + Number(val), 0);
-      const total = rows.map((r) => r.split(',')[i+1]).reduce((acc, val) => acc + Number(val), 0);
-      if (total / rows.length < cutoff) {
-        return [];
-      }
-      return cols.slice(1).map((val, j) => {
-        if (cols[0] / rowTotal < cutoff || headers[j+1] === 'Total') {
-          return null;
-        }
-        return {
-          actual: headers[i+1],
-          predicted: headers[j+1],
-          count: Number(val),
-          percentage: `${((Number(val) / rowTotal) * 100).toFixed(2)}%`,
-        };
-      }).filter((val) => val !== null);
-    }).filter((val) => val !== null);*/
-
-    console.log(data);
-
     const config = {
-      data,
+      data: data,
       forceFit: true,
       xField: 'predicted',
       yField: 'actual',
@@ -224,28 +215,30 @@ class MetricsPage extends Component {
             <div style={style}>
               <h2>&nbsp;&nbsp;&nbsp;Confusion Matrix</h2>
               <div style={{ position: 'absolute', top: 10, right: 10 }}>
-                <Tooltip title="The confusion matrix shows the number of True Negatives (predicted negative, observed negative), True Positives (predicted positive, observed positive), False Negatives (predicted negative, but observed positive) and False Positives (predicted positive, but observed negative).">
+                <Tooltip title="The confusion matrix shows the number of True Negatives (predicted negative, observed negative), True Positives (predicted positive, observed positive), False Negatives (predicted negative, but observed positive) and False Positives (predicted positive, but observed negative). For different cutoff values, you will get a different number of False Positives and False Negatives. This plot allows you to find the optimal cutoff.">
                   <Button type="link" icon={<QuestionOutlined />} />
                 </Tooltip>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                 <Form.Item name="slider" label="Cutoff" style={{ marginLeft: '50px', marginRight: '50px', marginBottom: '10px' }}>
                   <div style={{ width: '100%', display: 'inline-block', alignItems: 'center' }}>
-                    <Slider
-                      marks={{
-                        0.01: '0.01',
-                        0.25: '0.25',
-                        0.50: '0.50',
-                        0.75: '0.75',
-                        0.99: '0.99',
-                      }}
-                      min={0.01}
-                      max={0.99}
-                      step={0.01}
-                      value={cutoff}
-                      defaultValue={cutoff}
-                      onChange={(value) => this.handleCutoffChange(value)}
-                    />
+                    <Tooltip title="Download plot as png">
+                      <Slider
+                        marks={{
+                          0.01: '0.01',
+                          0.25: '0.25',
+                          0.50: '0.50',
+                          0.75: '0.75',
+                          0.99: '0.99',
+                        }}
+                        min={0.01}
+                        max={0.99}
+                        step={0.01}
+                        value={cutoff}
+                        defaultValue={cutoff}
+                        onChange={(value) => this.handleCutoffChange(value)}
+                      />
+                    </Tooltip>
                   </div>
                 </Form.Item>
                 <div style={{ display: 'flex', justifyContent: 'center', width: '100%', flex: 1, flexWrap: 'wrap' }}>

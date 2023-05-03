@@ -28,6 +28,12 @@ def retrain_model(train_data_path, test_data_path, result_path, nb_epoch_cnn, nb
                        batch_size_cnn=batch_size_cnn, batch_size_sae=batch_size_sae, datenow=d)
     print("Prediction - test")
     y_pred = cnn.predict(x_test)
+    print(y_pred)
+    y_pred = y_pred.flatten()
+    true_labels = test_data['malware']
+    df = pd.DataFrame({'prediction': y_pred, 'true_label': true_labels})
+    df.to_csv(f'{result_path}/predictions.csv', index=False, header=False)
+    #pd.DataFrame(y_pred).to_csv(f'{result_path}/predictions.csv', index=False)
     y_pred = numpy.transpose(np.round(y_pred)).reshape(y_pred.shape[0], )
 
     print("Metrics")
@@ -40,9 +46,9 @@ def retrain_model(train_data_path, test_data_path, result_path, nb_epoch_cnn, nb
 
     preds = np.array([y_pred]).T
     res = np.append(x_test, preds, axis=1)
-    pd.DataFrame(res).to_csv(f'{result_path}/predictions.csv',
-                             index=False,
-                             header=test_data.columns)
+    #pd.DataFrame(res).to_csv(f'{result_path}/predictions.csv',
+    #                         index=False,
+    #                         header=test_data.columns)
     print('Going to save model')
     cnn.save(f'{result_path}/model.h5')
 

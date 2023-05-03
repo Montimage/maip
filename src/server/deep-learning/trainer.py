@@ -8,6 +8,7 @@ from tools import saveConfMatrix, saveScores, dataScale_cnn
 from sae_cnn import trainSAE_CNN
 import timeit
 import os
+from sklearn.inspection import permutation_importance
 
 def train_model(train_data_path, test_data_path, result_path, nb_epoch_cnn, nb_epoch_sae,batch_size_cnn, batch_size_sae):
     train_data = pd.read_csv(train_data_path, delimiter=",")
@@ -31,7 +32,12 @@ def train_model(train_data_path, test_data_path, result_path, nb_epoch_cnn, nb_e
     # cnn.save(f'{result_path}/model.h5')
     print("Prediction - test")
     y_pred = cnn.predict(x_test)
-    # print(y_pred)
+    print(y_pred)
+    y_pred = y_pred.flatten()
+    true_labels = test_data['malware']
+    df = pd.DataFrame({'prediction': y_pred, 'true_label': true_labels})
+    df.to_csv(f'{result_path}/predictions.csv', index=False, header=False)
+    
     # apply sigmoid to convert output to probability for both classes
     y_prob = 1 / (1 + np.exp(-y_pred))
     y_prob = np.hstack((1 - y_prob, y_prob))  # stack probabilities for both classes horizontally
@@ -40,10 +46,14 @@ def train_model(train_data_path, test_data_path, result_path, nb_epoch_cnn, nb_e
     df.to_csv(f'{result_path}/predicted_probabilities.csv', index=False)
     y_pred = numpy.transpose(np.round(y_pred)).reshape(y_pred.shape[0], )
 
+    #result = permutation_importance(cnn, x_test, y_test, n_repeats=1, random_state=0)
+    #print(result.importances_mean)
+
     print("Metrics")
     # print(y_pred)
     # print(y_test)
 
+    """
     print(classification_report(y_test, y_pred))
     saveConfMatrix(y_true=y_test, y_pred=y_pred,
                    filepath_csv=f'{result_path}/conf_matrix_sae_test-cnn.csv',
@@ -56,6 +66,7 @@ def train_model(train_data_path, test_data_path, result_path, nb_epoch_cnn, nb_e
     pd.DataFrame(res).to_csv(f'{result_path}/predictions.csv',
                              index=False,
                              header=test_data.columns)
+    """
     print('Going to save model')
     cnn.save(f'{result_path}/model.h5')
 
@@ -68,6 +79,27 @@ def train_model(train_data_path, test_data_path, result_path, nb_epoch_cnn, nb_e
     with open(statsfile, "w") as f:
       f.write(str(time_taken))
       f.close()
+
+"""
+    # Get the predicted classes
+    #y_pred_classes = np.argmax(y_pred, axis=1)
+    y_pred_classes = np.argmax(y_pred.reshape(-1, 2), axis=1)
+
+    # Get the true classes
+    #y_true = np.argmax(y_test, axis=1)
+    y_true = np.argmax(y_test.reshape(-1, 2), axis=1)
+
+    # Create a list of predicted and true values for each sample
+    y_values = []
+    for i in range(len(y_pred_classes)):
+        y_values.append([y_pred_classes[i], y_true[i]])
+
+    # Convert the list into a numpy array
+    y_values = np.array(y_values)
+
+    # Print the first 10 samples
+    print(y_values[:10])
+"""
 
     # sending the results
     # producer = KafkaProducer(bootstrap_servers=['localhost:9092'])

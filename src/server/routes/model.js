@@ -194,6 +194,21 @@ router.get('/:modelId/probabilities', (req, res, next) => {
   });
 });
 
+// TODO: combine 'predictions.csv' and 'predicted_probabilities.csv' into 1 csv file ???
+router.get('/:modelId/predictions', (req, res, next) => {
+  const { modelId } = req.params;
+  readTextFile(`${TRAINING_PATH}${modelId.replace('.h5', '')}/results/predictions.csv`, (err, predictions) => {
+    if (err) {
+      res.status(401).send(`The predictions file of model ${modelId} does not exist`);
+      return;
+    } else {
+      res.send({
+        predictions: predictions,
+      });  
+    }
+  });
+});
+
 router.put('/:modelId', (req, res, next) => {
   const { modelId } = req.params;
   const { newModelId } = req.body;
