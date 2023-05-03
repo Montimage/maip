@@ -4,7 +4,7 @@ import LayoutPage from './LayoutPage';
 import { getLastPath } from "../utils";
 import { Divider, Form, Slider, Switch, Table, Col, Row, Button, Tooltip } from 'antd';
 import { QuestionOutlined, CameraOutlined } from "@ant-design/icons";
-import { Heatmap } from '@ant-design/plots';
+import { Heatmap, Column } from '@ant-design/plots';
 import Papa from "papaparse";
 import {
   requestModel,
@@ -36,6 +36,7 @@ class MetricsPage extends Component {
       stats: [],
       predictions: [],
       confusionMatrix: [],
+      classificationData: [],
       cutoff: 0.5,
     }
   }
@@ -102,6 +103,41 @@ class MetricsPage extends Component {
     ];
 
     this.setState({ stats: stats });
+
+    const classificationData = [
+      {
+        "cutoff": "Below cutoff",
+        "class": "Normal traffic",
+        "value": TN
+      },
+      {
+        "cutoff": "Below cutoff",
+        "class": "Malware traffic",
+        "value": FP
+      },
+      {
+        "cutoff": "Above cutoff",
+        "class": "Normal traffic",
+        "value": FN
+      },
+      {
+        "cutoff": "Above cutoff",
+        "class": "Malware traffic",
+        "value": TP
+      },
+      {
+        "cutoff": "Total",
+        "class": "Normal traffic",
+        "value": (TN + FN)
+      },
+      {
+        "cutoff": "Total",
+        "class": "Malware traffic",
+        "value": (TP + FP)
+      },
+    ];    
+
+    this.setState({ classificationData: classificationData });
   }
 
   handleCutoffChange(value) {
@@ -122,9 +158,11 @@ class MetricsPage extends Component {
       predictions,
       confusionMatrix,
       stats,
+      classificationData,
     } = this.state;
     console.log(`cutoff: ${cutoff}`);
     console.log(stats);
+    console.log(classificationData);
 
     const columnsTableStats = [
       {
@@ -215,6 +253,39 @@ class MetricsPage extends Component {
       },
     };
 
+    const configClassification = {
+      data: classificationData,
+      xField: 'cutoff',
+      yField: 'value',
+      seriesField: 'class',
+      isPercent: true,
+      isStack: true,
+      meta: {
+        value: {
+          min: 0,
+          max: 1,
+        },
+      },
+      label: {
+        position: 'middle',
+        content: (item) => {
+          return `${(item.value * 100).toFixed(2)}%`;
+        },
+        style: {
+          fill: '#fff',
+        },
+      },
+      tooltip: false,
+      interactions: [
+        {
+          type: 'element-highlight-by-color',
+        },
+        {
+          type: 'element-link',
+        },
+      ],
+    };
+
     return (
       <LayoutPage pageTitle="Accountability & Resilience Metrics" pageSubTitle={`Model ${modelId}`}>
         <Divider orientation="left">
@@ -249,7 +320,7 @@ class MetricsPage extends Component {
                 </Tooltip>
               </div>
               {dataStats && <Table columns={columnsTableStats} dataSource={dataStats} pagination={false}
-               style={{marginTop: '20px'}} />}
+               style={{marginTop: '11px'}} />}
             </div>
           </Col>
           <Col className="gutter-row" span={12}>
@@ -261,10 +332,21 @@ class MetricsPage extends Component {
                 </Tooltip>
               </div>
               <div style={{ display: 'flex', justifyContent: 'center', width: '100%', flex: 1, flexWrap: 'wrap', marginTop: '20px' }}>
-                <div style={{ position: 'relative', height: '360px', width: '100%', maxWidth: '430px' }}>
+                <div style={{ position: 'relative', height: '320px', width: '100%', maxWidth: '390px' }}>
                   <Heatmap {...config} />
                 </div>
               </div>
+            </div>
+          </Col>
+          <Col className="gutter-row" span={12} style={{ marginTop: "24px" }}>
+            <div style={style}>
+              <h2>&nbsp;&nbsp;&nbsp;Classification Plot</h2>
+              <div style={{ position: 'absolute', top: 10, right: 10 }}>
+                <Tooltip title="This plot shows the fraction of each class above and below the cutoff.">
+                  <Button type="link" icon={<QuestionOutlined />} />
+                </Tooltip>
+              </div>
+              <Column {...configClassification} style={{ margin: '20px' }}/>
             </div>
           </Col>
           <Col className="gutter-row" span={12} style={{ marginTop: "24px" }}>
@@ -283,6 +365,8 @@ class MetricsPage extends Component {
             </div>
           </Col>
         </Row>
+
+
       </LayoutPage>
     );
   }

@@ -33,7 +33,6 @@ def retrain_model(train_data_path, test_data_path, result_path, nb_epoch_cnn, nb
     true_labels = test_data['malware']
     df = pd.DataFrame({'prediction': y_pred, 'true_label': true_labels})
     df.to_csv(f'{result_path}/predictions.csv', index=False, header=False)
-    #pd.DataFrame(y_pred).to_csv(f'{result_path}/predictions.csv', index=False)
     y_pred = numpy.transpose(np.round(y_pred)).reshape(y_pred.shape[0], )
 
     print("Metrics")
