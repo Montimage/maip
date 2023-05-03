@@ -11,7 +11,7 @@ import {
 } from "../utils";
 import { Button, Tooltip, Select, Col, Row, Table } from 'antd';
 import Papa from "papaparse";
-import { Heatmap, Bar, Scatter, Histogram } from '@ant-design/plots';
+import { Heatmap, Bar, Scatter, Histogram, Mix } from '@ant-design/plots';
 
 const {
   SERVER_URL,
@@ -23,6 +23,8 @@ const style = {
   padding: '10px 0',
   border: '1px solid black',
 };
+
+// TODO: scatter plot is a straight line if features on the x-axis and y-axis are similar ???
 
 function median(data) {
   const sortedData = data.slice().sort((a, b) => a - b);
@@ -174,7 +176,44 @@ class DatasetPage extends Component {
     //console.log(histogramData);
     const data = histogramData.map((d) => ({ value: d.value }));
     const binWidth = selectBinWidth(histogramData, binWidthChoice);
-    
+
+    // WIP: compute average values of histogram bins    
+    const minValue = histogramData.reduce((min, d) => d.value < min ? d.value : min, Number.MAX_VALUE);
+    const maxValue = histogramData.reduce((max, d) => d.value > max ? d.value : max, Number.MIN_VALUE);
+    const numBins = Math.ceil((maxValue - minValue) / binWidth);
+    // Create bins
+    const bins = [];
+    for (let i = 0; i < numBins; i++) {
+      const bin = {
+        values: [],
+        average: 0,
+      };
+      bin.start = minValue + i * binWidth;
+      bin.end = bin.start + binWidth;
+      bins.push(bin);
+    }
+
+    // Assign data points to bins
+    histogramData.forEach((d) => {
+      const value = d.value;
+      for (let i = 0; i < numBins; i++) {
+        const bin = bins[i];
+        if (value >= bin.start && value < bin.end) {
+          bin.values.push(value);
+          break;
+        }
+      }
+    });
+
+    // Compute average value of each bin
+    bins.forEach((bin) => {
+      const sum = bin.values.reduce((a, b) => a + b, 0);
+      bin.average = sum / bin.values.length;
+      
+    });
+    const binAverages = bins.map((bin) => bin.average);
+    console.log(binAverages);
+
     const config = {
       data,
       binField: 'value',
@@ -196,6 +235,7 @@ class DatasetPage extends Component {
           type: 'element-highlight',
         },
       ],
+      // TODO: how to display average of bins on the plot ?
       // TODO: update color of bars width small values to make them visible ?
     };
 
