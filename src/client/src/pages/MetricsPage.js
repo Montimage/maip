@@ -37,7 +37,8 @@ class MetricsPage extends Component {
       predictions: [],
       confusionMatrix: [],
       classificationData: [],
-      cutoff: 0.5,
+      cutoffProb: 0.5,
+      cutoffPercentile: 0.5,
     }
   }
 
@@ -65,11 +66,11 @@ class MetricsPage extends Component {
   }
 
   updateConfusionMatrix() {
-    const { predictions, cutoff } = this.state;
-    const TP = predictions.filter((d) => d.trueLabel === 1 && d.prediction >= cutoff).length;
-    const FP = predictions.filter((d) => d.trueLabel === 0 && d.prediction >= cutoff).length;
-    const TN = predictions.filter((d) => d.trueLabel === 0 && d.prediction < cutoff).length;
-    const FN = predictions.filter((d) => d.trueLabel === 1 && d.prediction < cutoff).length;
+    const { predictions, cutoffProb } = this.state;
+    const TP = predictions.filter((d) => d.trueLabel === 1 && d.prediction >= cutoffProb).length;
+    const FP = predictions.filter((d) => d.trueLabel === 0 && d.prediction >= cutoffProb).length;
+    const TN = predictions.filter((d) => d.trueLabel === 0 && d.prediction < cutoffProb).length;
+    const FN = predictions.filter((d) => d.trueLabel === 1 && d.prediction < cutoffProb).length;
     const confusionMatrix = [
       [TP, FP],
       [FN, TN],
@@ -106,32 +107,32 @@ class MetricsPage extends Component {
 
     const classificationData = [
       {
-        "cutoff": "Below cutoff",
+        "cutoffProb": "Below cutoff",
         "class": "Normal traffic",
         "value": TN
       },
       {
-        "cutoff": "Below cutoff",
+        "cutoffProb": "Below cutoff",
         "class": "Malware traffic",
         "value": FP
       },
       {
-        "cutoff": "Above cutoff",
+        "cutoffProb": "Above cutoff",
         "class": "Normal traffic",
         "value": FN
       },
       {
-        "cutoff": "Above cutoff",
+        "cutoffProb": "Above cutoff",
         "class": "Malware traffic",
         "value": TP
       },
       {
-        "cutoff": "Total",
+        "cutoffProb": "Total",
         "class": "Normal traffic",
         "value": (TN + FN)
       },
       {
-        "cutoff": "Total",
+        "cutoffProb": "Total",
         "class": "Malware traffic",
         "value": (TP + FP)
       },
@@ -140,10 +141,37 @@ class MetricsPage extends Component {
     this.setState({ classificationData: classificationData });
   }
 
-  handleCutoffChange(value) {
-    this.setState({ cutoff: value }, () => {
+  handleCutoffProbChange(value) {
+    this.setState({ cutoffProb: value }, () => {
       this.updateConfusionMatrix();
     });
+  }
+
+  computeCutoff(predictions) {
+    const { cutoffPercentile } = this.state;
+
+    // sort the predictions in descending order
+    const sortedPredictions = predictions
+      .map((p, i) => [p, i])
+      .sort((a, b) => b[0].prediction - a[0].prediction);
+    console.log(sortedPredictions);
+
+    // get the index of the prediction that corresponds to the cutoff percentile
+    const index = Math.floor((cutoffPercentile / 100) * sortedPredictions.length);
+    console.log(index);
+    console.log(sortedPredictions[index][0].prediction);
+
+    // return the prediction probability at that index
+    return sortedPredictions[index][0].prediction;
+  }
+
+  handleCutoffPercentileChange(value) {
+    const { predictions } = this.state;
+    this.setState({ cutoffPercentile: value });
+    const cutoffProb = this.computeCutoff(predictions);
+    console.log(cutoffProb);
+    //this.setState({ cutoffProb });
+    //this.updateConfusionMatrix();
   }
 
   render() {
@@ -154,13 +182,15 @@ class MetricsPage extends Component {
     let modelId = getLastPath();
 
     const { 
-      cutoff,
+      cutoffProb,
+      cutoffPercentile,
       predictions,
       confusionMatrix,
       stats,
       classificationData,
     } = this.state;
-    console.log(`cutoff: ${cutoff}`);
+    console.log(`cutoffProb: ${cutoffProb}`);
+    console.log(`cutoffPercentile: ${cutoffPercentile}`);
     console.log(stats);
     console.log(classificationData);
 
@@ -255,7 +285,7 @@ class MetricsPage extends Component {
 
     const configClassification = {
       data: classificationData,
-      xField: 'cutoff',
+      xField: 'cutoffProb',
       yField: 'value',
       seriesField: 'class',
       isPercent: true,
@@ -304,9 +334,28 @@ class MetricsPage extends Component {
               min={0.01}
               max={0.99}
               step={0.01}
-              value={cutoff}
-              defaultValue={cutoff}
-              onChange={(value) => this.handleCutoffChange(value)}
+              value={cutoffProb}
+              defaultValue={cutoffProb}
+              onChange={(value) => this.handleCutoffProbChange(value)}
+            />
+          </div>
+        </Form.Item>
+        <Form.Item name="slider" label="Cutoff percentile of samples" style={{ marginLeft: '50px', marginRight: '50px', marginBottom: '10px' }}>
+          <div style={{ width: '100%', display: 'inline-block', alignItems: 'center' }}>
+            <Slider
+              marks={{
+                0.01: '0.01',
+                0.25: '0.25',
+                0.50: '0.50',
+                0.75: '0.75',
+                0.99: '0.99',
+              }}
+              min={0.01}
+              max={0.99}
+              step={0.01}
+              value={cutoffPercentile}
+              defaultValue={cutoffPercentile}
+              onChange={(value) => this.handleCutoffPercentileChange(value)}
             />
           </div>
         </Form.Item>
