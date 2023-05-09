@@ -2,13 +2,17 @@ import React, { Component, useState } from 'react';
 import LayoutPage from './LayoutPage';
 import { getLastPath, getQuery } from "../utils";
 import { connect } from "react-redux";
-import { Spin, Button, InputNumber, Space, Form, Input, Select, Checkbox } from 'antd';
+import { message, Upload, Spin, Button, InputNumber, Space, Form, Input, Select, Checkbox } from 'antd';
+import { UploadOutlined } from "@ant-design/icons";
 import { Collapse } from 'antd';
 import {
   requestBuildModel,
   requestBuildStatus,
   requestAllReports,
 } from "../actions";
+import {
+  SERVER_URL,
+} from "../constants";
 import { useNavigate } from "react-router";
 
 const { Panel } = Collapse;
@@ -29,7 +33,9 @@ class BuildPage extends Component {
     super(props);
     this.state = {
       attackDataset: "",
+      attackPcap: "",
       normalDataset: "",
+      normalPcap: "",
       training_ratio: 0.7,
       training_parameters: {
         nb_epoch_cnn: 2,
@@ -82,11 +88,53 @@ class BuildPage extends Component {
     const { reports } = this.props;
     //console.log(reports);
 
+    const props = {
+      beforeUpload: (file) => {
+        const isPCAP = file.name.endsWith('.pcap');
+        console.log(file.name.endsWith('.pcap'));
+        if (!isPCAP) {
+          message.error(`${file.name} is not a pcap file`);
+        }
+        return isPCAP ? true : Upload.LIST_IGNORE;
+      },
+      // TODO: fix bugs ?
+      onChange: async (info) => {
+        const { status, response, name } = info.file;
+        console.log({ status, response, name });
+
+        if (status === 'done') {
+          const formData = new FormData();
+          formData.append('fileName', name);
+          formData.append('file', info.file.originFileObj);
+
+          try {
+            const response = await fetch(`{SERVER_URL}/api/mmt/upload`, {
+              method: 'POST',
+              body: formData,
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              console.log(data);
+            } else {
+              const error = await response.text();
+              console.error(error);
+            }
+          } catch (error) {
+            console.error(error);
+          }
+        } else if (status === 'error') {
+          console.error('File upload failed');
+        }
+      },
+    };
+
     const reportsOptions = reports ? reports.map(report => ({
       value: report,
       label: report,
     })) : [];
 
+    // TODO: disable button Upload pcaps if users selected already datasets and vice versa
     return (
       <LayoutPage pageTitle="Build Models" pageSubTitle="">
         <Form
@@ -94,7 +142,9 @@ class BuildPage extends Component {
           style={{
             maxWidth: 700,
           }}>
-          <Form.Item label="Attack Dataset" name="attackDataset"
+          <Form.Item
+            label="Attack Dataset"
+            name="attackDataset"
             rules={[
               {
                 required: true,
@@ -104,11 +154,20 @@ class BuildPage extends Component {
           >
             <Select
               placeholder="Select an attack dataset"
+              showSearch allowClear
               value={this.state.attackDataset}
-              onChange={value => this.setState({ attackDataset: value })}
+              onChange={(value) => {
+                this.setState({ attackDataset: value });
+              }}
               options={reportsOptions}
             />
+            <Upload {...props}>
+              <Button icon={<UploadOutlined />} style={{ marginTop: '5px' }}>
+                Upload pcaps only
+              </Button>
+            </Upload>
           </Form.Item>
+
           <Form.Item label="Normal Dataset" name="normalDataset"
             rules={[
               {
@@ -117,12 +176,19 @@ class BuildPage extends Component {
               },
             ]}
           >
+            <div>
             <Select
               placeholder="Select a normal dataset"
               value={this.state.normalDataset}
               onChange={value => this.setState({ normalDataset: value })}
               options={reportsOptions}
             />
+            <Upload {...props}>
+              <Button icon={<UploadOutlined />} style={{ marginTop: '5px' }}>
+                Upload pcaps only
+              </Button>
+            </Upload>
+            </div>
           </Form.Item>
           <Form.Item label="Training Ratio" name="training_ratio">
             <InputNumber
@@ -187,6 +253,7 @@ class BuildPage extends Component {
           <div style={{ textAlign: 'center' }}>
             <Button
               style={{ marginTop: '16px' }}
+              disabled={!this.state.attackDataset || !this.state.normalDataset}
               onClick={() => {
                 this.handleButtonBuild(this.state);
                 const { 
