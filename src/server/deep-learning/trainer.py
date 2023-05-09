@@ -40,9 +40,9 @@ def train_model(train_data_path, test_data_path, result_path, nb_epoch_cnn, nb_e
 
     # apply sigmoid to convert output to probability for both classes
     y_prob = 1 / (1 + np.exp(-y_pred))
-    y_prob = np.hstack((1 - y_prob, y_prob))  # stack probabilities for both classes horizontally
-    # assuming y_prob is a numpy array of predicted probabilities
-    df = pd.DataFrame(y_prob, columns=['Normal_prob', 'Malware_prob'])
+    df = pd.DataFrame(
+        {'Malware_prob': y_prob, 'Normal_prob': 1 - y_prob},
+        columns=['Normal_prob', 'Malware_prob'])
     df.to_csv(f'{result_path}/predicted_probabilities.csv', index=False)
     y_pred = numpy.transpose(np.round(y_pred)).reshape(y_pred.shape[0], )
 

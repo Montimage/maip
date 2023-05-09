@@ -6,7 +6,9 @@ from pathlib import Path
 from trafficToFeature import trafficToFeatures
 from createDatasetMMT import createTrainTestSet
 from trainer import train_model
-deepLearningPath = os.path.join(Path.cwd(),'deep-learning/')
+#deepLearningPath = os.path.join(Path.cwd(),'deep-learning/')
+# TODO: remove hardcode
+deepLearningPath = "/Users/strongcourage/maip-app/src/server/deep-learning"
 
 def prepare_training_location(buildId):
   print('Prepare training locations: ', deepLearningPath)

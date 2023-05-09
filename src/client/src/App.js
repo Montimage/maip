@@ -25,6 +25,7 @@ import XAILimePage from "./pages/XAILimePage";
 import XAIShapPage from "./pages/XAIShapPage";
 import MetricsPage from "./pages/MetricsPage";
 import MetricsTestPage from "./pages/MetricsTestPage";
+import ScatterPage from "./pages/ScatterPage";
 
 function App() {
   return (
@@ -42,13 +43,13 @@ function App() {
             <Route path="/models/:modelId" element={<ModelPage />}/> 
             <Route path="/build" element={<BuildPage />}/>
             <Route path="/retrain/:modelId" element={<RetrainPage />}/>
-            <Route path="/datasets" element={<DatasetListPage />}/>
             <Route path="/datasets/:modelId/:datasetType" element={<DatasetPage />}/>
             <Route path="/xai/test/:modelId" element={<XAITestPage />}/>
             <Route path="/xai/shap/:modelId" element={<XAIShapPage />}/>
             <Route path="/xai/lime/:modelId" element={<XAILimePage />}/>
             <Route path="/metrics/:modelId" element={<MetricsPage />}/>
             <Route path="/metrics/test" element={<MetricsTestPage />}/>
+            <Route path="/scatter" element={<ScatterPage />}/>
           </Routes>
           <MAIPFooter />
         </Layout>

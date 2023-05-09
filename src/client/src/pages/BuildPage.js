@@ -43,7 +43,7 @@ class BuildPage extends Component {
   }
 
   componentDidMount() {
-    this.props.fetchBuildModel();
+    //this.props.fetchBuildModel();
     this.props.fetchAllReports();
     //this.props.fetchBuildStatus();
   }
