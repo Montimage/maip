@@ -9,6 +9,7 @@ import {
   LineChartOutlined, SolutionOutlined, BugOutlined, ExperimentOutlined,
   HourglassOutlined, RestOutlined, QuestionOutlined, CopyOutlined, HighlightOutlined
 } from '@ant-design/icons';
+import { Heatmap } from '@ant-design/plots';
 import {
   requestAllModels,
   requestDeleteModel,
@@ -29,6 +30,26 @@ const style = {
   padding: '10px 0',
   border: '1px solid black',
 };
+
+const criteriaList = [
+  "Build Configuration",
+  "Model Performance",
+  "Confusion Matrix",
+];
+
+const columnsTableBuildConfigs = [
+  {
+    title: 'Parameter',
+    dataIndex: 'parameter',
+    key: 'parameter',
+  },
+  {
+    title: 'Value',
+    dataIndex: 'value',
+    key: 'value',
+  },
+];
+
 
 const columnsTableStats = [
   {
@@ -67,19 +88,23 @@ function removeCsvPath(buildConfig) {
   };
 }
 
+// TODO: add Grouped Column plot to compare model performance of 2 models?
+
 class ModelListPage extends Component {
   constructor(props) {
     super(props);
     this.state = {
       models: [],
-      stats: [],
-      predictions: [],
-      dataStats: [],
-      criteria: "",
+      dataStatsLeft: [],
+      dataStatsRight: [],
       selectedModelLeft: null,
       selectedModelRight: null,
+      buildConfigLeft: null,
+      buildConfigRight: null,
+      cmConfigLeft: null,
+      cmConfigRight: null,
+      selectedOption: null,
       selectedCriteria: null,
-      selectedOption: null, // if "", don't see placeholder
     };
   }
 
@@ -88,13 +113,7 @@ class ModelListPage extends Component {
   }
 
   loadPredictions = async (modelId, isLeft) => {
-    console.log(modelId);
-    if (isLeft) {
-      this.setState({ selectedModelLeft: modelId });
-    } else {
-      this.setState({ selectedModelRight: modelId });
-    }
-    
+    console.log(modelId);    
     const predictionsResponse = await fetch(`${SERVER_URL}/api/models/${modelId}/predictions`, {
       method: 'GET',
     });
@@ -115,8 +134,6 @@ class ModelListPage extends Component {
       [TP, FP],
       [FN, TN],
     ];
-
-    this.setState({ confusionMatrix });
 
     const accuracy = (TP + TN) / (TP + TN + FP + FN);
     const precision = TP / (TP + FP);
@@ -143,10 +160,6 @@ class ModelListPage extends Component {
       [accuracy],
     ];
 
-    this.setState({ stats: stats });
-
-    //this.setState({ predictions }, this.updateConfusionMatrix);
-
     const statsStr = stats.map((row, i) => `${i},${row.join(',')}`).join('\n');
     const rowsStats = statsStr.split('\n').map(row => row.split(','));
     const headerStats = ["precision", "recall", "f1score", "support"];
@@ -172,6 +185,83 @@ class ModelListPage extends Component {
     } else {
       this.setState({ dataStatsRight: dataStats });
     }
+
+    const cmStr = confusionMatrix.map((row, i) => `${i},${row.join(',')}`).join('\n');
+    const headers = ["Normal traffic", "Malware traffic"];
+    const rows = cmStr.trim().split('\n');
+    const data = rows.flatMap((row, i) => {
+      const cols = row.split(',');
+      const rowTotal = cols.slice(1).reduce((acc, val) => acc + Number(val), 0);
+      return cols.slice(1).map((val, j) => ({
+        actual: headers[i],
+        predicted: headers[j],
+        count: Number(val),
+        percentage: `${((Number(val) / rowTotal) * 100).toFixed(2)}%`,
+      }));
+    });
+
+    const config = {
+      data: data,
+      forceFit: true,
+      xField: 'predicted',
+      yField: 'actual',
+      colorField: 'count',
+      shape: 'square',
+      tooltip: false,
+      xAxis: { title: { style: { fontSize: 20 }, text: 'Predicted', } },
+      yAxis: { title: { style: { fontSize: 20 }, text: 'Observed', } },
+      label: {
+        visible: true,
+        position: 'middle',
+        style: {
+          fontSize: '18',
+        },
+        formatter: (datum) => {
+          return `${datum.count}\n(${datum.percentage})`;
+        },
+      },
+      heatmapStyle: {
+        padding: 0,  
+        stroke: '#fff',
+        lineWidth: 1,
+      },
+    };
+
+    const { models } = this.props;
+    const model = models.find((modelId) => modelId === modelId);
+    const modelBuildConfig = removeCsvPath(model.buildConfig);
+    //console.log(modelBuildConfig);
+
+    const { datasets, training_ratio, training_parameters } = modelBuildConfig;
+
+    const dataBuildConfig = [
+      ...datasets.map(({ csvPath, isAttack }) => ({
+        parameter: isAttack ? 'attack dataset' : 'normal dataset',
+        value: csvPath,
+      })),
+      { parameter: 'training ratio', value: training_ratio },
+      ...Object.entries(training_parameters).map(([parameter, value]) => ({
+        parameter: parameter,
+        value: value,
+      })),
+    ];
+    //console.log(dataBuildConfig);
+
+    if (isLeft) {
+      this.setState({
+        selectedModelLeft: modelId,
+        dataBuildConfigLeft: dataBuildConfig,
+        dataStatsLeft: dataStats,
+        cmConfigLeft: config,
+      });
+    } else {
+      this.setState({
+        selectedModelRight: modelId,
+        dataBuildConfigRight: dataBuildConfig,
+        dataStatsRight: dataStats,
+        cmConfigRight: config,
+      });
+    }
   }
 
   render() {
@@ -187,11 +277,14 @@ class ModelListPage extends Component {
       selectedCriteria,
       selectedModelLeft,
       selectedModelRight,
+      dataBuildConfigLeft,
+      dataBuildConfigRight,
       dataStatsLeft,
       dataStatsRight,
+      cmConfigLeft,
+      cmConfigRight,
     } = this.state;
-    console.log(models);
-    //console.log(predictions);
+    //console.log(models);
 
     if (!models) {
       console.error("No models")
@@ -204,11 +297,6 @@ class ModelListPage extends Component {
       }
       this.setState({ selectedOption: null });
     };
-
-    const criteriaList = [
-      "Mode Performance",
-      "Confusion Matrix",
-    ];
 
     const modelIds = models.map((model) => model.modelId);
     console.log(modelIds);
@@ -442,25 +530,7 @@ class ModelListPage extends Component {
                   onChange={(modelId) => this.loadPredictions(modelId, true)}
                   optionFilterProp="children"
                   filterOption={(input, option) => (option?.value ?? '').includes(input)}
-                  style={{ width: 350, marginTop: '10px' }}
-                >
-                  {modelIds.map((modelId) => (
-                    <Option key={modelId} value={modelId}>
-                      {modelId}
-                    </Option>
-                  ))}
-                </Select>
-              </Tooltip>
-            </Col>
-            <Col className="gutter-row" span={8} style={{ display: 'flex', justifyContent: 'center' }}>
-              <Tooltip title="Select a model to compare.">
-                <Select
-                  showSearch allowClear
-                  placeholder="Select a model"
-                  onChange={(modelId) => this.loadPredictions(modelId, false)}
-                  optionFilterProp="children"
-                  filterOption={(input, option) => (option?.value ?? '').includes(input)}
-                  style={{ width: 350, marginTop: '10px' }}
+                  style={{ width: 350, marginTop: '15px', marginBottom: '15px' }}
                 >
                   {modelIds.map((modelId) => (
                     <Option key={modelId} value={modelId}>
@@ -478,7 +548,7 @@ class ModelListPage extends Component {
                   onChange={(criteria) => this.setState({ selectedCriteria: criteria })}
                   optionFilterProp="children"
                   filterOption={(input, option) => (option?.value ?? '').includes(input)}
-                  style={{ width: 350, marginTop: '10px' }}
+                  style={{ width: 350, marginTop: '15px', marginBottom: '15px' }}
                 >
                   {criteriaList.map((criteria) => (
                     <Option key={criteria} value={criteria}>
@@ -488,31 +558,83 @@ class ModelListPage extends Component {
                 </Select>
               </Tooltip>
             </Col>
+            <Col className="gutter-row" span={8} style={{ display: 'flex', justifyContent: 'center' }}>
+              <Tooltip title="Select a model to compare.">
+                <Select
+                  showSearch allowClear
+                  placeholder="Select a model"
+                  onChange={(modelId) => this.loadPredictions(modelId, false)}
+                  optionFilterProp="children"
+                  filterOption={(input, option) => (option?.value ?? '').includes(input)}
+                  style={{ width: 350, marginTop: '15px', marginBottom: '15px' }}
+                >
+                  {modelIds.map((modelId) => (
+                    <Option key={modelId} value={modelId}>
+                      {modelId}
+                    </Option>
+                  ))}
+                </Select>
+              </Tooltip>
+            </Col>
           </Row>
           <Row gutter={24}>
             <Col className="gutter-row" span={12}>
-              <div style={{marginBottom: '30px', marginTop: '10px'}}>
-                <div style={{ position: 'absolute', top: 10, right: 10 }}>
-                  <Tooltip title={`Shows a list of various model performance metrics for each class.`}>
-                    <Button type="link" icon={<QuestionOutlined />} />
-                  </Tooltip>
+              {selectedModelLeft && dataBuildConfigLeft && (selectedCriteria === "Build Configuration") &&
+                <div style={{ marginBottom: '20px', marginTop: '30px' }}>
+                  <Table columns={columnsTableBuildConfigs} dataSource={dataBuildConfigLeft} pagination={false}
+                  />
                 </div>
-                {selectedModelLeft && dataStatsLeft && (selectedCriteria === "Mode Performance") &&
-                  <Table columns={columnsTableStats} dataSource={dataStatsLeft} pagination={false}
-                 style={{marginTop: '11px'}} />}
-              </div>
+              }
             </Col>
             <Col className="gutter-row" span={12}>
-              <div style={{marginBottom: '30px', marginTop: '10px'}}>
-                <div style={{ position: 'absolute', top: 10, right: 10 }}>
-                  <Tooltip title={`Shows a list of various model performance metrics for each class.`}>
-                    <Button type="link" icon={<QuestionOutlined />} />
-                  </Tooltip>
+              {selectedModelRight && dataBuildConfigRight && (selectedCriteria === "Build Configuration") &&
+                <div style={{ marginBottom: '20px', marginTop: '30px' }}>
+                  <Table columns={columnsTableBuildConfigs} dataSource={dataBuildConfigRight} pagination={false}
+                  />
                 </div>
-                {selectedModelRight && dataStatsRight && (selectedCriteria === "Mode Performance") &&
+              }
+            </Col>
+          </Row>
+          <Row gutter={24}>
+            <Col className="gutter-row" span={12}>
+              {selectedModelLeft && dataStatsLeft && (selectedCriteria === "Model Performance") &&
+                <div style={{marginBottom: '20px', marginTop: '30px'}}>
+                  <Table columns={columnsTableStats} dataSource={dataStatsLeft} pagination={false}
+                  />
+                </div>
+              }
+            </Col>
+            <Col className="gutter-row" span={12}>
+              {selectedModelRight && dataStatsRight && (selectedCriteria === "Model Performance") &&
+                <div style={{marginBottom: '20px', marginTop: '30px'}}>
                   <Table columns={columnsTableStats} dataSource={dataStatsRight} pagination={false}
-                 style={{marginTop: '11px'}} />}
-              </div>
+                  />
+                </div>
+              }
+            </Col>
+          </Row>
+          <Row gutter={24}>
+            <Col className="gutter-row" span={12}>
+              {selectedModelRight && cmConfigLeft && (selectedCriteria === "Confusion Matrix") &&
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'center', width: '100%', flex: 1, flexWrap: 'wrap', marginTop: '40px', marginBottom: '10px' }}>
+                    <div style={{ position: 'relative', height: '320px', width: '100%', maxWidth: '390px' }}>
+                      <Heatmap {...cmConfigLeft}/>
+                    </div>
+                  </div>
+                </div>
+              }
+            </Col>
+            <Col className="gutter-row" span={12}>
+              {selectedModelRight && cmConfigRight && (selectedCriteria === "Confusion Matrix") &&
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'center', width: '100%', flex: 1, flexWrap: 'wrap', marginTop: '40px', marginBottom: '10px' }}>
+                    <div style={{ position: 'relative', height: '320px', width: '100%', maxWidth: '390px' }}>
+                      <Heatmap {...cmConfigRight}/>
+                    </div>
+                  </div>
+                </div>
+              }
             </Col>
           </Row>
         </div>
