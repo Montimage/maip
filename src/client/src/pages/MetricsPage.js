@@ -42,6 +42,8 @@ class MetricsPage extends Component {
       fprs: [], 
       tprs: [], 
       auc: 0,
+      dataPrecision: null,
+      //configPrecision: null,
     }
   }
 
@@ -69,8 +71,9 @@ class MetricsPage extends Component {
     this.updateROCAUC();
   }
 
+  // TODO: recheck this function, it works but looks weird, probably due to the given data
   updateROCAUC() {
-    const { predictions, cutoffProb } = this.state;
+    /*const { predictions, cutoffProb } = this.state;
     // Calculate true positive rate (TPR) and false positive rate (FPR) for different cutoff probabilities
     const tprs = [];
     const fprs = [];
@@ -93,7 +96,137 @@ class MetricsPage extends Component {
       auc += (fprs[i + 1] - fprs[i]) * (tprs[i + 1] + tprs[i]) / 2;
     }
 
-    this.setState({ fprs, tprs, auc });
+    this.setState({ fprs, tprs, auc });*/
+
+    const { predictions, cutoffProb } = this.state;
+    /*console.log(predictions);
+    console.log(cutoffProb);
+    const rocData = [];
+
+    const tprs = [];
+    const fprs = [];
+    const stepSize = 0.01;
+    for (let cutoffProb = 0; cutoffProb <= 1; cutoffProb += stepSize) {
+      const TP = predictions.filter((d) => d.trueLabel === 1 && d.prediction >= cutoffProb).length;
+      const FP = predictions.filter((d) => d.trueLabel === 0 && d.prediction >= cutoffProb).length;
+      const TN = predictions.filter((d) => d.trueLabel === 0 && d.prediction < cutoffProb).length;
+      const FN = predictions.filter((d) => d.trueLabel === 1 && d.prediction < cutoffProb).length;
+
+      const tpr = TP / (TP + FN);
+      const fpr = FP / (FP + TN);
+      tprs.push(tpr);
+      fprs.push(fpr);
+      rocData.push({ fpr, tpr });
+    }*/
+
+    const tprArray = []; // Array to store True Positive Rate (TPR)
+    const fprArray = []; // Array to store False Positive Rate (FPR)
+
+    for (let cutoffProb = 0; cutoffProb <= 1; cutoffProb += 0.01) {
+      let tp = 0; // True Positives
+      let fp = 0; // False Positives
+      let tn = 0; // True Negatives
+      let fn = 0; // False Negatives
+
+      for (const { prediction, trueLabel } of predictions) {
+        if (prediction >= cutoffProb) {
+          if (trueLabel === 1) {
+            tp++;
+          } else {
+            fp++;
+          }
+        } else {
+          if (trueLabel === 1) {
+            fn++;
+          } else {
+            tn++;
+          }
+        }
+      }
+
+      // Calculate True Positive Rate (TPR) and False Positive Rate (FPR)
+      const tpr = tp / (tp + fn);
+      const fpr = fp / (fp + tn);
+
+      // Add TPR and FPR to arrays
+      tprArray.push(tpr);
+      fprArray.push(fpr);
+    }
+
+    // Prepare data for the Line chart
+    const rocData = tprArray.map((tpr, index) => ({
+      fpr: fprArray[index],
+      tpr,
+    }));
+
+    this.setState({ rocData });
+    console.log(rocData);
+  }
+
+  updatePrecisionPlot() {
+    const { predictions, cutoffProb } = this.state;
+    const binSize = 0.1; // Size of each bin
+    const binThresholds = []; // Array to store the bin thresholds
+    const precisionArray = []; // Array to store the precision values
+
+    for (let binStart = 0; binStart <= 1; binStart += binSize) {
+      const binEnd = binStart + binSize;
+
+      let tp = 0; // True Positives
+      let fp = 0; // False Positives
+
+      for (const { prediction, trueLabel } of predictions) {
+        if (prediction >= binStart && prediction < binEnd) {
+          if (trueLabel === 1) {
+            tp++;
+          } else {
+            fp++;
+          }
+        }
+      }
+
+      // Calculate Precision
+      const precision = tp / (tp + fp);
+
+      // Add bin threshold and precision to arrays
+      binThresholds.push(binStart);
+      precisionArray.push(precision);
+    }
+
+    // Prepare data for the Line chart
+    const dataPrecision = binThresholds.map((threshold, index) => ({
+      threshold,
+      precision: isNaN(precisionArray[index],) ? 0 : precisionArray[index],
+    }));
+
+    console.log(dataPrecision);
+
+    const configPrecision = {
+      data: dataPrecision,
+      xField: 'threshold',
+      yField: 'precision',
+      xAxis: {
+        title: 'Threshold',
+      },
+      yAxis: {
+        title: 'Precision',
+      },
+      smooth: true,
+      lineStyle: {
+        lineWidth: 2,
+      },
+      point: {
+        size: 3,
+        shape: 'circle',
+        style: {
+          fill: '#ffffff',
+          stroke: '#1890ff',
+          lineWidth: 2,
+        },
+      },
+    };
+
+    this.setState({ dataPrecision: dataPrecision });
   }
 
   updateConfusionMatrix() {
@@ -170,11 +303,50 @@ class MetricsPage extends Component {
     ];    
 
     this.setState({ classificationData: classificationData });
+
+    const binSize = 0.1; // Size of each bin
+    const binThresholds = []; // Array to store the bin thresholds
+    const precisionArray = []; // Array to store the precision values
+
+    for (let binStart = 0; binStart <= 1; binStart += binSize) {
+      const binEnd = binStart + binSize;
+
+      let tp = 0;
+      let fp = 0;
+
+      for (const { prediction, trueLabel } of predictions) {
+        if (prediction >= binStart && prediction < binEnd) {
+          if (trueLabel === 1) {
+            tp++;
+          } else {
+            fp++;
+          }
+        }
+      }
+
+      // Calculate Precision only if the cutoffProb is within the bin range
+      const precision = (cutoffProb >= binStart && cutoffProb < binEnd) ? tp / (tp + fp) : NaN;
+
+      // Add bin threshold and precision to arrays
+      binThresholds.push(binStart);
+      precisionArray.push(precision);
+    }
+
+    // Prepare data for the Line chart
+    const dataPrecision = binThresholds.map((threshold, index) => ({
+      threshold: threshold.toFixed(1),
+      precision: isNaN(precisionArray[index],) ? 0 : precisionArray[index],
+    }));
+
+    console.log(dataPrecision);
+    this.setState({ dataPrecision: dataPrecision });
   }
 
   handleCutoffProbChange(value) {
     this.setState({ cutoffProb: value }, () => {
       this.updateConfusionMatrix();
+      this.updateROCAUC();
+      //this.updatePrecisionPlot();
     });
   }
 
@@ -190,8 +362,8 @@ class MetricsPage extends Component {
     // Retrieve the prediction value at the cutoff index
     const cutoffProb = predictions[cutoffIndex].prediction;
 
-    console.log('Cutoff Percentile of samples:', cutoffPercentile);
-    console.log('Cutoff Prediction Probability:', cutoffProb);
+    //console.log('Cutoff Percentile of samples:', cutoffPercentile);
+    //console.log('Cutoff Prediction Probability:', cutoffProb);
 
     return cutoffProb;
   }
@@ -217,7 +389,8 @@ class MetricsPage extends Component {
       confusionMatrix,
       stats,
       classificationData,
-      fprs, tprs, auc,
+      fprs, tprs, auc, rocData,
+      dataPrecision,
     } = this.state;
     console.log(`cutoffProb: ${cutoffProb}`);
     console.log(`cutoffPercentile: ${cutoffPercentile}`);
@@ -355,12 +528,40 @@ class MetricsPage extends Component {
     console.log(dataROC);
 
 
-    const configROCAUC = {
+    /*const configROCAUC = {
       data: dataROC,
       xField: 'fpr',
       yField: 'tpr',
       //seriesField: 'index',
     };
+
+    const configROCAUC1 = {
+      data: rocData,
+      xField: 'fpr',
+      yField: 'tpr',
+      xAxis: {
+        min: 0,
+        max: 1,
+      },
+      yAxis: {
+        min: 0,
+        max: 1,
+      },
+      seriesField: [],
+      smooth: true,
+      lineStyle: {
+        lineWidth: 2,
+      },
+      point: {
+        shape: 'circle',
+        size: 3,
+        style: {
+          fill: '#ffffff',
+          stroke: '#1890ff',
+          lineWidth: 2,
+        },
+      },
+    };*/
 
     // Create the ROC AUC plot configuration object
     /*const configROCAUC = {
@@ -391,7 +592,26 @@ class MetricsPage extends Component {
     //console.log(tprs);
     //console.log(auc);
 
-    
+    const configPrecision = dataPrecision
+    ? {
+        data: dataPrecision,
+        xField: 'threshold',
+        yField: 'precision',
+        smooth: true,
+        lineStyle: {
+          lineWidth: 2,
+        },
+        point: {
+          size: 3,
+          shape: 'circle',
+          style: {
+            fill: '#ffffff',
+            stroke: '#1890ff',
+            lineWidth: 2,
+          },
+        },
+      }
+    : null;
 
     return (
       <LayoutPage pageTitle="Accountability & Resilience Metrics" pageSubTitle={`Model ${modelId}`}>
@@ -484,13 +704,13 @@ class MetricsPage extends Component {
           </Col>
           <Col className="gutter-row" span={12} style={{ marginTop: "24px" }}>
             <div style={style}>
-              <h2>&nbsp;&nbsp;&nbsp;ROC AUC Plot</h2>
+              <h2>&nbsp;&nbsp;&nbsp;Precision Plot</h2>
               <div style={{ position: 'absolute', top: 10, right: 10 }}>
-                <Tooltip title={"???"}>
+                <Tooltip title={"The precision plot shows the precision values binned by equal prediction probabilities. It provides an overview of how precision changes as the prediction probability increases."}>
                   <Button type="link" icon={<QuestionOutlined />} />
                 </Tooltip>
               </div>
-              <Line {...configROCAUC} />
+              {configPrecision && <Line {...configPrecision} />}
             </div>
           </Col>
           <Col className="gutter-row" span={12} style={{ marginTop: "24px" }}>
@@ -532,8 +752,6 @@ class MetricsPage extends Component {
     );
   }
 }
-
-/*<Line {...configROCAUC} />;*/
 
 const mapPropsToStates = ({ model }) => ({
   model
