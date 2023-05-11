@@ -2,7 +2,7 @@ import React, { Component, useState } from 'react';
 import LayoutPage from './LayoutPage';
 import { getLastPath, getQuery } from "../utils";
 import { connect } from "react-redux";
-import { message, Upload, Spin, Button, InputNumber, Space, Form, Input, Select, Checkbox } from 'antd';
+import { Tooltip, message, Upload, Spin, Button, InputNumber, Space, Form, Input, Select, Checkbox } from 'antd';
 import { UploadOutlined } from "@ant-design/icons";
 import { Collapse } from 'antd';
 import {
@@ -152,15 +152,17 @@ class BuildPage extends Component {
               },
             ]}
           >
-            <Select
-              placeholder="Select an attack dataset"
-              showSearch allowClear
-              value={this.state.attackDataset}
-              onChange={(value) => {
-                this.setState({ attackDataset: value });
-              }}
-              options={reportsOptions}
-            />
+            <Tooltip title="Select MMT's analyzing reports of malware traffic.">
+              <Select
+                /*placeholder="Select an attack dataset"*/
+                showSearch allowClear
+                value={this.state.attackDataset}
+                onChange={(value) => {
+                  this.setState({ attackDataset: value });
+                }}
+                options={reportsOptions}
+              />
+            </Tooltip>
             <Upload {...props}>
               <Button icon={<UploadOutlined />} style={{ marginTop: '5px' }}>
                 Upload pcaps only
@@ -176,77 +178,87 @@ class BuildPage extends Component {
               },
             ]}
           >
-            <div>
-            <Select
-              placeholder="Select a normal dataset"
-              value={this.state.normalDataset}
-              onChange={value => this.setState({ normalDataset: value })}
-              options={reportsOptions}
-            />
+            <Tooltip title="Select MMT's analyzing reports of normal traffic.">
+              <Select
+                /*placeholder="Select a normal dataset"*/
+                value={this.state.normalDataset}
+                onChange={value => this.setState({ normalDataset: value })}
+                options={reportsOptions}
+              />
+            </Tooltip>
             <Upload {...props}>
               <Button icon={<UploadOutlined />} style={{ marginTop: '5px' }}>
                 Upload pcaps only
               </Button>
             </Upload>
-            </div>
           </Form.Item>
           <Form.Item label="Training Ratio" name="training_ratio">
-            <InputNumber
-              name="training_ratio"
-              value={this.state.training_ratio}
-              min={0} max={1} step={0.1} defaultValue={0.7}
-              onChange={(v) => this.setState({ training_ratio: v })}
-            />
+            <Tooltip title="The training ratio refers to the proportion of data used for training a machine learning model compared to the total dataset. The training ratio is 0.7, meaning 70% for training and 30% for testing/validation.">
+              <InputNumber
+                name="training_ratio"
+                value={this.state.training_ratio}
+                min={0} max={1} step={0.1} defaultValue={0.7}
+                onChange={(v) => this.setState({ training_ratio: v })}
+              />
+            </Tooltip>
           </Form.Item>
           <Collapse>
             <Panel header="Training Parameters">
               <Form.Item label="Number of Epochs (CNN)" name="nb_epoch_cnn">
-                <InputNumber
-                  name="nb_epoch_cnn"
-                  value={this.state.nb_epoch_cnn}
-                  min={1} max={1000} defaultValue={2}
-                  onChange={(v) =>
-                    this.setState({
-                      training_parameters: { ...this.state.training_parameters, nb_epoch_cnn: v },
-                    })
-                  }
-                />
+                <Tooltip title="In convolutional neural networks (CNN), the number of epochs determines how many times the model will iterate over the training data during the training process.">
+                  <InputNumber
+                    name="nb_epoch_cnn"
+                    value={this.state.nb_epoch_cnn}
+                    min={1} max={1000} defaultValue={2}
+                    onChange={(v) =>
+                      this.setState({
+                        training_parameters: { ...this.state.training_parameters, nb_epoch_cnn: v },
+                      })
+                    }
+                  />
+                </Tooltip>
               </Form.Item>
               <Form.Item label="Number of Epochs (SAE)" name="nb_epoch_sae">
-                <InputNumber
-                  name="nb_epoch_sae"
-                  value={this.state.nb_epoch_sae}
-                  min={1} max={1000} defaultValue={5}
-                  onChange={(v) =>
-                    this.setState({
-                      training_parameters: { ...this.state.training_parameters, nb_epoch_sae: v },
-                    })
-                  }
-                />
+                <Tooltip title="In Stacked Autoencoder (SAE), the number of epochs determines how many times this encoding-decoding process is repeated during training.">
+                  <InputNumber
+                    name="nb_epoch_sae"
+                    value={this.state.nb_epoch_sae}
+                    min={1} max={1000} defaultValue={5}
+                    onChange={(v) =>
+                      this.setState({
+                        training_parameters: { ...this.state.training_parameters, nb_epoch_sae: v },
+                      })
+                    }
+                  />
+                </Tooltip>
               </Form.Item>
               <Form.Item label="Batch Size (CNN)" name="batch_size_cnn">
-                <InputNumber
-                  name="batch_size_cnn"
-                  value={this.state.batch_size_cnn}
-                  min={1} max={1000} defaultValue={32}
-                  onChange={(v) =>
-                    this.setState({
-                      training_parameters: { ...this.state.training_parameters, batch_size_cnn: v },
-                    })
-                  }
-                />
+                <Tooltip title="Batch size in CNN refers to the number of samples that are processed together in a single forward and backward pass during each epoch of training. The training dataset is divided into smaller batches, and the model's parameters are updated based on the average gradients computed from each batch.">
+                  <InputNumber
+                    name="batch_size_cnn"
+                    value={this.state.batch_size_cnn}
+                    min={1} max={1000} defaultValue={32}
+                    onChange={(v) =>
+                      this.setState({
+                        training_parameters: { ...this.state.training_parameters, batch_size_cnn: v },
+                      })
+                    }
+                  />
+                </Tooltip>
               </Form.Item>
               <Form.Item label="Batch Size (SAE)" name="batch_size_sae">
-                <InputNumber
-                  name="batch_size_sae"
-                  value={this.state.batch_size_sae}
-                  min={1} max={1000} defaultValue={16}
-                  onChange={(v) =>
-                    this.setState({
-                      training_parameters: { ...this.state.training_parameters, batch_size_sae: v },
-                    })
-                  }
-                />
+                <Tooltip title="Batch size in a SAE determines the number of samples processed together in each training iteration.">
+                  <InputNumber
+                    name="batch_size_sae"
+                    value={this.state.batch_size_sae}
+                    min={1} max={1000} defaultValue={16}
+                    onChange={(v) =>
+                      this.setState({
+                        training_parameters: { ...this.state.training_parameters, batch_size_sae: v },
+                      })
+                    }
+                  />
+                </Tooltip>
               </Form.Item>
             </Panel>
           </Collapse>
