@@ -1,6 +1,6 @@
 import React, { Component } from "react";
 import { connect } from "react-redux";
-import { Tooltip, Typography, Form, Table, Space, Button, Select } from "antd";
+import { Divider, Row, Col, Tooltip, Typography, Form, Table, Space, Button, Select } from "antd";
 import { Link } from 'react-router-dom';
 import LayoutPage from "./LayoutPage";
 import Papa from "papaparse";
@@ -23,6 +23,30 @@ const {
 const { Text } = Typography;
 const { Paragraph } = Typography;
 const { Option, OptGroup } = Select;
+
+const style = {
+  //background: '#0092ff',
+  padding: '10px 0',
+  border: '1px solid black',
+};
+
+const columnsTableStats = [
+  {
+    title: 'Metric',
+    dataIndex: 'metric',
+    key: 'metric',
+  },
+  {
+    title: 'Normal traffic',
+    dataIndex: 'class0',
+    key: 'class0',
+  },
+  {
+    title: 'Malware traffic',
+    dataIndex: 'class1',
+    key: 'class1',
+  },
+];
 
 function removeCsvPath(buildConfig) {
   const updatedDatasets = buildConfig.datasets.map((dataset) => {
@@ -48,12 +72,106 @@ class ModelListPage extends Component {
     super(props);
     this.state = {
       models: [],
+      stats: [],
+      predictions: [],
+      dataStats: [],
+      criteria: "",
+      selectedModelLeft: null,
+      selectedModelRight: null,
+      selectedCriteria: null,
       selectedOption: null, // if "", don't see placeholder
     };
   }
 
   componentDidMount() {
     this.props.fetchAllModels();
+  }
+
+  loadPredictions = async (modelId, isLeft) => {
+    console.log(modelId);
+    if (isLeft) {
+      this.setState({ selectedModelLeft: modelId });
+    } else {
+      this.setState({ selectedModelRight: modelId });
+    }
+    
+    const predictionsResponse = await fetch(`${SERVER_URL}/api/models/${modelId}/predictions`, {
+      method: 'GET',
+    });
+    const predictionsData = await predictionsResponse.json();
+    const predictionsValues = predictionsData.predictions;
+    const predictions = predictionsValues.split('\n').map((d) => ({
+      prediction: parseFloat(d.split(',')[0]),
+      trueLabel: parseInt(d.split(',')[1]),
+    }));
+
+    const cutoffProb = 0.5;
+    //const { predictions } = this.state;
+    const TP = predictions.filter((d) => d.trueLabel === 1 && d.prediction >= cutoffProb).length;
+    const FP = predictions.filter((d) => d.trueLabel === 0 && d.prediction >= cutoffProb).length;
+    const TN = predictions.filter((d) => d.trueLabel === 0 && d.prediction < cutoffProb).length;
+    const FN = predictions.filter((d) => d.trueLabel === 1 && d.prediction < cutoffProb).length;
+    const confusionMatrix = [
+      [TP, FP],
+      [FN, TN],
+    ];
+
+    this.setState({ confusionMatrix });
+
+    const accuracy = (TP + TN) / (TP + TN + FP + FN);
+    const precision = TP / (TP + FP);
+    const recall = TP / (TP + FN);
+    const f1Score = (2 * precision * recall) / (precision + recall);
+
+    const precisionPositive = TP / (TP + FP);
+    const recallPositive = TP / (TP + FN);
+    const f1ScorePositive = (2 * precisionPositive * recallPositive) / (precisionPositive + recallPositive);
+    const supportPositive = TP + FN;
+
+    const precisionNegative = TN / (TN + FN);
+    const recallNegative = TN / (TN + FP);
+    const f1ScoreNegative = (2 * precisionNegative * recallNegative) / (precisionNegative + recallNegative);
+    const supportNegative = TN + FP;
+
+    //console.log({accuracy, precision, recall, f1Score});
+    //console.log({precisionPositive, recallPositive, f1ScorePositive, supportPositive});
+    //console.log({precisionNegative, recallNegative, f1ScoreNegative, supportNegative});
+
+    const stats = [
+      [precisionPositive, recallPositive, f1ScorePositive, supportPositive],
+      [precisionNegative, recallNegative, f1ScoreNegative, supportNegative],
+      [accuracy],
+    ];
+
+    this.setState({ stats: stats });
+
+    //this.setState({ predictions }, this.updateConfusionMatrix);
+
+    const statsStr = stats.map((row, i) => `${i},${row.join(',')}`).join('\n');
+    const rowsStats = statsStr.split('\n').map(row => row.split(','));
+    const headerStats = ["precision", "recall", "f1score", "support"];
+    let dataStats = [];
+    if(rowsStats.length == 3) {
+      const accuracy = parseFloat(rowsStats[2][1]);
+      dataStats = headerStats.map((metric, i) => ({
+        key: (i).toString(),
+        metric,
+        class0: +rowsStats[0][i+1],
+        class1: +rowsStats[1][i+1],
+      }));
+      dataStats.push({
+        key: '5',
+        metric: 'accuracy',
+        class0: accuracy,
+        class1: accuracy,
+      });
+    }
+
+    if (isLeft) {
+      this.setState({ dataStatsLeft: dataStats }); 
+    } else {
+      this.setState({ dataStatsRight: dataStats });
+    }
   }
 
   render() {
@@ -64,8 +182,16 @@ class ModelListPage extends Component {
       deleteModel, 
       updateModel,
     } = this.props;
-    const { selectedOption } = this.state;
+    const { 
+      selectedOption, 
+      selectedCriteria,
+      selectedModelLeft,
+      selectedModelRight,
+      dataStatsLeft,
+      dataStatsRight,
+    } = this.state;
     console.log(models);
+    //console.log(predictions);
 
     if (!models) {
       console.error("No models")
@@ -79,6 +205,13 @@ class ModelListPage extends Component {
       this.setState({ selectedOption: null });
     };
 
+    const criteriaList = [
+      "Mode Performance",
+      "Confusion Matrix",
+    ];
+
+    const modelIds = models.map((model) => model.modelId);
+    console.log(modelIds);
     const dataSource = models.map((model, index) => ({ ...model, key: index }));
     const columns = [
       {
@@ -273,7 +406,7 @@ class ModelListPage extends Component {
         },
       },
     ];
-        
+
     return (
       <LayoutPage pageTitle="Models" pageSubTitle="All the deep learning models">
         <a href={`/build`}>
@@ -295,6 +428,94 @@ class ModelListPage extends Component {
               </p>,
           }}
         />
+
+        <Divider orientation="left">
+          <h1 style={{ fontSize: '24px' }}>Compare Two Models</h1>
+        </Divider>
+        <div style={style}>
+          <Row gutter={24}>
+            <Col className="gutter-row" span={8} style={{ display: 'flex', justifyContent: 'center' }}>
+              <Tooltip title="Select a model to compare.">
+                <Select
+                  showSearch allowClear
+                  placeholder="Select a model"
+                  onChange={(modelId) => this.loadPredictions(modelId, true)}
+                  optionFilterProp="children"
+                  filterOption={(input, option) => (option?.value ?? '').includes(input)}
+                  style={{ width: 350, marginTop: '10px' }}
+                >
+                  {modelIds.map((modelId) => (
+                    <Option key={modelId} value={modelId}>
+                      {modelId}
+                    </Option>
+                  ))}
+                </Select>
+              </Tooltip>
+            </Col>
+            <Col className="gutter-row" span={8} style={{ display: 'flex', justifyContent: 'center' }}>
+              <Tooltip title="Select a model to compare.">
+                <Select
+                  showSearch allowClear
+                  placeholder="Select a model"
+                  onChange={(modelId) => this.loadPredictions(modelId, false)}
+                  optionFilterProp="children"
+                  filterOption={(input, option) => (option?.value ?? '').includes(input)}
+                  style={{ width: 350, marginTop: '10px' }}
+                >
+                  {modelIds.map((modelId) => (
+                    <Option key={modelId} value={modelId}>
+                      {modelId}
+                    </Option>
+                  ))}
+                </Select>
+              </Tooltip>
+            </Col>
+            <Col className="gutter-row" span={8} style={{ display: 'flex', justifyContent: 'center' }}>
+              <Tooltip title="Select a criteria for comparing the two selected models.">
+                <Select
+                  showSearch allowClear
+                  placeholder="Select a comparison criteria"
+                  onChange={(criteria) => this.setState({ selectedCriteria: criteria })}
+                  optionFilterProp="children"
+                  filterOption={(input, option) => (option?.value ?? '').includes(input)}
+                  style={{ width: 350, marginTop: '10px' }}
+                >
+                  {criteriaList.map((criteria) => (
+                    <Option key={criteria} value={criteria}>
+                      {criteria}
+                    </Option>
+                  ))}
+                </Select>
+              </Tooltip>
+            </Col>
+          </Row>
+          <Row gutter={24}>
+            <Col className="gutter-row" span={12}>
+              <div style={{marginBottom: '30px', marginTop: '10px'}}>
+                <div style={{ position: 'absolute', top: 10, right: 10 }}>
+                  <Tooltip title={`Shows a list of various model performance metrics for each class.`}>
+                    <Button type="link" icon={<QuestionOutlined />} />
+                  </Tooltip>
+                </div>
+                {selectedModelLeft && dataStatsLeft && (selectedCriteria === "Mode Performance") &&
+                  <Table columns={columnsTableStats} dataSource={dataStatsLeft} pagination={false}
+                 style={{marginTop: '11px'}} />}
+              </div>
+            </Col>
+            <Col className="gutter-row" span={12}>
+              <div style={{marginBottom: '30px', marginTop: '10px'}}>
+                <div style={{ position: 'absolute', top: 10, right: 10 }}>
+                  <Tooltip title={`Shows a list of various model performance metrics for each class.`}>
+                    <Button type="link" icon={<QuestionOutlined />} />
+                  </Tooltip>
+                </div>
+                {selectedModelRight && dataStatsRight && (selectedCriteria === "Mode Performance") &&
+                  <Table columns={columnsTableStats} dataSource={dataStatsRight} pagination={false}
+                 style={{marginTop: '11px'}} />}
+              </div>
+            </Col>
+          </Row>
+        </div>
       </LayoutPage>
     );
   }
