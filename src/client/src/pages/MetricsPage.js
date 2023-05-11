@@ -43,7 +43,6 @@ class MetricsPage extends Component {
       tprs: [], 
       auc: 0,
       dataPrecision: null,
-      //configPrecision: null,
     }
   }
 
@@ -69,6 +68,7 @@ class MetricsPage extends Component {
     //console.log(predictions);
     this.setState({ predictions }, this.updateConfusionMatrix);
     this.updateROCAUC();
+    this.updatePrecisionPlot();
   }
 
   // TODO: recheck this function, it works but looks weird, probably due to the given data
@@ -172,8 +172,8 @@ class MetricsPage extends Component {
     for (let binStart = 0; binStart <= 1; binStart += binSize) {
       const binEnd = binStart + binSize;
 
-      let tp = 0; // True Positives
-      let fp = 0; // False Positives
+      let tp = 0;
+      let fp = 0;
 
       for (const { prediction, trueLabel } of predictions) {
         if (prediction >= binStart && prediction < binEnd) {
@@ -185,8 +185,8 @@ class MetricsPage extends Component {
         }
       }
 
-      // Calculate Precision
-      const precision = tp / (tp + fp);
+      // Calculate Precision only if the cutoffProb is within the bin range
+      const precision = (cutoffProb >= binStart && cutoffProb < binEnd) ? tp / (tp + fp) : NaN;
 
       // Add bin threshold and precision to arrays
       binThresholds.push(binStart);
@@ -195,37 +195,11 @@ class MetricsPage extends Component {
 
     // Prepare data for the Line chart
     const dataPrecision = binThresholds.map((threshold, index) => ({
-      threshold,
+      threshold: threshold.toFixed(1),
       precision: isNaN(precisionArray[index],) ? 0 : precisionArray[index],
     }));
 
     console.log(dataPrecision);
-
-    const configPrecision = {
-      data: dataPrecision,
-      xField: 'threshold',
-      yField: 'precision',
-      xAxis: {
-        title: 'Threshold',
-      },
-      yAxis: {
-        title: 'Precision',
-      },
-      smooth: true,
-      lineStyle: {
-        lineWidth: 2,
-      },
-      point: {
-        size: 3,
-        shape: 'circle',
-        style: {
-          fill: '#ffffff',
-          stroke: '#1890ff',
-          lineWidth: 2,
-        },
-      },
-    };
-
     this.setState({ dataPrecision: dataPrecision });
   }
 
@@ -303,50 +277,13 @@ class MetricsPage extends Component {
     ];    
 
     this.setState({ classificationData: classificationData });
-
-    const binSize = 0.1; // Size of each bin
-    const binThresholds = []; // Array to store the bin thresholds
-    const precisionArray = []; // Array to store the precision values
-
-    for (let binStart = 0; binStart <= 1; binStart += binSize) {
-      const binEnd = binStart + binSize;
-
-      let tp = 0;
-      let fp = 0;
-
-      for (const { prediction, trueLabel } of predictions) {
-        if (prediction >= binStart && prediction < binEnd) {
-          if (trueLabel === 1) {
-            tp++;
-          } else {
-            fp++;
-          }
-        }
-      }
-
-      // Calculate Precision only if the cutoffProb is within the bin range
-      const precision = (cutoffProb >= binStart && cutoffProb < binEnd) ? tp / (tp + fp) : NaN;
-
-      // Add bin threshold and precision to arrays
-      binThresholds.push(binStart);
-      precisionArray.push(precision);
-    }
-
-    // Prepare data for the Line chart
-    const dataPrecision = binThresholds.map((threshold, index) => ({
-      threshold: threshold.toFixed(1),
-      precision: isNaN(precisionArray[index],) ? 0 : precisionArray[index],
-    }));
-
-    console.log(dataPrecision);
-    this.setState({ dataPrecision: dataPrecision });
   }
 
   handleCutoffProbChange(value) {
     this.setState({ cutoffProb: value }, () => {
       this.updateConfusionMatrix();
       this.updateROCAUC();
-      //this.updatePrecisionPlot();
+      this.updatePrecisionPlot();
     });
   }
 
@@ -449,23 +386,13 @@ class MetricsPage extends Component {
       }));
     });
 
-    const config = {
+    const configCM = {
       data: data,
       forceFit: true,
       xField: 'predicted',
       yField: 'actual',
       colorField: 'count',
       shape: 'square',
-      // TODO: percentage of label is undefined, not necessary ?
-      /*tooltip: {
-        formatter: (datum) => {
-          return {
-            name: `${datum.actual} -> ${datum.predicted}`,
-            
-            value: `Count: ${datum.count}, Percentage: ${datum.percentage}`,
-          };
-        },
-      },*/
       tooltip: false,
       xAxis: { title: { style: { fontSize: 20 }, text: 'Predicted', } },
       yAxis: { title: { style: { fontSize: 20 }, text: 'Observed', } },
@@ -620,7 +547,7 @@ class MetricsPage extends Component {
         </Divider>
         <div style={{ padding: '0 0' }}>
           <div style={{ top: 1 }}>
-            <Tooltip title={"???"}>
+            <Tooltip title={"Cutoff prediction probability is a fixed probability value above which the model will classify a sample as positive. For example, if the cutoff prediction probability is set to 0.5, the model will classify any sample with a predicted probability of belonging to the positive class greater than 0.5 as positive. Cutoff percentile is defined as the point on the predicted probability distribution above which the model will classify a sample as positive. For example, if the cutoff percentile is set to 90%, the model will classify any sample with a predicted probability of belonging to the positive class greater than the 90th percentile as positive."}>
               <Button type="link" icon={<QuestionOutlined />} />
             </Tooltip>
           </div>
@@ -686,7 +613,7 @@ class MetricsPage extends Component {
               </div>
               <div style={{ display: 'flex', justifyContent: 'center', width: '100%', flex: 1, flexWrap: 'wrap', marginTop: '20px' }}>
                 <div style={{ position: 'relative', height: '320px', width: '100%', maxWidth: '390px' }}>
-                  <Heatmap {...config} />
+                  <Heatmap {...configCM} />
                 </div>
               </div>
             </div>
@@ -746,8 +673,6 @@ class MetricsPage extends Component {
             </div>
           </Col>
         </Row>
-
-
       </LayoutPage>
     );
   }
