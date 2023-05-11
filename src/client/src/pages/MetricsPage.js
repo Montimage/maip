@@ -4,7 +4,7 @@ import LayoutPage from './LayoutPage';
 import { getLastPath } from "../utils";
 import { Divider, Form, Slider, Switch, Table, Col, Row, Button, Tooltip } from 'antd';
 import { QuestionOutlined, CameraOutlined } from "@ant-design/icons";
-import { Heatmap, Column } from '@ant-design/plots';
+import { Line, Heatmap, Column } from '@ant-design/plots';
 import Papa from "papaparse";
 import {
   requestModel,
@@ -39,6 +39,9 @@ class MetricsPage extends Component {
       classificationData: [],
       cutoffProb: 0.5,
       cutoffPercentile: 0.5,
+      fprs: [], 
+      tprs: [], 
+      auc: 0,
     }
   }
 
@@ -63,6 +66,34 @@ class MetricsPage extends Component {
     }));
     //console.log(predictions);
     this.setState({ predictions }, this.updateConfusionMatrix);
+    this.updateROCAUC();
+  }
+
+  updateROCAUC() {
+    const { predictions, cutoffProb } = this.state;
+    // Calculate true positive rate (TPR) and false positive rate (FPR) for different cutoff probabilities
+    const tprs = [];
+    const fprs = [];
+    const stepSize = 0.01;
+    for (let cutoffProb = 0; cutoffProb <= 1; cutoffProb += stepSize) {
+      const TP = predictions.filter((d) => d.trueLabel === 1 && d.prediction >= cutoffProb).length;
+      const FP = predictions.filter((d) => d.trueLabel === 0 && d.prediction >= cutoffProb).length;
+      const TN = predictions.filter((d) => d.trueLabel === 0 && d.prediction < cutoffProb).length;
+      const FN = predictions.filter((d) => d.trueLabel === 1 && d.prediction < cutoffProb).length;
+
+      const TPR = TP / (TP + FN);
+      const FPR = FP / (FP + TN);
+      tprs.push(TPR);
+      fprs.push(FPR);
+    }
+
+    // Compute AUC by numerical integration of the ROC curve using trapezoidal rule
+    let auc = 0;
+    for (let i = 0; i < tprs.length - 1; i++) {
+      auc += (fprs[i + 1] - fprs[i]) * (tprs[i + 1] + tprs[i]) / 2;
+    }
+
+    this.setState({ fprs, tprs, auc });
   }
 
   updateConfusionMatrix() {
@@ -150,28 +181,26 @@ class MetricsPage extends Component {
   computeCutoff(predictions) {
     const { cutoffPercentile } = this.state;
 
-    // sort the predictions in descending order
-    const sortedPredictions = predictions
-      .map((p, i) => [p, i])
-      .sort((a, b) => b[0].prediction - a[0].prediction);
-    console.log(sortedPredictions);
+    // Sort the predictions array based on the prediction values in ascending order
+    predictions.sort((a, b) => a.prediction - b.prediction);
 
-    // get the index of the prediction that corresponds to the cutoff percentile
-    const index = Math.floor((cutoffPercentile / 100) * sortedPredictions.length);
-    console.log(index);
-    console.log(sortedPredictions[index][0].prediction);
+    // Determine the index corresponding to the cutoff percentile
+    const cutoffIndex = Math.floor(predictions.length * cutoffPercentile);
 
-    // return the prediction probability at that index
-    return sortedPredictions[index][0].prediction;
+    // Retrieve the prediction value at the cutoff index
+    const cutoffProb = predictions[cutoffIndex].prediction;
+
+    console.log('Cutoff Percentile of samples:', cutoffPercentile);
+    console.log('Cutoff Prediction Probability:', cutoffProb);
+
+    return cutoffProb;
   }
 
   handleCutoffPercentileChange(value) {
     const { predictions } = this.state;
-    this.setState({ cutoffPercentile: value });
     const cutoffProb = this.computeCutoff(predictions);
-    console.log(cutoffProb);
-    //this.setState({ cutoffProb });
-    //this.updateConfusionMatrix();
+    this.setState({ cutoffPercentile: value, cutoffProb: cutoffProb });
+    this.handleCutoffProbChange(cutoffProb);
   }
 
   render() {
@@ -188,6 +217,7 @@ class MetricsPage extends Component {
       confusionMatrix,
       stats,
       classificationData,
+      fprs, tprs, auc,
     } = this.state;
     console.log(`cutoffProb: ${cutoffProb}`);
     console.log(`cutoffPercentile: ${cutoffPercentile}`);
@@ -316,49 +346,103 @@ class MetricsPage extends Component {
       ],
     };
 
+
+    const dataROC = [
+        { fpr: 0, tpr: 0 },
+        ...fprs.map((fpr, i) => ({ fpr, tpr: tprs[i] })),
+        { fpr: 1, tpr: 1 },
+      ];
+    console.log(dataROC);
+
+
+    const configROCAUC = {
+      data: dataROC,
+      xField: 'fpr',
+      yField: 'tpr',
+      //seriesField: 'index',
+    };
+
+    // Create the ROC AUC plot configuration object
+    /*const configROCAUC = {
+      data: dataROC,
+      xField: 'fpr',
+      yField: 'tpr',
+      label: {
+        formatter: (datum) => `cutoff = ${(datum.data.fpr * 100).toFixed(2)}%`,
+      },
+      xAxis: {
+        title: 'False Positive Rate (FPR)',
+      },
+      yAxis: {
+        title: 'True Positive Rate (TPR)',
+      },
+      annotations: [
+        {
+          type: 'text',
+          position: ['min', 'max'],
+          offsetY: 10,
+          style: { textBaseline: 'top' },
+          content: `AUC = ${auc.toFixed(2)}`,
+        },
+      ],
+    };*/
+
+    //console.log(fprs);
+    //console.log(tprs);
+    //console.log(auc);
+
+    
+
     return (
       <LayoutPage pageTitle="Accountability & Resilience Metrics" pageSubTitle={`Model ${modelId}`}>
         <Divider orientation="left">
           <h1 style={{ fontSize: '24px' }}>Accountability Metrics</h1>
         </Divider>
-        <Form.Item name="slider" label="Cutoff prediction probability" style={{ marginLeft: '50px', marginRight: '50px', marginBottom: '10px' }}>
-          <div style={{ width: '100%', display: 'inline-block', alignItems: 'center' }}>
-            <Slider
-              marks={{
-                0.01: '0.01',
-                0.25: '0.25',
-                0.50: '0.50',
-                0.75: '0.75',
-                0.99: '0.99',
-              }}
-              min={0.01}
-              max={0.99}
-              step={0.01}
-              value={cutoffProb}
-              defaultValue={cutoffProb}
-              onChange={(value) => this.handleCutoffProbChange(value)}
-            />
+        <div style={{ padding: '0 0' }}>
+          <div style={{ top: 1 }}>
+            <Tooltip title={"???"}>
+              <Button type="link" icon={<QuestionOutlined />} />
+            </Tooltip>
           </div>
-        </Form.Item>
-        <Form.Item name="slider" label="Cutoff percentile of samples" style={{ marginLeft: '50px', marginRight: '50px', marginBottom: '10px' }}>
-          <div style={{ width: '100%', display: 'inline-block', alignItems: 'center' }}>
-            <Slider
-              marks={{
-                0.01: '0.01',
-                0.25: '0.25',
-                0.50: '0.50',
-                0.75: '0.75',
-                0.99: '0.99',
-              }}
-              min={0.01}
-              max={0.99}
-              step={0.01}
-              value={cutoffPercentile}
-              defaultValue={cutoffPercentile}
-              onChange={(value) => this.handleCutoffPercentileChange(value)}
-            />
-          </div>
-        </Form.Item>
+          <Form.Item name="slider" label="Cutoff prediction probability" style={{ marginLeft: '50px', marginRight: '50px', marginBottom: '10px' }}>
+            <div style={{ width: '100%', display: 'inline-block', alignItems: 'center' }}>
+              <Slider
+                marks={{
+                  0.01: '0.01',
+                  0.25: '0.25',
+                  0.50: '0.50',
+                  0.75: '0.75',
+                  0.99: '0.99',
+                }}
+                min={0.01}
+                max={0.99}
+                step={0.01}
+                value={cutoffProb}
+                defaultValue={cutoffProb}
+                onChange={(value) => this.handleCutoffProbChange(value)}
+              />
+            </div>
+          </Form.Item>
+          <Form.Item name="slider" label="Cutoff percentile of samples" style={{ marginLeft: '50px', marginRight: '50px', marginBottom: '10px' }}>
+            <div style={{ width: '100%', display: 'inline-block', alignItems: 'center' }}>
+              <Slider
+                marks={{
+                  0.01: '0.01',
+                  0.25: '0.25',
+                  0.50: '0.50',
+                  0.75: '0.75',
+                  0.99: '0.99',
+                }}
+                min={0.01}
+                max={0.99}
+                step={0.01}
+                value={cutoffPercentile}
+                defaultValue={cutoffPercentile}
+                onChange={(value) => this.handleCutoffPercentileChange(value)}
+              />
+            </div>
+          </Form.Item>
+        </div>
         <Row gutter={24}>
           <Col className="gutter-row" span={12}>
             <div style={style}>
@@ -400,7 +484,35 @@ class MetricsPage extends Component {
           </Col>
           <Col className="gutter-row" span={12} style={{ marginTop: "24px" }}>
             <div style={style}>
+              <h2>&nbsp;&nbsp;&nbsp;ROC AUC Plot</h2>
+              <div style={{ position: 'absolute', top: 10, right: 10 }}>
+                <Tooltip title={"???"}>
+                  <Button type="link" icon={<QuestionOutlined />} />
+                </Tooltip>
+              </div>
+              <Line {...configROCAUC} />
+            </div>
+          </Col>
+          <Col className="gutter-row" span={12} style={{ marginTop: "24px" }}>
+            <div style={style}>
               <h2>&nbsp;&nbsp;&nbsp;Currentness Metric</h2>
+              <div style={{ position: 'absolute', top: 10, right: 10 }}>
+                <Tooltip title="???">
+                  <Button type="link" icon={<QuestionOutlined />} />
+                </Tooltip>
+              </div>
+
+            </div>
+          </Col>
+          <Col className="gutter-row" span={12} style={{ marginTop: "24px" }}>
+            <div style={style}>
+              <h2>&nbsp;&nbsp;&nbsp;???</h2>
+              <div style={{ position: 'absolute', top: 10, right: 10 }}>
+                <Tooltip title={"???"}>
+                  <Button type="link" icon={<QuestionOutlined />} />
+                </Tooltip>
+              </div>
+
             </div>
           </Col>
         </Row>
@@ -420,6 +532,8 @@ class MetricsPage extends Component {
     );
   }
 }
+
+/*<Line {...configROCAUC} />;*/
 
 const mapPropsToStates = ({ model }) => ({
   model
