@@ -8,6 +8,7 @@ import { Line, Heatmap, Column } from '@ant-design/plots';
 import Papa from "papaparse";
 import {
   requestModel,
+  requestMetricCurrentness,
 } from "../actions";
 import {
   SERVER_URL,
@@ -50,6 +51,7 @@ class MetricsPage extends Component {
     let modelId = getLastPath();
     this.props.fetchModel(modelId);
     this.loadPredictions();
+    this.props.fetchMetricCurrentness(modelId);
   }
 
   async loadPredictions() {
@@ -315,6 +317,7 @@ class MetricsPage extends Component {
   render() {
     const {
       model,
+      metrics,
     } = this.props;
     //console.log(model);
     let modelId = getLastPath();
@@ -333,6 +336,7 @@ class MetricsPage extends Component {
     console.log(`cutoffPercentile: ${cutoffPercentile}`);
     console.log(stats);
     console.log(classificationData);
+    console.log(metrics);
 
     const columnsTableStats = [
       {
@@ -540,6 +544,25 @@ class MetricsPage extends Component {
       }
     : null;
 
+    const columnsCurrentnessMetrics = [
+      {
+        title: 'XAI Method',
+        dataIndex: 'method',
+        key: 'method',
+      },
+      {
+        title: 'Score',
+        dataIndex: 'score',
+        key: 'score',
+      },
+    ];
+
+    const dataCurrentnessMetric = metrics.map((item) => {
+      const [method, score] = item.split(': ');
+      return { method: method, score: parseFloat(score).toFixed(2) };
+    });
+
+
     return (
       <LayoutPage pageTitle="Accountability & Resilience Metrics" pageSubTitle={`Model ${modelId}`}>
         <Divider orientation="left">
@@ -637,18 +660,19 @@ class MetricsPage extends Component {
                   <Button type="link" icon={<QuestionOutlined />} />
                 </Tooltip>
               </div>
-              {configPrecision && <Line {...configPrecision} />}
+              {configPrecision && <Line {...configPrecision} style={{ margin: '20px' }}/>}
             </div>
           </Col>
           <Col className="gutter-row" span={12} style={{ marginTop: "24px" }}>
             <div style={style}>
               <h2>&nbsp;&nbsp;&nbsp;Currentness Metric</h2>
               <div style={{ position: 'absolute', top: 10, right: 10 }}>
-                <Tooltip title="???">
+                <Tooltip title="Currentness metric measures the time of executing different XAI methods compared to the time of executing AI models.">
                   <Button type="link" icon={<QuestionOutlined />} />
                 </Tooltip>
               </div>
-
+              <Table columns={columnsCurrentnessMetrics} dataSource={dataCurrentnessMetric} 
+                pagination={false} style={{marginTop: '11px'}}/>
             </div>
           </Col>
           <Col className="gutter-row" span={12} style={{ marginTop: "24px" }}>
@@ -678,12 +702,13 @@ class MetricsPage extends Component {
   }
 }
 
-const mapPropsToStates = ({ model }) => ({
-  model
+const mapPropsToStates = ({ model, metrics }) => ({
+  model, metrics,
 });
 
 const mapDispatchToProps = (dispatch) => ({
   fetchModel: (modelId) => dispatch(requestModel(modelId)),
+  fetchMetricCurrentness: (modelId) => dispatch(requestMetricCurrentness(modelId)),
 });
 
 export default connect(mapPropsToStates, mapDispatchToProps)(MetricsPage);

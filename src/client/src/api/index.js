@@ -267,3 +267,17 @@ export const requestRetrainModel = async (modelId, trainingDataset, testingDatas
   console.log(`Retrain a model on server with config ${retrainConfig1}`);
   return data;
 };
+
+export const requestMetricCurrentness = async (modelId) => {
+  const url = `${SERVER_URL}/api/metrics/${modelId}/currentness`;
+  const response = await fetch(url, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    }
+  });
+  const data = await response.json();
+  console.log(`Metric currentness returned from server for model ${modelId}`);
+  console.log(data.currentness);
+  return data.currentness;
+};

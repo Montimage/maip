@@ -6,6 +6,7 @@ import requestBuildSaga from "./requestBuildSaga";
 import requestShapSaga from "./requestShapSaga";
 import requestLimeSaga from "./requestLimeSaga";
 import requestReportSaga from "./requestReportSaga";
+import requestMetricsSaga from "./requestMetricsSaga";
 
 
 function* rootSaga() {
@@ -16,6 +17,7 @@ function* rootSaga() {
     requestShapSaga(),
     requestLimeSaga(),
     requestReportSaga(),
+    requestMetricsSaga(),
   ]);
 }
 

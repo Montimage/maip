@@ -43,3 +43,6 @@ export const setLimeValues = createAction('SET_LIME_VALUES');
 // All reports
 export const requestAllReports = createAction('REQUEST_ALL_REPORTS');
 export const setAllReports = createAction('SET_ALL_REPORTS');
+
+export const requestMetricCurrentness = createAction('REQUEST_METRIC_CURRENTNESS');
+export const setMetrics = createAction('SET_METRICS');

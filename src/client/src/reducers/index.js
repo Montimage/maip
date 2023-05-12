@@ -11,6 +11,7 @@ import limeReducer from './limeReducer';
 //import datasetReducer from './datasetReducer';
 import buildReducer from './buildReducer';
 import reportsReducer from './reportsReducer';
+import metricsReducer from './metricsReducer';
 
 const rootReducer = combineReducers({
   notify: notificationReducer,
@@ -22,6 +23,7 @@ const rootReducer = combineReducers({
 //  dataset: datasetReducer,
   build: buildReducer,
   reports: reportsReducer,
+  metrics: metricsReducer,
 });
 
 export default rootReducer;
