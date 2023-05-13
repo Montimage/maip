@@ -281,3 +281,42 @@ export const requestMetricCurrentness = async (modelId) => {
   console.log(data.currentness);
   return data.currentness;
 };
+
+export const requestPerformAttack = async (modelId, selectedAttack, poisoningRate, targetClass) => {
+  let url = null;
+  let response = null;
+  const poisoningAttacksConfig = {
+    "modelId": modelId,
+    "poisoningRate": poisoningRate,
+  };
+  if (selectedAttack === "rsl") {
+    url = `${SERVER_URL}/api/attacks/poisoning/random-swapping-labels`;
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ poisoningAttacksConfig }),
+    });
+    console.log(poisoningAttacksConfig);
+  } else if (selectedAttack === "tlf") {
+    url = `${SERVER_URL}/api/attacks/poisoning/target-label-flipping`;
+    const targetLabelFlippingConfig = {
+      "poisoningAttacksConfig": poisoningAttacksConfig,
+      "targetClass": targetClass,
+    };
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ targetLabelFlippingConfig }),
+    });
+    console.log(targetLabelFlippingConfig);
+  } else {
+    console.error("Wrong attack!")
+  }
+  const data = await response.json();
+  console.log(`Perform attack ${selectedAttack} against the model ${modelId} on server`);
+  return data;
+};

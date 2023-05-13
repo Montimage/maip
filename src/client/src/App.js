@@ -17,6 +17,7 @@ import DatasetListPage from "./pages/DatasetListPage";
 import DatasetPage from "./pages/DatasetPage";
 import BuildPage from "./pages/BuildPage";
 import RetrainPage from "./pages/RetrainPage";
+import AttacksPage from "./pages/AttacksPage";
 //import DummyPage from "./pages/DummyPage";
 import XAIPage from "./pages/XAIPage";
 import XAIModelPage from "./pages/XAIModelPage";
@@ -48,6 +49,7 @@ function App() {
             <Route path="/xai/shap/:modelId" element={<XAIShapPage />}/>
             <Route path="/xai/lime/:modelId" element={<XAILimePage />}/>
             <Route path="/metrics/:modelId" element={<MetricsPage />}/>
+            <Route path="/attacks/:modelId" element={<AttacksPage />}/>
             <Route path="/metrics/test" element={<MetricsTestPage />}/>
             <Route path="/scatter" element={<ScatterPage />}/>
           </Routes>

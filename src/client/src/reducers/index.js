@@ -12,6 +12,7 @@ import limeReducer from './limeReducer';
 import buildReducer from './buildReducer';
 import reportsReducer from './reportsReducer';
 import metricsReducer from './metricsReducer';
+import attacksReducer from './attacksReducer';
 
 const rootReducer = combineReducers({
   notify: notificationReducer,
@@ -24,6 +25,7 @@ const rootReducer = combineReducers({
   build: buildReducer,
   reports: reportsReducer,
   metrics: metricsReducer,
+  attacks: attacksReducer,
 });
 
 export default rootReducer;

@@ -46,3 +46,6 @@ export const setAllReports = createAction('SET_ALL_REPORTS');
 
 export const requestMetricCurrentness = createAction('REQUEST_METRIC_CURRENTNESS');
 export const setMetrics = createAction('SET_METRICS');
+
+export const requestPerformAttack = createAction('REQUEST_PERFORM_ATTACK');
+export const setAttackStatus = createAction('SET_ATTACK_STATUS');
