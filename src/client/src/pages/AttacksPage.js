@@ -3,14 +3,15 @@ import { connect } from "react-redux";
 import LayoutPage from "./LayoutPage";
 import {
   requestPerformAttack,
+  requestAttacksStatus,
 } from "../actions";
 import { 
   getBeforeLastPath,
   getLastPath,
 } from "../utils";
 import Papa from "papaparse";
-import { Heatmap, Bar, Scatter, Histogram, Mix } from '@ant-design/plots';
-import { message, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Tooltip, Typography } from 'antd';
+import { Column, G2, Heatmap, Bar, Scatter, Histogram, Mix } from '@ant-design/plots';
+import { message, Table, Col, Row, Divider, Slider, Form, Button, Checkbox, Select, Tooltip } from 'antd';
 import { DownloadOutlined, BugOutlined, CameraOutlined } from "@ant-design/icons";
 
 const layout = {
@@ -50,18 +51,42 @@ class AttacksPage extends Component {
   constructor(props) {
     super(props);
     this.state = {
+      csvDataOriginal: [],
+      csvDataPoisoned: [],
       poisoningRate: 50,
       selectedAttack: null,
       targetClass: null,
-      //normalChecked: false,
-      //malwareChecked: false,
+      isRunning: props.attacksStatus.isRunning,
     };
     this.handleTargetClass = this.handleTargetClass.bind(this);
   }
 
+  componentDidMount() {
+    const modelId = getLastPath();
+    const datasetType = "train";
+    fetch(`${SERVER_URL}/api/models/${modelId}/datasets/${datasetType}/view`)
+    .then(response => response.text())
+      .then(data => {
+        Papa.parse(data, {
+          header: true,
+          skipEmptyLines: true,
+          delimiter: ';',
+          complete: (results) => {
+            const csvDataOriginal = results.data;
+            const headers = Object.keys(csvDataOriginal[0]);
+            this.setState({
+              csvDataOriginal: csvDataOriginal,
+              headers: headers,
+            });
+          },
+          error: () => {
+            console.log('Error parsing CSV file');
+          },
+        });
+      });
+  }
+
   handleTargetClass(checkedValues) {
-    //const normalChecked = checkedValues.includes('Normal traffic');
-    //const malwareChecked = checkedValues.includes('Malware traffic');
     let targetClass = null;
     if (checkedValues.length === 1) {
       if (checkedValues[0].includes('Malware')) {
@@ -71,15 +96,184 @@ class AttacksPage extends Component {
       }
     } else {
       message.warning('Please select only one option.');
-      targetClass = null; // Or set a default value  
+      targetClass = null;
     }
     this.setState({ targetClass });
   };
 
+  displayPoisonedDataset(modelId, selectedAttack, poisoningRate, targetClass) {
+    fetch(`${SERVER_URL}/api/attacks/poisoning/${selectedAttack}/${modelId}/view`)
+      .then(response => response.text())
+      .then(data => {
+        Papa.parse(data, {
+          header: true,
+          skipEmptyLines: true,
+          delimiter: ';',
+          complete: (results) => {
+            const csvDataPoisoned = results.data;
+            const headers = Object.keys(csvDataPoisoned[0]);
+            this.setState({
+              csvDataPoisoned: csvDataPoisoned,
+              headers: headers,
+            });
+          },
+          error: () => {
+            console.log('Error parsing CSV file');
+          },
+        });
+      });
+  }
+
+  async componentDidUpdate(prevProps, prevState) {
+    const modelId = getLastPath();
+    const { isRunning, selectedAttack, poisoningRate, targetClass } = this.state;
+    const { attacksStatus } = this.props;
+    
+    if (prevProps.attacksStatus.isRunning !== this.props.attacksStatus.isRunning) {
+      console.log('State isRunning has been changed');
+      this.setState({ isRunning: this.props.attacksStatus.isRunning });
+      if (!this.props.attacksStatus.isRunning) {
+        console.log('isRunning changed from True to False');
+        this.displayPoisonedDataset(modelId, selectedAttack, poisoningRate, targetClass);
+      }
+    }
+
+    // Check if csvDataPoisoned state is updated and clear the interval if it is
+    if (prevState.csvDataPoisoned !== this.state.csvDataPoisoned) {
+      clearInterval(this.intervalId);
+    }
+  }
+
+  async handlePerformAttackClick(modelId, selectedAttack, poisoningRate, targetClass) {
+    const { isRunning } = this.state;
+    if (!isRunning) {
+      console.log("handlePerformAttackClick update isRunning state!");
+      this.setState({ isRunning: true });        
+      this.props.fetchPerformAttack(modelId, selectedAttack, poisoningRate, targetClass);
+      this.intervalId = setInterval(() => { // start interval when button is clicked
+        this.props.fetchAttacksStatus();
+      }, 1000);
+    }
+  }
+
   render() {
     const modelId = getLastPath();
+    const {
+      csvDataOriginal,
+      csvDataPoisoned,
+      poisoningRate, 
+      selectedAttack, 
+      targetClass,
+      isRunning,
+    } = this.state;
+    const {
+      attacksStatus, 
+    } = this.props;
+    console.log(`Attacks isRunning: ${attacksStatus.isRunning}`);
 
-    const { poisoningRate, selectedAttack, targetClass } = this.state;
+    const columns = csvDataOriginal.length > 0 ? Object.keys(csvDataOriginal[0]).map(key => ({
+      title: key,
+      dataIndex: key,
+      sorter: (a, b) => {
+        const aVal = parseFloat(a[key]);
+        const bVal = parseFloat(b[key]);
+        if (!isNaN(aVal) && !isNaN(bVal)) {
+          return aVal - bVal;
+        } else {
+          return a[key].localeCompare(b[key]);
+        }
+      },
+    })) : [];
+    const labelsDataOriginal = csvDataOriginal.map((row) => row.malware);
+    const labelsDataPoisoned = csvDataPoisoned.map((row) => parseInt(row.malware).toString());
+    //console.log(labelsDataOriginal);
+    //console.log(labelsDataPoisoned);
+    const totalSamples = labelsDataOriginal.length;
+    const groupedDataOriginal = labelsDataOriginal.reduce((acc, label) => {
+      acc[label] = (acc[label] || 0) + 1;
+      return acc;
+    }, {});
+    const groupedDataPoisoned = labelsDataPoisoned.reduce((acc, label) => {
+      acc[label] = (acc[label] || 0) + 1;
+      return acc;
+    }, {});
+    console.log(groupedDataOriginal);
+    console.log(groupedDataPoisoned);
+
+    const dataLabelsColumn = [
+      {
+        "datasetType": "original",
+        "class": "Normal traffic",
+        "count": (groupedDataOriginal['0'] || 0),
+        "value": ((groupedDataOriginal['0'] || 0) * 100) / totalSamples
+      },
+      {
+        "datasetType": "original",
+        "class": "Malware traffic",
+        "count": (groupedDataOriginal['1'] || 0),
+        "value": ((groupedDataOriginal['1'] || 0) * 100) / totalSamples
+      },
+      {
+        "datasetType": "poisoned",
+        "class": "Normal traffic",
+        "count": (groupedDataPoisoned['0'] || 0),
+        "value": ((groupedDataPoisoned['0'] || 0) * 100) / totalSamples
+      },
+      {
+        "datasetType": "poisoned",
+        "class": "Malware traffic",
+        "count": (groupedDataPoisoned['1'] || 0),
+        "value": ((groupedDataPoisoned['1'] || 0) * 100) / totalSamples
+      },
+    ];
+
+    G2.registerInteraction('element-link', {
+      start: [
+        {
+          trigger: 'interval:mouseenter',
+          action: 'element-link-by-color:link',
+        },
+      ],
+      end: [
+        {
+          trigger: 'interval:mouseleave',
+          action: 'element-link-by-color:unlink',
+        },
+      ],
+    });
+    const configLabelsColumn = {
+      data: dataLabelsColumn,
+      xField: 'datasetType',
+      yField: 'value',
+      seriesField: 'class',
+      isPercent: true,
+      isStack: true,
+      meta: {
+        value: {
+          min: 0,
+          max: 1,
+        },
+      },
+      label: {
+        position: 'middle',
+        content: (item) => {
+          return `${item.count} (${(item.value * 100).toFixed(2)}%)`;
+        },
+        style: {
+          fill: '#fff',
+          fontSize: 16,
+        },
+      },
+      tooltip: false,
+      interactions: [
+        {
+          type: 'element-highlight-by-color',
+        },
+        {
+          type: 'element-link',
+        },
+      ],
+    };
 
     return (
       <LayoutPage pageTitle="Adversarial Attacks" 
@@ -89,7 +283,7 @@ class AttacksPage extends Component {
         {...layout}
         name="control-hooks"
         style={{
-          maxWidth: 800,
+          maxWidth: 600,
         }}
         >
           <Form.Item name="slider" label="Poisoning percentage"
@@ -134,7 +328,6 @@ class AttacksPage extends Component {
               options={['Normal traffic', 'Malware traffic']}
               defaultValue={[]}
               disabled={selectedAttack !== 'tlf'}
-              //onChange={values => this.setState({ targetClass: values[0] })}
               onChange={this.handleTargetClass}
             />
           </Form.Item>
@@ -142,7 +335,7 @@ class AttacksPage extends Component {
             <Button icon={<BugOutlined />}
               onClick={() => {
                 console.log({ modelId, selectedAttack, poisoningRate, targetClass });
-                this.props.fetchPerformAttack(modelId, selectedAttack, poisoningRate, targetClass);
+                this.handlePerformAttackClick(modelId, selectedAttack, poisoningRate, targetClass);
               }}
               >Perform Attack
             </Button>
@@ -162,19 +355,42 @@ class AttacksPage extends Component {
               <h3> Model after </h3>
             </Col>
           </Row>
+          {csvDataOriginal.length > 0 && csvDataPoisoned.length > 0 &&
+            <Column {...configLabelsColumn} style={{ margin: '20px' }}/>
+          }
         </div>
+
+        
 
       </LayoutPage>
     );
   }
 }
 
-/*this.props.fetchBuildModel(datasets, training_ratio, training_parameters);*/
+/*<div style={{ maxWidth: '100vw', overflowX: 'auto', marginTop: '10px', marginBottom: '30px', height: 490 }}>
+  <Table columns={columns} 
+    dataSource={csvDataOriginal} 
+    size="small" bordered
+    scroll={{ x: 'max-content' }}
+    pagination={{ pageSize: 10 }}
+  />
+</div>
 
-const mapPropsToStates = ({  }) => ({
+<div style={{ maxWidth: '100vw', overflowX: 'auto', marginTop: '10px', marginBottom: '30px', height: 490 }}>
+  <Table columns={columns} 
+    dataSource={csvDataPoisoned} 
+    size="small" bordered
+    scroll={{ x: 'max-content' }}
+    pagination={{ pageSize: 10 }}
+  />
+</div>*/
+
+const mapPropsToStates = ({ attacksStatus }) => ({
+  attacksStatus,
 });
 
 const mapDispatchToProps = (dispatch) => ({
+  fetchAttacksStatus: () => dispatch(requestAttacksStatus()),
   fetchPerformAttack: (modelId, selectedAttack, poisoningRate, targetClass) =>
     dispatch(requestPerformAttack({ modelId, selectedAttack, poisoningRate, targetClass })),
 });

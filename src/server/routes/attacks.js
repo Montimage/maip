@@ -1,5 +1,6 @@
 const express = require('express');
-
+const fs = require('fs');
+const path = require('path');
 const router = express.Router();
 
 const {
@@ -15,6 +16,9 @@ const {
 const {
   isFileExist,
 } = require('../utils/file-utils');
+const {
+  replaceDelimiterInCsv
+} = require('../utils/utils');
 
 router.get('/', (_, res) => {
   res.send({
@@ -163,6 +167,26 @@ router.get('/poisoning/:typeAttack/:modelId/download', (req, res, next) => {
       res.status(401).send(`The poisoned dataset does not exist`);
     } else {
       res.sendFile(poisonedDatasetPath);
+    }
+  });
+});
+
+router.get('/poisoning/:typeAttack/:modelId/view', (req, res, next) => {
+  const { typeAttack, modelId } = req.params;
+  
+  const poisonedDatasetPath = `${ATTACKS_PATH}${modelId.replace('.h5', '')}/${typeAttack}_poisoned_dataset.csv`;
+  const poisonedDatasetToViewPath = `${ATTACKS_PATH}${modelId.replace('.h5', '')}/${typeAttack}_poisoned_dataset_view.csv`;
+  replaceDelimiterInCsv(poisonedDatasetPath, poisonedDatasetToViewPath);
+  console.log(poisonedDatasetPath);
+
+  isFileExist(poisonedDatasetToViewPath, (ret) => {
+    if (!ret) {
+      res.status(401).send(`The poisoned training dataset of model ${modelId} does not exist`);
+    } else {
+      res.setHeader('Content-Type', 'text/csv'); 
+      res.setHeader('Content-Disposition', `attachment; filename="${poisonedDatasetToViewPath}"`);
+      const fileStream = fs.createReadStream(poisonedDatasetToViewPath);
+      fileStream.pipe(res);
     }
   });
 });

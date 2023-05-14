@@ -4,12 +4,12 @@ import {
   import produce from "immer";
   
   import {
-    setAttackStatus,
+    setAttacksStatus,
   } from "../actions";
   
   
   export default createReducer({
-      [setAttackStatus]: produce((draft, attack) => (draft = attack)),
+      [setAttacksStatus]: produce((draft, attacksStatus) => (draft = attacksStatus)),
     },
     []
   );

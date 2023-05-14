@@ -282,6 +282,17 @@ export const requestMetricCurrentness = async (modelId) => {
   return data.currentness;
 };
 
+export const requestAttacksStatus = async () => {
+  const url = `${SERVER_URL}/api/attacks`;
+  const response = await fetch(url);
+  const data = await response.json();
+  if (data.error) {
+    throw data.error;
+  }
+  console.log(data.attacksStatus);
+  return data.attacksStatus;
+};
+
 export const requestPerformAttack = async (modelId, selectedAttack, poisoningRate, targetClass) => {
   let url = null;
   let response = null;
