@@ -2090,6 +2090,10 @@
                     "config": {
                         "$ref": "#/components/schemas/retrainConfig"
                     },
+                    "lastRetrainId": {
+                        "type": "string",
+                        "example": "fadfafewfwefwe"
+                    },
                     "lastRetrainAt": {
                         "type": "string",
                         "example": "123243534534"

@@ -225,6 +225,7 @@ export const requestBuildStatus = async () => {
   if (data.error) {
     throw data.error;
   }
+  console.log(data.buildStatus);
   return data.buildStatus;
 };
 
@@ -248,6 +249,17 @@ export const requestBuildModel = async (datasets, ratio, params) => {
   return data;
 };
 
+export const requestRetrainStatus = async () => {
+  const url = `${SERVER_URL}/api/retrain`;
+  const response = await fetch(url);
+  const data = await response.json();
+  if (data.error) {
+    throw data.error;
+  }
+  console.log(data.retrainStatus);
+  return data.retrainStatus;
+};
+
 export const requestRetrainModel = async (modelId, trainingDataset, testingDataset, params) => {
   const url = `${SERVER_URL}/api/retrain/${modelId}`;
   const retrainConfig1 = {
@@ -262,7 +274,7 @@ export const requestRetrainModel = async (modelId, trainingDataset, testingDatas
     },
     body: JSON.stringify({ retrainConfig1 }),
   });
-  console.log(retrainConfig1);
+  //console.log(retrainConfig1);
   const data = await response.json();
   console.log(`Retrain a model on server with config ${retrainConfig1}`);
   return data;

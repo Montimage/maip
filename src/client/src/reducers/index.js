@@ -14,6 +14,8 @@ import reportsReducer from './reportsReducer';
 import metricsReducer from './metricsReducer';
 import attacksReducer from './attacksReducer';
 import attacksStatusReducer from './attacksStatusReducer';
+import buildStatusReducer from './buildStatusReducer';
+import retrainStatusReducer from './retrainStatusReducer';
 
 const rootReducer = combineReducers({
   notify: notificationReducer,
@@ -28,6 +30,8 @@ const rootReducer = combineReducers({
   metrics: metricsReducer,
   attacks: attacksReducer,
   attacksStatus: attacksStatusReducer,
+  buildStatus: buildStatusReducer,
+  retrainStatus: retrainStatusReducer,
 });
 
 export default rootReducer;

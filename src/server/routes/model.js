@@ -268,6 +268,22 @@ router.delete('/:modelId', (req, res, next) => {
   });
 });
 
+router.get('/:modelId/datasets/', async (req, res, next) => {
+  const { modelId } = req.params;
+  try {
+    const datasetsPath = path.join(TRAINING_PATH, modelId.replace('.h5', ''), 'datasets')
+    const files = await readdirAsync(datasetsPath);
+    const allDatasets = files.filter(file => {
+      const fileName = path.basename(file, '.csv');
+      return path.extname(file) === '.csv' && !fileName.includes('_view');
+    });
+    res.send({ datasets: allDatasets });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error');
+  }
+});
+
 router.get('/:modelId/datasets/:datasetType/download', (req, res, next) => {
   const { modelId, datasetType } = req.params;
   const datasetName = `${datasetType.charAt(0).toUpperCase() + datasetType.slice(1)}_samples.csv`;

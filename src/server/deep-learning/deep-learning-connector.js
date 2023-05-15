@@ -7,6 +7,7 @@ const {
   TRAINING_PATH,
   DEEP_LEARNING_PATH,
   DATASETS_PATH,
+  ATTACKS_PATH,
   PYTHON_CMD,
 } = require('../constants');
 const { startMMTOnline, stopMMT } = require('../mmt/mmt-connector');
@@ -208,20 +209,41 @@ const retrainModel = (retrainConfig, callback) => {
     }
   });
 
-  if (!isFileExistSync(trainingDataset) || !isFileExistSync(testingDataset)) {
+  const attacksPath = `${ATTACKS_PATH}${modelId.replace('.h5', '')}/`;
+  const trainingPath = `${TRAINING_PATH}${modelId.replace('.h5', '')}/datasets/`;
+
+  let trainingDatasetFile = null;
+  let testingDatasetFile = null;
+  
+  if (isFileExistSync(path.join(attacksPath, trainingDataset))) {
+    trainingDatasetFile = path.join(attacksPath, trainingDataset);
+  } else if (isFileExistSync(path.join(trainingPath, trainingDataset))) {
+    trainingDatasetFile = path.join(trainingPath, trainingDataset);
+  } else {
     return callback({
-      error: `Invalid datasets`,
+      error: `Invalid training dataset`,
+    });
+  }
+  console.log(path.join(trainingPath, testingDataset));
+  if (isFileExistSync(path.join(trainingPath, testingDataset))) {
+    testingDatasetFile = path.join(trainingPath, testingDataset);
+  } else {
+    return callback({
+      error: `Invalid testing dataset`,
     });
   }
 
+  console.log(trainingDatasetFile);
+  console.log(testingDatasetFile);
+
   const datasetsPath = `${TRAINING_PATH}${retrainId.replace('.h5', '')}/datasets`;
   createFolderSync(datasetsPath);
-  fs.copyFile(trainingDataset, path.join(datasetsPath, 'Train_samples.csv'), (err) => {
+  fs.copyFile(trainingDatasetFile, path.join(datasetsPath, 'Train_samples.csv'), (err) => {
     if (err) {
       callback(err);
     }
   });
-  fs.copyFile(testingDataset, path.join(datasetsPath, 'Test_samples.csv'), (err) => {
+  fs.copyFile(testingDatasetFile, path.join(datasetsPath, 'Test_samples.csv'), (err) => {
     if (err) {
       callback(err);
     }
@@ -236,12 +258,13 @@ const retrainModel = (retrainConfig, callback) => {
 
   retrainStatus.isRunning = true;
   retrainStatus.config = retrainConfig;
+  retrainStatus.lastRetrainId = retrainId;
   retrainStatus.lastRetrainAt = Date.now();
 
   const logFile = `${LOG_PATH}retraining_${retrainId.replace('.h5', '')}.log`;
   const resultsPath = `${TRAINING_PATH}${retrainId.replace('.h5', '')}/results`;
   createFolderSync(resultsPath);
-  spawnCommand(PYTHON_CMD, [`${DEEP_LEARNING_PATH}/retrain.py`, trainingDataset, testingDataset, resultsPath, nb_epoch_cnn, nb_epoch_sae, batch_size_cnn, batch_size_sae,], logFile, () => {
+  spawnCommand(PYTHON_CMD, [`${DEEP_LEARNING_PATH}/retrain.py`, trainingDatasetFile, testingDatasetFile, resultsPath, nb_epoch_cnn, nb_epoch_sae, batch_size_cnn, batch_size_sae,], logFile, () => {
     retrainStatus.isRunning = false;
     console.log('Finish retraining the model');
   });

@@ -2,7 +2,8 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const router = express.Router();
-
+const { promisify } = require('util');
+const readdirAsync = promisify(fs.readdir);
 const {
   getAttacksStatus,
   performCTGAN,
@@ -24,6 +25,22 @@ router.get('/', (_, res) => {
   res.send({
     attacksStatus: getAttacksStatus(),
   });
+});
+
+router.get('/:modelId/datasets/', async (req, res, next) => {
+  const { modelId } = req.params;
+  try {
+    const datasetsPath = path.join(ATTACKS_PATH, modelId.replace('.h5', ''))
+    const files = await readdirAsync(datasetsPath);
+    const allDatasets = files.filter(file => {
+      const fileName = path.basename(file, '.csv');
+      return path.extname(file) === '.csv' && !fileName.includes('_view');
+    });
+    res.send({ datasets: allDatasets });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error');
+  }
 });
 
 router.post('/ctgan', (req, res) => {
@@ -173,7 +190,7 @@ router.get('/poisoning/:typeAttack/:modelId/download', (req, res, next) => {
 
 router.get('/poisoning/:typeAttack/:modelId/view', (req, res, next) => {
   const { typeAttack, modelId } = req.params;
-  
+
   const poisonedDatasetPath = `${ATTACKS_PATH}${modelId.replace('.h5', '')}/${typeAttack}_poisoned_dataset.csv`;
   const poisonedDatasetToViewPath = `${ATTACKS_PATH}${modelId.replace('.h5', '')}/${typeAttack}_poisoned_dataset_view.csv`;
   replaceDelimiterInCsv(poisonedDatasetPath, poisonedDatasetToViewPath);

@@ -2,13 +2,15 @@ import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
 import { getLastPath } from "../utils";
-import { Divider, Form, Slider, Switch, Table, Col, Row, Button, Tooltip } from 'antd';
+import { Select, Divider, Form, Slider, Switch, Table, Col, Row, Button, Tooltip } from 'antd';
 import { QuestionOutlined, CameraOutlined } from "@ant-design/icons";
-import { Line, Heatmap, Column } from '@ant-design/plots';
+import { Line, Heatmap, Column, G2 } from '@ant-design/plots';
 import Papa from "papaparse";
 import {
   requestModel,
   requestMetricCurrentness,
+  requestRetrainModel,
+  requestRetrainStatus,
 } from "../actions";
 import {
   SERVER_URL,
@@ -29,6 +31,22 @@ const layout = {
   },
 };
 
+const selectAttacksOptions = 
+  [
+    {
+      value: 'gan',
+      label: 'GAN-driven data poisoning',
+    },
+    {
+      value: 'rsl',
+      label: 'Random swapping labels',
+    },
+    {
+      value: 'tlf',
+      label: 'Target labels flipping',
+    },
+  ];
+
 class MetricsPage extends Component {
   constructor(props) {
     super(props);
@@ -44,6 +62,13 @@ class MetricsPage extends Component {
       tprs: [], 
       auc: 0,
       dataPrecision: null,
+      selectedAttack: null,
+      buildConfig: null,
+      modelDatasets: [],
+      attacksDatasets: [],
+      attacksPredictions: [],
+      attacksConfusionMatrix: null,
+      isRunning: props.retrainStatus.isRunning,
     }
   }
 
@@ -52,6 +77,70 @@ class MetricsPage extends Component {
     this.props.fetchModel(modelId);
     this.loadPredictions();
     this.props.fetchMetricCurrentness(modelId);
+    this.fetchModelBuildConfig();
+  }
+
+  calculateImpact() {
+    const { confusionMatrix, attacksConfusionMatrix } = this.state;
+    let impact = 0;
+    if (confusionMatrix && attacksConfusionMatrix) {
+      const errors = confusionMatrix[0][1] + confusionMatrix[1][0];
+      const errorsAttack = attacksConfusionMatrix[0][1] + attacksConfusionMatrix[1][0];
+      console.log(errors);
+      console.log(errorsAttack);
+      impact = (errorsAttack - errors) / errors;
+    }
+    return impact;
+  }
+
+  async componentDidUpdate(prevProps, prevState) {
+    const modelId = getLastPath();
+
+    if (prevProps.retrainStatus.isRunning !== this.props.retrainStatus.isRunning) {
+      console.log('isRunning has been changed');
+      this.setState({ isRunning: this.props.retrainStatus.isRunning });
+      if (!this.props.retrainStatus.isRunning) {
+        console.log('isRunning changed from True to False');
+        const retrainId = this.props.retrainStatus.lastRetrainId;
+        await this.loadAttacksPredictions(retrainId);  
+      }
+    }
+
+    // Check if attacksPredictions state is updated and clear the interval if it is
+    if (prevState.attacksPredictions !== this.state.attacksPredictions && 
+      this.state.attacksPredictions.length > 0) {
+      clearInterval(this.intervalId);
+    }
+  }
+
+  async loadAttacksPredictions(modelId) {
+    const predictionsResponse = await fetch(`${SERVER_URL}/api/models/${modelId}/predictions`, {
+      method: 'GET',
+    });
+    const predictionsData = await predictionsResponse.json();
+    const predictionsValues = predictionsData.predictions;
+    //console.log(predictionsData);
+    const predictions = predictionsValues.split('\n').map((d) => ({
+      prediction: parseFloat(d.split(',')[0]),
+      trueLabel: parseInt(d.split(',')[1]),
+    }));
+    //console.log(predictions);
+    this.setState({ attacksPredictions: predictions }, this.updateAttacksConfusionMatrix);
+  }
+
+  updateAttacksConfusionMatrix() {
+    const { attacksPredictions } = this.state;
+    const cutoffProb = 0.5;
+    const TP = attacksPredictions.filter((d) => d.trueLabel === 1 && d.prediction >= cutoffProb).length;
+    const FP = attacksPredictions.filter((d) => d.trueLabel === 0 && d.prediction >= cutoffProb).length;
+    const TN = attacksPredictions.filter((d) => d.trueLabel === 0 && d.prediction < cutoffProb).length;
+    const FN = attacksPredictions.filter((d) => d.trueLabel === 1 && d.prediction < cutoffProb).length;
+    const confusionMatrix = [
+      [TP, FP],
+      [FN, TN],
+    ];
+
+    this.setState({ attacksConfusionMatrix: confusionMatrix });
   }
 
   async loadPredictions() {
@@ -162,7 +251,7 @@ class MetricsPage extends Component {
     }));
 
     this.setState({ rocData });
-    console.log(rocData);
+    //console.log(rocData);
   }
 
   updatePrecisionPlot() {
@@ -201,7 +290,7 @@ class MetricsPage extends Component {
       precision: isNaN(precisionArray[index],) ? 0 : precisionArray[index],
     }));
 
-    console.log(dataPrecision);
+    //console.log(dataPrecision);
     this.setState({ dataPrecision: dataPrecision });
   }
 
@@ -314,29 +403,63 @@ class MetricsPage extends Component {
     this.handleCutoffProbChange(cutoffProb);
   }
 
+  fetchModelBuildConfig = async () => {
+    const modelId = getLastPath();
+    try {
+      const response = await fetch(`${SERVER_URL}/api/models/${modelId}/build-config`);
+      const data = await response.json();
+      const buildConfig = JSON.parse(data.buildConfig);
+      this.setState({ buildConfig: buildConfig });
+      console.log(buildConfig.training_parameters);
+    } catch (error) {
+      console.error('Error fetching build-config:', error);
+    }
+  };
+
+  handleSelectedAttack(selectedAttack) {
+    let modelId = getLastPath();
+    this.setState({ selectedAttack: selectedAttack });
+    
+    const { isRunning, buildConfig, modelDatasets, attacksDatasets } = this.state;
+    const trainingParameters = buildConfig.training_parameters;
+    const testingDataset = "Test_samples.csv";
+    const trainingDataset = `${selectedAttack}_poisoned_dataset.csv`;
+
+    if (!isRunning) {
+      console.log("update isRunning state!");
+      this.setState({ isRunning: true });
+      this.props.fetchRetrainModel(
+        modelId, trainingDataset, testingDataset, trainingParameters,
+      );
+      this.intervalId = setInterval(() => { // start interval when button is clicked
+        this.props.fetchRetrainStatus();
+      }, 5000);
+    }
+  }
+
   render() {
     const {
       model,
       metrics,
+      retrainStatus,
     } = this.props;
-    //console.log(model);
+    console.log(retrainStatus);
     let modelId = getLastPath();
 
     const { 
       cutoffProb,
       cutoffPercentile,
       predictions,
+      attacksPredictions,
       confusionMatrix,
       stats,
       classificationData,
       fprs, tprs, auc, rocData,
       dataPrecision,
+      selectedAttack,
+      attacksConfusionMatrix,
+      isRunning,
     } = this.state;
-    console.log(`cutoffProb: ${cutoffProb}`);
-    console.log(`cutoffPercentile: ${cutoffPercentile}`);
-    console.log(stats);
-    console.log(classificationData);
-    console.log(metrics);
 
     const columnsTableStats = [
       {
@@ -417,6 +540,63 @@ class MetricsPage extends Component {
       },
     };
 
+    let configAttacksCM = null;
+    if (attacksConfusionMatrix) {
+      const cmStrAtt = attacksConfusionMatrix.map((row, i) => `${i},${row.join(',')}`).join('\n');
+      const rowsAtt = cmStrAtt.trim().split('\n');
+      const dataAtt = rowsAtt.flatMap((row, i) => {
+        const colsAtt = row.split(',');
+        const rowTotalAtt = colsAtt.slice(1).reduce((acc, val) => acc + Number(val), 0);
+        return colsAtt.slice(1).map((val, j) => ({
+          actual: headers[i],
+          predicted: headers[j],
+          count: Number(val),
+          percentage: `${((Number(val) / rowTotalAtt) * 100).toFixed(2)}%`,
+        }));
+      });
+
+      configAttacksCM = {
+        data: dataAtt,
+        forceFit: true,
+        xField: 'predicted',
+        yField: 'actual',
+        colorField: 'count',
+        shape: 'square',
+        tooltip: false,
+        xAxis: { title: { style: { fontSize: 20 }, text: 'Predicted', } },
+        yAxis: { title: { style: { fontSize: 20 }, text: 'Observed', } },
+        label: {
+          visible: true,
+          position: 'middle',
+          style: {
+            fontSize: '18',
+          },
+          formatter: (datum) => {
+            return `${datum.count}\n(${datum.percentage})`;
+          },
+        },
+        heatmapStyle: {
+          padding: 0,  
+          stroke: '#fff',
+          lineWidth: 1,
+        },
+      };
+    }
+
+    G2.registerInteraction('element-link', {
+      start: [
+        {
+          trigger: 'interval:mouseenter',
+          action: 'element-link-by-color:link',
+        },
+      ],
+      end: [
+        {
+          trigger: 'interval:mouseleave',
+          action: 'element-link-by-color:unlink',
+        },
+      ],
+    });
     const configClassification = {
       data: classificationData,
       xField: 'cutoffProb',
@@ -456,7 +636,7 @@ class MetricsPage extends Component {
         ...fprs.map((fpr, i) => ({ fpr, tpr: tprs[i] })),
         { fpr: 1, tpr: 1 },
       ];
-    console.log(dataROC);
+    //console.log(dataROC);
 
 
     /*const configROCAUC = {
@@ -561,6 +741,9 @@ class MetricsPage extends Component {
       const [method, score] = item.split(': ');
       return { method: method, score: parseFloat(score).toFixed(2) };
     });
+
+    const impact = this.calculateImpact();
+    console.log(impact);
 
 
     return (
@@ -675,25 +858,58 @@ class MetricsPage extends Component {
                 pagination={false} style={{marginTop: '11px'}}/>
             </div>
           </Col>
-          <Col className="gutter-row" span={12} style={{ marginTop: "24px" }}>
-            <div style={style}>
-              <h2>&nbsp;&nbsp;&nbsp;???</h2>
-              <div style={{ position: 'absolute', top: 10, right: 10 }}>
-                <Tooltip title={"???"}>
-                  <Button type="link" icon={<QuestionOutlined />} />
-                </Tooltip>
-              </div>
-
-            </div>
-          </Col>
         </Row>
         <Divider orientation="left">
           <h1 style={{ fontSize: '24px' }}>Resilience Metrics</h1>
         </Divider>
         <Row gutter={24}>
-          <Col className="gutter-row" span={12}>
+          <Col className="gutter-row" span={24}>
             <div style={style}>
               <h2>&nbsp;&nbsp;&nbsp;Impact Metric</h2>
+              &nbsp;&nbsp;&nbsp;
+              <Tooltip title="Select an adversarial attack to be performed against the model.">
+                <Select
+                  style={{
+                    width: '100%',
+                  }}
+                  allowClear
+                  placeholder="Select an attack ..."
+                  onChange={(value) => { this.handleSelectedAttack(value); }}
+                  optionLabelProp="label"
+                  options={selectAttacksOptions}
+                  style={{ width: 300, marginTop: '10px', marginBottom: '20px' }}
+                />
+              </Tooltip>
+              { attacksConfusionMatrix &&
+                <h3>&nbsp;&nbsp;&nbsp;Score: {impact}</h3>
+              }
+              <Row gutter={24} style={{height: '400px'}}>
+                <div style={{ position: 'absolute', top: 10, right: 10 }}>
+                  <Tooltip title="Impact metric shows difference between the original accuracy of a benign model compared to the accuracy of the compromised model after a successful poisoning attack.">
+                    <Button type="link" icon={<QuestionOutlined />} />
+                  </Tooltip>
+                </div>
+                <Col className="gutter-row" span={12} style={{ display: 'flex', justifyContent: 'center' }}>
+                  <div style={{ display: 'flex', justifyContent: 'center', width: '100%', flex: 1, flexWrap: 'wrap', marginTop: '20px' }}>
+                    <div style={{ position: 'relative', height: '320px', width: '100%', maxWidth: '390px' }}>
+                    <h3> Model before attack </h3>
+                    { attacksConfusionMatrix &&
+                      <Heatmap {...configCM} />
+                    }
+                    </div>
+                  </div>
+                </Col>
+                <Col className="gutter-row" span={12} style={{ display: 'flex', justifyContent: 'center' }}>
+                  <div style={{ display: 'flex', justifyContent: 'center', width: '100%', flex: 1, flexWrap: 'wrap', marginTop: '20px' }}>
+                    <div style={{ position: 'relative', height: '320px', width: '100%', maxWidth: '390px' }}>
+                      <h3> Model after attack </h3>
+                      { attacksConfusionMatrix &&
+                        <Heatmap {...configAttacksCM} />
+                      }
+                    </div>
+                  </div>
+                </Col>
+              </Row>
             </div>
           </Col>
         </Row>
@@ -702,13 +918,16 @@ class MetricsPage extends Component {
   }
 }
 
-const mapPropsToStates = ({ model, metrics }) => ({
-  model, metrics,
+const mapPropsToStates = ({ model, metrics, retrainStatus }) => ({
+  model, metrics, retrainStatus,
 });
 
 const mapDispatchToProps = (dispatch) => ({
+  fetchRetrainStatus: () => dispatch(requestRetrainStatus()),
   fetchModel: (modelId) => dispatch(requestModel(modelId)),
   fetchMetricCurrentness: (modelId) => dispatch(requestMetricCurrentness(modelId)),
+  fetchRetrainModel: (modelId, trainingDataset, testingDataset, params) =>
+    dispatch(requestRetrainModel({ modelId, trainingDataset, testingDataset, params })),
 });
 
 export default connect(mapPropsToStates, mapDispatchToProps)(MetricsPage);

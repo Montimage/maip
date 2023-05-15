@@ -5,10 +5,12 @@ export const setNotification = createAction('SET_NOTIFICATION');
 export const resetNotification = createAction('RESET_NOTIFICATION');
 
 export const requestBuildModel = createAction('REQUEST_BUILD_MODEL');
-export const requestRetrainModel = createAction('REQUEST_RETRAIN_MODEL');
 export const setBuildModel = createAction('SET_BUILD_MODEL');
 export const requestBuildStatus = createAction('REQUEST_BUILD_STATUS');
 export const setBuildStatus = createAction('SET_BUILD_STATUS');
+export const requestRetrainModel = createAction('REQUEST_RETRAIN_MODEL');
+export const requestRetrainStatus = createAction('REQUEST_RETRAIN_STATUS');
+export const setRetrainStatus = createAction('SET_RETRAIN_STATUS');
 
 // All models
 export const requestAllModels = createAction('REQUEST_ALL_MODELS');

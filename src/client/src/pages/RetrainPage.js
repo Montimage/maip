@@ -2,13 +2,15 @@ import React, { Component, useState } from 'react';
 import LayoutPage from './LayoutPage';
 import { getLastPath, getQuery } from "../utils";
 import { connect } from "react-redux";
-import { Button, InputNumber, Space, Form, Input, Select, Checkbox } from 'antd';
+import { Tooltip, Button, InputNumber, Space, Form, Input, Select, Checkbox } from 'antd';
 import { Collapse } from 'antd';
 import {
   requestRetrainModel,
   requestBuildStatus,
 } from "../actions";
-
+import {
+  SERVER_URL,
+} from "../constants";
 const { Panel } = Collapse;
 
 const layout = {
@@ -20,10 +22,15 @@ const layout = {
   },
 };
 
+let modelDatasets = [];
+let attacksDatasets = [];
+
 class RetrainPage extends Component {
   constructor(props) {
     super(props);
     this.state = {
+      modelDatasets: [],
+      attacksDatasets: [],
       trainingDataset: "",
       testingDataset: "",
       trainingParameters: {
@@ -38,9 +45,35 @@ class RetrainPage extends Component {
   }
 
   componentDidMount() {
-    this.props.fetchRetrainModel();
-    this.props.fetchBuildStatus();
+    this.fetchModelDatasets();
+    this.fetchAttacksDatasets();
   }
+
+  fetchModelDatasets = async () => {
+    const modelId = getLastPath();
+    try {
+      const response = await fetch(`${SERVER_URL}/api/models/${modelId}/datasets`);
+      const data = await response.json();
+      modelDatasets = data.datasets;
+      this.setState({ modelDatasets });
+      console.log(modelDatasets);
+    } catch (error) {
+      console.error('Error fetching model datasets:', error);
+    }
+  };
+
+  fetchAttacksDatasets = async () => {
+    const modelId = getLastPath();
+    try {
+      const response = await fetch(`${SERVER_URL}/api/attacks/${modelId}/datasets`);
+      const data = await response.json();
+      attacksDatasets = data.datasets;
+      this.setState({ attacksDatasets });
+      console.log(attacksDatasets);
+    } catch (error) {
+      console.error('Error fetching attacks datasets:', error);
+    }
+  };
 
   handleButtonRetrain(values) {
     const modelId = getLastPath();
@@ -49,6 +82,8 @@ class RetrainPage extends Component {
       trainingDataset, 
       testingDataset, 
       trainingParameters,
+      modelDatasets,
+      attacksDatasets,
     } = this.state;
 
     const retrainConfig = {
@@ -71,12 +106,25 @@ class RetrainPage extends Component {
 
   render() {
     const modelId = getLastPath();
+
+    const { modelDatasets, attacksDatasets } = this.state;
+    const allDatasets = [...modelDatasets, ...attacksDatasets];
+
+    const trainingDatasetsOptions = allDatasets ? allDatasets.map(dataset => ({
+      value: dataset,
+      label: dataset,
+    })) : [];
+    const testingDatasetsOptions = modelDatasets ? modelDatasets.map(dataset => ({
+      value: dataset,
+      label: dataset,
+    })) : [];
+
     return (
       <LayoutPage pageTitle="Retrain Page" pageSubTitle={`Retrain model ${modelId}`}>
         <Form
           {...layout}
           style={{
-            maxWidth: 700,
+            maxWidth: 600,
           }}>
           <Form.Item
             label="Training Dataset"
@@ -88,11 +136,16 @@ class RetrainPage extends Component {
               },
             ]}
           >
-            <Input
-              name="trainingDataset"
-              value={this.state.trainingDataset}
-              onChange={this.handleInputChange}
-            />
+            <Tooltip title="Select a training dataset.">
+              <Select
+                showSearch allowClear
+                value={this.state.trainingDataset}
+                onChange={(value) => {
+                  this.setState({ trainingDataset: value });
+                }}
+                options={trainingDatasetsOptions}
+              />
+            </Tooltip>
           </Form.Item>
           <Form.Item
             label="Testing Dataset"
@@ -104,11 +157,16 @@ class RetrainPage extends Component {
               },
             ]}
           >
-            <Input
-              name="testingDataset"
-              value={this.state.testingDataset}
-              onChange={this.handleInputChange}
-            />
+            <Tooltip title="Select a testing dataset.">
+              <Select
+                showSearch allowClear
+                value={this.state.testingDataset}
+                onChange={(value) => {
+                  this.setState({ testingDataset: value });
+                }}
+                options={testingDatasetsOptions}
+              />
+            </Tooltip>
           </Form.Item>
           <Collapse>
             <Panel header="Training Parameters">

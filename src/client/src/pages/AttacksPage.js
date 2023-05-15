@@ -12,7 +12,7 @@ import {
 import Papa from "papaparse";
 import { Column, G2, Heatmap, Bar, Scatter, Histogram, Mix } from '@ant-design/plots';
 import { message, Table, Col, Row, Divider, Slider, Form, Button, Checkbox, Select, Tooltip } from 'antd';
-import { DownloadOutlined, BugOutlined, CameraOutlined } from "@ant-design/icons";
+import { QuestionOutlined, DownloadOutlined, BugOutlined, CameraOutlined } from "@ant-design/icons";
 
 const layout = {
   labelCol: {
@@ -34,6 +34,10 @@ const { Option } = Select;
 
 const selectAttacksOptions = 
   [
+    {
+      value: 'gan',
+      label: 'GAN-driven data poisoning',
+    },
     {
       value: 'rsl',
       label: 'Random swapping labels',
@@ -283,7 +287,7 @@ class AttacksPage extends Component {
         {...layout}
         name="control-hooks"
         style={{
-          maxWidth: 600,
+          maxWidth: 700,
         }}
         >
           <Form.Item name="slider" label="Poisoning percentage"
@@ -292,10 +296,15 @@ class AttacksPage extends Component {
             <Slider
               marks={{
                 0: '0',
+                10: '10',
                 20: '20',
+                30: '30',
                 40: '40',
+                50: '50',
                 60: '60',
+                70: '70',
                 80: '80',
+                90: '90',
                 100: '100',
               }}
               min={0} max={100} defaultValue={poisoningRate}
@@ -343,47 +352,28 @@ class AttacksPage extends Component {
         </Form>
 
         <Divider orientation="left">
-          <h1 style={{ fontSize: '24px' }}>Compare Two Models</h1>
+          <h1 style={{ fontSize: '24px' }}>Compare Original and Poisoned Training Datasets</h1>
         </Divider>
 
-        <div style={style}>
+        {csvDataOriginal.length > 0 && csvDataPoisoned.length > 0 &&
           <Row gutter={24}>
-            <Col className="gutter-row" span={12} style={{ display: 'flex', justifyContent: 'center' }}>
-              <h3> Model before </h3>
-            </Col>
-            <Col className="gutter-row" span={12} style={{ display: 'flex', justifyContent: 'center' }}>
-              <h3> Model after </h3>
+            <Col className="gutter-row" span={12}>
+              <div style={style}>          
+                <div style={{ position: 'absolute', top: 10, right: 10 }}>
+                  <Tooltip title="The plot displays the frequency of output labels before and after an attack, represented as percentages. It provides a visual comparison of the distribution of labels in the original and poisoned training datasets.">
+                    <Button type="link" icon={<QuestionOutlined />} />
+                  </Tooltip>
+                </div>
+                <Column {...configLabelsColumn} style={{ margin: '20px' }}/>
+              </div>
             </Col>
           </Row>
-          {csvDataOriginal.length > 0 && csvDataPoisoned.length > 0 &&
-            <Column {...configLabelsColumn} style={{ margin: '20px' }}/>
-          }
-        </div>
-
-        
-
+          
+        }
       </LayoutPage>
     );
   }
 }
-
-/*<div style={{ maxWidth: '100vw', overflowX: 'auto', marginTop: '10px', marginBottom: '30px', height: 490 }}>
-  <Table columns={columns} 
-    dataSource={csvDataOriginal} 
-    size="small" bordered
-    scroll={{ x: 'max-content' }}
-    pagination={{ pageSize: 10 }}
-  />
-</div>
-
-<div style={{ maxWidth: '100vw', overflowX: 'auto', marginTop: '10px', marginBottom: '30px', height: 490 }}>
-  <Table columns={columns} 
-    dataSource={csvDataPoisoned} 
-    size="small" bordered
-    scroll={{ x: 'max-content' }}
-    pagination={{ pageSize: 10 }}
-  />
-</div>*/
 
 const mapPropsToStates = ({ attacksStatus }) => ({
   attacksStatus,

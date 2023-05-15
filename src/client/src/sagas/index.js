@@ -3,6 +3,7 @@ import { all } from "redux-saga/effects";
 import requestModelSaga from "./requestModelSaga";
 //import requestDatasetSaga from "./requestDatasetSaga";
 import requestBuildSaga from "./requestBuildSaga";
+import requestRetrainSaga from "./requestRetrainSaga";
 import requestShapSaga from "./requestShapSaga";
 import requestLimeSaga from "./requestLimeSaga";
 import requestReportSaga from "./requestReportSaga";
@@ -15,6 +16,7 @@ function* rootSaga() {
     requestModelSaga(),
 //    requestDatasetSaga(),
     requestBuildSaga(),
+    requestRetrainSaga(),
     requestShapSaga(),
     requestLimeSaga(),
     requestReportSaga(),

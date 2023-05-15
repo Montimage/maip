@@ -7,13 +7,24 @@ import {
 
 import {
   requestBuildModel,
-  requestRetrainModel,
+  requestBuildStatus,
 } from '../api';
 import {
   setNotification,
   setBuildStatus,
 } from '../actions';
 
+
+function* handleRequestBuildStatus() {
+  try {
+    const status = yield call(() => requestBuildStatus());
+    // dispatch data
+    yield put(setBuildStatus(status));
+  } catch (error) {
+    // dispatch error
+    yield put(setNotification({ type: "error", message: error }));
+  }
+}
 
 function* handleRequestBuildModel(action) {
   try {
@@ -29,24 +40,9 @@ function* handleRequestBuildModel(action) {
   }
 }
 
-function* handleRequestRetrainModel(action) {
-  try {
-    const { modelId, trainingDataset, testingDataset, params } = action.payload;
-    const retrainStatus = yield call(() => requestRetrainModel(
-      modelId, trainingDataset, testingDataset, params));
-    console.log(retrainStatus);
-    yield put(setBuildStatus(retrainStatus));
-    yield put(setNotification({type: 'success', message: `Retrain a model!`}));
-    // dispatch data
-  } catch (error) {
-    // dispatch error
-    yield put(setNotification({type: 'error', message: error}));
-  }
-}
-
 function* watchDatasets() {
   yield takeEvery('REQUEST_BUILD_MODEL', handleRequestBuildModel);
-  yield takeEvery('REQUEST_RETRAIN_MODEL', handleRequestRetrainModel);
+  yield takeEvery('REQUEST_BUILD_STATUS', handleRequestBuildStatus);
 }
 
 export default watchDatasets;
