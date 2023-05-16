@@ -80,6 +80,15 @@ class MetricsPage extends Component {
     this.fetchModelBuildConfig();
   }
 
+  // TODO: fix why classification plot and CM are rendered even values are not changed
+  /*shouldComponentUpdate(nextProps, nextState) {
+    return (
+      this.state.classificationData !== nextState.classificationData ||
+      this.props.retrainStatus.isRunning !== nextProps.retrainStatus.isRunning ||
+      this.state.confusionMatrix !== nextState.confusionMatrix
+    );
+  }*/
+
   calculateImpact() {
     const { confusionMatrix, attacksConfusionMatrix } = this.state;
     let impact = 0;
@@ -107,8 +116,7 @@ class MetricsPage extends Component {
     }
 
     // Check if attacksPredictions state is updated and clear the interval if it is
-    if (prevState.attacksPredictions !== this.state.attacksPredictions && 
-      this.state.attacksPredictions.length > 0) {
+    if (prevState.attacksConfusionMatrix !== this.state.attacksConfusionMatrix) {
       clearInterval(this.intervalId);
     }
   }
@@ -125,7 +133,8 @@ class MetricsPage extends Component {
       trueLabel: parseInt(d.split(',')[1]),
     }));
     //console.log(predictions);
-    this.setState({ attacksPredictions: predictions }, this.updateAttacksConfusionMatrix);
+    this.setState({ attacksPredictions: predictions });
+    this.updateAttacksConfusionMatrix();
   }
 
   updateAttacksConfusionMatrix() {
@@ -554,7 +563,7 @@ class MetricsPage extends Component {
           percentage: `${((Number(val) / rowTotalAtt) * 100).toFixed(2)}%`,
         }));
       });
-
+      console.log(dataAtt);
       configAttacksCM = {
         data: dataAtt,
         forceFit: true,
@@ -874,7 +883,11 @@ class MetricsPage extends Component {
                   }}
                   allowClear
                   placeholder="Select an attack ..."
-                  onChange={(value) => { this.handleSelectedAttack(value); }}
+                  onChange={value => {
+                    if (value) { // TODO: this function is auto executed even users have not selected an attack yet
+                      this.handleSelectedAttack(value);
+                    }
+                  }}
                   optionLabelProp="label"
                   options={selectAttacksOptions}
                   style={{ width: 300, marginTop: '10px', marginBottom: '20px' }}
