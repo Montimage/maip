@@ -170,7 +170,8 @@ class XAIShapPage extends Component {
       xaiStatus, 
     } = this.props;
 
-    const features = shapValues.map(obj => obj.feature).sort();
+    // TODO: remove the first two keys and the last one
+    const features = Object.keys(FEATURES_DESCRIPTIONS).sort();
     const selectFeaturesOptions = features.map((label, index) => ({
       value: label, label,
     }));

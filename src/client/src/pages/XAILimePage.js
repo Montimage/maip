@@ -14,6 +14,7 @@ import {
   requestPredictedProbsModel,
 } from "../actions";
 import {
+  FEATURES_DESCRIPTIONS,
   SERVER_URL,
 } from "../constants";
 const LIME_URL = `${SERVER_URL}/api/xai/lime`;
@@ -261,7 +262,8 @@ class XAILimePage extends Component {
       interactions: [{ type: 'element-highlight' }],
     };
 
-    const features = limeValues.map(obj => obj.feature).sort();
+    // TODO: remove the first two keys and the last one
+    const features = Object.keys(FEATURES_DESCRIPTIONS).sort();
     const selectFeaturesOptions = features.map((label, index) => ({
       value: label, label,
     }));
