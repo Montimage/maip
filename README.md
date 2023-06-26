@@ -13,3 +13,5 @@ The above figure shows the architecture of our MAIP framework, that includes the
 - **Defense mechanisms** module provides countermeasures to prevent attacks against both AI and XAI models.
 
 Overall our framework is designed with a server written in ExpressJS, that employs the MMT tool written in C for feature extraction and leverages popular Python libraries for DL and XAI. The client is built in React and accessible via Swagger APIs, offering users an intuitive and user-friendly interface to interact with the DL services.
+
+Under construction documentation is available here: https://docs.google.com/document/d/1sCuCICk80ytVSIVvH3T2BBwq5qbBCJmIGIBhhIXRK-o/edit?usp=sharing
