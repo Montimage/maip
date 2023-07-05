@@ -1,7 +1,6 @@
 import React, { Component } from "react";
 import { connect } from "react-redux";
 import LayoutPage from "./LayoutPage";
-import JSONView from "../components/JSONView";
 import {
   requestModel,
 } from "../actions";

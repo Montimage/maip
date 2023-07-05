@@ -50,8 +50,6 @@ function App() {
             <Route path="/xai/lime/:modelId" element={<XAILimePage />}/>
             <Route path="/metrics/:modelId" element={<MetricsPage />}/>
             <Route path="/attacks/:modelId" element={<AttacksPage />}/>
-            <Route path="/metrics/test" element={<MetricsTestPage />}/>
-            <Route path="/scatter" element={<ScatterPage />}/>
           </Routes>
           <MAIPFooter />
         </Layout>
