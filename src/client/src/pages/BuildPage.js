@@ -36,6 +36,7 @@ class BuildPage extends Component {
       attackPcap: "",
       normalDataset: "",
       normalPcap: "",
+      featureList: "Raw Features",
       training_ratio: 0.7,
       training_parameters: {
         nb_epoch_cnn: 2,
@@ -134,6 +135,18 @@ class BuildPage extends Component {
       label: report,
     })) : [];
 
+    const features = [
+      "Raw Features",
+      "Top 10 Important Features",
+      "Top 20 Important Features"
+    ];
+
+    const featureOptions = features ? features.map(feature => ({
+      value: feature,
+      label: feature,
+    })) : [];
+
+
     // TODO: disable button Upload pcaps if users selected already datasets and vice versa
     return (
       <LayoutPage pageTitle="Build Models" pageSubTitle="">
@@ -191,6 +204,15 @@ class BuildPage extends Component {
                 Upload pcaps only
               </Button>
             </Upload>
+          </Form.Item>
+          <Form.Item label="Feature List" name="featureList">
+            <Tooltip title="Select feature lists used to build models.">
+              <Select
+                value={this.state.featureList}
+                onChange={value => this.setState({ featureList: value })}
+                options={featureOptions}
+              />
+            </Tooltip>
           </Form.Item>
           <Form.Item label="Training Ratio" name="training_ratio">
             <Tooltip title="The training ratio refers to the proportion of data used for training a machine learning model compared to the total dataset. The training ratio is 0.7, meaning 70% for training and 30% for testing/validation.">

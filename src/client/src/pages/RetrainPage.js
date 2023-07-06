@@ -33,6 +33,7 @@ class RetrainPage extends Component {
       attacksDatasets: [],
       trainingDataset: "",
       testingDataset: "",
+      featureList: "Raw Features",
       trainingParameters: {
         nb_epoch_cnn: 2,
         nb_epoch_sae: 5,
@@ -119,6 +120,17 @@ class RetrainPage extends Component {
       label: dataset,
     })) : [];
 
+    const features = [
+      "Raw Features",
+      "Top 10 Important Features",
+      "Top 20 Important Features"
+    ];
+
+    const featureOptions = features ? features.map(feature => ({
+      value: feature,
+      label: feature,
+    })) : [];
+
     return (
       <LayoutPage pageTitle="Retrain Page" pageSubTitle={`Retrain model ${modelId}`}>
         <Form
@@ -165,6 +177,15 @@ class RetrainPage extends Component {
                   this.setState({ testingDataset: value });
                 }}
                 options={testingDatasetsOptions}
+              />
+            </Tooltip>
+          </Form.Item>
+          <Form.Item label="Feature List" name="featureList">
+            <Tooltip title="Select feature lists used to build models.">
+              <Select
+                value={this.state.featureList}
+                onChange={value => this.setState({ featureList: value })}
+                options={featureOptions}
               />
             </Tooltip>
           </Form.Item>
