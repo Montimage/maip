@@ -7,8 +7,6 @@ sys.path.append(sys.path[0] + '/..')
 from tensorflow.keras.models import load_model
 from eventToFeature import eventsToFeatures
 
-
-
 prediction_names = ['ip.session_id', 'meta.direction', 'ip', 'ip.pkts_per_flow', 'duration', 'ip.header_len',
                     'ip.payload_len', 'ip.avg_bytes_tot_len', 'time_between_pkts_sum',
                     'time_between_pkts_avg', 'time_between_pkts_max',

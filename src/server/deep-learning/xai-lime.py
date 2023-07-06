@@ -17,9 +17,7 @@ from pydoc import classname
 from datetime import datetime
 from tools import dataScale_cnn
 
-#deepLearningPath = str(os.path.join(Path.cwd(),'deep-learning/'))
-#deepLearningPath = "/home/strongcourage/maip-app/src/server/deep-learning"
-deepLearningPath = "/Users/strongcourage/maip-app/src/server/deep-learning"
+deepLearningPath = str(Path.cwd()) + '/src/server/deep-learning/'
 
 xai_features = ['ip', 'ip.pkts_per_flow', 'duration', 'ip.header_len',
                     'ip.payload_len', 'ip.avg_bytes_tot_len', 'time_between_pkts_sum',

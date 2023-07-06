@@ -518,7 +518,7 @@ class ModelListPage extends Component {
         />
 
         <Divider orientation="left">
-          <h1 style={{ fontSize: '24px' }}>Compare Two Models</h1>
+          <h1 style={{ fontSize: '24px' }}>Models Comparison</h1>
         </Divider>
         <div style={style}>
           <Row gutter={24}>
