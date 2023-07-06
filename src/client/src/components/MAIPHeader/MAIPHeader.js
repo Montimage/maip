@@ -115,7 +115,7 @@ class MAIPHeader extends Component {
         <Row>
           <Col span={1} style={{marginRight: '200px', marginTop: '-7px', height: '64px'}}>
             <img
-              src={'/img/Logo.png'}
+              src={'/img/logo_montimage.jpeg'}
               className="logo"
               alt="Logo"
               style={{ maxWidth: "100px", height: '64px', objectFit: "contain" }}

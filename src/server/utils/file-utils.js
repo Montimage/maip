@@ -1,6 +1,7 @@
 /* eslint-disable no-console */
 const fs = require('fs');
 
+// TODO: error handling this function when files is empty
 const listFiles = (path, filters, callback) => {
   fs.readdir(path, (err, files) => {
     if (filters === '*') return callback(files);
