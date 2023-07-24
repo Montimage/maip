@@ -2,7 +2,7 @@ import React, { Component, useState } from 'react';
 import LayoutPage from './LayoutPage';
 import { getLastPath, getQuery } from "../utils";
 import { connect } from "react-redux";
-import { Tooltip, message, Upload, Spin, Button, InputNumber, Space, Form, Input, Select, Checkbox } from 'antd';
+import { Row, Col, Tooltip, message, Upload, Spin, Button, InputNumber, Space, Form, Input, Select, Checkbox } from 'antd';
 import { UploadOutlined } from "@ant-design/icons";
 import { Collapse } from 'antd';
 import {
@@ -13,7 +13,6 @@ import {
 import {
   SERVER_URL,
 } from "../constants";
-import { useNavigate } from "react-router";
 
 const { Panel } = Collapse;
 
@@ -26,7 +25,7 @@ const layout = {
   },
 };
 
-// TODO: add Spin, continuously check buildingStatus, if done, jump to ModelsPage
+// TODO: if building a model is done, jump to ModelsPage -> seems to be difficult!
 
 class BuildPage extends Component {
   constructor(props) {
@@ -44,6 +43,7 @@ class BuildPage extends Component {
         batch_size_cnn: 32,
         batch_size_sae: 16,
       },
+      isRunning: props.buildStatus.isRunning,
     };
     this.handleInputChange = this.handleInputChange.bind(this);
     this.handleButtonBuild = this.handleButtonBuild.bind(this);
@@ -61,22 +61,47 @@ class BuildPage extends Component {
       normalDataset, 
       training_ratio, 
       training_parameters,
+      isRunning,
     } = this.state;
 
-    const datasets = [
-      { datasetId: attackDataset, isAttack: true },
-      { datasetId: normalDataset, isAttack: false },
-    ];
+    if (!isRunning) {
+      console.log("update isRunning state!");
+      this.setState({ isRunning: true });        
+      this.intervalId = setInterval(() => { // start interval when button is clicked
+        this.props.fetchBuildStatus();
+      }, 5000);
+      const datasets = [
+        { datasetId: attackDataset, isAttack: true },
+        { datasetId: normalDataset, isAttack: false },
+      ];
+  
+      const buildConfig = {
+        buildConfig: {
+          datasets,
+          training_ratio,
+          training_parameters,
+        }
+      };
+      //console.log(this.state);
+      console.log(buildConfig);
+      this.props.fetchBuildModel(datasets, training_ratio, training_parameters);
+    }
+  }
 
-    const buildConfig = {
-      buildConfig: {
-        datasets,
-        training_ratio,
-        training_parameters,
+  componentDidUpdate(prevProps, prevState) {
+    const modelId = getLastPath();
+    const { isRunning } = this.state;
+    const { buildStatus } = this.props;
+    console.log(`buildStatus: ${buildStatus.isRunning}`);
+    console.log(`build isRunning: ${isRunning}`);
+    if (prevProps.buildStatus.isRunning !== this.props.buildStatus.isRunning) {
+      console.log('isRunning has been changed');
+      this.setState({ isRunning: this.props.buildStatus.isRunning });
+      if (!this.props.buildStatus.isRunning) {
+        console.log('isRunning changed from True to False');  
+        clearInterval(this.intervalId);
       }
-    };
-    //console.log(this.state);
-    console.log(buildConfig);
+    }
   }
 
   handleInputChange = (name, value) => {
@@ -86,8 +111,9 @@ class BuildPage extends Component {
   };
 
   render() {
-    const { reports } = this.props;
+    const { buildStatus, reports } = this.props;
     //console.log(reports);
+    const { isRunning } = this.state;
 
     const props = {
       beforeUpload: (file) => {
@@ -149,7 +175,9 @@ class BuildPage extends Component {
 
     // TODO: disable button Upload pcaps if users selected already datasets and vice versa
     return (
-      <LayoutPage pageTitle="Build Models" pageSubTitle="">
+      <LayoutPage pageTitle="Build Models" pageSubTitle="Build a new deep learning model">
+        <Row>
+        <Col span={12}>
         <Form
           {...layout}
           style={{
@@ -169,7 +197,6 @@ class BuildPage extends Component {
               <Select
                 /*placeholder="Select an attack dataset"*/
                 showSearch allowClear
-                value={this.state.attackDataset}
                 onChange={(value) => {
                   this.setState({ attackDataset: value });
                 }}
@@ -177,7 +204,7 @@ class BuildPage extends Component {
               />
             </Tooltip>
             <Upload {...props}>
-              <Button icon={<UploadOutlined />} style={{ marginTop: '5px' }}>
+              <Button icon={<UploadOutlined />} style={{ marginTop: '5px' }} disabled={!!this.state.attackDataset}>
                 Upload pcaps only
               </Button>
             </Upload>
@@ -194,13 +221,13 @@ class BuildPage extends Component {
             <Tooltip title="Select MMT's analyzing reports of normal traffic.">
               <Select
                 /*placeholder="Select a normal dataset"*/
-                value={this.state.normalDataset}
+                showSearch allowClear
                 onChange={value => this.setState({ normalDataset: value })}
                 options={reportsOptions}
               />
             </Tooltip>
             <Upload {...props}>
-              <Button icon={<UploadOutlined />} style={{ marginTop: '5px' }}>
+              <Button icon={<UploadOutlined />} style={{ marginTop: '5px' }} disabled={!!this.state.normalDataset}>
                 Upload pcaps only
               </Button>
             </Upload>
@@ -286,35 +313,33 @@ class BuildPage extends Component {
           </Collapse>
           <div style={{ textAlign: 'center' }}>
             <Button
+              type="primary"
               style={{ marginTop: '16px' }}
-              disabled={!this.state.attackDataset || !this.state.normalDataset}
-              onClick={() => {
-                this.handleButtonBuild(this.state);
-                const { 
-                  attackDataset, 
-                  normalDataset, 
-                  training_ratio, 
-                  training_parameters,
-                } = this.state;
-            
-                const datasets = [
-                  { datasetId: attackDataset, isAttack: true },
-                  { datasetId: normalDataset, isAttack: false },
-                ];
-                this.props.fetchBuildModel(datasets, training_ratio, training_parameters);
-              }}
+              disabled={isRunning || !this.state.attackDataset || !this.state.normalDataset}
+              onClick={this.handleButtonBuild}
             >
               Build model
+              {isRunning && 
+                <Spin size="large" style={{ marginBottom: '8px' }}>
+                  <div className="content" />
+                </Spin>
+              }
             </Button>
           </div>
         </Form>
+        </Col>
+        <Col span={12} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <img src="../../img/architecture.png" 
+            style={{ width: '50%', height: '100%' }} />
+        </Col>
+        </Row>
       </LayoutPage>
     );
   }
 }
 
-const mapPropsToStates = ({ build, reports }) => ({
-  build, reports,
+const mapPropsToStates = ({ buildStatus, reports }) => ({
+  buildStatus, reports,
 });
 
 const mapDispatchToProps = (dispatch) => ({
