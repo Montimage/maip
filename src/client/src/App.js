@@ -26,8 +26,8 @@ import XAITestPage from "./pages/XAITestPage";
 import XAILimePage from "./pages/XAILimePage";
 import XAIShapPage from "./pages/XAIShapPage";
 import MetricsPage from "./pages/MetricsPage";
-import MetricsTestPage from "./pages/MetricsTestPage";
-import ScatterPage from "./pages/ScatterPage";
+//import MetricsTestPage from "./pages/MetricsTestPage";
+//import ScatterPage from "./pages/ScatterPage";
 
 function App() {
   return (
