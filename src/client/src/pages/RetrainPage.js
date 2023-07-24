@@ -2,11 +2,10 @@ import React, { Component, useState } from 'react';
 import LayoutPage from './LayoutPage';
 import { getLastPath, getQuery } from "../utils";
 import { connect } from "react-redux";
-import { Tooltip, Button, InputNumber, Space, Form, Input, Select, Checkbox } from 'antd';
-import { Collapse } from 'antd';
+import { Collapse, Spin, Tooltip, Button, InputNumber, Space, Form, Input, Select, Checkbox } from 'antd';
 import {
   requestRetrainModel,
-  requestBuildStatus,
+  requestRetrainStatus,
 } from "../actions";
 import {
   SERVER_URL,
@@ -40,6 +39,7 @@ class RetrainPage extends Component {
         batch_size_cnn: 32,
         batch_size_sae: 16,
       },
+      isRunning: props.retrainStatus.isRunning,
     };
     this.handleInputChange = this.handleInputChange.bind(this);
     this.handleButtonRetrain = this.handleButtonRetrain.bind(this);
@@ -85,17 +85,43 @@ class RetrainPage extends Component {
       trainingParameters,
       modelDatasets,
       attacksDatasets,
+      isRunning,
     } = this.state;
+    if (!isRunning) {
+      console.log("update isRunning state!");
+      this.setState({ isRunning: true });        
+      this.intervalId = setInterval(() => { // start interval when button is clicked
+        this.props.fetchRetrainStatus();
+      }, 2000);
+      const retrainConfig = {
+        retrainConfig: {
+          modelId: modelId,
+          trainingDataset,
+          testingDataset,
+          training_parameters: trainingParameters,
+        }
+      };
+      console.log(retrainConfig);
+      this.props.fetchRetrainModel(
+        modelId, trainingDataset, testingDataset, trainingParameters,
+      );
+    }    
+  }
 
-    const retrainConfig = {
-      retrainConfig: {
-        modelId: modelId,
-        trainingDataset,
-        testingDataset,
-        training_parameters: trainingParameters,
+  componentDidUpdate(prevProps, prevState) {
+    const modelId = getLastPath();
+    const { isRunning } = this.state;
+    const { retrainStatus } = this.props;
+    //console.log(`retrainStatus: ${retrainStatus.isRunning}`);
+    //console.log(`retrain isRunning: ${isRunning}`);
+    if (prevProps.retrainStatus.isRunning !== this.props.retrainStatus.isRunning) {
+      console.log('isRunning has been changed');
+      this.setState({ isRunning: this.props.retrainStatus.isRunning });
+      if (!this.props.retrainStatus.isRunning) {
+        //console.log('isRunning changed from True to False');  
+        clearInterval(this.intervalId);
       }
-    };
-    console.log(retrainConfig);
+    }
   }
 
   handleInputChange = (event) => {
@@ -108,7 +134,12 @@ class RetrainPage extends Component {
   render() {
     const modelId = getLastPath();
 
-    const { modelDatasets, attacksDatasets } = this.state;
+    const {
+      retrainStatus, 
+    } = this.props;
+    //console.log(`retrainStatus: ${retrainStatus}`);
+    const { modelDatasets, attacksDatasets, isRunning } = this.state;
+    //console.log(`retrain isRunning: ${isRunning}`);
     const allDatasets = [...modelDatasets, ...attacksDatasets];
 
     const trainingDatasetsOptions = allDatasets ? allDatasets.map(dataset => ({
@@ -255,19 +286,14 @@ class RetrainPage extends Component {
           </Collapse>
           <div style={{ textAlign: 'center', marginTop: 10 }}>
             <Button
-              onClick={() => {
-                this.handleButtonRetrain(this.state);
-                const {
-                  trainingDataset, 
-                  testingDataset, 
-                  trainingParameters,
-                } = this.state;
-                this.props.fetchRetrainModel(
-                  modelId, trainingDataset, testingDataset, trainingParameters,
-                );
-              }}
+              onClick={this.handleButtonRetrain} disabled={isRunning}
             >
               Retrain model
+              {isRunning && 
+                <Spin size="large" style={{ marginBottom: '8px' }}>
+                  <div className="content" />
+                </Spin>
+              }
             </Button>
           </div>
         </Form>
@@ -276,12 +302,12 @@ class RetrainPage extends Component {
   }
 }
 
-const mapPropsToStates = ({ build }) => ({
-  build,
+const mapPropsToStates = ({ retrainStatus }) => ({
+  retrainStatus,
 });
 
 const mapDispatchToProps = (dispatch) => ({
-  fetchBuildStatus: () => dispatch(requestBuildStatus()),
+  fetchRetrainStatus: () => dispatch(requestRetrainStatus()),
   fetchRetrainModel: (modelId, trainingDataset, testingDataset, params) =>
     dispatch(requestRetrainModel({ modelId, trainingDataset, testingDataset, params })),
 });
