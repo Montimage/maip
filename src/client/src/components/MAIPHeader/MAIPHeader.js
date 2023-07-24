@@ -145,7 +145,7 @@ class MAIPHeader extends Component {
                 item.children ? (
                   <SubMenu key={item.key} icon={item.icon} title={item.label} style={{ fontSize: '16px' }}>
                     {item.children.map((child) => (
-                      <Menu.Item key={child.key}>
+                      <Menu.Item key={child.key} style={{ fontSize: '16px' }}>
                         <a href={child.link}>{child.label}</a>
                       </Menu.Item>
                     ))}
