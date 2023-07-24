@@ -19,6 +19,7 @@ import BuildPage from "./pages/BuildPage";
 import RetrainPage from "./pages/RetrainPage";
 import AttacksPage from "./pages/AttacksPage";
 //import DummyPage from "./pages/DummyPage";
+import PredictPage from "./pages/PredictPage";
 import XAIPage from "./pages/XAIPage";
 import XAIModelPage from "./pages/XAIModelPage";
 import XAITestPage from "./pages/XAITestPage";
@@ -34,12 +35,11 @@ function App() {
       <ErrorBoundary>
         <Layout className="layout" style={{ height: "100%" }}>
           <MAIPHeader />
-          <Routes>
+          <Routes>    
             <Route
-              exact
               path="/"
-              render={() => <Navigate to="/build" />}
-            />          
+              element={<Navigate to="/models" replace />}
+            />     
             <Route path="/models" element={<ModelListPage />}/>
             <Route path="/models/:modelId" element={<ModelPage />}/> 
             <Route path="/build" element={<BuildPage />}/>
@@ -50,6 +50,7 @@ function App() {
             <Route path="/xai/lime/:modelId" element={<XAILimePage />}/>
             <Route path="/metrics/:modelId" element={<MetricsPage />}/>
             <Route path="/attacks/:modelId" element={<AttacksPage />}/>
+            <Route path="/predict" element={<PredictPage />}/>
           </Routes>
           <MAIPFooter />
         </Layout>
