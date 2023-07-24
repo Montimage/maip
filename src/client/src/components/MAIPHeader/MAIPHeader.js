@@ -5,7 +5,6 @@ import {
   DeploymentUnitOutlined, FolderOpenOutlined, BlockOutlined, LineChartOutlined, 
   SolutionOutlined, BugOutlined, SafetyOutlined, ExperimentOutlined, FilePdfOutlined,
 } from "@ant-design/icons";
-
 import {
   setNotification,
 } from "../../actions";
@@ -115,10 +114,10 @@ class MAIPHeader extends Component {
         <Row>
           <Col span={1} style={{marginRight: '200px', marginTop: '-7px', height: '64px'}}>
             <img
-              src={'/img/logo_montimage.jpeg'}
+              src={'/img/logo_montimage_small.png'}
               className="logo"
               alt="Logo"
-              style={{ maxWidth: "100px", height: '64px', objectFit: "contain" }}
+              style={{ width: "240px", height: '64px' }}
             />
           </Col>
           {/* TODO: look ugly if the browser is small */}
@@ -137,14 +136,14 @@ class MAIPHeader extends Component {
           </Col>
           <Col span={10}>
             <Menu
-              theme="light"
+              theme="dark"
               mode="horizontal"
-              style={{ lineHeight: '52px', width: '730px' }}
+              style={{ lineHeight: '52px', width: '730px', fontSize: '16px' }}
               selectedKeys={[selectedMenu]}
             >
               {menuItems.map((item) =>
                 item.children ? (
-                  <SubMenu key={item.key} icon={item.icon} title={item.label}>
+                  <SubMenu key={item.key} icon={item.icon} title={item.label} style={{ fontSize: '16px' }}>
                     {item.children.map((child) => (
                       <Menu.Item key={child.key}>
                         <a href={child.link}>{child.label}</a>
@@ -152,7 +151,7 @@ class MAIPHeader extends Component {
                     ))}
                   </SubMenu>
                 ) : (
-                  <Menu.Item key={item.key} icon={item.icon}>
+                  <Menu.Item key={item.key} icon={item.icon} style={{ fontSize: '16px' }}>
                     <a href={item.link}>{item.label}</a>
                   </Menu.Item>
                 )

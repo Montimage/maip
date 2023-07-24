@@ -499,7 +499,7 @@ class ModelListPage extends Component {
       <LayoutPage pageTitle="Models" pageSubTitle="All the deep learning models">
         <a href={`/build`}>
           <Space wrap>
-            <Button style={{ marginBottom: '16px' }}>
+            <Button type="primary" style={{ marginBottom: '16px' }}>
               Build a new model
             </Button>
           </Space>
@@ -523,6 +523,16 @@ class ModelListPage extends Component {
         <div style={style}>
           <Row gutter={24}>
             <Col className="gutter-row" span={8} style={{ display: 'flex', justifyContent: 'center' }}>
+              <div><h3>Model 1:</h3></div>
+            </Col>
+            <Col className="gutter-row" span={8} style={{ display: 'flex', justifyContent: 'center' }}>
+              <div><h3>Comparison Criteria:</h3></div>
+            </Col>
+            <Col className="gutter-row" span={8} style={{ display: 'flex', justifyContent: 'center' }}>
+              <div><h3>Model 2:</h3></div>
+            </Col>
+
+            <Col className="gutter-row" span={8} style={{ display: 'flex', justifyContent: 'center', marginTop: '-10px' }}>
               <Tooltip title="Select a model to compare.">
                 <Select
                   showSearch allowClear
@@ -540,7 +550,8 @@ class ModelListPage extends Component {
                 </Select>
               </Tooltip>
             </Col>
-            <Col className="gutter-row" span={8} style={{ display: 'flex', justifyContent: 'center' }}>
+
+            <Col className="gutter-row" span={8} style={{ display: 'flex', justifyContent: 'center', marginTop: '-10px' }}>
               <Tooltip title="Select a criteria for comparing the two selected models.">
                 <Select
                   showSearch allowClear
@@ -558,7 +569,8 @@ class ModelListPage extends Component {
                 </Select>
               </Tooltip>
             </Col>
-            <Col className="gutter-row" span={8} style={{ display: 'flex', justifyContent: 'center' }}>
+
+            <Col className="gutter-row" span={8} style={{ display: 'flex', justifyContent: 'center', marginTop: '-10px' }}>
               <Tooltip title="Select a model to compare.">
                 <Select
                   showSearch allowClear
