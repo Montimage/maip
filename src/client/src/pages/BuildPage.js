@@ -32,9 +32,9 @@ class BuildPage extends Component {
     super(props);
     this.state = {
       attackDataset: "",
-      attackPcap: "",
+      attackPcapFile: null,
       normalDataset: "",
-      normalPcap: "",
+      normalPcapFile: null,
       featureList: "Raw Features",
       training_ratio: 0.7,
       training_parameters: {
@@ -110,51 +110,76 @@ class BuildPage extends Component {
     });
   };
 
+  beforeUploadPcap = (file) => {
+    const isPCAP = file.name.endsWith('.pcap');
+    console.log(file.name.endsWith('.pcap'));
+    if (!isPCAP) {
+      message.error(`${file.name} is not a pcap file`);
+    }
+    return isPCAP ? true : Upload.LIST_IGNORE;
+  }
+
+  handleUploadPcap = async (info, typePcap) => {
+    const { status, response, name } = info.file;
+    console.log({ status, response, name });
+  
+    if (status === 'uploading') {
+      console.log(`Uploading ${name}`);
+    } else if (status === 'done') {
+      const pcapTypeToFileState = {
+        'attack': 'attackPcapFile',
+        'normal': 'normalPcapFile'
+      };
+      
+      if (pcapTypeToFileState[typePcap]) {
+        this.setState({ [pcapTypeToFileState[typePcap]]: info.file.originFileObj });
+        console.log(`Uploaded successfully ${name}`);
+      } else {
+        console.error('Type of pcap file is invalid');
+      }
+    } else if (status === 'error') {
+      console.error('Pcap file upload failed');
+    }
+  };
+
+  processUploadPcap = async ({ file, onProgress, onSuccess, onError }) => {
+    const formData = new FormData();
+    formData.append('pcapFile', file);
+
+    try {
+      const response = await fetch(`${SERVER_URL}/api/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Trigger onSuccess function to indicate upload has finished
+        onSuccess(data, response);
+        console.log(`Uploaded successfully ${file.name}`);
+      } else {
+        const error = await response.text();
+        // Trigger onError function to indicate upload failed
+        onError(new Error(error));
+        console.error(error);
+      }
+    } catch (error) {
+      // Trigger onError function to indicate upload failed
+      onError(error);
+      console.error(error);
+    }
+  }
+
   render() {
     const { buildStatus, reports } = this.props;
     //console.log(reports);
-    const { isRunning } = this.state;
+    const { 
+      attackPcapFile,
+      normalPcapFile,
+      isRunning 
+    } = this.state;
 
-    const props = {
-      beforeUpload: (file) => {
-        const isPCAP = file.name.endsWith('.pcap');
-        console.log(file.name.endsWith('.pcap'));
-        if (!isPCAP) {
-          message.error(`${file.name} is not a pcap file`);
-        }
-        return isPCAP ? true : Upload.LIST_IGNORE;
-      },
-      // TODO: fix bugs ?
-      onChange: async (info) => {
-        const { status, response, name } = info.file;
-        console.log({ status, response, name });
-
-        if (status === 'done') {
-          const formData = new FormData();
-          formData.append('fileName', name);
-          formData.append('file', info.file.originFileObj);
-
-          try {
-            const response = await fetch(`{SERVER_URL}/api/mmt/upload`, {
-              method: 'POST',
-              body: formData,
-            });
-
-            if (response.ok) {
-              const data = await response.json();
-              console.log(data);
-            } else {
-              const error = await response.text();
-              console.error(error);
-            }
-          } catch (error) {
-            console.error(error);
-          }
-        } else if (status === 'error') {
-          console.error('File upload failed');
-        }
-      },
-    };
+    console.log({ attackPcapFile, normalPcapFile, isRunning });
 
     const reportsOptions = reports ? reports.map(report => ({
       value: report,
@@ -171,7 +196,6 @@ class BuildPage extends Component {
       value: feature,
       label: feature,
     })) : [];
-
 
     // TODO: disable button Upload pcaps if users selected already datasets and vice versa
     return (
@@ -201,9 +225,18 @@ class BuildPage extends Component {
                   this.setState({ attackDataset: value });
                 }}
                 options={reportsOptions}
+                disabled={this.state.attackPcapFile !== null}
               />
             </Tooltip>
-            <Upload {...props}>
+            <Upload
+              beforeUpload={this.beforeUploadPcap}
+              action={`${SERVER_URL}/api/upload`}
+              onChange={(info) => this.handleUploadPcap(info, "attack")} 
+              customRequest={this.processUploadPcap}
+              onRemove={() => {
+                this.setState({ attackPcapFile: null });
+              }}
+            >
               <Button icon={<UploadOutlined />} style={{ marginTop: '5px' }} disabled={!!this.state.attackDataset}>
                 Upload pcaps only
               </Button>
@@ -224,9 +257,18 @@ class BuildPage extends Component {
                 showSearch allowClear
                 onChange={value => this.setState({ normalDataset: value })}
                 options={reportsOptions}
+                disabled={this.state.normalPcapFile !== null}
               />
             </Tooltip>
-            <Upload {...props}>
+            <Upload
+              beforeUpload={this.beforeUploadPcap}
+              action={`${SERVER_URL}/api/upload`}
+              onChange={(info) => this.handleUploadPcap(info, "normal")} 
+              customRequest={this.processUploadPcap}
+              onRemove={() => {
+                this.setState({ normalPcapFile: null });
+              }}
+            >
               <Button icon={<UploadOutlined />} style={{ marginTop: '5px' }} disabled={!!this.state.normalDataset}>
                 Upload pcaps only
               </Button>
@@ -330,7 +372,7 @@ class BuildPage extends Component {
         </Col>
         <Col span={12} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
           <img src="../../img/architecture.png" 
-            style={{ width: '50%', height: '100%' }} />
+            style={{ width: '40%' }} />
         </Col>
         </Row>
       </LayoutPage>

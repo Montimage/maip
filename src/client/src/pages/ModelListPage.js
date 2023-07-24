@@ -415,7 +415,7 @@ class ModelListPage extends Component {
               ),
               options: [
                 {
-                  label: 'Shap',
+                  label: 'SHAP',
                   icon: <SolutionOutlined />,
                   url: `/xai/shap/${model.modelId}`,
                   onClick: () => {
@@ -424,7 +424,7 @@ class ModelListPage extends Component {
                   }
                 },
                 {
-                  label: 'Lime',
+                  label: 'LIME',
                   icon: <SolutionOutlined />,
                   url: `/xai/lime/${model.modelId}`,
                   onClick: () => {
