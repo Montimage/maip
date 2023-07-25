@@ -170,8 +170,7 @@ class RetrainPage extends Component {
             maxWidth: 600,
           }}>
           <Form.Item
-            label="Training Dataset"
-            name="trainingDataset"
+            label="Training Dataset" name="trainingDataset"
             rules={[
               {
                 required: true,
@@ -183,16 +182,13 @@ class RetrainPage extends Component {
               <Select
                 showSearch allowClear
                 value={this.state.trainingDataset}
-                onChange={(value) => {
-                  this.setState({ trainingDataset: value });
-                }}
+                onChange={value => this.setState({ trainingDataset: value })}
                 options={trainingDatasetsOptions}
               />
             </Tooltip>
           </Form.Item>
           <Form.Item
-            label="Testing Dataset"
-            name="testingDataset"
+            label="Testing Dataset" name="testingDataset"
             rules={[
               {
                 required: true,
@@ -204,9 +200,7 @@ class RetrainPage extends Component {
               <Select
                 showSearch allowClear
                 value={this.state.testingDataset}
-                onChange={(value) => {
-                  this.setState({ testingDataset: value });
-                }}
+                onChange={value => this.setState({ testingDataset: value })}
                 options={testingDatasetsOptions}
               />
             </Tooltip>
@@ -286,7 +280,11 @@ class RetrainPage extends Component {
           </Collapse>
           <div style={{ textAlign: 'center', marginTop: 10 }}>
             <Button
-              onClick={this.handleButtonRetrain} disabled={isRunning}
+              type="primary"
+              onClick={this.handleButtonRetrain} 
+              disabled={ isRunning || 
+                !(this.state.trainingDataset && this.state.testingDataset)
+              }
             >
               Retrain model
               {isRunning && 
