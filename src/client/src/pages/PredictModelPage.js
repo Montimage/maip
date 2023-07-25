@@ -10,7 +10,6 @@ import {
 import {
   requestMMTStatus,
   requestAllReports,
-  requestAllModels,
 } from "../actions";
 
 const layout = {
@@ -22,11 +21,10 @@ const layout = {
   },
 };
 
-class PredictPage extends Component {
+class PredictModelPage extends Component {
   constructor(props) {
     super(props);
     this.state = {
-      model: null,
       testingPcapFile: null,
       testingDataset: null,
     };
@@ -35,7 +33,6 @@ class PredictPage extends Component {
 
   componentDidMount() {
     this.props.fetchAllReports();
-    this.props.fetchAllModels(); 
   }
 
   async requestMMTStatus() {
@@ -113,7 +110,6 @@ class PredictPage extends Component {
 
   async handleButtonPredict() {
     const { 
-      model,
       testingPcapFile,
       testingDataset,
     } = this.state;
@@ -121,18 +117,12 @@ class PredictPage extends Component {
 
   render() {
     let modelId = getLastPath();
-    const { models, mmtStatus, reports } = this.props;
-    console.log(models);
+    const { mmtStatus, reports } = this.props;
 
     const reportsOptions = reports ? reports.map(report => ({
       value: report,
       label: report,
     })) : [];
-
-    const modelsOptions = models ? models.map(model => ({
-      value: model.modelId,
-      label: model.modelId,
-    })) : []; 
 
     return (
       <LayoutPage pageTitle="Predict Page" pageSubTitle={`Make predictions using the model ${modelId}`}>
@@ -141,28 +131,6 @@ class PredictPage extends Component {
           style={{
             maxWidth: 700,
           }}>
-          <Form.Item name="model" label="Model" 
-            style={{ flex: 'none', marginBottom: 10 }}
-            rules={[
-              {
-                required: true,
-                message: 'Please select a model!',
-              },
-            ]}
-          > 
-            <Tooltip title="Select a model to make predictions.">
-              <Select
-                style={{ width: '100%' }}
-                allowClear showSearch
-                onChange={(value) => {
-                  this.setState({ model: value });
-                  console.log(`Select model ${value}`);
-                }}
-                //optionLabelProp="label"
-                options={modelsOptions}
-              />
-            </Tooltip>
-          </Form.Item>
           <Form.Item
             label="Testing Dataset"
             name="testingDataset"
@@ -203,7 +171,7 @@ class PredictPage extends Component {
             <Button
               type="primary"
               onClick={this.handleButtonPredict}
-              disabled={ !(this.state.model || this.state.testingDataset || this.state.testingPcapFile) }
+              disabled={ !(this.state.testingDataset || this.state.testingPcapFile) }
             >
               Predict
             </Button>
@@ -214,14 +182,13 @@ class PredictPage extends Component {
   }
 }
 
-const mapPropsToStates = ({ models, mmtStatus, reports }) => ({
-  models, mmtStatus, reports,
+const mapPropsToStates = ({ mmtStatus, reports }) => ({
+  mmtStatus, reports,
 });
 
 const mapDispatchToProps = (dispatch) => ({
-  fetchAllModels: () => dispatch(requestAllModels()),
   fetchMMTStatus: () => dispatch(requestMMTStatus()),
   fetchAllReports: () => dispatch(requestAllReports()),
 });
 
-export default connect(mapPropsToStates, mapDispatchToProps)(PredictPage);
+export default connect(mapPropsToStates, mapDispatchToProps)(PredictModelPage);

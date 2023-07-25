@@ -20,6 +20,7 @@ import RetrainPage from "./pages/RetrainPage";
 import AttacksPage from "./pages/AttacksPage";
 //import DummyPage from "./pages/DummyPage";
 import PredictPage from "./pages/PredictPage";
+import PredictModelPage from "./pages/PredictModelPage";
 import XAIPage from "./pages/XAIPage";
 import XAIModelPage from "./pages/XAIModelPage";
 import XAITestPage from "./pages/XAITestPage";
@@ -51,6 +52,7 @@ function App() {
             <Route path="/metrics/:modelId" element={<MetricsPage />}/>
             <Route path="/attacks/:modelId" element={<AttacksPage />}/>
             <Route path="/predict" element={<PredictPage />}/>
+            <Route path="/predict/:modelId" element={<PredictModelPage />}/>
           </Routes>
           <MAIPFooter />
         </Layout>
