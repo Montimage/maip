@@ -6,6 +6,7 @@ import { Row, Col, Tooltip, message, Upload, Spin, Button, InputNumber, Space, F
 import { UploadOutlined } from "@ant-design/icons";
 import { Collapse } from 'antd';
 import {
+  requestMMTStatus,
   requestBuildModel,
   requestBuildStatus,
   requestAllReports,
@@ -53,28 +54,84 @@ class BuildPage extends Component {
     //this.props.fetchBuildModel();
     this.props.fetchAllReports();
     //this.props.fetchBuildStatus();
+    //this.props.fetchMMTStatus();
   }
 
-  handleButtonBuild(values) {
+  async requestMMTStatus() {
+    const url = `${SERVER_URL}/api/mmt`;
+    const response = await fetch(url);
+    const data = await response.json();
+    if (data.error) {
+      throw data.error;
+    }
+    console.log(data.mmtStatus);
+    return data.mmtStatus;
+  };
+
+  async requestMMTOffline(file) {
+    const url = `${SERVER_URL}/api/mmt/offline`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ fileName: file }),
+    });
+    const data = await response.json();
+    console.log(`MMT offline analysis of pcap file ${file}`);
+    return data;
+  }
+  
+  async handleButtonBuild(values) {
+    const delay = ms => new Promise(res => setTimeout(res, ms));
     const { 
       attackDataset, 
-      normalDataset, 
+      normalDataset,
+      attackPcapFile,
+      normalPcapFile,
       training_ratio, 
       training_parameters,
       isRunning,
-    } = this.state;
-
+    } = this.state; 
+    const { mmtStatus } = this.props;
+    console.log(`mmtStatus: ${mmtStatus.isRunning}`);
+    let datasets;
     if (!isRunning) {
       console.log("update isRunning state!");
       this.setState({ isRunning: true });        
       this.intervalId = setInterval(() => { // start interval when button is clicked
         this.props.fetchBuildStatus();
-      }, 5000);
-      const datasets = [
-        { datasetId: attackDataset, isAttack: true },
-        { datasetId: normalDataset, isAttack: false },
-      ];
-  
+      }, 5000);   
+
+      if (attackDataset && normalDataset) {
+        datasets = [
+          { datasetId: attackDataset, isAttack: true },
+          { datasetId: normalDataset, isAttack: false },
+        ];
+      } else if (attackPcapFile && normalPcapFile) {
+        await this.requestMMTOffline(attackPcapFile.name);
+        const attackMMTStatus = await this.requestMMTStatus();
+        this.setState({ attackDataset: `report-${attackMMTStatus.sessionId}` });
+
+        await delay(3000); // TODO: improve?
+        await this.requestMMTOffline(normalPcapFile.name);
+        const normalMMTStatus = await this.requestMMTStatus();
+        this.setState({ normalDataset: `report-${normalMMTStatus.sessionId}` });
+        
+        const { attackDataset, normalDataset } = this.state;
+        console.log({ attackDataset, normalDataset });
+
+        datasets = [
+          { datasetId: attackDataset, isAttack: true },
+          { datasetId: normalDataset, isAttack: false },
+        ];
+      }
+
+      if (!datasets) {
+        console.error('No valid datasets or pcap files provided');
+        return;
+      }
+
       const buildConfig = {
         buildConfig: {
           datasets,
@@ -82,8 +139,9 @@ class BuildPage extends Component {
           training_parameters,
         }
       };
-      //console.log(this.state);
       console.log(buildConfig);
+
+      await delay(5000); // TODO: improve?
       this.props.fetchBuildModel(datasets, training_ratio, training_parameters);
     }
   }
@@ -154,24 +212,21 @@ class BuildPage extends Component {
 
       if (response.ok) {
         const data = await response.json();
-        // Trigger onSuccess function to indicate upload has finished
         onSuccess(data, response);
         console.log(`Uploaded successfully ${file.name}`);
       } else {
         const error = await response.text();
-        // Trigger onError function to indicate upload failed
         onError(new Error(error));
         console.error(error);
       }
     } catch (error) {
-      // Trigger onError function to indicate upload failed
       onError(error);
       console.error(error);
     }
   }
 
   render() {
-    const { buildStatus, reports } = this.props;
+    const { mmtStatus, buildStatus, reports } = this.props;
     //console.log(reports);
     const { 
       attackPcapFile,
@@ -357,7 +412,10 @@ class BuildPage extends Component {
             <Button
               type="primary"
               style={{ marginTop: '16px' }}
-              disabled={isRunning || !this.state.attackDataset || !this.state.normalDataset}
+              disabled={ isRunning || 
+                !((this.state.attackDataset && this.state.normalDataset) ||
+                (this.state.attackPcapFile && this.state.normalPcapFile))
+              }
               onClick={this.handleButtonBuild}
             >
               Build model
@@ -380,11 +438,12 @@ class BuildPage extends Component {
   }
 }
 
-const mapPropsToStates = ({ buildStatus, reports }) => ({
-  buildStatus, reports,
+const mapPropsToStates = ({ mmtStatus, buildStatus, reports }) => ({
+  mmtStatus, buildStatus, reports,
 });
 
 const mapDispatchToProps = (dispatch) => ({
+  fetchMMTStatus: () => dispatch(requestMMTStatus()),
   fetchBuildStatus: () => dispatch(requestBuildStatus()),
   fetchBuildModel: (datasets, ratio, params) =>
     dispatch(requestBuildModel({ datasets, ratio, params })),

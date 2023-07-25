@@ -16,6 +16,7 @@ import attacksReducer from './attacksReducer';
 import attacksStatusReducer from './attacksStatusReducer';
 import buildStatusReducer from './buildStatusReducer';
 import retrainStatusReducer from './retrainStatusReducer';
+import mmtStatusReducer from './mmtStatusReducer';
 
 const rootReducer = combineReducers({
   notify: notificationReducer,
@@ -32,6 +33,7 @@ const rootReducer = combineReducers({
   attacksStatus: attacksStatusReducer,
   buildStatus: buildStatusReducer,
   retrainStatus: retrainStatusReducer,
+  mmtStatus: mmtStatusReducer,
 });
 
 export default rootReducer;

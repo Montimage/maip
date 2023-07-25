@@ -3,6 +3,31 @@ const {
   SERVER_URL,
 } = require('../constants');
 
+export const requestMMTStatus = async () => {
+  const url = `${SERVER_URL}/api/mmt`;
+  const response = await fetch(url);
+  const data = await response.json();
+  if (data.error) {
+    throw data.error;
+  }
+  console.log(data.mmtStatus);
+  return data.mmtStatus;
+};
+
+export const requestMMTOffline = async (file) => {
+  const url = `${SERVER_URL}/api/mmt/offline`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ fileName: file }),
+  });
+  const data = await response.json();
+  console.log(`MMT offline analysis of pcap file ${file}`);
+  return data;
+};
+
 export const requestAllReports = async () => {
   const url = `${SERVER_URL}/api/reports`;
   const response = await fetch(url);
