@@ -2,10 +2,9 @@ import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
 import { getLastPath } from "../utils";
-import { Select, Divider, Form, Slider, Switch, Table, Col, Row, Button, Tooltip } from 'antd';
+import { Menu, Select, Divider, Form, Slider, Switch, Table, Col, Row, Button, Tooltip } from 'antd';
 import { QuestionOutlined, CameraOutlined } from "@ant-design/icons";
 import { Line, Heatmap, Column, G2 } from '@ant-design/plots';
-import Papa from "papaparse";
 import {
   requestModel,
   requestMetricCurrentness,
@@ -16,6 +15,7 @@ import {
   SERVER_URL,
 } from "../constants";
 
+const { SubMenu } = Menu;
 const style = {
   //background: '#0092ff',
   padding: '10px 0',
@@ -754,9 +754,65 @@ class MetricsPage extends Component {
     const impact = this.calculateImpact();
     console.log(impact);
 
+    const items = [
+      {
+        label: 'Accountability Metrics',
+        key: 'accountability',
+        children: [
+          {
+            label: 'Model Performance',
+            key: 'performance',
+            link: "#performance",
+          },
+          {
+            label: 'Confusion Matrix',
+            key: 'confusion_matrix',
+            link: "#confusion_matrix",
+          },
+          {
+            label: 'Classification Plot',
+            key: 'classification_plot',
+            link: "#classification_plot",
+          },
+          {
+            label: 'Precision Plot',
+            key: 'precision_plot',
+            link: "#precision_plot",
+          },
+          {
+            label: 'Currentness Metric',
+            key: 'currentness',
+            link: "#currentness",
+          },
+        ],
+      },
+      {
+        label: 'Resilience Metrics',
+        key: 'resilience',
+        children: [
+          {
+            label: 'Impact Metric',
+            key: 'impact',
+            link: "#impact",
+          },
+        ],
+      },
+    ];
 
     return (
       <LayoutPage pageTitle="Accountability & Resilience Metrics" pageSubTitle={`Model ${modelId}`}>
+        <Menu mode="horizontal" style={{ backgroundColor: 'white' }}>
+          {items.map(item => (
+            <SubMenu key={item.key} title={item.label}>
+              {item.children.map(child => (
+                <Menu.Item key={child.key}>
+                  <a href={child.link}>{child.label}</a>
+                </Menu.Item>
+              ))}
+            </SubMenu>
+          ))}
+        </Menu>
+
         <Divider orientation="left">
           <h1 style={{ fontSize: '24px' }}>Accountability Metrics</h1>
         </Divider>
@@ -806,7 +862,7 @@ class MetricsPage extends Component {
           </Form.Item>
         </div>
         <Row gutter={24}>
-          <Col className="gutter-row" span={12}>
+          <Col className="gutter-row" span={12} id="modelPerformance">
             <div style={style}>
               <h2>&nbsp;&nbsp;&nbsp;Model Performance</h2>
               <div style={{ position: 'absolute', top: 10, right: 10 }}>
@@ -818,7 +874,7 @@ class MetricsPage extends Component {
                style={{marginTop: '11px'}} />}
             </div>
           </Col>
-          <Col className="gutter-row" span={12}>
+          <Col className="gutter-row" span={12} id="confusion_matrix">
             <div style={style}>
               <h2>&nbsp;&nbsp;&nbsp;Confusion Matrix</h2>
               <div style={{ position: 'absolute', top: 10, right: 10 }}>
@@ -833,7 +889,7 @@ class MetricsPage extends Component {
               </div>
             </div>
           </Col>
-          <Col className="gutter-row" span={12} style={{ marginTop: "24px" }}>
+          <Col className="gutter-row" span={12} style={{ marginTop: "24px" }} id="classification_plot">
             <div style={style}>
               <h2>&nbsp;&nbsp;&nbsp;Classification Plot</h2>
               <div style={{ position: 'absolute', top: 10, right: 10 }}>
@@ -844,7 +900,7 @@ class MetricsPage extends Component {
               <Column {...configClassification} style={{ margin: '20px' }}/>
             </div>
           </Col>
-          <Col className="gutter-row" span={12} style={{ marginTop: "24px" }}>
+          <Col className="gutter-row" span={12} style={{ marginTop: "24px" }} id="precision_plot">
             <div style={style}>
               <h2>&nbsp;&nbsp;&nbsp;Precision Plot</h2>
               <div style={{ position: 'absolute', top: 10, right: 10 }}>
@@ -855,7 +911,7 @@ class MetricsPage extends Component {
               {configPrecision && <Line {...configPrecision} style={{ margin: '20px' }}/>}
             </div>
           </Col>
-          <Col className="gutter-row" span={12} style={{ marginTop: "24px" }}>
+          <Col className="gutter-row" span={12} style={{ marginTop: "24px" }} id="currentness">
             <div style={style}>
               <h2>&nbsp;&nbsp;&nbsp;Currentness Metric</h2>
               <div style={{ position: 'absolute', top: 10, right: 10 }}>
@@ -872,7 +928,7 @@ class MetricsPage extends Component {
           <h1 style={{ fontSize: '24px' }}>Resilience Metrics</h1>
         </Divider>
         <Row gutter={24}>
-          <Col className="gutter-row" span={24}>
+          <Col className="gutter-row" span={24} id="impact">
             <div style={style}>
               <h2>&nbsp;&nbsp;&nbsp;Impact Metric</h2>
               &nbsp;&nbsp;&nbsp;
