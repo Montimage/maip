@@ -12,10 +12,10 @@ const fs = require('fs');
 const router = express.Router();
 const path = require('path');
 
-const multer = require('multer');
+//const multer = require('multer');
 
 // Set up multer, to store files in the 'uploads' directory
-const upload = multer({ dest: 'uploads/' });
+//const upload = multer({ dest: 'uploads/' });
 
 /* GET home page. */
 router.get('/', (req, res) => {
