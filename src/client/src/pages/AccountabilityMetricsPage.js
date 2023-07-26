@@ -8,8 +8,6 @@ import { Line, Heatmap, Column, G2 } from '@ant-design/plots';
 import {
   requestModel,
   requestMetricCurrentness,
-  requestRetrainModel,
-  requestRetrainStatus,
 } from "../actions";
 import {
   SERVER_URL,
@@ -31,23 +29,7 @@ const layout = {
   },
 };
 
-const selectAttacksOptions = 
-  [
-    {
-      value: 'gan',
-      label: 'GAN-driven data poisoning',
-    },
-    {
-      value: 'rsl',
-      label: 'Random swapping labels',
-    },
-    {
-      value: 'tlf',
-      label: 'Target labels flipping',
-    },
-  ];
-
-class MetricsPage extends Component {
+class AccountabilityMetricsPage extends Component {
   constructor(props) {
     super(props);
 
@@ -62,13 +44,6 @@ class MetricsPage extends Component {
       tprs: [], 
       auc: 0,
       dataPrecision: null,
-      selectedAttack: null,
-      buildConfig: null,
-      modelDatasets: [],
-      attacksDatasets: [],
-      attacksPredictions: [],
-      attacksConfusionMatrix: null,
-      isRunning: props.retrainStatus.isRunning,
     }
   }
 
@@ -78,78 +53,6 @@ class MetricsPage extends Component {
     this.loadPredictions();
     this.props.fetchMetricCurrentness(modelId);
     this.fetchModelBuildConfig();
-  }
-
-  // TODO: fix why classification plot and CM are rendered even values are not changed
-  /*shouldComponentUpdate(nextProps, nextState) {
-    return (
-      this.state.classificationData !== nextState.classificationData ||
-      this.props.retrainStatus.isRunning !== nextProps.retrainStatus.isRunning ||
-      this.state.confusionMatrix !== nextState.confusionMatrix
-    );
-  }*/
-
-  calculateImpact() {
-    const { confusionMatrix, attacksConfusionMatrix } = this.state;
-    let impact = 0;
-    if (confusionMatrix && attacksConfusionMatrix) {
-      const errors = confusionMatrix[0][1] + confusionMatrix[1][0];
-      const errorsAttack = attacksConfusionMatrix[0][1] + attacksConfusionMatrix[1][0];
-      console.log(errors);
-      console.log(errorsAttack);
-      impact = (errorsAttack - errors) / errors;
-    }
-    return impact;
-  }
-
-  async componentDidUpdate(prevProps, prevState) {
-    const modelId = getLastPath();
-
-    if (prevProps.retrainStatus.isRunning !== this.props.retrainStatus.isRunning) {
-      console.log('isRunning has been changed');
-      this.setState({ isRunning: this.props.retrainStatus.isRunning });
-      if (!this.props.retrainStatus.isRunning) {
-        console.log('isRunning changed from True to False');
-        const retrainId = this.props.retrainStatus.lastRetrainId;
-        await this.loadAttacksPredictions(retrainId);  
-      }
-    }
-
-    // Check if attacksPredictions state is updated and clear the interval if it is
-    if (prevState.attacksConfusionMatrix !== this.state.attacksConfusionMatrix) {
-      clearInterval(this.intervalId);
-    }
-  }
-
-  async loadAttacksPredictions(modelId) {
-    const predictionsResponse = await fetch(`${SERVER_URL}/api/models/${modelId}/predictions`, {
-      method: 'GET',
-    });
-    const predictionsData = await predictionsResponse.json();
-    const predictionsValues = predictionsData.predictions;
-    //console.log(predictionsData);
-    const predictions = predictionsValues.split('\n').map((d) => ({
-      prediction: parseFloat(d.split(',')[0]),
-      trueLabel: parseInt(d.split(',')[1]),
-    }));
-    //console.log(predictions);
-    this.setState({ attacksPredictions: predictions });
-    this.updateAttacksConfusionMatrix();
-  }
-
-  updateAttacksConfusionMatrix() {
-    const { attacksPredictions } = this.state;
-    const cutoffProb = 0.5;
-    const TP = attacksPredictions.filter((d) => d.trueLabel === 1 && d.prediction >= cutoffProb).length;
-    const FP = attacksPredictions.filter((d) => d.trueLabel === 0 && d.prediction >= cutoffProb).length;
-    const TN = attacksPredictions.filter((d) => d.trueLabel === 0 && d.prediction < cutoffProb).length;
-    const FN = attacksPredictions.filter((d) => d.trueLabel === 1 && d.prediction < cutoffProb).length;
-    const confusionMatrix = [
-      [TP, FP],
-      [FN, TN],
-    ];
-
-    this.setState({ attacksConfusionMatrix: confusionMatrix });
   }
 
   async loadPredictions() {
@@ -425,49 +328,22 @@ class MetricsPage extends Component {
     }
   };
 
-  handleSelectedAttack(selectedAttack) {
-    let modelId = getLastPath();
-    this.setState({ selectedAttack: selectedAttack });
-    
-    const { isRunning, buildConfig, modelDatasets, attacksDatasets } = this.state;
-    const trainingParameters = buildConfig.training_parameters;
-    const testingDataset = "Test_samples.csv";
-    const trainingDataset = `${selectedAttack}_poisoned_dataset.csv`;
-
-    if (!isRunning) {
-      console.log("update isRunning state!");
-      this.setState({ isRunning: true });
-      this.props.fetchRetrainModel(
-        modelId, trainingDataset, testingDataset, trainingParameters,
-      );
-      this.intervalId = setInterval(() => { // start interval when button is clicked
-        this.props.fetchRetrainStatus();
-      }, 5000);
-    }
-  }
-
   render() {
     const {
       model,
       metrics,
-      retrainStatus,
     } = this.props;
-    console.log(retrainStatus);
     let modelId = getLastPath();
 
     const { 
       cutoffProb,
       cutoffPercentile,
       predictions,
-      attacksPredictions,
       confusionMatrix,
       stats,
       classificationData,
       fprs, tprs, auc, rocData,
       dataPrecision,
-      selectedAttack,
-      attacksConfusionMatrix,
-      isRunning,
     } = this.state;
 
     const columnsTableStats = [
@@ -548,49 +424,6 @@ class MetricsPage extends Component {
         lineWidth: 1,
       },
     };
-
-    let configAttacksCM = null;
-    if (attacksConfusionMatrix) {
-      const cmStrAtt = attacksConfusionMatrix.map((row, i) => `${i},${row.join(',')}`).join('\n');
-      const rowsAtt = cmStrAtt.trim().split('\n');
-      const dataAtt = rowsAtt.flatMap((row, i) => {
-        const colsAtt = row.split(',');
-        const rowTotalAtt = colsAtt.slice(1).reduce((acc, val) => acc + Number(val), 0);
-        return colsAtt.slice(1).map((val, j) => ({
-          actual: headers[i],
-          predicted: headers[j],
-          count: Number(val),
-          percentage: `${((Number(val) / rowTotalAtt) * 100).toFixed(2)}%`,
-        }));
-      });
-      console.log(dataAtt);
-      configAttacksCM = {
-        data: dataAtt,
-        forceFit: true,
-        xField: 'predicted',
-        yField: 'actual',
-        colorField: 'count',
-        shape: 'square',
-        tooltip: false,
-        xAxis: { title: { style: { fontSize: 20 }, text: 'Predicted', } },
-        yAxis: { title: { style: { fontSize: 20 }, text: 'Observed', } },
-        label: {
-          visible: true,
-          position: 'middle',
-          style: {
-            fontSize: '18',
-          },
-          formatter: (datum) => {
-            return `${datum.count}\n(${datum.percentage})`;
-          },
-        },
-        heatmapStyle: {
-          padding: 0,  
-          stroke: '#fff',
-          lineWidth: 1,
-        },
-      };
-    }
 
     G2.registerInteraction('element-link', {
       start: [
@@ -751,72 +584,45 @@ class MetricsPage extends Component {
       return { method: method, score: parseFloat(score).toFixed(2) };
     });
 
-    const impact = this.calculateImpact();
-    console.log(impact);
-
     const items = [
       {
-        label: 'Accountability Metrics',
-        key: 'accountability',
-        children: [
-          {
-            label: 'Model Performance',
-            key: 'performance',
-            link: "#performance",
-          },
-          {
-            label: 'Confusion Matrix',
-            key: 'confusion_matrix',
-            link: "#confusion_matrix",
-          },
-          {
-            label: 'Classification Plot',
-            key: 'classification_plot',
-            link: "#classification_plot",
-          },
-          {
-            label: 'Precision Plot',
-            key: 'precision_plot',
-            link: "#precision_plot",
-          },
-          {
-            label: 'Currentness Metric',
-            key: 'currentness',
-            link: "#currentness",
-          },
-        ],
+        label: 'Model Performance',
+        key: 'performance',
+        link: "#performance",
       },
       {
-        label: 'Resilience Metrics',
-        key: 'resilience',
-        children: [
-          {
-            label: 'Impact Metric',
-            key: 'impact',
-            link: "#impact",
-          },
-        ],
+        label: 'Confusion Matrix',
+        key: 'confusion_matrix',
+        link: "#confusion_matrix",
+      },
+      {
+        label: 'Classification Plot',
+        key: 'classification_plot',
+        link: "#classification_plot",
+      },
+      {
+        label: 'Precision Plot',
+        key: 'precision_plot',
+        link: "#precision_plot",
+      },
+      {
+        label: 'Currentness Metric',
+        key: 'currentness',
+        link: "#currentness",
       },
     ];
 
     return (
-      <LayoutPage pageTitle="Accountability & Resilience Metrics" pageSubTitle={`Model ${modelId}`}>
+      <LayoutPage pageTitle="Accountability Metrics" pageSubTitle={`Model ${modelId}`}>
         <Menu mode="horizontal" style={{ backgroundColor: 'transparent', fontSize: '16px' }}>
           {items.map(item => (
-            <SubMenu key={item.key} title={item.label}>
-              {item.children.map(child => (
-                <Menu.Item key={child.key}>
-                  <a href={child.link}>{child.label}</a>
-                </Menu.Item>
-              ))}
-            </SubMenu>
+            <Menu.Item key={item.key}>
+              <a href={item.link}><strong>{item.label}</strong></a>
+            </Menu.Item>
           ))}
         </Menu>
 
-        <Divider orientation="left">
-          <h1 style={{ fontSize: '24px' }}>Accountability Metrics</h1>
-        </Divider>
-        <div style={{ padding: '0 0' }}>
+        <div style={{ padding: '0 0' }} style={{ marginTop: '20px' }}>
           <div style={{ top: 1 }}>
             <Tooltip title={"Cutoff prediction probability is a fixed probability value above which the model will classify a sample as positive. For example, if the cutoff prediction probability is set to 0.5, the model will classify any sample with a predicted probability of belonging to the positive class greater than 0.5 as positive. Cutoff percentile is defined as the point on the predicted probability distribution above which the model will classify a sample as positive. For example, if the cutoff percentile is set to 90%, the model will classify any sample with a predicted probability of belonging to the positive class greater than the 90th percentile as positive."}>
               <Button type="link" icon={<QuestionOutlined />} />
@@ -924,79 +730,18 @@ class MetricsPage extends Component {
             </div>
           </Col>
         </Row>
-        <Divider orientation="left">
-          <h1 style={{ fontSize: '24px' }}>Resilience Metrics</h1>
-        </Divider>
-        <Row gutter={24}>
-          <Col className="gutter-row" span={24} id="impact">
-            <div style={style}>
-              <h2>&nbsp;&nbsp;&nbsp;Impact Metric</h2>
-              &nbsp;&nbsp;&nbsp;
-              <Tooltip title="Select an adversarial attack to be performed against the model.">
-                <Select
-                  style={{
-                    width: '100%',
-                  }}
-                  allowClear
-                  placeholder="Select an attack ..."
-                  onChange={value => {
-                    if (value) { // TODO: this function is auto executed even users have not selected an attack yet
-                      this.handleSelectedAttack(value);
-                    }
-                  }}
-                  optionLabelProp="label"
-                  options={selectAttacksOptions}
-                  style={{ width: 300, marginTop: '10px', marginBottom: '20px' }}
-                />
-              </Tooltip>
-              { attacksConfusionMatrix &&
-                <h3>&nbsp;&nbsp;&nbsp;Score: {impact}</h3>
-              }
-              <Row gutter={24} style={{height: '400px'}}>
-                <div style={{ position: 'absolute', top: 10, right: 10 }}>
-                  <Tooltip title="Impact metric shows difference between the original accuracy of a benign model compared to the accuracy of the compromised model after a successful poisoning attack.">
-                    <Button type="link" icon={<QuestionOutlined />} />
-                  </Tooltip>
-                </div>
-                <Col className="gutter-row" span={12} style={{ display: 'flex', justifyContent: 'center' }}>
-                  <div style={{ display: 'flex', justifyContent: 'center', width: '100%', flex: 1, flexWrap: 'wrap', marginTop: '20px' }}>
-                    <div style={{ position: 'relative', height: '320px', width: '100%', maxWidth: '390px' }}>
-                    <h3> Model before attack </h3>
-                    { attacksConfusionMatrix &&
-                      <Heatmap {...configCM} />
-                    }
-                    </div>
-                  </div>
-                </Col>
-                <Col className="gutter-row" span={12} style={{ display: 'flex', justifyContent: 'center' }}>
-                  <div style={{ display: 'flex', justifyContent: 'center', width: '100%', flex: 1, flexWrap: 'wrap', marginTop: '20px' }}>
-                    <div style={{ position: 'relative', height: '320px', width: '100%', maxWidth: '390px' }}>
-                      <h3> Model after attack </h3>
-                      { attacksConfusionMatrix &&
-                        <Heatmap {...configAttacksCM} />
-                      }
-                    </div>
-                  </div>
-                </Col>
-              </Row>
-            </div>
-          </Col>
-        </Row>
       </LayoutPage>
     );
   }
 }
 
-const mapPropsToStates = ({ model, metrics, retrainStatus }) => ({
-  model, metrics, retrainStatus,
+const mapPropsToStates = ({ model, metrics, }) => ({
+  model, metrics,
 });
 
 const mapDispatchToProps = (dispatch) => ({
-  fetchRetrainStatus: () => dispatch(requestRetrainStatus()),
   fetchModel: (modelId) => dispatch(requestModel(modelId)),
   fetchMetricCurrentness: (modelId) => dispatch(requestMetricCurrentness(modelId)),
-  fetchRetrainModel: (modelId, trainingDataset, testingDataset, params) =>
-    dispatch(requestRetrainModel({ modelId, trainingDataset, testingDataset, params })),
 });
 
-export default connect(mapPropsToStates, mapDispatchToProps)(MetricsPage);
+export default connect(mapPropsToStates, mapDispatchToProps)(AccountabilityMetricsPage);

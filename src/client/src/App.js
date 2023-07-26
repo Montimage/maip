@@ -27,6 +27,8 @@ import XAITestPage from "./pages/XAITestPage";
 import XAILimePage from "./pages/XAILimePage";
 import XAIShapPage from "./pages/XAIShapPage";
 import MetricsPage from "./pages/MetricsPage";
+import AccountabilityMetricsPage from "./pages/AccountabilityMetricsPage";
+import ResilienceMetricsPage from "./pages/ResilienceMetricsPage";
 //import MetricsTestPage from "./pages/MetricsTestPage";
 //import ScatterPage from "./pages/ScatterPage";
 
@@ -50,6 +52,8 @@ function App() {
             <Route path="/xai/shap/:modelId" element={<XAIShapPage />}/>
             <Route path="/xai/lime/:modelId" element={<XAILimePage />}/>
             <Route path="/metrics/:modelId" element={<MetricsPage />}/>
+            <Route path="/metrics/accountability/:modelId" element={<AccountabilityMetricsPage />}/>
+            <Route path="/metrics/resilience/:modelId" element={<ResilienceMetricsPage />}/>
             <Route path="/attacks/:modelId" element={<AttacksPage />}/>
             <Route path="/predict" element={<PredictPage />}/>
             <Route path="/predict/:modelId" element={<PredictModelPage />}/>

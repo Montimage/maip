@@ -396,7 +396,6 @@ class ModelListPage extends Component {
               icon: <HourglassOutlined />,
               url: `/retrain/${model.modelId}`,
               onClick: () => {
-                console.log("Option Retrain clicked!");
                 window.location.href = `/retrain/${model.modelId}`;
               }
             },
@@ -405,7 +404,6 @@ class ModelListPage extends Component {
               icon: <LineChartOutlined />,
               url: `/predict/${model.modelId}`,
               onClick: () => {
-                console.log("Option Predict clicked!");
                 window.location.href = `/predict/${model.modelId}`;
               }
             },
@@ -419,7 +417,6 @@ class ModelListPage extends Component {
                   icon: <SolutionOutlined />,
                   url: `/xai/shap/${model.modelId}`,
                   onClick: () => {
-                    console.log("Option XAI Shap clicked!");
                     window.location.href = `/xai/shap/${model.modelId}`;
                   }
                 },
@@ -428,27 +425,47 @@ class ModelListPage extends Component {
                   icon: <SolutionOutlined />,
                   url: `/xai/lime/${model.modelId}`,
                   onClick: () => {
-                    console.log("Option XAI Lime clicked!");
                     window.location.href = `/xai/lime/${model.modelId}`;
                   }
                 },
               ]
             },
             {
-              label: 'Metrics',
-              icon: <ExperimentOutlined />,
-              url: `/metrics/${model.modelId}`,
-              onClick: () => {
-                console.log("Option Metrics clicked!");
-                window.location.href = `/metrics/${model.modelId}`;
-              }
+              label: (
+                <span style={{ fontSize: '16px' }}>Metrics</span>
+              ),
+              options: [
+                {
+                  label: 'Accountability',
+                  icon: <ExperimentOutlined />,
+                  url: `/metrics/accountability/${model.modelId}`,
+                  onClick: () => {
+                    window.location.href = `/metrics/accountability/${model.modelId}`;
+                  }
+                },
+                {
+                  label: 'Resilience',
+                  icon: <ExperimentOutlined />,
+                  url: `/metrics/resilience/${model.modelId}`,
+                  onClick: () => {
+                    window.location.href = `/metrics/resilience/${model.modelId}`;
+                  }
+                },
+              ]
             },
+            // {
+            //   label: 'Metrics',
+            //   icon: <ExperimentOutlined />,
+            //   url: `/metrics/${model.modelId}`,
+            //   onClick: () => {
+            //     window.location.href = `/metrics/${model.modelId}`;
+            //   }
+            // },
             {
               label: 'Attacks',
               icon: <BugOutlined />,
               url: `/attacks/${model.modelId}`,
               onClick: () => {
-                console.log("Option Attacks clicked!");
                 window.location.href = `/attacks/${model.modelId}`;
               }
             },
