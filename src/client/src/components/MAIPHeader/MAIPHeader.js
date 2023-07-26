@@ -113,12 +113,14 @@ class MAIPHeader extends Component {
       <Header>
         <Row>
           <Col span={1} style={{marginRight: '200px', marginTop: '-7px', height: '64px'}}>
-            <img
-              src={'/img/logo_montimage_small.png'}
-              className="logo"
-              alt="Logo"
-              style={{ width: "240px", height: '64px' }}
-            />
+            <a href="https://www.montimage.com/">
+              <img
+                src={'/img/logo_montimage_small.png'}
+                className="logo"
+                alt="Logo"
+                style={{ width: "240px", height: '64px' }}
+              />
+            </a>
           </Col>
           {/* TODO: look ugly if the browser is small */}
           <Col span={7} style={{ marginRight: '200px', width: '250px' }}>
@@ -135,6 +137,7 @@ class MAIPHeader extends Component {
             </Radio.Group>
           </Col>
           <Col span={10}>
+            {/* TODO: change text color of the selected option to white */}
             <Menu
               theme="dark"
               mode="horizontal"
