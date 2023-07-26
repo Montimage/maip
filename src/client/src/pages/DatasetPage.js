@@ -9,7 +9,7 @@ import {
   getBeforeLastPath,
   getLastPath,
 } from "../utils";
-import { Button, Tooltip, Select, Col, Row, Table } from 'antd';
+import { Menu, Button, Tooltip, Select, Col, Row, Table } from 'antd';
 import Papa from "papaparse";
 import { Heatmap, Bar, Scatter, Histogram, Mix } from '@ant-design/plots';
 
@@ -459,15 +459,57 @@ class DatasetPage extends Component {
     };
     //console.log(dataBar);
 
+    const items = [ 
+      {
+        label: 'Data',
+        key: 'data',
+        link: "#data",
+      },
+      {
+        label: 'Feature Descriptions',
+        key: 'feature_descriptions',
+        link: "#feature_descriptions",
+      },
+      {
+        label: 'Histogram Plot',
+        key: 'histogram_plot',
+        link: "#histogram_plot",
+      },
+      {
+        label: 'Scatter Plot',
+        key: 'scatter_plot',
+        link: "#scatter_plot",
+      },
+      {
+        label: 'Bar Plot',
+        key: 'bar_plot',
+        link: "#bar_plot",
+      },
+      {
+        label: 'Heatmap Plot',
+        key: 'heatmap_plot',
+        link: "#heatmap_plot",
+      },
+    ];
+
     return (
       <LayoutPage pageTitle="Dataset" 
         pageSubTitle={`${datasetType.charAt(0).toUpperCase() + datasetType.slice(1)}ing dataset of the model ${modelId}`}>
-        {/* TODO: Fix "ResizeObserver loop limit exceeded", fixed header ? */}
-        <h4>
-          Total number of samples: {csvData.length};
-          Total number of features: {Object.keys(FEATURES_DESCRIPTIONS).length - 3}
-        </h4>
-        <div style={{ maxWidth: '100vw', overflowX: 'auto', marginTop: '10px', marginBottom: '30px', height: 490 }}>
+
+        <Menu mode="horizontal" style={{ backgroundColor: 'transparent', fontSize: '16px' }}>
+          {items.map(item => (
+            <Menu.Item key={item.key}>
+              <a href={item.link}><strong>{item.label}</strong></a>
+            </Menu.Item>
+          ))}
+        </Menu>
+
+        {/* TODO: Fix "ResizeObserver loop limit exceeded", fixed header ? */}        
+        <div style={{ fontSize: '16px', marginTop: '20px' }} id="data">
+          Total number of samples: <strong>{csvData.length}</strong>;
+          Total number of features: <strong>{Object.keys(FEATURES_DESCRIPTIONS).length - 3}</strong>
+        </div>
+        <div style={{ maxWidth: '100vw', overflowX: 'auto', marginTop: '20px', height: 490 }}>
           <Table columns={columns} 
             dataSource={csvData} 
             size="small" bordered
@@ -476,7 +518,7 @@ class DatasetPage extends Component {
           />
         </div>
 
-        <Row gutter={24} style={{ marginTop: '20px' }}>
+        <Row gutter={24} style={{ marginTop: '20px' }} id="feature_descriptions">
           <Col className="gutter-row" span={24}>
             <div style={style}>
               <h2>&nbsp;&nbsp;&nbsp;Feature Descriptions</h2>
@@ -492,7 +534,7 @@ class DatasetPage extends Component {
           </Col>
         </Row>
 
-        <Row gutter={24} style={{ marginTop: '20px' }}>
+        <Row gutter={24} style={{ marginTop: '20px' }} id="histogram_plot">
           <Col className="gutter-row" span={24}>
             {headers.length > 0 && (
               <div style={style}>
@@ -553,7 +595,7 @@ class DatasetPage extends Component {
           </Col>
         </Row>
 
-        <Row gutter={24} style={{ marginTop: '20px' }}>
+        <Row gutter={24} style={{ marginTop: '20px' }} id="scatter_plot">
           <Col className="gutter-row" span={24}>
             <div style={style}>
               <h2>&nbsp;&nbsp;&nbsp;Scatter Plot</h2>
@@ -605,7 +647,7 @@ class DatasetPage extends Component {
           </Col>
         </Row>
 
-        <Row gutter={24} style={{ marginTop: '20px' }}>
+        <Row gutter={24} style={{ marginTop: '20px' }} id="bar_plot">
           <Col className="gutter-row" span={12}>
             <div style={style}>
               <h2>&nbsp;&nbsp;&nbsp;Bar Plot</h2>
@@ -637,8 +679,7 @@ class DatasetPage extends Component {
             </div>
           </Col>
 
-
-          <Col className="gutter-row" span={12}>
+          <Col className="gutter-row" span={12} id="heatmap_plot">
             <div style={style}>
               <h2>&nbsp;&nbsp;&nbsp;Heatmap Plot (TODO)</h2>
             </div>
@@ -649,7 +690,5 @@ class DatasetPage extends Component {
     );
   }
 }
-
-/**/
 
 export default DatasetPage;
