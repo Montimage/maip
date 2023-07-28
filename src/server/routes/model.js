@@ -20,6 +20,11 @@ const {
 /* GET built models with lastBuildAt */
 router.get('/', async (req, res, next) => {
   try {
+    // Check if MODEL_PATH exists and create it if it does not
+    if (!fs.existsSync(MODEL_PATH)) {
+      fs.mkdirSync(MODEL_PATH, { recursive: true });
+    }
+
     const files = await readdirAsync(MODEL_PATH);
     const allModels = files.filter(file => path.extname(file) === '.h5');
     const modelList = [];
@@ -35,8 +40,8 @@ router.get('/', async (req, res, next) => {
     }
     res.send({ models: modelList });
   } catch (err) {
-    console.error(err);
-    res.status(500).send('Server Error');
+    console.error(err.stack);
+    res.status(500).send(`Server Error: ${err.message}`);
   }
 });
 

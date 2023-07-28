@@ -3,29 +3,34 @@ const fs = require('fs');
 
 // TODO: error handling this function when files is empty
 const listFiles = (path, filters, callback) => {
-  fs.readdir(path, (err, files) => {
-    if (filters === '*') return callback(files);
-    const finalFiles = [];
-    // eslint-disable-next-line no-plusplus
-    for (let index = 0; index < files.length; index++) {
-      const f = files[index];
-      if (typeof filters === 'string') {
-        if (f.indexOf(filters) > -1) {
-          finalFiles.push(f);
-        }
-      } else if (filters.length > 0) {
-        // eslint-disable-next-line no-plusplus
-        for (let index2 = 0; index2 < filters.length; index2++) {
-          const filter = filters[index2];
-          if (f.indexOf(filter) > -1) {
+  if (fs.existsSync(path)) {
+    fs.readdir(path, (err, files) => {
+      if (filters === '*') return callback(files);
+      const finalFiles = [];
+      // eslint-disable-next-line no-plusplus
+      for (let index = 0; index < files.length; index++) {
+        const f = files[index];
+        if (typeof filters === 'string') {
+          if (f.indexOf(filters) > -1) {
             finalFiles.push(f);
-            break;
+          }
+        } else if (filters.length > 0) {
+          // eslint-disable-next-line no-plusplus
+          for (let index2 = 0; index2 < filters.length; index2++) {
+            const filter = filters[index2];
+            if (f.indexOf(filter) > -1) {
+              finalFiles.push(f);
+              break;
+            }
           }
         }
       }
-    }
-    return callback(finalFiles);
-  });
+      return callback(finalFiles);
+    });
+  } else {
+    console.error(`Directory does not exist: ${path}`);
+    return callback([]);
+  }
 };
 
 const listFilesByTypeAsync = (path, ext) => {
@@ -95,7 +100,7 @@ const createFolderSync = (folderPath) => {
     return true;
   }
   try {
-    fs.mkdirSync(folderPath);
+    fs.mkdirSync(folderPath, { recursive: true });
     return true;
   } catch (error) {
     console.error(error);
