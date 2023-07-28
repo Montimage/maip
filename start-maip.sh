@@ -1,1 +1,1 @@
-sudo npm start
+npm start

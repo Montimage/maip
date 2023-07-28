@@ -1,0 +1,26 @@
+# TODO: don't work yet
+version: "2"
+services:
+  server:
+    image: maip-server
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    ports:
+      - 31057:31057
+    networks:
+      - app_network
+
+  client:
+    image: maip-client
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    ports:
+      - 3000:3000
+    networks:
+      - app_network
+
+networks:
+  app_network:
+    driver: bridge

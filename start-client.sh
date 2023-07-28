@@ -1,3 +1,3 @@
 cd src/client
-sudo npm start
+npm start
 cd -
