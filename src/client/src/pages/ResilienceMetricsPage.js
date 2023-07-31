@@ -152,6 +152,82 @@ class ResilienceMetricsPage extends Component {
     this.setState({ attacksConfusionMatrix: confusionMatrix });
   }
 
+  updateConfusionMatrix() {
+    const { predictions, cutoffProb } = this.state;
+    const TP = predictions.filter((d) => d.trueLabel === 1 && d.prediction >= cutoffProb).length;
+    const FP = predictions.filter((d) => d.trueLabel === 0 && d.prediction >= cutoffProb).length;
+    const TN = predictions.filter((d) => d.trueLabel === 0 && d.prediction < cutoffProb).length;
+    const FN = predictions.filter((d) => d.trueLabel === 1 && d.prediction < cutoffProb).length;
+    const confusionMatrix = [
+      [TP, FP],
+      [FN, TN],
+    ];
+
+    this.setState({ confusionMatrix });
+
+    const accuracy = (TP + TN) / (TP + TN + FP + FN);
+    const precision = TP / (TP + FP);
+    const recall = TP / (TP + FN);
+    const f1Score = (2 * precision * recall) / (precision + recall);
+
+    const precisionPositive = TP / (TP + FP);
+    const recallPositive = TP / (TP + FN);
+    const f1ScorePositive = (2 * precisionPositive * recallPositive) / (precisionPositive + recallPositive);
+    const supportPositive = TP + FN;
+
+    const precisionNegative = TN / (TN + FN);
+    const recallNegative = TN / (TN + FP);
+    const f1ScoreNegative = (2 * precisionNegative * recallNegative) / (precisionNegative + recallNegative);
+    const supportNegative = TN + FP;
+
+    //console.log({accuracy, precision, recall, f1Score});
+    //console.log({precisionPositive, recallPositive, f1ScorePositive, supportPositive});
+    //console.log({precisionNegative, recallNegative, f1ScoreNegative, supportNegative});
+
+    const stats = [
+      [precisionPositive, recallPositive, f1ScorePositive, supportPositive],
+      [precisionNegative, recallNegative, f1ScoreNegative, supportNegative],
+      [accuracy],
+    ];
+
+    this.setState({ stats: stats });
+
+    const classificationData = [
+      {
+        "cutoffProb": "Below cutoff",
+        "class": "Normal traffic",
+        "value": TN
+      },
+      {
+        "cutoffProb": "Below cutoff",
+        "class": "Malware traffic",
+        "value": FP
+      },
+      {
+        "cutoffProb": "Above cutoff",
+        "class": "Normal traffic",
+        "value": FN
+      },
+      {
+        "cutoffProb": "Above cutoff",
+        "class": "Malware traffic",
+        "value": TP
+      },
+      {
+        "cutoffProb": "Total",
+        "class": "Normal traffic",
+        "value": (TN + FN)
+      },
+      {
+        "cutoffProb": "Total",
+        "class": "Malware traffic",
+        "value": (TP + FP)
+      },
+    ];    
+
+    this.setState({ classificationData: classificationData });
+  }
+
   async loadPredictions() {
     const modelId = getLastPath();
 
