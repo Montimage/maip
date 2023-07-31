@@ -294,7 +294,7 @@ class XAIShapPage extends Component {
             />
           </Form.Item>
           <div style={{ textAlign: 'center' }}>
-            <Button type="primary" icon={<UserOutlined />}
+            <Button type="primary" //>icon={<UserOutlined />}
               onClick={this.handleShapClick} disabled={isRunning}
               >SHAP Explain
               {isRunning && 

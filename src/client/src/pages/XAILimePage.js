@@ -360,7 +360,7 @@ class XAILimePage extends Component {
             />
           </Form.Item>
           <div style={{ textAlign: 'center' }}>
-            <Button type="primary" icon={<UserOutlined />}
+            <Button type="primary" //>icon={<UserOutlined />}
               onClick={this.handleLimeClick} disabled={isRunning}
               >LIME Explain
               {isRunning && 

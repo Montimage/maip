@@ -341,7 +341,7 @@ class AttacksPage extends Component {
             />
           </Form.Item>
           <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <Button icon={<BugOutlined />}
+            <Button type="primary" //>icon={<BugOutlined />}
               onClick={() => {
                 console.log({ modelId, selectedAttack, poisoningRate, targetClass });
                 this.handlePerformAttackClick(modelId, selectedAttack, poisoningRate, targetClass);
