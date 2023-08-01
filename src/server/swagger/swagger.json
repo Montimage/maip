@@ -23,7 +23,7 @@
       "description": "SwaggerHub API Auto Mocking"
     },
     {
-      "url": "/api/"
+      "url": "/api"
     }
   ],
   "tags": [
