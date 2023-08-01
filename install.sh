@@ -4,7 +4,7 @@
 #git clone https://github.com/Montimage/maip.git
 #cd maip
 
-# Install some 
+# Install some packages 
 sudo apt-get update -y
 sudo apt install -y git wget cmake gcc g++ cpp curl software-properties-common
 
