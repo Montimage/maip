@@ -14,6 +14,23 @@ const { Header } = Layout;
 const { SubMenu } = Menu;
 
 class MAIPHeader extends Component {
+
+  constructor(props) {
+    super(props);
+    this.state = {
+      selectedValue: 'ad',
+    };
+  }
+
+  handleChange = (e) => {
+    this.setState({ selectedValue: e.target.value }, () => {
+      if (this.state.selectedValue === 'rca') {
+        // TODO: check correct link
+        window.open('https://rca.montimage.com', '_blank');
+      }
+    });
+  }
+
   render() {
     const menuLinks = [
       '/build',
@@ -125,7 +142,9 @@ class MAIPHeader extends Component {
           </Col>
           {/* TODO: look ugly if the browser is small */}
           <Col span={7} style={{ marginRight: '200px', width: '250px' }}>
-            <Radio.Group defaultValue="ad" buttonStyle="solid">
+            <Radio.Group defaultValue="ad" buttonStyle="solid"
+              onChange={this.handleChange}  
+            >
               <Radio.Button value="ac" style={{ width: '120px', height: '52px', lineHeight: '1.7' }}>
                 Activity Classification
               </Radio.Button>
