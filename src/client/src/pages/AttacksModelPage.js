@@ -2,7 +2,6 @@ import React, { Component } from "react";
 import { connect } from "react-redux";
 import LayoutPage from "./LayoutPage";
 import {
-  requestAllModels,
   requestPerformAttack,
   requestAttacksStatus,
 } from "../actions";
@@ -51,11 +50,11 @@ const selectAttacksOptions =
 
 // TODO: users must select only 1 option in TLF attack
 
-class AttacksPage extends Component {
+class AttacksModelPage extends Component {
+
   constructor(props) {
     super(props);
     this.state = {
-      modelId: null,
       csvDataOriginal: [],
       csvDataPoisoned: [],
       poisoningRate: 50,
@@ -67,7 +66,28 @@ class AttacksPage extends Component {
   }
 
   componentDidMount() {
-    this.props.fetchAllModels(); 
+    const modelId = getLastPath();
+    const datasetType = "train";
+    fetch(`${SERVER_URL}/api/models/${modelId}/datasets/${datasetType}/view`)
+    .then(response => response.text())
+      .then(data => {
+        Papa.parse(data, {
+          header: true,
+          skipEmptyLines: true,
+          delimiter: ';',
+          complete: (results) => {
+            const csvDataOriginal = results.data;
+            const headers = Object.keys(csvDataOriginal[0]);
+            this.setState({
+              csvDataOriginal: csvDataOriginal,
+              headers: headers,
+            });
+          },
+          error: () => {
+            console.log('Error parsing CSV file');
+          },
+        });
+      });
   }
 
   handleTargetClass(checkedValues) {
@@ -109,9 +129,9 @@ class AttacksPage extends Component {
   }
 
   async componentDidUpdate(prevProps, prevState) {
-    const { modelId, isRunning, selectedAttack, poisoningRate, targetClass } = this.state;
+    const modelId = getLastPath();
+    const { isRunning, selectedAttack, poisoningRate, targetClass } = this.state;
     const { attacksStatus } = this.props;
-    const datasetType = "train";
     
     if (prevProps.attacksStatus.isRunning !== this.props.attacksStatus.isRunning) {
       console.log('State isRunning has been changed');
@@ -120,29 +140,6 @@ class AttacksPage extends Component {
         console.log('isRunning changed from True to False');
         this.displayPoisonedDataset(modelId, selectedAttack, poisoningRate, targetClass);
       }
-    }
-
-    if (prevState.modelId !== this.state.modelId) {
-      fetch(`${SERVER_URL}/api/models/${modelId}/datasets/${datasetType}/view`)
-      .then(response => response.text())
-        .then(data => {
-          Papa.parse(data, {
-            header: true,
-            skipEmptyLines: true,
-            delimiter: ';',
-            complete: (results) => {
-              const csvDataOriginal = results.data;
-              const headers = Object.keys(csvDataOriginal[0]);
-              this.setState({
-                csvDataOriginal: csvDataOriginal,
-                headers: headers,
-              });
-            },
-            error: () => {
-              console.log('Error parsing CSV file');
-            },
-          });
-        });
     }
 
     // Check if csvDataPoisoned state is updated and clear the interval if it is
@@ -164,8 +161,8 @@ class AttacksPage extends Component {
   }
 
   render() {
+    const modelId = getLastPath();
     const {
-      modelId,
       csvDataOriginal,
       csvDataPoisoned,
       poisoningRate, 
@@ -174,17 +171,9 @@ class AttacksPage extends Component {
       isRunning,
     } = this.state;
     const {
-      models,
       attacksStatus, 
     } = this.props;
-    console.log(models);
     console.log(`Attacks isRunning: ${attacksStatus.isRunning}`);
-
-    const modelsOptions = models ? models.map(model => ({
-      value: model.modelId,
-      label: model.modelId,
-    })) : [];
-    console.log(modelsOptions);
 
     const columns = csvDataOriginal.length > 0 ? Object.keys(csvDataOriginal[0]).map(key => ({
       title: key,
@@ -292,8 +281,7 @@ class AttacksPage extends Component {
 
     return (
       <LayoutPage pageTitle="Adversarial Attacks" 
-        pageSubTitle={`Adversarial attacks against models`}
-      >
+        pageSubTitle={`Adversarial attacks against the model ${modelId}`}>
         
         <Form
         {...layout}
@@ -302,28 +290,6 @@ class AttacksPage extends Component {
           maxWidth: 700,
         }}
         >
-          <Form.Item name="model" label="Model" 
-            style={{ flex: 'none', marginBottom: 10 }}
-            rules={[
-              {
-                required: true,
-                message: 'Please select a model!',
-              },
-            ]}
-          > 
-            <Tooltip title="Select a model to perform attacks.">
-              <Select
-                style={{ width: '100%' }}
-                allowClear showSearch
-                onChange={(value) => {
-                  this.setState({ modelId: value });
-                  console.log(`Select model ${value}`);
-                }}
-                //optionLabelProp="label"
-                options={modelsOptions}
-              />
-            </Tooltip>
-          </Form.Item>
           <Form.Item name="slider" label="Poisoning percentage"
             style={{ marginBottom: 0 }}
           >
@@ -409,15 +375,14 @@ class AttacksPage extends Component {
   }
 }
 
-const mapPropsToStates = ({ models, attacksStatus }) => ({
-  models, attacksStatus
+const mapPropsToStates = ({ attacksStatus }) => ({
+  attacksStatus,
 });
 
 const mapDispatchToProps = (dispatch) => ({
-  fetchAllModels: () => dispatch(requestAllModels()),
   fetchAttacksStatus: () => dispatch(requestAttacksStatus()),
   fetchPerformAttack: (modelId, selectedAttack, poisoningRate, targetClass) =>
     dispatch(requestPerformAttack({ modelId, selectedAttack, poisoningRate, targetClass })),
 });
 
-export default connect(mapPropsToStates, mapDispatchToProps)(AttacksPage);
+export default connect(mapPropsToStates, mapDispatchToProps)(AttacksModelPage);
