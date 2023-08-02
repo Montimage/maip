@@ -10,3 +10,11 @@ header {
     /* background: #fff; */
     z-index: 10;
 }
+
+.selectedMenuItem {
+    color: white !important;
+}
+
+.ant-menu-dark .ant-menu-item-selected, .ant-menu-dark .ant-menu-item:active, .ant-menu-dark .ant-menu-submenu-title:active, .ant-menu-dark .ant-menu-item:hover, .ant-menu-dark .ant-menu-submenu-title:hover, .ant-menu-dark .ant-menu-submenu-active, .ant-menu-dark .ant-menu-submenu-open, .ant-menu-dark .ant-menu-submenu-selected, .ant-menu-dark .ant-menu-item:focus, .ant-menu-dark .ant-menu-submenu-title:focus {
+    background-color: transparent !important;
+}
