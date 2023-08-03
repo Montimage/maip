@@ -13,8 +13,115 @@ import "./styles.css";
 const { Header } = Layout;
 const { SubMenu } = Menu;
 
-class MAIPHeader extends Component {
+const menuOptions = [
+  { key: '0', link: '/build' },
+  { key: '1', link: '/models' },
+  { key: '2', link: '/models' },
+  { key: '3', link: '/models/comparison' },
+  { key: '4', link: '/predict' },
+  { key: '5', link: '/predict/online' },
+  { key: '6', link: '/predict/offline' },
+  { key: '7', link: '/attacks' },
+  { key: '8', link: '/xai' },
+  { key: '9', link: '/xai/shap' },
+  { key: '10', link: '/xai/lime' },
+  { key: '11', link: '/metrics' },
+  { key: '12', link: '/metrics/accountability' },
+  { key: '13', link: '/metrics/resilience' },
+  { key: '14', link: '/reports' },
+];
 
+const menuItems = [
+  {
+    key: menuOptions[0].key,
+    label: 'Build',
+    icon: <DeploymentUnitOutlined />,
+    link: menuOptions[0].link,
+  },
+  {
+    key: menuOptions[1].key,
+    label: 'Models',
+    icon: <BlockOutlined />,
+    children: [
+      {
+        key: menuOptions[2].key,
+        label: 'All Models',
+        link: menuOptions[2].link,
+      },
+      {
+        key: menuOptions[3].key,
+        label: 'Models Comparison',
+        link: menuOptions[3].link,
+      },
+    ],
+  },
+  {
+    key: menuOptions[4].key,
+    label: 'Predict',
+    icon: <LineChartOutlined />,
+    children: [
+      {
+        key: menuOptions[5].key,
+        label: 'Online Mode',
+        link: menuOptions[5].link,
+      },
+      {
+        key: menuOptions[6].key,
+        label: 'Offline Mode',
+        link: menuOptions[6].link,
+      },
+    ],
+  },
+  {
+    key: menuOptions[7].key,
+    label: 'Attacks',
+    icon: <BugOutlined />,
+    link: menuOptions[7].link,
+  },
+  {
+    key: menuOptions[8].key,
+    label: 'XAI',
+    icon: <SolutionOutlined />,
+    children: [
+      {
+        key: menuOptions[9].key,
+        label: 'SHAP',
+        link: menuOptions[9].link,
+      },
+      {
+        key: menuOptions[10].key,
+        label: 'LIME',
+        link: menuOptions[10].link,
+      },
+    ],
+  },
+  
+  {
+    key: menuOptions[11].key,
+    label: 'Metrics',
+    icon: <ExperimentOutlined />,
+    children: [
+      {
+        key: menuOptions[12].key,
+        label: 'Accountability Metrics',
+        link: menuOptions[12].link,
+      },
+      {
+        key: menuOptions[13].key,
+        label: 'Resilience Metrics',
+        link: menuOptions[13].link,
+      },
+    ],
+  },
+  {
+    key: menuOptions[14].key,
+    label: 'Reports',
+    icon: <FilePdfOutlined />,
+    link: menuOptions[14].link,
+  },
+];
+
+class MAIPHeader extends Component {
   constructor(props) {
     super(props);
     this.state = {
@@ -32,113 +139,20 @@ class MAIPHeader extends Component {
   }
 
   render() {
-    const menuLinks = [
-      '/build',
-      // '/datasets',
-      '/models',
-      '/predict',
-      /* '/xai', */
-      // '/xai/shap',
-      // '/xai/lime',
-      // '/metrics',
-      '/attacks',
-      // '/defenses',
-      '/reports',
-      '/models/comparison'
-    ];
-    const menuItems = [
-      {
-        key: '0',
-        label: 'Build',
-        icon: <DeploymentUnitOutlined />,
-        link: menuLinks[0],
-      },
-      // TODO: currently don't need ?
-      // {
-      //   key: '1',
-      //   label: 'Datasets',
-      //   icon: <FolderOpenOutlined />,
-      //   link: menuLinks[1],
-      // },
-      {
-        key: '1',
-        label: 'Models',
-        icon: <BlockOutlined />,
-        link: menuLinks[1],
-        children: [
-          {
-            key: '1.0',
-            label: 'All Models',
-            link: menuLinks[1],
-          },
-          {
-            key: '1.1',
-            label: 'Models Comparison',
-            link: menuLinks[5],
-          },
-        ],
-      },
-      {
-        key: '2',
-        label: 'Predict',
-        icon: <LineChartOutlined />,
-        link: menuLinks[2],
-      },
-      {
-        key: '3',
-        label: 'Attacks',
-        icon: <BugOutlined />,
-        link: menuLinks[3],
-      },
-      {
-        key: '4',
-        label: 'Reports',
-        icon: <FilePdfOutlined />,
-        link: menuLinks[4],
-      },
-      // {
-      //   /* TODO: should I add a link for XAI here */
-      //   key: '4',
-      //   label: 'XAI',
-      //   icon: <SolutionOutlined />,
-      //   children: [
-      //     {
-      //       key: '4.1',
-      //       label: 'SHAP',
-      //       link: menuLinks[4],
-      //     },
-      //     {
-      //       key: '4.2',
-      //       label: 'LIME',
-      //       link: menuLinks[5],
-      //     },
-      //   ],
-      // },
-      // {
-      //   key: '5',
-      //   label: 'Metrics',
-      //   icon: <ExperimentOutlined />,
-      //   link: menuLinks[6],
-      // },
-      
-      // {
-      //   key: '7',
-      //   label: 'Defenses',
-      //   icon: <SafetyOutlined />,
-      //   link: menuLinks[8],
-      // },
-    ];
+    // Modify the current pathname if it is "/"
+    let { pathname } = window.location;
+    pathname = pathname === "/" ? "/models" : pathname;
+
     // Calculate the selected menu
-    let selectedMenu = 0;
-    const fullPath = window.location.pathname;
-    let currentPositionIndex = fullPath.length - 1;
-    for (let index = 0; index < menuLinks.length; index++) {
-      const positionIndex = fullPath.indexOf(menuLinks[index]);
-      if ( positionIndex > -1 && positionIndex < currentPositionIndex) {
-        currentPositionIndex = positionIndex;
-        selectedMenu = index;
+    const selectedMenu = menuOptions.findIndex(
+      menuOption => pathname.startsWith(menuOption.link));
+
+    let selectedKeys = [];
+    menuOptions.forEach(option => {
+      if (pathname.includes(option.link)) {
+        selectedKeys.push(option.key);
       }
-    }
+    });
 
     return (
       <Header>
@@ -174,7 +188,7 @@ class MAIPHeader extends Component {
               theme="dark"
               mode="horizontal"
               style={{ lineHeight: '52px', width: '730px', fontSize: '16px' }}
-              selectedKeys={[menuItems[selectedMenu].key]}
+              selectedKeys={selectedKeys}
             >
               {menuItems.map((item) =>
                 item.children ? (

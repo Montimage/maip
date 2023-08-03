@@ -17,6 +17,8 @@ import {
   ATTACK_OPTIONS, RES_METRICS_MENU_ITEMS, HEADER_ACCURACY_STATS
 } from "../constants";
 
+// TODO: check reading some empty files
+
 class ResilienceMetricsPage extends Component {
   constructor(props) {
     super(props);

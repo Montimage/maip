@@ -53,9 +53,12 @@ function App() {
             <Route path="/retrain/:modelId" element={<RetrainPage />}/>
             <Route path="/datasets/:modelId/:datasetType" element={<DatasetPage />}/>
             <Route path="/xai/test/:modelId" element={<XAITestPage />}/>
+            <Route path="/xai/shap" element={<XAIShapPage />}/>
             <Route path="/xai/shap/:modelId" element={<XAIShapPage />}/>
+            <Route path="/xai/lime" element={<XAILimePage />}/>
             <Route path="/xai/lime/:modelId" element={<XAILimePage />}/>
             <Route path="/metrics/:modelId" element={<MetricsPage />}/>
+            <Route path="/metrics/accountability" element={<AccountabilityMetricsPage />}/>
             <Route path="/metrics/accountability/:modelId" element={<AccountabilityMetricsPage />}/>
             <Route path="/metrics/resilience/:modelId" element={<ResilienceMetricsPage />}/>
             <Route path="/attacks" element={<AttacksPage />}/>

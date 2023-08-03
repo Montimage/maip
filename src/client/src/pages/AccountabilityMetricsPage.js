@@ -12,8 +12,11 @@ import {
 import {
   BOX_STYLE,
   SERVER_URL,
-  ACC_METRICS_MENU_ITEMS, COLUMNS_CURRENTNESS_METRICS, HEADER_ACCURACY_STATS
+  ACC_METRICS_MENU_ITEMS, COLUMNS_CURRENTNESS_METRICS, HEADER_ACCURACY_STATS,
+  COLUMNS_PERF_STATS
 } from "../constants";
+
+// TODO: check reading some empty files
 
 class AccountabilityMetricsPage extends Component {
   constructor(props) {

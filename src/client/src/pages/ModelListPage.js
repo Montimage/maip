@@ -219,6 +219,14 @@ class ModelListPage extends Component {
               ]
             },
             {
+              label: 'Attacks',
+              icon: <BugOutlined />,
+              url: `/attacks/${model.modelId}`,
+              onClick: () => {
+                window.location.href = `/attacks/${model.modelId}`;
+              }
+            },
+            {
               label: (
                 <span style={{ fontSize: '16px' }}>Metrics</span>
               ),
@@ -240,22 +248,6 @@ class ModelListPage extends Component {
                   }
                 },
               ]
-            },
-            // {
-            //   label: 'Metrics',
-            //   icon: <ExperimentOutlined />,
-            //   url: `/metrics/${model.modelId}`,
-            //   onClick: () => {
-            //     window.location.href = `/metrics/${model.modelId}`;
-            //   }
-            // },
-            {
-              label: 'Attacks',
-              icon: <BugOutlined />,
-              url: `/attacks/${model.modelId}`,
-              onClick: () => {
-                window.location.href = `/attacks/${model.modelId}`;
-              }
             },
             {
               label: 'Delete',
@@ -302,13 +294,13 @@ class ModelListPage extends Component {
 
     return (
       <LayoutPage pageTitle="Models" pageSubTitle="All the deep learning models">
-        <a href={`/build`}>
+        {/* <a href={`/build`}>
           <Space wrap>
             <Button type="primary" style={{ marginBottom: '16px' }}>
               Build a new model
             </Button>
           </Space>
-        </a>
+        </a> */}
         <Table columns={columns} dataSource={dataSource}
           pagination={{ pageSize: 5 }}
           expandable={{

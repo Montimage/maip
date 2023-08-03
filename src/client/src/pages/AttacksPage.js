@@ -24,7 +24,6 @@ const {
 // TODO: users must select only 1 option in TLF attack
 let isModelIdPresent = null;
 
-
 class AttacksPage extends Component {
   constructor(props) {
     super(props);
@@ -342,7 +341,7 @@ class AttacksPage extends Component {
           </div>
         </Form>
 
-        // TODO: only make it appeared once the process is terminated
+        {/* TODO: only make it appeared once the process is terminated */}
         <Divider orientation="left">
           <h1 style={{ fontSize: '24px' }}>Compare Original and Poisoned Training Datasets</h1>
         </Divider>
