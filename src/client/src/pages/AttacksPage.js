@@ -40,20 +40,11 @@ class AttacksPage extends Component {
     this.handleTargetClass = this.handleTargetClass.bind(this);
   }
 
-  // componentDidMount() {
-  //   let modelId = getLastPath();
-  //   if (modelId !== "attacks") {
-  //     this.setState({ modelId });
-  //     isModelIdPresent = modelId !== null;
-  //   }
-  //   this.props.fetchAllModels(); 
-  // }
-
-  async componentDidMount() {
-    const { modelId } = useParams();
-
-    if (modelId) {
-      this.setState({ modelId, isModelIdPresent: true });
+  componentDidMount() {
+    let modelId = getLastPath();
+    if (modelId !== "attacks") {
+      this.setState({ modelId });
+      isModelIdPresent = modelId !== null;
     }
     this.props.fetchAllModels(); 
   }
@@ -351,6 +342,7 @@ class AttacksPage extends Component {
           </div>
         </Form>
 
+        // TODO: only make it appeared once the process is terminated
         <Divider orientation="left">
           <h1 style={{ fontSize: '24px' }}>Compare Original and Poisoned Training Datasets</h1>
         </Divider>
