@@ -6,14 +6,10 @@ import {
   requestPerformAttack,
   requestAttacksStatus,
 } from "../actions";
-import { 
-  getBeforeLastPath,
-  getLastPath,
-} from "../utils";
 import Papa from "papaparse";
-import { Column, G2, Heatmap, Bar, Scatter, Histogram, Mix } from '@ant-design/plots';
-import { message, Table, Col, Row, Divider, Slider, Form, Button, Checkbox, Select, Tooltip } from 'antd';
-import { QuestionOutlined, DownloadOutlined, BugOutlined, CameraOutlined } from "@ant-design/icons";
+import { Column, G2} from '@ant-design/plots';
+import { message, Col, Row, Divider, Slider, Form, Button, Checkbox, Select, Tooltip } from 'antd';
+import { QuestionOutlined } from "@ant-design/icons";
 
 const layout = {
   labelCol: {
@@ -29,9 +25,7 @@ const style = {
 };
 const {
   SERVER_URL,
-  FEATURES_DESCRIPTIONS,
 } = require('../constants');
-const { Option } = Select;
 
 const selectAttacksOptions = 
   [
@@ -70,6 +64,7 @@ class AttacksPage extends Component {
     this.props.fetchAllModels(); 
   }
 
+  // TODO: improve user exps
   handleTargetClass(checkedValues) {
     let targetClass = null;
     if (checkedValues.length === 1) {
@@ -109,8 +104,7 @@ class AttacksPage extends Component {
   }
 
   async componentDidUpdate(prevProps, prevState) {
-    const { modelId, isRunning, selectedAttack, poisoningRate, targetClass } = this.state;
-    const { attacksStatus } = this.props;
+    const { modelId, selectedAttack, poisoningRate, targetClass } = this.state;
     const datasetType = "train";
     
     if (prevProps.attacksStatus.isRunning !== this.props.attacksStatus.isRunning) {
@@ -171,7 +165,6 @@ class AttacksPage extends Component {
       poisoningRate, 
       selectedAttack, 
       targetClass,
-      isRunning,
     } = this.state;
     const {
       models,
@@ -186,19 +179,6 @@ class AttacksPage extends Component {
     })) : [];
     console.log(modelsOptions);
 
-    const columns = csvDataOriginal.length > 0 ? Object.keys(csvDataOriginal[0]).map(key => ({
-      title: key,
-      dataIndex: key,
-      sorter: (a, b) => {
-        const aVal = parseFloat(a[key]);
-        const bVal = parseFloat(b[key]);
-        if (!isNaN(aVal) && !isNaN(bVal)) {
-          return aVal - bVal;
-        } else {
-          return a[key].localeCompare(b[key]);
-        }
-      },
-    })) : [];
     const labelsDataOriginal = csvDataOriginal.map((row) => row.malware);
     const labelsDataPoisoned = csvDataPoisoned.map((row) => parseInt(row.malware).toString());
     //console.log(labelsDataOriginal);
@@ -347,9 +327,15 @@ class AttacksPage extends Component {
             />
           </Form.Item>
 
-          <Form.Item name="select" label="Adversarial attack" 
-            style={{ flex: 'none', marginBottom: 20 }}
-          > 
+          <Form.Item name="attack" label="Adversarial attack" 
+            style={{ flex: 'none', marginBottom: 10 }}
+            rules={[
+              {
+                required: true,
+                message: 'Please select an attack!',
+              },
+            ]}
+          >
             <Tooltip title="Select an adversarial attack to be performed against the model.">
               <Select
                 style={{
@@ -380,6 +366,7 @@ class AttacksPage extends Component {
                 console.log({ modelId, selectedAttack, poisoningRate, targetClass });
                 this.handlePerformAttackClick(modelId, selectedAttack, poisoningRate, targetClass);
               }}
+              disabled={ !this.state.modelId || !this.state.selectedAttack }
               >Perform Attack
             </Button>
           </div>

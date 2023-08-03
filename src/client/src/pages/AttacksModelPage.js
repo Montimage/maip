@@ -6,13 +6,12 @@ import {
   requestAttacksStatus,
 } from "../actions";
 import { 
-  getBeforeLastPath,
   getLastPath,
 } from "../utils";
 import Papa from "papaparse";
-import { Column, G2, Heatmap, Bar, Scatter, Histogram, Mix } from '@ant-design/plots';
-import { message, Table, Col, Row, Divider, Slider, Form, Button, Checkbox, Select, Tooltip } from 'antd';
-import { QuestionOutlined, DownloadOutlined, BugOutlined, CameraOutlined } from "@ant-design/icons";
+import { Column, G2 } from '@ant-design/plots';
+import { message, Col, Row, Divider, Slider, Form, Button, Checkbox, Select, Tooltip } from 'antd';
+import { QuestionOutlined } from "@ant-design/icons";
 
 const layout = {
   labelCol: {
@@ -28,9 +27,7 @@ const style = {
 };
 const {
   SERVER_URL,
-  FEATURES_DESCRIPTIONS,
 } = require('../constants');
-const { Option } = Select;
 
 const selectAttacksOptions = 
   [
@@ -130,8 +127,7 @@ class AttacksModelPage extends Component {
 
   async componentDidUpdate(prevProps, prevState) {
     const modelId = getLastPath();
-    const { isRunning, selectedAttack, poisoningRate, targetClass } = this.state;
-    const { attacksStatus } = this.props;
+    const { selectedAttack, poisoningRate, targetClass } = this.state;
     
     if (prevProps.attacksStatus.isRunning !== this.props.attacksStatus.isRunning) {
       console.log('State isRunning has been changed');
@@ -168,26 +164,12 @@ class AttacksModelPage extends Component {
       poisoningRate, 
       selectedAttack, 
       targetClass,
-      isRunning,
     } = this.state;
     const {
       attacksStatus, 
     } = this.props;
     console.log(`Attacks isRunning: ${attacksStatus.isRunning}`);
 
-    const columns = csvDataOriginal.length > 0 ? Object.keys(csvDataOriginal[0]).map(key => ({
-      title: key,
-      dataIndex: key,
-      sorter: (a, b) => {
-        const aVal = parseFloat(a[key]);
-        const bVal = parseFloat(b[key]);
-        if (!isNaN(aVal) && !isNaN(bVal)) {
-          return aVal - bVal;
-        } else {
-          return a[key].localeCompare(b[key]);
-        }
-      },
-    })) : [];
     const labelsDataOriginal = csvDataOriginal.map((row) => row.malware);
     const labelsDataPoisoned = csvDataPoisoned.map((row) => parseInt(row.malware).toString());
     //console.log(labelsDataOriginal);
@@ -346,6 +328,7 @@ class AttacksModelPage extends Component {
                 console.log({ modelId, selectedAttack, poisoningRate, targetClass });
                 this.handlePerformAttackClick(modelId, selectedAttack, poisoningRate, targetClass);
               }}
+              disabled={ !this.state.selectedAttack }
               >Perform Attack
             </Button>
           </div>
