@@ -13,37 +13,11 @@ import { Column, G2 } from '@ant-design/plots';
 import { message, Col, Row, Divider, Slider, Form, Button, Checkbox, Select, Tooltip } from 'antd';
 import { QuestionOutlined } from "@ant-design/icons";
 
-const layout = {
-  labelCol: {
-    span: 8,
-  },
-  wrapperCol: {
-    span: 16,
-  },
-};
-const style = {
-  padding: '10px 0',
-  border: '1px solid black',
-};
 const {
+  FORM_LAYOUT, BOX_STYLE,
   SERVER_URL,
+  ATTACK_OPTIONS
 } = require('../constants');
-
-const selectAttacksOptions = 
-  [
-    {
-      value: 'gan',
-      label: 'GAN-driven data poisoning',
-    },
-    {
-      value: 'rsl',
-      label: 'Random swapping labels',
-    },
-    {
-      value: 'tlf',
-      label: 'Target labels flipping',
-    },
-  ];
 
 // TODO: users must select only 1 option in TLF attack
 
@@ -265,13 +239,7 @@ class AttacksModelPage extends Component {
       <LayoutPage pageTitle="Adversarial Attacks" 
         pageSubTitle={`Adversarial attacks against the model ${modelId}`}>
         
-        <Form
-        {...layout}
-        name="control-hooks"
-        style={{
-          maxWidth: 700,
-        }}
-        >
+        <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 700 }}>
           <Form.Item name="slider" label="Poisoning percentage"
             style={{ marginBottom: 0 }}
           >
@@ -307,7 +275,7 @@ class AttacksModelPage extends Component {
                 placeholder="Select an attack ..."
                 onChange={value => this.setState({ selectedAttack: value })}
                 optionLabelProp="label"
-                options={selectAttacksOptions}
+                options={ATTACK_OPTIONS}
               />
             </Tooltip>
           </Form.Item>
@@ -341,7 +309,7 @@ class AttacksModelPage extends Component {
         {csvDataOriginal.length > 0 && csvDataPoisoned.length > 0 &&
           <Row gutter={24}>
             <Col className="gutter-row" span={12}>
-              <div style={style}>          
+              <div style={BOX_STYLE}>          
                 <div style={{ position: 'absolute', top: 10, right: 10 }}>
                   <Tooltip title="The plot displays the frequency of output labels before and after an attack, represented as percentages. It provides a visual comparison of the distribution of labels in the original and poisoned training datasets.">
                     <Button type="link" icon={<QuestionOutlined />} />

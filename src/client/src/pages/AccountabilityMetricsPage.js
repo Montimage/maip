@@ -2,32 +2,18 @@ import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
 import { getLastPath } from "../utils";
-import { Menu, Select, Divider, Form, Slider, Switch, Table, Col, Row, Button, Tooltip } from 'antd';
-import { QuestionOutlined, CameraOutlined } from "@ant-design/icons";
+import { Menu, Form, Slider, Table, Col, Row, Button, Tooltip } from 'antd';
+import { QuestionOutlined } from "@ant-design/icons";
 import { Line, Heatmap, Column, G2 } from '@ant-design/plots';
 import {
   requestModel,
   requestMetricCurrentness,
 } from "../actions";
 import {
+  BOX_STYLE,
   SERVER_URL,
+  ACC_METRICS_MENU_ITEMS, COLUMNS_CURRENTNESS_METRICS, HEADER_ACCURACY_STATS
 } from "../constants";
-
-const { SubMenu } = Menu;
-const style = {
-  //background: '#0092ff',
-  padding: '10px 0',
-  border: '1px solid black',
-};
-
-const layout = {
-  labelCol: {
-    span: 8,
-  },
-  wrapperCol: {
-    span: 16,
-  },
-};
 
 class AccountabilityMetricsPage extends Component {
   constructor(props) {
@@ -366,11 +352,10 @@ class AccountabilityMetricsPage extends Component {
 
     const statsStr = stats.map((row, i) => `${i},${row.join(',')}`).join('\n');
     const rowsStats = statsStr.split('\n').map(row => row.split(','));
-    const headerStats = ["precision", "recall", "f1score", "support"];
     let dataStats = [];
     if(rowsStats.length == 3) {
       const accuracy = parseFloat(rowsStats[2][1]);
-      dataStats = headerStats.map((metric, i) => ({
+      dataStats = HEADER_ACCURACY_STATS.map((metric, i) => ({
         key: (i).toString(),
         metric,
         class0: +rowsStats[0][i+1],
@@ -566,56 +551,15 @@ class AccountabilityMetricsPage extends Component {
       }
     : null;
 
-    const columnsCurrentnessMetrics = [
-      {
-        title: 'XAI Method',
-        dataIndex: 'method',
-        key: 'method',
-      },
-      {
-        title: 'Score',
-        dataIndex: 'score',
-        key: 'score',
-      },
-    ];
-
     const dataCurrentnessMetric = metrics.map((item) => {
       const [method, score] = item.split(': ');
       return { method: method, score: parseFloat(score).toFixed(2) };
     });
 
-    const items = [
-      {
-        label: 'Model Performance',
-        key: 'performance',
-        link: "#performance",
-      },
-      {
-        label: 'Confusion Matrix',
-        key: 'confusion_matrix',
-        link: "#confusion_matrix",
-      },
-      {
-        label: 'Classification Plot',
-        key: 'classification_plot',
-        link: "#classification_plot",
-      },
-      {
-        label: 'Precision Plot',
-        key: 'precision_plot',
-        link: "#precision_plot",
-      },
-      {
-        label: 'Currentness Metric',
-        key: 'currentness',
-        link: "#currentness",
-      },
-    ];
-
     return (
       <LayoutPage pageTitle="Accountability Metrics" pageSubTitle={`Model ${modelId}`}>
         <Menu mode="horizontal" style={{ backgroundColor: 'transparent', fontSize: '16px' }}>
-          {items.map(item => (
+          {ACC_METRICS_MENU_ITEMS.map(item => (
             <Menu.Item key={item.key}>
               <a href={item.link}><strong>{item.label}</strong></a>
             </Menu.Item>
@@ -669,19 +613,19 @@ class AccountabilityMetricsPage extends Component {
         </div>
         <Row gutter={24}>
           <Col className="gutter-row" span={12} id="modelPerformance">
-            <div style={style}>
+            <div style={BOX_STYLE}>
               <h2>&nbsp;&nbsp;&nbsp;Model Performance</h2>
               <div style={{ position: 'absolute', top: 10, right: 10 }}>
                 <Tooltip title={`Shows a list of various model performance metrics for each class.`}>
                   <Button type="link" icon={<QuestionOutlined />} />
                 </Tooltip>
               </div>
-              {dataStats && <Table columns={columnsTableStats} dataSource={dataStats} pagination={false}
+              {dataStats && <Table columns={COLUMNS_PERF_STATS} dataSource={dataStats} pagination={false}
                style={{marginTop: '11px'}} />}
             </div>
           </Col>
           <Col className="gutter-row" span={12} id="confusion_matrix">
-            <div style={style}>
+            <div style={BOX_STYLE}>
               <h2>&nbsp;&nbsp;&nbsp;Confusion Matrix</h2>
               <div style={{ position: 'absolute', top: 10, right: 10 }}>
                 <Tooltip title="The confusion matrix shows the number of True Negatives (predicted negative, observed negative), True Positives (predicted positive, observed positive), False Negatives (predicted negative, but observed positive) and False Positives (predicted positive, but observed negative). For different cutoff values, you will get a different number of False Positives and False Negatives. This plot allows you to find the optimal cutoff.">
@@ -696,7 +640,7 @@ class AccountabilityMetricsPage extends Component {
             </div>
           </Col>
           <Col className="gutter-row" span={12} style={{ marginTop: "24px" }} id="classification_plot">
-            <div style={style}>
+            <div style={BOX_STYLE}>
               <h2>&nbsp;&nbsp;&nbsp;Classification Plot</h2>
               <div style={{ position: 'absolute', top: 10, right: 10 }}>
                 <Tooltip title="This plot shows the fraction of each class above and below the cutoff.">
@@ -707,7 +651,7 @@ class AccountabilityMetricsPage extends Component {
             </div>
           </Col>
           <Col className="gutter-row" span={12} style={{ marginTop: "24px" }} id="precision_plot">
-            <div style={style}>
+            <div style={BOX_STYLE}>
               <h2>&nbsp;&nbsp;&nbsp;Precision Plot</h2>
               <div style={{ position: 'absolute', top: 10, right: 10 }}>
                 <Tooltip title={"The precision plot shows the precision values binned by equal prediction probabilities. It provides an overview of how precision changes as the prediction probability increases."}>
@@ -718,14 +662,14 @@ class AccountabilityMetricsPage extends Component {
             </div>
           </Col>
           <Col className="gutter-row" span={12} style={{ marginTop: "24px" }} id="currentness">
-            <div style={style}>
+            <div style={BOX_STYLE}>
               <h2>&nbsp;&nbsp;&nbsp;Currentness Metric</h2>
               <div style={{ position: 'absolute', top: 10, right: 10 }}>
                 <Tooltip title="Currentness metric measures the time of executing different XAI methods compared to the time of executing AI models.">
                   <Button type="link" icon={<QuestionOutlined />} />
                 </Tooltip>
               </div>
-              <Table columns={columnsCurrentnessMetrics} dataSource={dataCurrentnessMetric} 
+              <Table columns={COLUMNS_CURRENTNESS_METRICS} dataSource={dataCurrentnessMetric} 
                 pagination={false} style={{marginTop: '11px'}}/>
             </div>
           </Col>

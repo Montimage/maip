@@ -3,9 +3,8 @@ import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
 import { getLastPath } from "../utils";
 import { Spin, Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Tooltip } from 'antd';
-import { UserOutlined, DownloadOutlined, QuestionOutlined, CameraOutlined } from "@ant-design/icons";
+import { QuestionOutlined, CameraOutlined } from "@ant-design/icons";
 import { Bar, Pie } from '@ant-design/plots';
-import isEqual from 'lodash/isEqual';
 import {
   requestModel,
   requestRunLime,
@@ -14,24 +13,11 @@ import {
   requestPredictedProbsModel,
 } from "../actions";
 import {
+  FORM_LAYOUT, BOX_STYLE,
   FEATURES_DESCRIPTIONS,
   SERVER_URL,
+  LIME_URL
 } from "../constants";
-const LIME_URL = `${SERVER_URL}/api/xai/lime`;
-const style = {
-  //background: '#0092ff',
-  padding: '10px 0',
-  border: '1px solid black',
-};
-
-const layout = {
-  labelCol: {
-    span: 8,
-  },
-  wrapperCol: {
-    span: 16,
-  },
-};
 
 let barLime;
 
@@ -303,13 +289,7 @@ class XAILimePage extends Component {
         <Divider orientation="left">
           <h1 style={{ fontSize: '24px' }}>LIME Parameters</h1>
         </Divider>
-        <Form
-        {...layout}
-        name="control-hooks"
-        style={{
-          maxWidth: 600,
-        }}
-        >
+        <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 600 }}>
           <Form.Item label="Sample ID" style={{ marginBottom: 10 }}>
             <div style={{ display: 'inline-flex' }}>
               <Form.Item label="id" name="id" noStyle>
@@ -377,7 +357,7 @@ class XAILimePage extends Component {
         </Divider>
         <Row gutter={24}>
           <Col className="gutter-row" span={12}>
-            <div style={style}>
+            <div style={BOX_STYLE}>
               <div style={{ display: 'flex', alignItems: 'center' }}>
                 <h2>&nbsp;&nbsp;&nbsp;Local Explanation - Sample ID {sampleId}</h2>
                 <div style={{ position: 'absolute', top: 10, right: 10 }}>
@@ -400,7 +380,7 @@ class XAILimePage extends Component {
             </div>
           </Col>
           <Col className="gutter-row" span={12}>
-            <div style={style}>
+            <div style={BOX_STYLE}>
               <h2>&nbsp;&nbsp;&nbsp;Prediction - Sample ID {sampleId}</h2>
               <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                 {pieConfig && (

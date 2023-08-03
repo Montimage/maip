@@ -1,25 +1,18 @@
-import React, { Component, useState } from 'react';
+import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
-import { getLastPath, getQuery } from "../utils";
+import { getLastPath } from "../utils";
 import { connect } from "react-redux";
-import { Collapse, Spin, Tooltip, Button, InputNumber, Space, Form, Input, Select, Checkbox } from 'antd';
+import { Collapse, Spin, Tooltip, Button, InputNumber, Form, Select } from 'antd';
 import {
   requestRetrainModel,
   requestRetrainStatus,
 } from "../actions";
 import {
+  FORM_LAYOUT,
   SERVER_URL,
+  FEATURES_OPTIONS,
 } from "../constants";
 const { Panel } = Collapse;
-
-const layout = {
-  labelCol: {
-    span: 8,
-  },
-  wrapperCol: {
-    span: 16,
-  },
-};
 
 let modelDatasets = [];
 let attacksDatasets = [];
@@ -83,8 +76,6 @@ class RetrainPage extends Component {
       trainingDataset, 
       testingDataset, 
       trainingParameters,
-      modelDatasets,
-      attacksDatasets,
       isRunning,
     } = this.state;
     if (!isRunning) {
@@ -109,9 +100,6 @@ class RetrainPage extends Component {
   }
 
   componentDidUpdate(prevProps, prevState) {
-    const modelId = getLastPath();
-    const { isRunning } = this.state;
-    const { retrainStatus } = this.props;
     //console.log(`retrainStatus: ${retrainStatus.isRunning}`);
     //console.log(`retrain isRunning: ${isRunning}`);
     if (prevProps.retrainStatus.isRunning !== this.props.retrainStatus.isRunning) {
@@ -133,10 +121,6 @@ class RetrainPage extends Component {
 
   render() {
     const modelId = getLastPath();
-
-    const {
-      retrainStatus, 
-    } = this.props;
     //console.log(`retrainStatus: ${retrainStatus}`);
     const { modelDatasets, attacksDatasets, isRunning } = this.state;
     //console.log(`retrain isRunning: ${isRunning}`);
@@ -151,24 +135,14 @@ class RetrainPage extends Component {
       label: dataset,
     })) : [];
 
-    const features = [
-      "Raw Features",
-      "Top 10 Important Features",
-      "Top 20 Important Features"
-    ];
-
-    const featureOptions = features ? features.map(feature => ({
+    const featureOptions = FEATURES_OPTIONS ? FEATURES_OPTIONS.map(feature => ({
       value: feature,
       label: feature,
     })) : [];
 
     return (
       <LayoutPage pageTitle="Retrain Page" pageSubTitle={`Retrain model ${modelId}`}>
-        <Form
-          {...layout}
-          style={{
-            maxWidth: 600,
-          }}>
+        <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 600 }}>
           <Form.Item
             label="Training Dataset" name="trainingDataset"
             rules={[

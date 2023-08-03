@@ -5,6 +5,7 @@ import { Tooltip, message, Upload, Spin, Button, Form, Select, Checkbox } from '
 import { UploadOutlined } from "@ant-design/icons";
 import { connect } from "react-redux";
 import {
+  FORM_LAYOUT,
   SERVER_URL,
 } from "../constants";
 import {
@@ -12,15 +13,6 @@ import {
   requestAllReports,
   requestAllModels,
 } from "../actions";
-
-const layout = {
-  labelCol: {
-    span: 8,
-  },
-  wrapperCol: {
-    span: 16,
-  },
-};
 
 class PredictPage extends Component {
   constructor(props) {
@@ -136,11 +128,7 @@ class PredictPage extends Component {
 
     return (
       <LayoutPage pageTitle="Predict Page" pageSubTitle={`Make predictions using the model ${modelId}`}>
-        <Form
-          {...layout}
-          style={{
-            maxWidth: 700,
-          }}>
+        <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 700 }}>
           <Form.Item name="model" label="Model" 
             style={{ flex: 'none', marginBottom: 10 }}
             rules={[

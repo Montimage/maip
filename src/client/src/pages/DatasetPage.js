@@ -1,28 +1,21 @@
 import React, { Component } from "react";
-import { connect } from "react-redux";
 import LayoutPage from "./LayoutPage";
-import {
-  requestDownloadDatasetModel,
-} from "../actions";
-import { QuestionOutlined, CameraOutlined } from "@ant-design/icons";
+import { QuestionOutlined } from "@ant-design/icons";
 import { 
   getBeforeLastPath,
   getLastPath,
 } from "../utils";
 import { Menu, Button, Tooltip, Select, Col, Row, Table } from 'antd';
 import Papa from "papaparse";
-import { Heatmap, Bar, Scatter, Histogram, Mix } from '@ant-design/plots';
+import { Bar, Scatter, Histogram } from '@ant-design/plots';
 
 const {
+  BOX_STYLE,
   SERVER_URL,
   FEATURES_DESCRIPTIONS,
+  BIN_CHOICES, DATASET_TABLE_STATS, DATASET_MENU_ITEMS
 } = require('../constants');
 const { Option } = Select;
-
-const style = {
-  padding: '10px 0',
-  border: '1px solid black',
-};
 
 // TODO: scatter plot is a straight line if features on the x-axis and y-axis are similar ???
 
@@ -239,8 +232,7 @@ class DatasetPage extends Component {
       // TODO: update color of bars width small values to make them visible ?
     };
 
-    const binChoices = ['square-root', 'sturges', 'scott', 'freedman-diaconis']; 
-    const binWidthOptions = binChoices.map(choice => ({
+    const binWidthOptions = BIN_CHOICES.map(choice => ({
       value: choice,
       label: choice,
     }));
@@ -256,49 +248,7 @@ class DatasetPage extends Component {
       min,
       max,
     } = computeFeatureStatistics(featureValuesFloat);
-
-    const columnsTableStats = [
-      {
-        title: 'Feature',
-        dataIndex: 'feature',
-        key: 'feature',
-      },
-      {
-        title: 'Unique Values',
-        dataIndex: 'unique',
-        key: 'unique',
-      },
-      {
-        title: 'Missing Values',
-        dataIndex: 'missing',
-        key: 'missing',
-      },
-      {
-        title: 'Mean',
-        dataIndex: 'mean',
-        key: 'mean',
-      },
-      {
-        title: 'Standard Deviation',
-        dataIndex: 'stdDev',
-        key: 'stdDev',
-      },
-      {
-        title: 'Median',
-        dataIndex: 'median',
-        key: 'median',
-      },
-      {
-        title: 'Min',
-        dataIndex: 'min',
-        key: 'min',
-      },
-      {
-        title: 'Max',
-        dataIndex: 'max',
-        key: 'max',
-      },
-    ];
+    
     const dataStats = [
       {
         feature: selectedFeature,
@@ -459,45 +409,12 @@ class DatasetPage extends Component {
     };
     //console.log(dataBar);
 
-    const items = [ 
-      {
-        label: 'Data',
-        key: 'data',
-        link: "#data",
-      },
-      {
-        label: 'Feature Descriptions',
-        key: 'feature_descriptions',
-        link: "#feature_descriptions",
-      },
-      {
-        label: 'Histogram Plot',
-        key: 'histogram_plot',
-        link: "#histogram_plot",
-      },
-      {
-        label: 'Scatter Plot',
-        key: 'scatter_plot',
-        link: "#scatter_plot",
-      },
-      {
-        label: 'Bar Plot',
-        key: 'bar_plot',
-        link: "#bar_plot",
-      },
-      {
-        label: 'Heatmap Plot',
-        key: 'heatmap_plot',
-        link: "#heatmap_plot",
-      },
-    ];
-
     return (
       <LayoutPage pageTitle="Dataset" 
         pageSubTitle={`${datasetType.charAt(0).toUpperCase() + datasetType.slice(1)}ing dataset of the model ${modelId}`}>
 
         <Menu mode="horizontal" style={{ backgroundColor: 'transparent', fontSize: '16px' }}>
-          {items.map(item => (
+          {DATASET_MENU_ITEMS.map(item => (
             <Menu.Item key={item.key}>
               <a href={item.link}><strong>{item.label}</strong></a>
             </Menu.Item>
@@ -520,7 +437,7 @@ class DatasetPage extends Component {
 
         <Row gutter={24} style={{ marginTop: '20px' }} id="feature_descriptions">
           <Col className="gutter-row" span={24}>
-            <div style={style}>
+            <div style={BOX_STYLE}>
               <h2>&nbsp;&nbsp;&nbsp;Feature Descriptions</h2>
               <div style={{ position: 'absolute', top: 10, right: 10 }}>
                 <Tooltip title={`Displays all features with detailed description.`}>
@@ -537,7 +454,7 @@ class DatasetPage extends Component {
         <Row gutter={24} style={{ marginTop: '20px' }} id="histogram_plot">
           <Col className="gutter-row" span={24}>
             {headers.length > 0 && (
-              <div style={style}>
+              <div style={BOX_STYLE}>
                 <h2>&nbsp;&nbsp;&nbsp;Histogram Plot</h2>
                 <div style={{ marginBottom: '30px', marginTop: '10px' }}>
                   <div style={{ position: 'absolute', top: 10, right: 10 }}>
@@ -583,7 +500,7 @@ class DatasetPage extends Component {
                   </Tooltip>
                 </div>
                 {selectedFeature && (
-                  <Table columns={columnsTableStats} dataSource={dataStats} pagination={false}
+                  <Table columns={DATASET_TABLE_STATS} dataSource={dataStats} pagination={false}
                     style={{marginTop: '10px'}}
                   />
                 )}
@@ -597,7 +514,7 @@ class DatasetPage extends Component {
 
         <Row gutter={24} style={{ marginTop: '20px' }} id="scatter_plot">
           <Col className="gutter-row" span={24}>
-            <div style={style}>
+            <div style={BOX_STYLE}>
               <h2>&nbsp;&nbsp;&nbsp;Scatter Plot</h2>
               <div style={{ marginBottom: '30px', marginTop: '10px' }}>
                 <div style={{ position: 'absolute', top: 10, right: 10 }}>
@@ -649,7 +566,7 @@ class DatasetPage extends Component {
 
         <Row gutter={24} style={{ marginTop: '20px' }} id="bar_plot">
           <Col className="gutter-row" span={12}>
-            <div style={style}>
+            <div style={BOX_STYLE}>
               <h2>&nbsp;&nbsp;&nbsp;Bar Plot</h2>
               <div style={{ marginBottom: '30px', marginTop: '10px' }}>
                 <div style={{ position: 'absolute', top: 10, right: 10 }}>
@@ -680,7 +597,7 @@ class DatasetPage extends Component {
           </Col>
 
           <Col className="gutter-row" span={12} id="heatmap_plot">
-            <div style={style}>
+            <div style={BOX_STYLE}>
               <h2>&nbsp;&nbsp;&nbsp;Heatmap Plot (TODO)</h2>
             </div>
           </Col>

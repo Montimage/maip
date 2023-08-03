@@ -2,7 +2,6 @@ import React, { Component } from "react";
 import { connect } from "react-redux";
 import { notification, Spin, Layout, Typography } from "antd";
 import { resetNotification } from "../actions";
-import MAIPFooter from "../components/MAIPFooter";
 import "./styles.css";
 const { Title, Text } = Typography;
 

@@ -2,9 +2,9 @@ import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
 import { getLastPath } from "../utils";
-import { Menu, Select, Divider, Form, Slider, Switch, Table, Col, Row, Button, Tooltip } from 'antd';
-import { QuestionOutlined, CameraOutlined } from "@ant-design/icons";
-import { Line, Heatmap, Column, G2 } from '@ant-design/plots';
+import { Menu, Select, Col, Row, Button, Tooltip } from 'antd';
+import { QuestionOutlined } from "@ant-design/icons";
+import { Heatmap } from '@ant-design/plots';
 import {
   requestModel,
   requestMetricCurrentness,
@@ -12,40 +12,10 @@ import {
   requestRetrainStatus,
 } from "../actions";
 import {
+  BOX_STYLE,
   SERVER_URL,
+  ATTACK_OPTIONS, RES_METRICS_MENU_ITEMS, HEADER_ACCURACY_STATS
 } from "../constants";
-
-const { SubMenu } = Menu;
-const style = {
-  //background: '#0092ff',
-  padding: '10px 0',
-  border: '1px solid black',
-};
-
-const layout = {
-  labelCol: {
-    span: 8,
-  },
-  wrapperCol: {
-    span: 16,
-  },
-};
-
-const selectAttacksOptions = 
-  [
-    {
-      value: 'gan',
-      label: 'GAN-driven data poisoning',
-    },
-    {
-      value: 'rsl',
-      label: 'Random swapping labels',
-    },
-    {
-      value: 'tlf',
-      label: 'Target labels flipping',
-    },
-  ];
 
 class ResilienceMetricsPage extends Component {
   constructor(props) {
@@ -288,28 +258,18 @@ class ResilienceMetricsPage extends Component {
     console.log(retrainStatus);
     let modelId = getLastPath();
 
-    const { 
-      cutoffProb,
-      cutoffPercentile,
-      predictions,
-      attacksPredictions,
+    const {
       confusionMatrix,
       stats,
-      classificationData,
-      fprs, tprs, auc, rocData,
-      dataPrecision,
-      selectedAttack,
       attacksConfusionMatrix,
-      isRunning,
     } = this.state;
 
     const statsStr = stats.map((row, i) => `${i},${row.join(',')}`).join('\n');
     const rowsStats = statsStr.split('\n').map(row => row.split(','));
-    const headerStats = ["precision", "recall", "f1score", "support"];
     let dataStats = [];
-    if(rowsStats.length == 3) {
+    if(rowsStats.length === 3) {
       const accuracy = parseFloat(rowsStats[2][1]);
-      dataStats = headerStats.map((metric, i) => ({
+      dataStats = HEADER_ACCURACY_STATS.map((metric, i) => ({
         key: (i).toString(),
         metric,
         class0: +rowsStats[0][i+1],
@@ -410,18 +370,10 @@ class ResilienceMetricsPage extends Component {
     const impact = this.calculateImpact();
     console.log(impact);
 
-    const items = [ 
-      {
-        label: 'Impact Metric',
-        key: 'impact',
-        link: "#impact",
-      },
-    ];
-
     return (
       <LayoutPage pageTitle="Resilience Metrics" pageSubTitle={`Model ${modelId}`}>
         <Menu mode="horizontal" style={{ backgroundColor: 'transparent', fontSize: '16px' }}>
-          {items.map(item => (
+          {RES_METRICS_MENU_ITEMS.map(item => (
             <Menu.Item key={item.key}>
               <a href={item.link}><strong>{item.label}</strong></a>
             </Menu.Item>
@@ -430,7 +382,7 @@ class ResilienceMetricsPage extends Component {
 
         <Row gutter={24} style={{ marginTop: '20px' }}>
           <Col className="gutter-row" span={24} id="impact">
-            <div style={style}>
+            <div style={BOX_STYLE}>
               <h2>&nbsp;&nbsp;&nbsp;Impact Metric</h2>
               &nbsp;&nbsp;&nbsp;
               <Tooltip title="Select an adversarial attack to be performed against the model.">
@@ -446,7 +398,7 @@ class ResilienceMetricsPage extends Component {
                     }
                   }}
                   optionLabelProp="label"
-                  options={selectAttacksOptions}
+                  options={ATTACK_OPTIONS}
                   style={{ width: 300, marginTop: '10px', marginBottom: '20px' }}
                 />
               </Tooltip>

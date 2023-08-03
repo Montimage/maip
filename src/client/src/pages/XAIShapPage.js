@@ -3,7 +3,7 @@ import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
 import { getLastPath } from "../utils";
 import { Spin, Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Tooltip, Typography } from 'antd';
-import { UserOutlined, DownloadOutlined, QuestionOutlined, CameraOutlined } from "@ant-design/icons";
+import { QuestionOutlined, CameraOutlined } from "@ant-design/icons";
 import { Bar } from '@ant-design/plots';
 import {
   requestRunShap,
@@ -11,24 +11,10 @@ import {
   requestShapValues,
 } from "../actions";
 import {
+  FORM_LAYOUT, BOX_STYLE,
   FEATURES_DESCRIPTIONS,
-  SERVER_URL,
+  SHAP_URL, COLUMNS_TOP_FEATURES
 } from "../constants";
-const SHAP_URL = `${SERVER_URL}/api/xai/shap`;
-const style = {
-  //background: '#0092ff',
-  padding: '10px 0',
-  border: '1px solid black',
-};
-
-const layout = {
-  labelCol: {
-    span: 8,
-  },
-  wrapperCol: {
-    span: 16,
-  },
-};
 
 let barShap;
 
@@ -209,38 +195,13 @@ class XAIShapPage extends Component {
       description: FEATURES_DESCRIPTIONS[item.feature].description || 'N/A',
     }));
     //console.log(topFeatures);
-    
-    const columnsTopFeatures = [
-      {
-        title: 'ID',
-        dataIndex: 'key',
-        key: 'key',
-        sorter: (a, b) => a.key - b.key,
-      },
-      {
-        title: 'Name',
-        dataIndex: 'name',
-        key: 'name',
-      },
-      {
-        title: 'Description',
-        dataIndex: 'description',
-        key: 'description',
-      },
-    ];
 
     return (
       <LayoutPage pageTitle="Explainable AI with SHapley Additive exPlanations (SHAP)" pageSubTitle={`Model ${modelId}`}>
         <Divider orientation="left">
           <h1 style={{ fontSize: '24px' }}>SHAP Parameters</h1>
         </Divider>
-        <Form
-        {...layout}
-        name="control-hooks"
-        style={{
-          maxWidth: 600,
-        }}
-        >
+        <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 600 }}>
           <Form.Item label="Background samples" style={{ marginBottom: 10 }} > 
             <div style={{ display: 'inline-flex' }}>
               <Form.Item label="bg" name="bg" noStyle>
@@ -310,7 +271,7 @@ class XAIShapPage extends Component {
         </Divider>
         <Row gutter={24}>
           <Col className="gutter-row" span={12}>
-            <div style={style}>
+            <div style={BOX_STYLE}>
               <div style={{ display: 'flex', alignItems: 'center' }}>
                 <h2>&nbsp;&nbsp;&nbsp;Feature Importances</h2>
                 {/* TODO: make position of buttons are flexible */}
@@ -344,20 +305,20 @@ class XAIShapPage extends Component {
             </div>
           </Col>
           <Col className="gutter-row" span={12}>
-            <div style={style}>
+            <div style={BOX_STYLE}>
               <h2>&nbsp;&nbsp;&nbsp;{`Top ${maxDisplay} most important features`}</h2>
               <div style={{ position: 'absolute', top: 10, right: 10 }}>
                 <Tooltip title={`Displays the top ${maxDisplay} most important features with detailed description.`}>
                   <Button type="link" icon={<QuestionOutlined />} />
                 </Tooltip>
               </div>
-              <Table dataSource={topFeatures} columns={columnsTopFeatures} 
+              <Table dataSource={topFeatures} columns={COLUMNS_TOP_FEATURES} 
                 size="small" style={{ marginTop: '20px', marginBottom: 0 }}
               />
             </div>
           </Col>
           <Col span={12} style={{ marginTop: "24px" }}>
-            <div style={style}>
+            <div style={BOX_STYLE}>
               <h2>&nbsp;&nbsp;&nbsp;Feature Dependence</h2>
             </div>
           </Col>

@@ -12,19 +12,12 @@ import {
   requestAllReports,
 } from "../actions";
 import {
+  FORM_LAYOUT,
   SERVER_URL,
+  FEATURES_OPTIONS,
 } from "../constants";
 
 const { Panel } = Collapse;
-
-const layout = {
-  labelCol: {
-    span: 8,
-  },
-  wrapperCol: {
-    span: 16,
-  },
-};
 
 // TODO: if building a model is done, jump to ModelsPage -> seems to be difficult!
 
@@ -241,13 +234,7 @@ class BuildPage extends Component {
       label: report,
     })) : [];
 
-    const features = [
-      "Raw Features",
-      "Top 10 Important Features",
-      "Top 20 Important Features"
-    ];
-
-    const featureOptions = features ? features.map(feature => ({
+    const featureOptions = FEATURES_OPTIONS ? FEATURES_OPTIONS.map(feature => ({
       value: feature,
       label: feature,
     })) : [];
@@ -257,11 +244,7 @@ class BuildPage extends Component {
       <LayoutPage pageTitle="Build Models" pageSubTitle="Build a new deep learning model">
         <Row>
         <Col span={12}>
-        <Form
-          {...layout}
-          style={{
-            maxWidth: 700,
-          }}>
+        <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 700 }}>
           <Form.Item
             label="Attack Dataset"
             name="attackDataset"

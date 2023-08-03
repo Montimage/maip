@@ -7,53 +7,11 @@ import {
   requestAllModels,
 } from "../actions";
 const {
+  BOX_STYLE,
   SERVER_URL,
+  CRITERIA_LIST, TABLE_BUILD_CONFIGS, COLUMNS_PERF_STATS,
 } = require('../constants');
 const { Option } = Select;
-
-const style = {
-  //background: '#0092ff',
-  padding: '10px 0',
-  border: '1px solid black',
-};
-
-const criteriaList = [
-  "Build Configuration",
-  "Model Performance",
-  "Confusion Matrix",
-];
-
-const columnsTableBuildConfigs = [
-  {
-    title: 'Parameter',
-    dataIndex: 'parameter',
-    key: 'parameter',
-  },
-  {
-    title: 'Value',
-    dataIndex: 'value',
-    key: 'value',
-  },
-];
-
-
-const columnsTableStats = [
-  {
-    title: 'Metric',
-    dataIndex: 'metric',
-    key: 'metric',
-  },
-  {
-    title: 'Normal traffic',
-    dataIndex: 'class0',
-    key: 'class0',
-  },
-  {
-    title: 'Malware traffic',
-    dataIndex: 'class1',
-    key: 'class1',
-  },
-];
 
 function removeCsvPath(buildConfig) {
   const updatedDatasets = buildConfig.datasets.map((dataset) => {
@@ -276,7 +234,7 @@ class ModelListPage extends Component {
 
     return (
       <LayoutPage pageTitle="Models Comparison" pageSubTitle="Comparing models based on performance metrics">
-        <div style={style}>
+        <div style={BOX_STYLE}>
           <Row gutter={24}>
             <Col className="gutter-row" span={8} style={{ display: 'flex', justifyContent: 'center' }}>
               <div><h3>Model 1:</h3></div>
@@ -317,7 +275,7 @@ class ModelListPage extends Component {
                   filterOption={(input, option) => (option?.value ?? '').includes(input)}
                   style={{ width: 350, marginTop: '15px', marginBottom: '15px' }}
                 >
-                  {criteriaList.map((criteria) => (
+                  {CRITERIA_LIST.map((criteria) => (
                     <Option key={criteria} value={criteria}>
                       {criteria}
                     </Option>
@@ -349,7 +307,7 @@ class ModelListPage extends Component {
             <Col className="gutter-row" span={12}>
               {selectedModelLeft && dataBuildConfigLeft && (selectedCriteria === "Build Configuration") &&
                 <div style={{ marginBottom: '20px', marginTop: '30px' }}>
-                  <Table columns={columnsTableBuildConfigs} dataSource={dataBuildConfigLeft} pagination={false}
+                  <Table columns={TABLE_BUILD_CONFIGS} dataSource={dataBuildConfigLeft} pagination={false}
                   />
                 </div>
               }
@@ -357,7 +315,7 @@ class ModelListPage extends Component {
             <Col className="gutter-row" span={12}>
               {selectedModelRight && dataBuildConfigRight && (selectedCriteria === "Build Configuration") &&
                 <div style={{ marginBottom: '20px', marginTop: '30px' }}>
-                  <Table columns={columnsTableBuildConfigs} dataSource={dataBuildConfigRight} pagination={false}
+                  <Table columns={TABLE_BUILD_CONFIGS} dataSource={dataBuildConfigRight} pagination={false}
                   />
                 </div>
               }
@@ -367,7 +325,7 @@ class ModelListPage extends Component {
             <Col className="gutter-row" span={12}>
               {selectedModelLeft && dataStatsLeft && (selectedCriteria === "Model Performance") &&
                 <div style={{marginBottom: '20px', marginTop: '30px'}}>
-                  <Table columns={columnsTableStats} dataSource={dataStatsLeft} pagination={false}
+                  <Table columns={COLUMNS_PERF_STATS} dataSource={dataStatsLeft} pagination={false}
                   />
                 </div>
               }
@@ -375,7 +333,7 @@ class ModelListPage extends Component {
             <Col className="gutter-row" span={12}>
               {selectedModelRight && dataStatsRight && (selectedCriteria === "Model Performance") &&
                 <div style={{marginBottom: '20px', marginTop: '30px'}}>
-                  <Table columns={columnsTableStats} dataSource={dataStatsRight} pagination={false}
+                  <Table columns={COLUMNS_PERF_STATS} dataSource={dataStatsRight} pagination={false}
                   />
                 </div>
               }
