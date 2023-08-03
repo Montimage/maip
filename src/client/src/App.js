@@ -13,6 +13,7 @@ import MAIPHeader from "./components/MAIPHeader";
 import MAIPFooter from "./components/MAIPFooter";
 import ModelListPage from "./pages/ModelListPage";
 import ModelPage from "./pages/ModelPage";
+import ModelsComparisonPage from "./pages/ModelsComparisonPage";
 import DatasetListPage from "./pages/DatasetListPage";
 import DatasetPage from "./pages/DatasetPage";
 import BuildPage from "./pages/BuildPage";
@@ -46,6 +47,7 @@ function App() {
             />     
             <Route path="/models" element={<ModelListPage />}/>
             <Route path="/models/:modelId" element={<ModelPage />}/> 
+            <Route path="/models/comparison" element={<ModelsComparisonPage />}/>
             <Route path="/build" element={<BuildPage />}/>
             <Route path="/retrain/:modelId" element={<RetrainPage />}/>
             <Route path="/datasets/:modelId/:datasetType" element={<DatasetPage />}/>

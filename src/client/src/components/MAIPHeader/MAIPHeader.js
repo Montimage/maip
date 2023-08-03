@@ -44,6 +44,7 @@ class MAIPHeader extends Component {
       '/attacks',
       // '/defenses',
       '/reports',
+      '/models/comparison'
     ];
     const menuItems = [
       {
@@ -64,6 +65,18 @@ class MAIPHeader extends Component {
         label: 'Models',
         icon: <BlockOutlined />,
         link: menuLinks[1],
+        children: [
+          {
+            key: '1.0',
+            label: 'All Models',
+            link: menuLinks[1],
+          },
+          {
+            key: '1.1',
+            label: 'Models Comparison',
+            link: menuLinks[5],
+          },
+        ],
       },
       {
         key: '2',
