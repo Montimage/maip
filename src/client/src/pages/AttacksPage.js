@@ -6,18 +6,24 @@ import {
   requestPerformAttack,
   requestAttacksStatus,
 } from "../actions";
+import { 
+  getLastPath,
+} from "../utils";
 import Papa from "papaparse";
 import { Column, G2} from '@ant-design/plots';
 import { message, Col, Row, Divider, Slider, Form, Button, Checkbox, Select, Tooltip } from 'antd';
 import { QuestionOutlined } from "@ant-design/icons";
+import { useParams } from 'react-router-dom';
 
 const {
   FORM_LAYOUT, BOX_STYLE,
   SERVER_URL,
-  ATTACK_OPTIONS
+  ATTACK_OPTIONS, ATTACKS_SLIDER_MARKS
 } = require('../constants');
 
 // TODO: users must select only 1 option in TLF attack
+let isModelIdPresent = null;
+
 
 class AttacksPage extends Component {
   constructor(props) {
@@ -34,7 +40,21 @@ class AttacksPage extends Component {
     this.handleTargetClass = this.handleTargetClass.bind(this);
   }
 
-  componentDidMount() {
+  // componentDidMount() {
+  //   let modelId = getLastPath();
+  //   if (modelId !== "attacks") {
+  //     this.setState({ modelId });
+  //     isModelIdPresent = modelId !== null;
+  //   }
+  //   this.props.fetchAllModels(); 
+  // }
+
+  async componentDidMount() {
+    const { modelId } = useParams();
+
+    if (modelId) {
+      this.setState({ modelId, isModelIdPresent: true });
+    }
     this.props.fetchAllModels(); 
   }
 
@@ -244,11 +264,12 @@ class AttacksPage extends Component {
       ],
     };
 
+    const subTitle = isModelIdPresent ? 
+      `Adversarial attacks against model ${modelId}` : 
+      'Adversarial attacks against models';
+
     return (
-      <LayoutPage pageTitle="Adversarial Attacks" 
-        pageSubTitle={`Adversarial attacks against models`}
-      >
-        
+      <LayoutPage pageTitle="Adversarial Attacks" pageSubTitle={subTitle}>
         <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 700 }}>
           <Form.Item name="model" label="Model" 
             style={{ flex: 'none', marginBottom: 10 }}
@@ -263,6 +284,8 @@ class AttacksPage extends Component {
               <Select
                 style={{ width: '100%' }}
                 allowClear showSearch
+                value={this.state.modelId}
+                disabled={isModelIdPresent}
                 onChange={(value) => {
                   this.setState({ modelId: value });
                   console.log(`Select model ${value}`);
@@ -276,19 +299,7 @@ class AttacksPage extends Component {
             style={{ marginBottom: 0 }}
           >
             <Slider
-              marks={{
-                0: '0',
-                10: '10',
-                20: '20',
-                30: '30',
-                40: '40',
-                50: '50',
-                60: '60',
-                70: '70',
-                80: '80',
-                90: '90',
-                100: '100',
-              }}
+              marks={ATTACKS_SLIDER_MARKS}
               min={0} max={100} defaultValue={poisoningRate}
               value={poisoningRate}
               onChange={value => this.setState({ poisoningRate: value })}

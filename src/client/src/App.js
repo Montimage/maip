@@ -19,10 +19,11 @@ import DatasetPage from "./pages/DatasetPage";
 import BuildPage from "./pages/BuildPage";
 import RetrainPage from "./pages/RetrainPage";
 import AttacksPage from "./pages/AttacksPage";
-import AttacksModelPage from "./pages/AttacksModelPage";
 //import DummyPage from "./pages/DummyPage";
 import PredictPage from "./pages/PredictPage";
 import PredictModelPage from "./pages/PredictModelPage";
+import PredictOnlinePage from "./pages/PredictOnlinePage";
+import PredictOfflinePage from "./pages/PredictOfflinePage";
 import XAIPage from "./pages/XAIPage";
 import XAIModelPage from "./pages/XAIModelPage";
 import XAITestPage from "./pages/XAITestPage";
@@ -58,8 +59,9 @@ function App() {
             <Route path="/metrics/accountability/:modelId" element={<AccountabilityMetricsPage />}/>
             <Route path="/metrics/resilience/:modelId" element={<ResilienceMetricsPage />}/>
             <Route path="/attacks" element={<AttacksPage />}/>
-            <Route path="/attacks/:modelId" element={<AttacksModelPage />}/>
-            <Route path="/predict" element={<PredictPage />}/>
+            <Route path="/attacks/:modelId" element={<AttacksPage />}/>
+            <Route path="/predict/online" element={<PredictOnlinePage />}/>
+            <Route path="/predict/offline" element={<PredictOfflinePage />}/>
             <Route path="/predict/:modelId" element={<PredictModelPage />}/>
           </Routes>
           <MAIPFooter />

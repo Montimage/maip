@@ -13,7 +13,7 @@ import {
 import {
   FORM_LAYOUT, BOX_STYLE,
   FEATURES_DESCRIPTIONS,
-  SHAP_URL, COLUMNS_TOP_FEATURES
+  SHAP_URL, COLUMNS_TOP_FEATURES, XAI_SLIDER_MARKS
 } from "../constants";
 
 let barShap;
@@ -215,15 +215,7 @@ class XAIShapPage extends Component {
             style={{ marginBottom: -5 }}
           >
             <Slider
-              marks={{
-                1: '1',
-                5: '5',
-                10: '10',
-                15: '15',
-                20: '20',
-                25: '25',
-                30: '30',
-              }}
+              marks={XAI_SLIDER_MARKS}
               min={1} max={30} defaultValue={maxDisplay}
               value={maxDisplay}
               onChange={(value) => this.onSliderChange(value)}

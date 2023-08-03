@@ -483,8 +483,33 @@ const COLUMNS_TOP_FEATURES = [
   },
 ];
 
+const XAI_SLIDER_MARKS ={
+  1: '1',
+  5: '5',
+  10: '10',
+  15: '15',
+  20: '20',
+  25: '25',
+  30: '30',
+}
+
 // XAILimePage.js 
 const LIME_URL = `${SERVER_URL}/api/xai/lime`;
+
+// AttacksPage.js
+const ATTACKS_SLIDER_MARKS = {
+  0: '0',
+  10: '10',
+  20: '20',
+  30: '30',
+  40: '40',
+  50: '50',
+  60: '60',
+  70: '70',
+  80: '80',
+  90: '90',
+  100: '100',
+};
 
 module.exports = {
   FORM_LAYOUT, BOX_STYLE,
@@ -495,5 +520,6 @@ module.exports = {
   BIN_CHOICES, DATASET_TABLE_STATS, DATASET_MENU_ITEMS,
   COLUMNS_CURRENTNESS_METRICS, ACC_METRICS_MENU_ITEMS,
   RES_METRICS_MENU_ITEMS, HEADER_ACCURACY_STATS,
-  SHAP_URL, COLUMNS_TOP_FEATURES, LIME_URL
+  SHAP_URL, COLUMNS_TOP_FEATURES, LIME_URL, XAI_SLIDER_MARKS,
+  ATTACKS_SLIDER_MARKS
 };
