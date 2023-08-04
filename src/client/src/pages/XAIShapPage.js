@@ -6,9 +6,9 @@ import { Spin, Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Chec
 import { QuestionOutlined, CameraOutlined } from "@ant-design/icons";
 import { Bar } from '@ant-design/plots';
 import {
+  requestAllModels,
   requestRunShap,
   requestXAIStatus,
-  requestShapValues,
 } from "../actions";
 import {
   FORM_LAYOUT, BOX_STYLE,
@@ -17,15 +17,14 @@ import {
 } from "../constants";
 
 let barShap;
-
+let isModelIdPresent = getLastPath() !== "shap";
 const downloadShapImage = () => { barShap?.downloadImage(); };
-//const toDataURL = () => { console.log(barShap?.toDataURL()); };
 
 class XAIShapPage extends Component {
   constructor(props) {
     super(props);
     this.state = {
-      sampleId: 20,
+      modelId: null,
       numberSamples: 10,
       maxDisplay: 10,
       positiveChecked: true,
@@ -34,29 +33,17 @@ class XAIShapPage extends Component {
       isRunning: props.xaiStatus.isRunning,
       shapValues: [],
     };
-    this.handleRandomClick = this.handleRandomClick.bind(this);
     this.handleContributionsChange = this.handleContributionsChange.bind(this);
-    this.handleMaskedFeatures = this.handleMaskedFeatures.bind(this);  
     this.handleShapClick = this.handleShapClick.bind(this);
   }
 
-  onSliderChange(newVal) {
-    this.setState({ maxDisplay: newVal });
+  componentDidMount() {
+    const modelId = getLastPath();
+    if (isModelIdPresent) {
+      this.setState({ modelId });
+    }
+    this.props.fetchAllModels(); 
   }
-  
-  onSampleIdChange(newId) {
-    this.setState({ sampleId: newId });
-  }
-
-  onNumberSamplesChange(newVal) {
-    this.setState({ numberSamples: newVal });
-  }
-
-  handleRandomClick() {
-    const randomVal = Math.floor(Math.random() * 100);
-    console.log(randomVal.toString());
-    this.setState({ sampleId: randomVal });
-  };
 
   handleContributionsChange(checkedValues) {
     const positiveChecked = checkedValues.includes('Positive');
@@ -64,12 +51,11 @@ class XAIShapPage extends Component {
     this.setState({ positiveChecked, negativeChecked });
   };
 
-  handleMaskedFeatures(values) {
-    this.setState({ maskedFeatures: values });
-  };
-
+  // Pay attention to re-render
   shouldComponentUpdate(nextProps, nextState) {
     return (
+      this.props.models !== nextProps.models ||
+      this.state.modelId !== nextState.modelId ||
       this.state.shapValues !== nextState.shapValues ||
       this.props.xaiStatus.isRunning !== nextProps.xaiStatus.isRunning ||
       (this.state.limeValues === nextState.limeValues &&
@@ -81,10 +67,8 @@ class XAIShapPage extends Component {
   }
 
   async componentDidUpdate(prevProps, prevState) {
-    const modelId = getLastPath();
-    const { isRunning } = this.state;
-    const { xaiStatus } = this.props;
-    
+    const { modelId } = this.state;
+
     if (prevProps.xaiStatus.isRunning !== this.props.xaiStatus.isRunning) {
       console.log('isRunning has been changed');
       this.setState({ isRunning: this.props.xaiStatus.isRunning });
@@ -101,8 +85,7 @@ class XAIShapPage extends Component {
   }
 
   async handleShapClick() {
-    const { numberSamples, maxDisplay, isRunning, shapValuesBarConfig } = this.state;
-    const modelId = getLastPath();
+    const { modelId, numberSamples, maxDisplay, isRunning } = this.state;
     const shapConfig = {
       "modelId": modelId,
       "numberSamples": numberSamples,
@@ -140,10 +123,8 @@ class XAIShapPage extends Component {
   }
 
   render() {
-    const modelId = getLastPath();
     const { 
-      sampleId,
-      numberSamples,
+      modelId,
       maxDisplay, 
       positiveChecked,
       negativeChecked,
@@ -153,8 +134,16 @@ class XAIShapPage extends Component {
     } = this.state;
     console.log(`XAI isRunning: ${isRunning}`);
     const {
-      xaiStatus, 
+      models,
     } = this.props;
+
+    console.log(models);
+
+    const modelsOptions = this.props.models ? this.props.models.map(model => ({
+      value: model.modelId,
+      label: model.modelId,
+    })) : [];
+    console.log(modelsOptions);
 
     // TODO: remove the first two keys and the last one
     const features = Object.keys(FEATURES_DESCRIPTIONS).sort();
@@ -196,17 +185,45 @@ class XAIShapPage extends Component {
     }));
     //console.log(topFeatures);
 
+    const subTitle = isModelIdPresent ? 
+      `SHAP explanations of the model ${modelId}` : 
+      'SHAP explanations of models';
+
     return (
-      <LayoutPage pageTitle="Explainable AI with SHapley Additive exPlanations (SHAP)" pageSubTitle={`Model ${modelId}`}>
+      <LayoutPage pageTitle="Explainable AI with SHapley Additive exPlanations (SHAP)" pageSubTitle={subTitle}>
         <Divider orientation="left">
           <h1 style={{ fontSize: '24px' }}>SHAP Parameters</h1>
         </Divider>
         <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 600 }}>
+          <Form.Item name="model" label="Model" 
+              style={{ flex: 'none', marginBottom: 10 }}
+              rules={[
+                {
+                  required: true,
+                  message: 'Please select a model!',
+                },
+              ]}
+            > 
+              <Tooltip title="Select a model to perform attacks.">
+                <Select
+                  style={{ width: '100%' }}
+                  allowClear showSearch
+                  value={this.state.modelId}
+                  disabled={isModelIdPresent}
+                  onChange={(value) => {
+                    this.setState({ modelId: value });
+                    console.log(`Select model ${value}`);
+                  }}
+                  //optionLabelProp="label"
+                  options={modelsOptions}
+                />
+              </Tooltip>
+            </Form.Item>
           <Form.Item label="Background samples" style={{ marginBottom: 10 }} > 
             <div style={{ display: 'inline-flex' }}>
               <Form.Item label="bg" name="bg" noStyle>
                 <InputNumber min={1} defaultValue={10} 
-                  onChange={(e) => this.onNumberSamplesChange(e)} 
+                  onChange={v => this.setState({ numberSamples: v })}
                 />
               </Form.Item>
             </div>
@@ -218,7 +235,7 @@ class XAIShapPage extends Component {
               marks={XAI_SLIDER_MARKS}
               min={1} max={30} defaultValue={maxDisplay}
               value={maxDisplay}
-              onChange={(value) => this.onSliderChange(value)}
+              onChange={v => this.setState({ maxDisplay: v })}
             />
           </Form.Item>
           <Form.Item name="checkbox" label="Contributions to display" 
@@ -241,7 +258,7 @@ class XAIShapPage extends Component {
               }}
               allowClear
               placeholder="Select ..."
-              onChange={this.handleMaskedFeatures}
+              onChange={v => this.setState({ maskedFeatures: v })}
               optionLabelProp="label"
               options={selectFeaturesOptions}
             />
@@ -320,11 +337,12 @@ class XAIShapPage extends Component {
   }
 }
 
-const mapPropsToStates = ({ xaiStatus }) => ({
-  xaiStatus,
+const mapPropsToStates = ({ models, xaiStatus }) => ({
+  models, xaiStatus,
 });
 
 const mapDispatchToProps = (dispatch) => ({
+  fetchAllModels: () => dispatch(requestAllModels()),
   fetchXAIStatus: () => dispatch(requestXAIStatus()),
   fetchRunShap: (modelId, numberSamples, maxDisplay) =>
     dispatch(requestRunShap({ modelId, numberSamples, maxDisplay })),
