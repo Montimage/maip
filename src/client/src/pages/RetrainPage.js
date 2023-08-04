@@ -4,6 +4,7 @@ import { getLastPath } from "../utils";
 import { connect } from "react-redux";
 import { Collapse, Spin, Tooltip, Button, InputNumber, Form, Select } from 'antd';
 import {
+  requestAllModels,
   requestRetrainModel,
   requestRetrainStatus,
 } from "../actions";
@@ -16,11 +17,13 @@ const { Panel } = Collapse;
 
 let modelDatasets = [];
 let attacksDatasets = [];
+let isModelIdPresent = getLastPath() !== "retrain";
 
 class RetrainPage extends Component {
   constructor(props) {
     super(props);
     this.state = {
+      modelId: null,
       modelDatasets: [],
       attacksDatasets: [],
       trainingDataset: "",
@@ -39,14 +42,20 @@ class RetrainPage extends Component {
   }
 
   componentDidMount() {
+    let modelId = getLastPath();
+    if (isModelIdPresent) {
+      this.setState({ modelId });
+    }
     this.fetchModelDatasets();
     this.fetchAttacksDatasets();
+    this.props.fetchAllModels(); 
   }
 
   fetchModelDatasets = async () => {
-    const modelId = getLastPath();
+    const { modelId } = this.state;
+    let fetchModelId = isModelIdPresent ? getLastPath() : modelId;
     try {
-      const response = await fetch(`${SERVER_URL}/api/models/${modelId}/datasets`);
+      const response = await fetch(`${SERVER_URL}/api/models/${fetchModelId}/datasets`);
       const data = await response.json();
       modelDatasets = data.datasets;
       this.setState({ modelDatasets });
@@ -57,9 +66,10 @@ class RetrainPage extends Component {
   };
 
   fetchAttacksDatasets = async () => {
-    const modelId = getLastPath();
+    const { modelId } = this.state; 
+    let fetchModelId = isModelIdPresent ? getLastPath() : modelId;
     try {
-      const response = await fetch(`${SERVER_URL}/api/attacks/${modelId}/datasets`);
+      const response = await fetch(`${SERVER_URL}/api/attacks/${fetchModelId}/datasets`);
       const data = await response.json();
       attacksDatasets = data.datasets;
       this.setState({ attacksDatasets });
@@ -70,7 +80,8 @@ class RetrainPage extends Component {
   };
 
   handleButtonRetrain(values) {
-    const modelId = getLastPath();
+    const { modelId } = this.state;
+    let fetchModelId = isModelIdPresent ? getLastPath() : modelId;
     console.log(modelId);
     const { 
       trainingDataset, 
@@ -86,7 +97,7 @@ class RetrainPage extends Component {
       }, 2000);
       const retrainConfig = {
         retrainConfig: {
-          modelId: modelId,
+          modelId: fetchModelId,
           trainingDataset,
           testingDataset,
           training_parameters: trainingParameters,
@@ -120,10 +131,11 @@ class RetrainPage extends Component {
   };
 
   render() {
-    const modelId = getLastPath();
-    //console.log(`retrainStatus: ${retrainStatus}`);
-    const { modelDatasets, attacksDatasets, isRunning } = this.state;
-    //console.log(`retrain isRunning: ${isRunning}`);
+    const { modelId, modelDatasets, attacksDatasets, isRunning } = this.state;
+    const {
+      models,
+      retrainStatus, 
+    } = this.props;
     const allDatasets = [...modelDatasets, ...attacksDatasets];
 
     const trainingDatasetsOptions = allDatasets ? allDatasets.map(dataset => ({
@@ -140,9 +152,45 @@ class RetrainPage extends Component {
       label: feature,
     })) : [];
 
+    const modelsOptions = models ? models.map(model => ({
+      value: model.modelId,
+      label: model.modelId,
+    })) : [];
+    console.log(modelsOptions);
+
+    const subTitle = isModelIdPresent ? 
+      `Retrain the model ${modelId} using different datasets and hyperparameters` : 
+      'Retrain models using different datasets and hyperparameters';
+
     return (
-      <LayoutPage pageTitle="Retrain Page" pageSubTitle={`Retrain model ${modelId}`}>
+      <LayoutPage pageTitle="Models Retraining Page" pageSubTitle={subTitle}>
         <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 600 }}>
+          <Form.Item name="model" label="Model" 
+            rules={[
+              {
+                required: true,
+                message: 'Please select a model!',
+              },
+            ]}
+          > 
+            <Tooltip title="Select a model to retrain.">
+              <Select
+                style={{ width: '100%' }}
+                allowClear showSearch
+                value={this.state.modelId}
+                disabled={isModelIdPresent}
+                onChange={(value) => {
+                  this.setState({ modelId: value }, () => {
+                    this.fetchModelDatasets();
+                    this.fetchAttacksDatasets();
+                  });
+                  console.log(`Select model ${value}`);
+                }}
+                //optionLabelProp="label"
+                options={modelsOptions}
+              />
+            </Tooltip>
+          </Form.Item>
           <Form.Item
             label="Training Dataset" name="trainingDataset"
             rules={[
@@ -256,7 +304,7 @@ class RetrainPage extends Component {
             <Button
               type="primary"
               onClick={this.handleButtonRetrain} 
-              disabled={ isRunning || 
+              disabled={ isRunning || !this.state.modelId || 
                 !(this.state.trainingDataset && this.state.testingDataset)
               }
             >
@@ -274,11 +322,12 @@ class RetrainPage extends Component {
   }
 }
 
-const mapPropsToStates = ({ retrainStatus }) => ({
-  retrainStatus,
+const mapPropsToStates = ({ models, retrainStatus }) => ({
+  models, retrainStatus,
 });
 
 const mapDispatchToProps = (dispatch) => ({
+  fetchAllModels: () => dispatch(requestAllModels()),
   fetchRetrainStatus: () => dispatch(requestRetrainStatus()),
   fetchRetrainModel: (modelId, trainingDataset, testingDataset, params) =>
     dispatch(requestRetrainModel({ modelId, trainingDataset, testingDataset, params })),

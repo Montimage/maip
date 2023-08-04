@@ -323,7 +323,7 @@ class XAILimePage extends Component {
           </Form.Item>
           <div style={{ textAlign: 'center' }}>
             <Button type="primary" //>icon={<UserOutlined />}
-              onClick={this.handleLimeClick} disabled={isRunning}
+              onClick={this.handleLimeClick} disabled={isRunning || !this.state.modelId}
               >LIME Explain
               {isRunning && 
                 <Spin size="large" style={{ marginBottom: '8px' }}>

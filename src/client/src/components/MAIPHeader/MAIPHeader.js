@@ -29,6 +29,7 @@ const menuOptions = [
   { key: '12', link: '/metrics/accountability' },
   { key: '13', link: '/metrics/resilience' },
   { key: '14', link: '/reports' },
+  { key: '15', link: '/models/retrain' },
 ];
 
 const menuItems = [
@@ -52,6 +53,11 @@ const menuItems = [
         key: menuOptions[3].key,
         label: 'Models Comparison',
         link: menuOptions[3].link,
+      },
+      {
+        key: menuOptions[15].key,
+        label: 'Models Retraining',
+        link: menuOptions[15].link,
       },
     ],
   },

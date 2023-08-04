@@ -49,8 +49,9 @@ function App() {
             <Route path="/models/all" element={<ModelListPage />}/>
             <Route path="/models/:modelId" element={<ModelPage />}/> 
             <Route path="/models/comparison" element={<ModelsComparisonPage />}/>
+            <Route path="/models/retrain" element={<RetrainPage />}/>
+            <Route path="/models/retrain/:modelId" element={<RetrainPage />}/>
             <Route path="/build" element={<BuildPage />}/>
-            <Route path="/retrain/:modelId" element={<RetrainPage />}/>
             <Route path="/datasets/:modelId/:datasetType" element={<DatasetPage />}/>
             <Route path="/xai/test/:modelId" element={<XAITestPage />}/>
             <Route path="/xai/shap" element={<XAIShapPage />}/>
@@ -60,6 +61,7 @@ function App() {
             <Route path="/metrics/:modelId" element={<MetricsPage />}/>
             <Route path="/metrics/accountability" element={<AccountabilityMetricsPage />}/>
             <Route path="/metrics/accountability/:modelId" element={<AccountabilityMetricsPage />}/>
+            <Route path="/metrics/resilience" element={<ResilienceMetricsPage />}/>
             <Route path="/metrics/resilience/:modelId" element={<ResilienceMetricsPage />}/>
             <Route path="/attacks" element={<AttacksPage />}/>
             <Route path="/attacks/:modelId" element={<AttacksPage />}/>

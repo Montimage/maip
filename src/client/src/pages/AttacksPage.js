@@ -13,16 +13,14 @@ import Papa from "papaparse";
 import { Column, G2} from '@ant-design/plots';
 import { message, Col, Row, Divider, Slider, Form, Button, Checkbox, Select, Tooltip } from 'antd';
 import { QuestionOutlined } from "@ant-design/icons";
-import { useParams } from 'react-router-dom';
-
-const {
+import {
   FORM_LAYOUT, BOX_STYLE,
   SERVER_URL,
   ATTACK_OPTIONS, ATTACKS_SLIDER_MARKS
-} = require('../constants');
+} from "../constants";
 
 // TODO: users must select only 1 option in TLF attack
-let isModelIdPresent = null;
+let isModelIdPresent = getLastPath() !== "attacks";
 
 class AttacksPage extends Component {
   constructor(props) {
@@ -41,9 +39,8 @@ class AttacksPage extends Component {
 
   componentDidMount() {
     let modelId = getLastPath();
-    if (modelId !== "attacks") {
+    if (isModelIdPresent) {
       this.setState({ modelId });
-      isModelIdPresent = modelId !== null;
     }
     this.props.fetchAllModels(); 
   }

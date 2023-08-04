@@ -265,7 +265,7 @@ class XAIShapPage extends Component {
           </Form.Item>
           <div style={{ textAlign: 'center' }}>
             <Button type="primary" //>icon={<UserOutlined />}
-              onClick={this.handleShapClick} disabled={isRunning}
+              onClick={this.handleShapClick} disabled={isRunning || !this.state.modelId}
               >SHAP Explain
               {isRunning && 
                 <Spin size="large" style={{ marginBottom: '8px' }}>

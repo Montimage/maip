@@ -184,7 +184,7 @@ class ModelListPage extends Component {
               icon: <HourglassOutlined />,
               url: `/retrain/${model.modelId}`,
               onClick: () => {
-                window.location.href = `/retrain/${model.modelId}`;
+                window.location.href = `/models/retrain/${model.modelId}`;
               }
             },
             {
@@ -192,7 +192,7 @@ class ModelListPage extends Component {
               icon: <LineChartOutlined />,
               url: `/predict/${model.modelId}`,
               onClick: () => {
-                window.location.href = `/predict/${model.modelId}`;
+                window.location.href = `/predict/offline/${model.modelId}`;
               }
             },
             {
