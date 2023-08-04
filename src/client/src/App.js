@@ -44,9 +44,9 @@ function App() {
           <Routes>    
             <Route
               path="/"
-              element={<Navigate to="/models" replace />}
+              element={<Navigate to="/models/all" replace />}
             />     
-            <Route path="/models" element={<ModelListPage />}/>
+            <Route path="/models/all" element={<ModelListPage />}/>
             <Route path="/models/:modelId" element={<ModelPage />}/> 
             <Route path="/models/comparison" element={<ModelsComparisonPage />}/>
             <Route path="/build" element={<BuildPage />}/>

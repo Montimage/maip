@@ -16,7 +16,7 @@ const { SubMenu } = Menu;
 const menuOptions = [
   { key: '0', link: '/build' },
   { key: '1', link: '/models' },
-  { key: '2', link: '/models' },
+  { key: '2', link: '/models/all' },
   { key: '3', link: '/models/comparison' },
   { key: '4', link: '/predict' },
   { key: '5', link: '/predict/online' },
@@ -141,7 +141,7 @@ class MAIPHeader extends Component {
   render() {
     // Modify the current pathname if it is "/"
     let { pathname } = window.location;
-    pathname = pathname === "/" ? "/models" : pathname;
+    pathname = pathname === "/" ? "/models/all" : pathname;
 
     // Calculate the selected menu
     const selectedMenu = menuOptions.findIndex(
