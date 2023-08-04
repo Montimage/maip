@@ -6,28 +6,27 @@ import { Spin, Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Chec
 import { QuestionOutlined, CameraOutlined } from "@ant-design/icons";
 import { Bar, Pie } from '@ant-design/plots';
 import {
+  requestAllModels,
   requestModel,
   requestRunLime,
   requestXAIStatus,
-  requestLimeValues,
-  requestPredictedProbsModel,
 } from "../actions";
 import {
   FORM_LAYOUT, BOX_STYLE,
   FEATURES_DESCRIPTIONS,
   SERVER_URL,
-  LIME_URL, XAI_SLIDER_MARKS
+  LIME_URL, XAI_SLIDER_MARKS, COLUMNS_TABLE_PROBS,
 } from "../constants";
 
 let barLime;
-
+let isModelIdPresent = getLastPath() !== "lime";
 const downloadLimeImage = () => { barLime?.downloadImage(); };
-//const toDataURL = () => { console.log(barLime?.toDataURL()); };
 
 class XAILimePage extends Component {
   constructor(props) {
     super(props);
     this.state = {
+      modelId: null,
       sampleId: 5,
       numberSamples: 10,
       maxDisplay: 15,
@@ -39,33 +38,17 @@ class XAILimePage extends Component {
       isRunning: props.xaiStatus.isRunning,
       limeValues: [],
     };
-    this.handleRandomClick = this.handleRandomClick.bind(this);
     this.handleContributionsChange = this.handleContributionsChange.bind(this);
-    this.handleMaskedFeatures = this.handleMaskedFeatures.bind(this);
     this.handleLimeClick = this.handleLimeClick.bind(this);
   }
 
-  handleRowClick = (record) => {
-    this.setState({ sampleId: record.key });
+  componentDidMount() {
+    const modelId = getLastPath();
+    if (isModelIdPresent) {
+      this.setState({ modelId });
+    }
+    this.props.fetchAllModels(); 
   }
-
-  onSliderChange(newVal) {
-    this.setState({ maxDisplay: newVal });
-  }
-  
-  onSampleIdChange(newId) {
-    this.setState({ sampleId: newId });
-  }
-
-  onNumberSamplesChange(newVal) {
-    this.setState({ numberSamples: newVal });
-  }
-
-  handleRandomClick() {
-    const randomVal = Math.floor(Math.random() * 100);
-    console.log(randomVal.toString());
-    this.setState({ sampleId: randomVal });
-  };
 
   handleContributionsChange(checkedValues){
     const positiveChecked = checkedValues.includes('Positive');
@@ -73,20 +56,9 @@ class XAILimePage extends Component {
     this.setState({ positiveChecked, negativeChecked });
   };
 
-  handleMaskedFeatures(values){
-    this.setState({ maskedFeatures: values });
-  };
-
-  componentDidMount() {
-    let modelId = getLastPath();
-    this.props.fetchModel(modelId);
-  }
-
   async componentDidUpdate(prevProps, prevState) {
-    const modelId = getLastPath();
-    const { isRunning } = this.state;
-    const { xaiStatus } = this.props;
-    
+    const { modelId } = this.state;
+
     if (prevProps.xaiStatus.isRunning !== this.props.xaiStatus.isRunning) {
       console.log('isRunning has been changed');
       this.setState({ isRunning: this.props.xaiStatus.isRunning });
@@ -102,8 +74,11 @@ class XAILimePage extends Component {
     }
   }
 
+  // Pay attention to re-render
   shouldComponentUpdate(nextProps, nextState) {
     return (
+      this.props.models !== nextProps.models ||
+      this.state.modelId !== nextState.modelId ||
       this.state.limeValues !== nextState.limeValues ||
       this.props.xaiStatus.isRunning !== nextProps.xaiStatus.isRunning ||
       (this.state.limeValues === nextState.limeValues &&
@@ -115,8 +90,7 @@ class XAILimePage extends Component {
   }
 
   async handleLimeClick() {
-    const { sampleId, maxDisplay, isRunning, limeValues } = this.state;
-    const modelId = getLastPath();
+    const { modelId, sampleId, maxDisplay, limeValues } = this.state;
     const limeConfig = {
       "modelId": modelId,
       "sampleId": sampleId,
@@ -194,10 +168,9 @@ class XAILimePage extends Component {
   }
 
   render() {
-    const modelId = getLastPath();    
     const { 
+      modelId,
       sampleId,
-      numberSamples,
       maxDisplay, 
       positiveChecked,
       negativeChecked,
@@ -209,24 +182,13 @@ class XAILimePage extends Component {
     } = this.state;
     console.log(`XAI isRunning: ${isRunning}`);
     const { 
-      model,
-      xaiStatus, 
+      models,
     } = this.props;
 
-    const { stats, buildConfig, confusionMatrix, trainingSamples, testingSamples } = model;
-
-    const columnsTableProbs = [
-      {
-        title: 'Label',
-        dataIndex: 'label',
-        key: 'label'
-      },
-      {
-        title: 'Probability',
-        dataIndex: 'probability',
-        key: 'probability'
-      }
-    ];
+    const modelsOptions = models ? models.map(model => ({
+      value: model.modelId,
+      label: model.modelId,
+    })) : [];
 
     const pieConfig = {
       appendPadding: 10,
@@ -283,18 +245,46 @@ class XAILimePage extends Component {
       interactions: [{ type: 'element-active' }],
     };
 
+    const subTitle = isModelIdPresent ? 
+      `LIME explanations of the model ${modelId}` : 
+      'LIME explanations of models';
+
     return (
       <LayoutPage pageTitle="Explainable AI with Local Interpretable Model-Agnostic Explanations (LIME)" 
-        pageSubTitle={`Model ${modelId}`}>
+        pageSubTitle={subTitle}>
         <Divider orientation="left">
           <h1 style={{ fontSize: '24px' }}>LIME Parameters</h1>
         </Divider>
         <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 600 }}>
+          <Form.Item name="model" label="Model" 
+            style={{ flex: 'none', marginBottom: 10 }}
+            rules={[
+              {
+                required: true,
+                message: 'Please select a model!',
+              },
+            ]}
+          > 
+            <Tooltip title="Select a model to perform LIME method.">
+              <Select
+                style={{ width: '100%' }}
+                allowClear showSearch
+                value={this.state.modelId}
+                disabled={isModelIdPresent}
+                onChange={(value) => {
+                  this.setState({ modelId: value });
+                  console.log(`Select model ${value}`);
+                }}
+                //optionLabelProp="label"
+                options={modelsOptions}
+              />
+            </Tooltip>
+          </Form.Item>
           <Form.Item label="Sample ID" style={{ marginBottom: 10 }}>
             <div style={{ display: 'inline-flex' }}>
               <Form.Item label="id" name="id" noStyle>
                 <InputNumber min={1} defaultValue={sampleId}
-                  onChange={(e) => this.onSampleIdChange(e)}
+                  onChange={v => this.setState({ sampleId: v })}
                 />
               </Form.Item>
             </div>  
@@ -305,7 +295,7 @@ class XAILimePage extends Component {
               marks={XAI_SLIDER_MARKS}
               min={1} max={30} defaultValue={maxDisplay}
               value={maxDisplay}
-              onChange={(value) => this.onSliderChange(value)}
+              onChange={v => this.setState({ maxDisplay: v })}
             />
           </Form.Item>
           <Form.Item name="checkbox" label="Contributions to display" 
@@ -326,7 +316,7 @@ class XAILimePage extends Component {
               }}
               allowClear
               placeholder="Select ..."
-              onChange={this.handleMaskedFeatures}
+              onChange={v => this.setState({ maskedFeatures: v })}
               optionLabelProp="label"
               options={selectFeaturesOptions}
             />
@@ -378,7 +368,7 @@ class XAILimePage extends Component {
                 {pieConfig && (
                   <>
                     <Table
-                      columns={columnsTableProbs}
+                      columns={COLUMNS_TABLE_PROBS}
                       dataSource={dataTableProbs}
                       pagination={false}
                       style={{ marginLeft: '10px', marginRight: '10px', marginTop: '-50px', width: '280px' }}
@@ -402,11 +392,12 @@ class XAILimePage extends Component {
   } 
 }
 
-const mapPropsToStates = ({ model, xaiStatus }) => ({
-  model, xaiStatus,
+const mapPropsToStates = ({ models, model, xaiStatus }) => ({
+  models, model, xaiStatus,
 });
 
 const mapDispatchToProps = (dispatch) => ({
+  fetchAllModels: () => dispatch(requestAllModels()),
   fetchModel: (modelId) => dispatch(requestModel(modelId)),
   fetchXAIStatus: () => dispatch(requestXAIStatus()),
   fetchRunLime: (modelId, sampleId, numberFeatures) =>

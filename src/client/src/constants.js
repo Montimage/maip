@@ -496,6 +496,19 @@ const XAI_SLIDER_MARKS ={
 // XAILimePage.js 
 const LIME_URL = `${SERVER_URL}/api/xai/lime`;
 
+const COLUMNS_TABLE_PROBS = [
+  {
+    title: 'Label',
+    dataIndex: 'label',
+    key: 'label'
+  },
+  {
+    title: 'Probability',
+    dataIndex: 'probability',
+    key: 'probability'
+  }
+];
+
 // AttacksPage.js
 const ATTACKS_SLIDER_MARKS = {
   0: '0',
@@ -520,6 +533,7 @@ module.exports = {
   BIN_CHOICES, DATASET_TABLE_STATS, DATASET_MENU_ITEMS,
   COLUMNS_CURRENTNESS_METRICS, ACC_METRICS_MENU_ITEMS,
   RES_METRICS_MENU_ITEMS, HEADER_ACCURACY_STATS,
-  SHAP_URL, COLUMNS_TOP_FEATURES, LIME_URL, XAI_SLIDER_MARKS,
+  SHAP_URL, COLUMNS_TOP_FEATURES, XAI_SLIDER_MARKS,
+  LIME_URL, COLUMNS_TABLE_PROBS,
   ATTACKS_SLIDER_MARKS
 };
