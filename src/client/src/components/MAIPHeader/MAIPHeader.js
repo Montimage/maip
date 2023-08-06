@@ -1,9 +1,9 @@
 import React, { Component } from "react";
 import { connect } from "react-redux";
-import { Layout, Menu, Row, Col, Radio } from "antd";
+import { Layout, Menu, Row, Col, Radio, Button, Select } from "antd";
 import {
   DeploymentUnitOutlined, FolderOpenOutlined, BlockOutlined, LineChartOutlined, 
-  SolutionOutlined, BugOutlined, SafetyOutlined, ExperimentOutlined, FilePdfOutlined,
+  SolutionOutlined, BugOutlined, SafetyOutlined, ExperimentOutlined, FilePdfOutlined, DownOutlined,
 } from "@ant-design/icons";
 import {
   setNotification,
@@ -12,6 +12,7 @@ import "./styles.css";
 
 const { Header } = Layout;
 const { SubMenu } = Menu;
+const { Option } = Select;
 
 const menuOptions = [
   { key: '0', link: '/build' },
@@ -135,14 +136,16 @@ class MAIPHeader extends Component {
     };
   }
 
-  handleChange = (e) => {
-    this.setState({ selectedValue: e.target.value }, () => {
+  handleChange = (value) => {
+    this.setState({ selectedValue: value }, () => {
+      console.log(`selected ${value}`);
       if (this.state.selectedValue === 'rca') {
         // TODO: check correct link
         window.open('https://rca.montimage.com', '_blank');
       }
     });
   }
+  
 
   render() {
     // Modify the current pathname if it is "/"
@@ -163,7 +166,7 @@ class MAIPHeader extends Component {
     return (
       <Header>
         <Row>
-          <Col span={1} style={{marginRight: '200px', marginTop: '-7px', height: '64px'}}>
+          <Col span={1} style={{marginRight: '200px', marginTop: '-8px', height: '64px'}}>
             <a href="https://www.montimage.com/">
               <img
                 src={'/img/logo_montimage_small.png'}
@@ -173,9 +176,18 @@ class MAIPHeader extends Component {
               />
             </a>
           </Col>
-          {/* TODO: look ugly if the browser is small */}
-          <Col span={7} style={{ marginRight: '200px', width: '250px' }}>
-            <Radio.Group defaultValue="ad" buttonStyle="solid"
+
+          <Col span={7} style={{ marginLeft: '100px', marginRight: '100px', marginTop: '-7px' }}>
+            <Select defaultValue="ad" bordered={false}
+              style={{ width: '60%' }} 
+              onChange={this.handleChange}
+              suffixIcon={<DownOutlined style={{ color: '#fff' }} />}
+            >
+              <Option style={{ fontSize: '16px' }} value="ac">Activity Classification</Option>
+              <Option style={{ fontSize: '16px', }} value="ad">Anomaly Detection</Option>
+              <Option style={{ fontSize: '16px', }} value="rca">Root Cause Analysis</Option>
+            </Select>
+            {/* <Radio.Group defaultValue="ad" buttonStyle="solid"
               onChange={this.handleChange}  
             >
               <Radio.Button value="ac" style={{ width: '120px', height: '52px', lineHeight: '1.7' }}>
@@ -187,7 +199,7 @@ class MAIPHeader extends Component {
               <Radio.Button value="rca" style={{ width: '120px', height: '52px', lineHeight: '1.7' }}>
                 Root Cause Analysis
               </Radio.Button>
-            </Radio.Group>
+            </Radio.Group> */}
           </Col>
           <Col span={10}>
             <Menu
