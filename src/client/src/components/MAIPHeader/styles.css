@@ -15,7 +15,7 @@ header {
     color: white !important;
 }
 
-.ant-select-selector {
+.selectApp .ant-select-selector {
     color: white !important;
     font-size: 20px !important;
 }

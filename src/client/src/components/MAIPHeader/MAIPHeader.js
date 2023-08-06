@@ -179,6 +179,7 @@ class MAIPHeader extends Component {
 
           <Col span={7} style={{ marginLeft: '100px', marginRight: '100px', marginTop: '-7px' }}>
             <Select defaultValue="ad" bordered={false}
+              className="selectApp"
               style={{ width: '60%' }} 
               onChange={this.handleChange}
               suffixIcon={<DownOutlined style={{ color: '#fff' }} />}
