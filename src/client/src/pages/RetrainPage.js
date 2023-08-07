@@ -26,8 +26,8 @@ class RetrainPage extends Component {
       modelId: null,
       modelDatasets: [],
       attacksDatasets: [],
-      trainingDataset: "",
-      testingDataset: "",
+      trainingDataset: null,
+      testingDataset: null,
       featureList: "Raw Features",
       trainingParameters: {
         nb_epoch_cnn: 2,

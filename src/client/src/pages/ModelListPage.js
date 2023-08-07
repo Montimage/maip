@@ -188,12 +188,27 @@ class ModelListPage extends Component {
               }
             },
             {
-              label: 'Predict',
-              icon: <LineChartOutlined />,
-              url: `/predict/${model.modelId}`,
-              onClick: () => {
-                window.location.href = `/predict/offline/${model.modelId}`;
-              }
+              label: (
+                <span style={{ fontSize: '16px' }}>Predict</span>
+              ),
+              options: [
+                {
+                  label: 'Online',
+                  icon: <LineChartOutlined />,
+                  url: `/predict/online/${model.modelId}`,
+                  onClick: () => {
+                    window.location.href = `/predict/online/${model.modelId}`;
+                  }
+                },
+                {
+                  label: 'Offline',
+                  icon: <LineChartOutlined />,
+                  url: `/predict/offline/${model.modelId}`,
+                  onClick: () => {
+                    window.location.href = `/predict/offline/${model.modelId}`;
+                  }
+                },
+              ]
             },
             {
               label: (
@@ -257,7 +272,8 @@ class ModelListPage extends Component {
           ];
           return (
             <Select placeholder="Select an action ..."
-              style={{ width: 200 }}
+              style={{ width: 230 }}
+              dropdownMatchSelectWidth={false}  // Set to false so dropdown width doesn't follow the select width
               value={selectedOption}
               onChange={(value, option) => handleOptionClick(option, model.modelId)}
             >

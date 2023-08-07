@@ -66,7 +66,9 @@ function App() {
             <Route path="/attacks" element={<AttacksPage />}/>
             <Route path="/attacks/:modelId" element={<AttacksPage />}/>
             <Route path="/predict/online" element={<PredictOnlinePage />}/>
+            <Route path="/predict/online/:modelId" element={<PredictOnlinePage />}/>
             <Route path="/predict/offline" element={<PredictOfflinePage />}/>
+            <Route path="/predict/offline/:modelId" element={<PredictOfflinePage />}/>
             <Route path="/predict/:modelId" element={<PredictModelPage />}/>
           </Routes>
           <MAIPFooter />
