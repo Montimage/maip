@@ -205,7 +205,7 @@ class XAIShapPage extends Component {
               ]}
             > 
               <Tooltip title="Select a model to perform attacks.">
-                <Select
+                <Select placeholder="Select a model ..."
                   style={{ width: '100%' }}
                   allowClear showSearch
                   value={this.state.modelId}
@@ -257,7 +257,7 @@ class XAIShapPage extends Component {
                 width: '100%',
               }}
               allowClear
-              placeholder="Select ..."
+              placeholder="Select feature(s) ..."
               onChange={v => this.setState({ maskedFeatures: v })}
               optionLabelProp="label"
               options={selectFeaturesOptions}

@@ -2,27 +2,30 @@ import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
 import { getLastPath } from "../utils";
-import { Menu, Form, Slider, Table, Col, Row, Button, Tooltip } from 'antd';
+import { Select, Menu, Form, Slider, Table, Col, Row, Button, Tooltip } from 'antd';
 import { QuestionOutlined } from "@ant-design/icons";
 import { Line, Heatmap, Column, G2 } from '@ant-design/plots';
 import {
+  requestAllModels,
   requestModel,
   requestMetricCurrentness,
 } from "../actions";
 import {
-  BOX_STYLE,
+  BOX_STYLE, FORM_LAYOUT,
   SERVER_URL,
   ACC_METRICS_MENU_ITEMS, COLUMNS_CURRENTNESS_METRICS, HEADER_ACCURACY_STATS,
   COLUMNS_PERF_STATS
 } from "../constants";
 
 // TODO: check reading some empty files
+let isModelIdPresent = getLastPath() !== "accountability";
 
 class AccountabilityMetricsPage extends Component {
   constructor(props) {
     super(props);
 
     this.state = {
+      modelId: null,
       stats: [],
       predictions: [],
       confusionMatrix: [],
@@ -38,15 +41,23 @@ class AccountabilityMetricsPage extends Component {
 
   componentDidMount() {
     let modelId = getLastPath();
-    this.props.fetchModel(modelId);
-    this.loadPredictions();
-    this.props.fetchMetricCurrentness(modelId);
-    this.fetchModelBuildConfig();
+    if (isModelIdPresent) {
+      this.setState({ modelId });
+    }
+    this.props.fetchAllModels();
   }
 
-  async loadPredictions() {
-    const modelId = getLastPath();
+  componentDidUpdate(prevProps, prevState) {
+    const { modelId } = this.state;  
+    if (modelId && modelId !== prevState.modelId) {
+      this.props.fetchModel(modelId);
+      this.loadPredictions(modelId);
+      this.props.fetchMetricCurrentness(modelId);
+      this.fetchModelBuildConfig();
+    }
+  }
 
+  async loadPredictions(modelId) {
     const predictionsResponse = await fetch(`${SERVER_URL}/api/models/${modelId}/predictions`, {
       method: 'GET',
     });
@@ -304,27 +315,26 @@ class AccountabilityMetricsPage extends Component {
     this.handleCutoffProbChange(cutoffProb);
   }
 
-  fetchModelBuildConfig = async () => {
-    const modelId = getLastPath();
-    try {
-      const response = await fetch(`${SERVER_URL}/api/models/${modelId}/build-config`);
-      const data = await response.json();
-      const buildConfig = JSON.parse(data.buildConfig);
-      this.setState({ buildConfig: buildConfig });
-      console.log(buildConfig.training_parameters);
-    } catch (error) {
-      console.error('Error fetching build-config:', error);
+  async fetchModelBuildConfig() {
+    const { modelId } = this.state;
+    if (modelId) {
+      try {
+        const response = await fetch(`${SERVER_URL}/api/models/${modelId}/build-config`);
+        const data = await response.json();
+        const buildConfig = JSON.parse(data.buildConfig);
+        this.setState({ buildConfig: buildConfig });
+        console.log(buildConfig.training_parameters);
+      } catch (error) {
+        console.error('Error fetching build-config:', error);
+      }
     }
-  };
+  }
 
   render() {
-    const {
-      model,
-      metrics,
-    } = this.props;
-    let modelId = getLastPath();
+    const { models, model, metrics } = this.props;
 
     const { 
+      modelId, 
       cutoffProb,
       cutoffPercentile,
       predictions,
@@ -335,23 +345,10 @@ class AccountabilityMetricsPage extends Component {
       dataPrecision,
     } = this.state;
 
-    const columnsTableStats = [
-      {
-        title: 'Metric',
-        dataIndex: 'metric',
-        key: 'metric',
-      },
-      {
-        title: 'Normal traffic',
-        dataIndex: 'class0',
-        key: 'class0',
-      },
-      {
-        title: 'Malware traffic',
-        dataIndex: 'class1',
-        key: 'class1',
-      },
-    ];
+    const modelsOptions = models ? models.map(model => ({
+      value: model.modelId,
+      label: model.modelId,
+    })) : [];
 
     const statsStr = stats.map((row, i) => `${i},${row.join(',')}`).join('\n');
     const rowsStats = statsStr.split('\n').map(row => row.split(','));
@@ -559,8 +556,12 @@ class AccountabilityMetricsPage extends Component {
       return { method: method, score: parseFloat(score).toFixed(2) };
     });
 
+    const subTitle = isModelIdPresent ? 
+      `Accountability metrics of the model ${modelId}` : 
+      'Accountability metrics of models';
+
     return (
-      <LayoutPage pageTitle="Accountability Metrics" pageSubTitle={`Model ${modelId}`}>
+      <LayoutPage pageTitle="Accountability Metrics" pageSubTitle={subTitle}>
         <Menu mode="horizontal" style={{ backgroundColor: 'transparent', fontSize: '16px' }}>
           {ACC_METRICS_MENU_ITEMS.map(item => (
             <Menu.Item key={item.key}>
@@ -568,7 +569,38 @@ class AccountabilityMetricsPage extends Component {
             </Menu.Item>
           ))}
         </Menu>
-
+        <Row type="flex" justify="center">
+          <Col>
+            <Form name="control-hooks" style={{ maxWidth: 700 }}>
+              <Form.Item name="model" label="Model" 
+                style={{ flex: 'none', marginTop: 20, marginBottom: 10 }}
+                rules={[
+                  {
+                    required: true,
+                    message: 'Please select a model!',
+                  },
+                ]}
+              > 
+                <Tooltip title="Select a model to perform attacks.">
+                  <Select
+                    placeholder="Select a model ..."
+                    style={{ width: '350px' }}
+                    allowClear showSearch
+                    value={this.state.modelId}
+                    disabled={isModelIdPresent}
+                    onChange={(value) => {
+                      this.setState({ modelId: value });
+                      console.log(`Select model ${value}`);
+                    }}
+                    //optionLabelProp="label"
+                    options={modelsOptions}
+                  />
+                </Tooltip>
+              </Form.Item>
+            </Form>
+          </Col>
+        </Row>
+        
         <div style={{ padding: '0 0' }} style={{ marginTop: '20px' }}>
           <div style={{ top: 1 }}>
             <Tooltip title={"Cutoff prediction probability is a fixed probability value above which the model will classify a sample as positive. For example, if the cutoff prediction probability is set to 0.5, the model will classify any sample with a predicted probability of belonging to the positive class greater than 0.5 as positive. Cutoff percentile is defined as the point on the predicted probability distribution above which the model will classify a sample as positive. For example, if the cutoff percentile is set to 90%, the model will classify any sample with a predicted probability of belonging to the positive class greater than the 90th percentile as positive."}>
@@ -624,7 +656,7 @@ class AccountabilityMetricsPage extends Component {
                 </Tooltip>
               </div>
               {dataStats && <Table columns={COLUMNS_PERF_STATS} dataSource={dataStats} pagination={false}
-               style={{marginTop: '11px'}} />}
+                style={{ marginTop: '20px' }} />}
             </div>
           </Col>
           <Col className="gutter-row" span={12} id="confusion_matrix">
@@ -650,7 +682,7 @@ class AccountabilityMetricsPage extends Component {
                   <Button type="link" icon={<QuestionOutlined />} />
                 </Tooltip>
               </div>
-              <Column {...configClassification} style={{ margin: '20px' }}/>
+              <Column {...configClassification} style={{ margin: '20px', marginTop: '40px' }}/>
             </div>
           </Col>
           <Col className="gutter-row" span={12} style={{ marginTop: "24px" }} id="precision_plot">
@@ -661,7 +693,7 @@ class AccountabilityMetricsPage extends Component {
                   <Button type="link" icon={<QuestionOutlined />} />
                 </Tooltip>
               </div>
-              {configPrecision && <Line {...configPrecision} style={{ margin: '20px' }}/>}
+              {configPrecision && <Line {...configPrecision} style={{ margin: '20px', marginTop: '40px' }}/>}
             </div>
           </Col>
           <Col className="gutter-row" span={12} style={{ marginTop: "24px" }} id="currentness">
@@ -673,7 +705,7 @@ class AccountabilityMetricsPage extends Component {
                 </Tooltip>
               </div>
               <Table columns={COLUMNS_CURRENTNESS_METRICS} dataSource={dataCurrentnessMetric} 
-                pagination={false} style={{marginTop: '11px'}}/>
+                pagination={false} style={{ marginTop: '20px' }}/>
             </div>
           </Col>
         </Row>
@@ -682,11 +714,12 @@ class AccountabilityMetricsPage extends Component {
   }
 }
 
-const mapPropsToStates = ({ model, metrics, }) => ({
-  model, metrics,
+const mapPropsToStates = ({ models, model, metrics, }) => ({
+  models, model, metrics,
 });
 
 const mapDispatchToProps = (dispatch) => ({
+  fetchAllModels: () => dispatch(requestAllModels()),
   fetchModel: (modelId) => dispatch(requestModel(modelId)),
   fetchMetricCurrentness: (modelId) => dispatch(requestMetricCurrentness(modelId)),
 });

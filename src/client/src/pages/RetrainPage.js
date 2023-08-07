@@ -163,7 +163,7 @@ class RetrainPage extends Component {
       'Retrain models using different datasets and hyperparameters';
 
     return (
-      <LayoutPage pageTitle="Models Retraining Page" pageSubTitle={subTitle}>
+      <LayoutPage pageTitle="Models Retraining" pageSubTitle={subTitle}>
         <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 600 }}>
           <Form.Item name="model" label="Model" 
             rules={[
@@ -175,6 +175,7 @@ class RetrainPage extends Component {
           > 
             <Tooltip title="Select a model to retrain.">
               <Select
+                placeholder="Select a model ..."
                 style={{ width: '100%' }}
                 allowClear showSearch
                 value={this.state.modelId}
@@ -202,6 +203,7 @@ class RetrainPage extends Component {
           >
             <Tooltip title="Select a training dataset.">
               <Select
+                placeholder="Select a training dataset ..."
                 showSearch allowClear
                 value={this.state.trainingDataset}
                 onChange={value => this.setState({ trainingDataset: value })}
@@ -220,6 +222,7 @@ class RetrainPage extends Component {
           >
             <Tooltip title="Select a testing dataset.">
               <Select
+                placeholder="Select a testing dataset ..."
                 showSearch allowClear
                 value={this.state.testingDataset}
                 onChange={value => this.setState({ testingDataset: value })}

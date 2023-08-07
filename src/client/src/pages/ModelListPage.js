@@ -256,7 +256,7 @@ class ModelListPage extends Component {
             }
           ];
           return (
-            <Select placeholder="Select an action"
+            <Select placeholder="Select an action ..."
               style={{ width: 200 }}
               value={selectedOption}
               onChange={(value, option) => handleOptionClick(option, model.modelId)}
@@ -293,7 +293,7 @@ class ModelListPage extends Component {
     ];
 
     return (
-      <LayoutPage pageTitle="Models" pageSubTitle="All the deep learning models">
+      <LayoutPage pageTitle="All Models" pageSubTitle="All the deep learning models">
         {/* <a href={`/build`}>
           <Space wrap>
             <Button type="primary" style={{ marginBottom: '16px' }}>

@@ -250,7 +250,7 @@ class ModelListPage extends Component {
               <Tooltip title="Select a model to compare.">
                 <Select
                   showSearch allowClear
-                  placeholder="Select a model"
+                  placeholder="Select a model ..."
                   onChange={(modelId) => this.loadPredictions(modelId, true)}
                   optionFilterProp="children"
                   filterOption={(input, option) => (option?.value ?? '').includes(input)}
@@ -269,7 +269,7 @@ class ModelListPage extends Component {
               <Tooltip title="Select a criteria for comparing the two selected models.">
                 <Select
                   showSearch allowClear
-                  placeholder="Select a comparison criteria"
+                  placeholder="Select a criteria ..."
                   onChange={(criteria) => this.setState({ selectedCriteria: criteria })}
                   optionFilterProp="children"
                   filterOption={(input, option) => (option?.value ?? '').includes(input)}
@@ -288,7 +288,7 @@ class ModelListPage extends Component {
               <Tooltip title="Select a model to compare.">
                 <Select
                   showSearch allowClear
-                  placeholder="Select a model"
+                  placeholder="Select a model ..."
                   onChange={(modelId) => this.loadPredictions(modelId, false)}
                   optionFilterProp="children"
                   filterOption={(input, option) => (option?.value ?? '').includes(input)}

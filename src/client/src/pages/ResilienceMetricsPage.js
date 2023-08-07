@@ -2,28 +2,31 @@ import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
 import { getLastPath } from "../utils";
-import { Menu, Select, Col, Row, Button, Tooltip } from 'antd';
+import { Menu, Select, Col, Row, Button, Tooltip, Form } from 'antd';
 import { QuestionOutlined } from "@ant-design/icons";
 import { Heatmap } from '@ant-design/plots';
 import {
+  requestAllModels,
   requestModel,
   requestMetricCurrentness,
   requestRetrainModel,
   requestRetrainStatus,
 } from "../actions";
 import {
-  BOX_STYLE,
+  BOX_STYLE, FORM_LAYOUT,
   SERVER_URL,
   ATTACK_OPTIONS, RES_METRICS_MENU_ITEMS, HEADER_ACCURACY_STATS
 } from "../constants";
 
 // TODO: check reading some empty files
+let isModelIdPresent = getLastPath() !== "resilience";
 
 class ResilienceMetricsPage extends Component {
   constructor(props) {
     super(props);
 
     this.state = {
+      modelId: null,
       stats: [],
       predictions: [],
       confusionMatrix: [],
@@ -46,10 +49,11 @@ class ResilienceMetricsPage extends Component {
 
   componentDidMount() {
     let modelId = getLastPath();
-    this.props.fetchModel(modelId);
-    this.loadPredictions();
-    this.props.fetchMetricCurrentness(modelId);
-    this.fetchModelBuildConfig();
+    if (isModelIdPresent) {
+      this.setState({ modelId });
+    }
+    this.props.fetchAllModels();
+    
   }
 
   // TODO: fix why classification plot and CM are rendered even values are not changed
@@ -75,21 +79,29 @@ class ResilienceMetricsPage extends Component {
   }
 
   async componentDidUpdate(prevProps, prevState) {
-    const modelId = getLastPath();
+    const { modelId } = this.state;  
 
-    if (prevProps.retrainStatus.isRunning !== this.props.retrainStatus.isRunning) {
-      console.log('isRunning has been changed');
-      this.setState({ isRunning: this.props.retrainStatus.isRunning });
-      if (!this.props.retrainStatus.isRunning) {
-        console.log('isRunning changed from True to False');
-        const retrainId = this.props.retrainStatus.lastRetrainId;
-        await this.loadAttacksPredictions(retrainId);  
+    if (modelId && modelId !== prevState.modelId) {
+      this.props.fetchModel(modelId);
+      this.loadPredictions();
+      this.props.fetchMetricCurrentness(modelId);
+      this.fetchModelBuildConfig();
+    
+      // TODO: check whether the adversarial datasets are already generated 
+      if (prevProps.retrainStatus.isRunning !== this.props.retrainStatus.isRunning) {
+        console.log('isRunning has been changed');
+        this.setState({ isRunning: this.props.retrainStatus.isRunning });
+        if (!this.props.retrainStatus.isRunning) {
+          console.log('isRunning changed from True to False');
+          const retrainId = this.props.retrainStatus.lastRetrainId;
+          await this.loadAttacksPredictions(retrainId);  
+        }
       }
-    }
 
-    // Check if attacksPredictions state is updated and clear the interval if it is
-    if (prevState.attacksConfusionMatrix !== this.state.attacksConfusionMatrix) {
-      clearInterval(this.intervalId);
+      // Check if attacksPredictions state is updated and clear the interval if it is
+      if (prevState.attacksConfusionMatrix !== this.state.attacksConfusionMatrix) {
+        clearInterval(this.intervalId);
+      }
     }
   }
 
@@ -201,7 +213,7 @@ class ResilienceMetricsPage extends Component {
   }
 
   async loadPredictions() {
-    const modelId = getLastPath();
+    const { modelId } = this.state;
 
     const predictionsResponse = await fetch(`${SERVER_URL}/api/models/${modelId}/predictions`, {
       method: 'GET',
@@ -217,21 +229,23 @@ class ResilienceMetricsPage extends Component {
     this.setState({ predictions }, this.updateConfusionMatrix);
   }
 
-  fetchModelBuildConfig = async () => {
-    const modelId = getLastPath();
-    try {
-      const response = await fetch(`${SERVER_URL}/api/models/${modelId}/build-config`);
-      const data = await response.json();
-      const buildConfig = JSON.parse(data.buildConfig);
-      this.setState({ buildConfig: buildConfig });
-      console.log(buildConfig.training_parameters);
-    } catch (error) {
-      console.error('Error fetching build-config:', error);
+  async fetchModelBuildConfig() {
+    const { modelId } = this.state;
+    if (modelId) {
+      try {
+        const response = await fetch(`${SERVER_URL}/api/models/${modelId}/build-config`);
+        const data = await response.json();
+        const buildConfig = JSON.parse(data.buildConfig);
+        this.setState({ buildConfig: buildConfig });
+        console.log(buildConfig.training_parameters);
+      } catch (error) {
+        console.error('Error fetching build-config:', error);
+      }
     }
-  };
+  }
 
   handleSelectedAttack(selectedAttack) {
-    let modelId = getLastPath();
+    const { modelId } = this.state;
     this.setState({ selectedAttack: selectedAttack });
     
     const { isRunning, buildConfig, modelDatasets, attacksDatasets } = this.state;
@@ -252,19 +266,20 @@ class ResilienceMetricsPage extends Component {
   }
 
   render() {
-    const {
-      model,
-      metrics,
-      retrainStatus,
-    } = this.props;
+    const { models, model, metrics, retrainStatus } = this.props;
     console.log(retrainStatus);
-    let modelId = getLastPath();
 
     const {
+      modelId,
       confusionMatrix,
       stats,
       attacksConfusionMatrix,
     } = this.state;
+
+    const modelsOptions = models ? models.map(model => ({
+      value: model.modelId,
+      label: model.modelId,
+    })) : [];
 
     const statsStr = stats.map((row, i) => `${i},${row.join(',')}`).join('\n');
     const rowsStats = statsStr.split('\n').map(row => row.split(','));
@@ -372,8 +387,12 @@ class ResilienceMetricsPage extends Component {
     const impact = this.calculateImpact();
     console.log(impact);
 
+    const subTitle = isModelIdPresent ? 
+      `Resilience metrics of the model ${modelId}` : 
+      'Relisience metrics of models';
+
     return (
-      <LayoutPage pageTitle="Resilience Metrics" pageSubTitle={`Model ${modelId}`}>
+      <LayoutPage pageTitle="Resilience Metrics" pageSubTitle={subTitle}>
         <Menu mode="horizontal" style={{ backgroundColor: 'transparent', fontSize: '16px' }}>
           {RES_METRICS_MENU_ITEMS.map(item => (
             <Menu.Item key={item.key}>
@@ -381,29 +400,70 @@ class ResilienceMetricsPage extends Component {
             </Menu.Item>
           ))}
         </Menu>
-
-        <Row gutter={24} style={{ marginTop: '20px' }}>
+        <Row type="flex" justify="center">
+          <Col>
+            <Form name="control-hooks" style={{ maxWidth: 700 }}>
+              <Form.Item name="model" label="Model" 
+                style={{ flex: 'none', marginTop: 20, marginBottom: 10 }}
+                rules={[
+                  {
+                    required: true,
+                    message: 'Please select a model!',
+                  },
+                ]}
+              > 
+                <Tooltip title="Select a model to perform attacks.">
+                  <Select
+                    placeholder="Select a model ..."
+                    style={{ width: '350px' }}
+                    allowClear showSearch
+                    value={this.state.modelId}
+                    disabled={isModelIdPresent}
+                    onChange={(value) => {
+                      this.setState({ modelId: value });
+                      console.log(`Select model ${value}`);
+                    }}
+                    //optionLabelProp="label"
+                    options={modelsOptions}
+                  />
+                </Tooltip>
+              </Form.Item>
+            </Form>
+          </Col>
+        </Row>
+        <Row gutter={24} style={{ marginTop: '10px' }}>
           <Col className="gutter-row" span={24} id="impact">
             <div style={BOX_STYLE}>
               <h2>&nbsp;&nbsp;&nbsp;Impact Metric</h2>
               &nbsp;&nbsp;&nbsp;
-              <Tooltip title="Select an adversarial attack to be performed against the model.">
-                <Select
-                  style={{
-                    width: '100%',
-                  }}
-                  allowClear
-                  placeholder="Select an attack ..."
-                  onChange={value => {
-                    if (value) { // TODO: this function is auto executed even users have not selected an attack yet
-                      this.handleSelectedAttack(value);
-                    }
-                  }}
-                  optionLabelProp="label"
-                  options={ATTACK_OPTIONS}
-                  style={{ width: 300, marginTop: '10px', marginBottom: '20px' }}
-                />
-              </Tooltip>
+              <Form name="control-hooks" style={{ maxWidth: 700 }}>
+                <Form.Item name="attack" label="Attack" 
+                  rules={[
+                    {
+                      required: true,
+                      message: 'Please select an adversarial attack!',
+                    },
+                  ]}
+                > 
+                  <Tooltip title="Select an adversarial attack to measure resilience metrics.">
+                    <Select
+                      style={{
+                        width: '100%',
+                      }}
+                      allowClear
+                      placeholder="Select an attack ..."
+                      onChange={value => {
+                        if (value) { // TODO: this function is auto executed even users have not selected an attack yet
+                          this.handleSelectedAttack(value);
+                        }
+                      }}
+                      optionLabelProp="label"
+                      options={ATTACK_OPTIONS}
+                      style={{ width: 250 }}
+                    />
+                  </Tooltip>
+                </Form.Item>
+              </Form>
               { attacksConfusionMatrix &&
                 <h3>&nbsp;&nbsp;&nbsp;Score: {impact}</h3>
               }
@@ -442,11 +502,12 @@ class ResilienceMetricsPage extends Component {
   }
 }
 
-const mapPropsToStates = ({ model, metrics, retrainStatus }) => ({
-  model, metrics, retrainStatus,
+const mapPropsToStates = ({ models, model, metrics, retrainStatus }) => ({
+  models, model, metrics, retrainStatus,
 });
 
 const mapDispatchToProps = (dispatch) => ({
+  fetchAllModels: () => dispatch(requestAllModels()),
   fetchRetrainStatus: () => dispatch(requestRetrainStatus()),
   fetchModel: (modelId) => dispatch(requestModel(modelId)),
   fetchMetricCurrentness: (modelId) => dispatch(requestMetricCurrentness(modelId)),
