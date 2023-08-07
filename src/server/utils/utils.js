@@ -1,4 +1,5 @@
 const fs = require('fs');
+const os = require('os');
 const {
   spawn,
 } = require('child_process');
@@ -109,6 +110,11 @@ function replaceDelimiterInCsv(inputFilePath, outputFilePath) {
   fs.writeFileSync(outputFilePath, outputCsv, 'utf-8');
 }
 
+function listNetworkInterfaces() {
+  return os.networkInterfaces();
+}
+
+
 module.exports = {
   spawnCommand,
   getInterfaceByName,
@@ -116,4 +122,5 @@ module.exports = {
   interfaceExist,
   getUniqueId,
   replaceDelimiterInCsv,
+  listNetworkInterfaces,
 };

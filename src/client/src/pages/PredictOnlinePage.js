@@ -21,6 +21,7 @@ class PredictOnlinePage extends Component {
     this.state = {
       modelId: null,
       interface: null,
+      interfacesOptions: [],
     };
     this.handleButtonPredict = this.handleButtonPredict.bind(this);
   }
@@ -31,6 +32,7 @@ class PredictOnlinePage extends Component {
       this.setState({ modelId });
     }
     this.props.fetchAllModels(); 
+    this.fetchInterfacesAndSetOptions();
   }
 
   async requestMMTStatus() {
@@ -43,6 +45,31 @@ class PredictOnlinePage extends Component {
     console.log(data.mmtStatus);
     return data.mmtStatus;
   };
+
+  async requestNetworkInterfaces() {
+    const url = `${SERVER_URL}/api/predict/interfaces`;
+    const response = await fetch(url);
+    const data = await response.json();
+    if (data.error) {
+      throw data.error;
+    }
+    console.log(data.interfaces);
+    return data.interfaces;
+  }
+
+  async fetchInterfacesAndSetOptions() {
+    let interfacesOptions = [];
+    try {
+      const interfaces = await this.requestNetworkInterfaces(); 
+      interfacesOptions = interfaces.map(i => ({
+        label: i,
+        value: i,
+      }));
+    } catch (error) {
+      console.error('Error:', error);
+    }
+    this.setState({ interfacesOptions });
+  }
 
   async requestMMTOffline(file) {
     console.log(`Uploaded file ${file.name}`);
@@ -67,9 +94,7 @@ class PredictOnlinePage extends Component {
 
   render() {
     const { models, mmtStatus, reports } = this.props;
-    const { modelId } = this.state;
-
-    const interfacesOptions = [];
+    const { modelId, interfacesOptions } = this.state;
 
     const modelsOptions = models ? models.map(model => ({
       value: model.modelId,

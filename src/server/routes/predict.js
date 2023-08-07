@@ -4,6 +4,7 @@ const {
   startPredicting,
   stopOnlinePrediction,
 } = require('../deep-learning/deep-learning-connector');
+const { listNetworkInterfaces } = require('../utils/utils');
 
 const router = express.Router();
 
@@ -76,6 +77,25 @@ router.post('/', (req, res) => {
 router.get('/', (req, res) => {
   res.send({
     predictingStatus: getPredictingStatus(),
+  });
+});
+
+router.get('/interfaces', (req, res) => {
+  const networkInterfaces = listNetworkInterfaces();
+  const ipv4Addresses = Object.keys(networkInterfaces).reduce((addresses, interfaceName) => {
+    const ipv4Interface = networkInterfaces[interfaceName].find((interface) => interface.family === 'IPv4');
+    
+    if (ipv4Interface) {
+      addresses.push(`${interfaceName} - ${ipv4Interface.address}`);
+    }
+
+    return addresses;
+  }, []);
+
+  console.log(ipv4Addresses);
+
+  res.send({
+    interfaces: ipv4Addresses,
   });
 });
 

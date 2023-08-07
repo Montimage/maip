@@ -1,7 +1,7 @@
 import React, { Component, useState } from 'react';
 import LayoutPage from './LayoutPage';
 import { connect } from "react-redux";
-import { Row, Col, Tooltip, message, Upload, Spin, Button, InputNumber, Space, Form, Input, Select, Checkbox } from 'antd';
+import { Row, Col, Tooltip, message, notification, Upload, Spin, Button, InputNumber, Space, Form, Input, Select, Checkbox } from 'antd';
 import { UploadOutlined } from "@ant-design/icons";
 import { Collapse } from 'antd';
 import {
