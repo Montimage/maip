@@ -106,7 +106,7 @@ class PredictOnlinePage extends Component {
       'Online prediction using models';
 
     return (
-      <LayoutPage pageTitle="Predict Online Page" pageSubTitle={subTitle}>
+      <LayoutPage pageTitle="Predict Online" pageSubTitle={subTitle}>
         <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 700 }}>
           <Form.Item name="model" label="Model" 
             style={{ flex: 'none', marginBottom: 10 }}

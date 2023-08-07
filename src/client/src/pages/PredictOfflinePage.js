@@ -215,7 +215,7 @@ class PredictOfflinePage extends Component {
       'Offline prediction using models';
 
     return (
-      <LayoutPage pageTitle="Predict Offline Page" pageSubTitle={subTitle}>
+      <LayoutPage pageTitle="Predict Offline" pageSubTitle={subTitle}>
         <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 700 }}>
           <Form.Item name="model" label="Model" 
             style={{ flex: 'none', marginBottom: 10 }}

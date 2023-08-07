@@ -17,7 +17,6 @@ import {
   COLUMNS_PERF_STATS
 } from "../constants";
 
-// TODO: check reading some empty files
 let isModelIdPresent = getLastPath() !== "accountability";
 
 class AccountabilityMetricsPage extends Component {
@@ -562,10 +561,10 @@ class AccountabilityMetricsPage extends Component {
 
     return (
       <LayoutPage pageTitle="Accountability Metrics" pageSubTitle={subTitle}>
-        <Menu mode="horizontal" style={{ backgroundColor: 'transparent', fontSize: '16px' }}>
+        <Menu mode="horizontal" style={{ backgroundColor: 'transparent', fontSize: '18px' }}>
           {ACC_METRICS_MENU_ITEMS.map(item => (
             <Menu.Item key={item.key}>
-              <a href={item.link}><strong>{item.label}</strong></a>
+              <a href={item.link}>{item.label}</a>
             </Menu.Item>
           ))}
         </Menu>
@@ -647,10 +646,10 @@ class AccountabilityMetricsPage extends Component {
           </Form.Item>
         </div>
         <Row gutter={24}>
-          <Col className="gutter-row" span={12} id="modelPerformance">
-            <div style={BOX_STYLE}>
+          <Col className="gutter-row" span={12} id="performance">
+            <div style={{ ...BOX_STYLE, marginTop: '100px' }}>
               <h2>&nbsp;&nbsp;&nbsp;Model Performance</h2>
-              <div style={{ position: 'absolute', top: 10, right: 10 }}>
+              <div style={{ position: 'absolute', top: 110, right: 10 }}>
                 <Tooltip title={`Shows a list of various model performance metrics for each class.`}>
                   <Button type="link" icon={<QuestionOutlined />} />
                 </Tooltip>
@@ -660,9 +659,9 @@ class AccountabilityMetricsPage extends Component {
             </div>
           </Col>
           <Col className="gutter-row" span={12} id="confusion_matrix">
-            <div style={BOX_STYLE}>
+            <div style={{ ...BOX_STYLE, marginTop: '100px' }}>
               <h2>&nbsp;&nbsp;&nbsp;Confusion Matrix</h2>
-              <div style={{ position: 'absolute', top: 10, right: 10 }}>
+              <div style={{ position: 'absolute', top: 110, right: 10 }}>
                 <Tooltip title="The confusion matrix shows the number of True Negatives (predicted negative, observed negative), True Positives (predicted positive, observed positive), False Negatives (predicted negative, but observed positive) and False Positives (predicted positive, but observed negative). For different cutoff values, you will get a different number of False Positives and False Negatives. This plot allows you to find the optimal cutoff.">
                   <Button type="link" icon={<QuestionOutlined />} />
                 </Tooltip>
@@ -675,9 +674,9 @@ class AccountabilityMetricsPage extends Component {
             </div>
           </Col>
           <Col className="gutter-row" span={12} style={{ marginTop: "24px" }} id="classification_plot">
-            <div style={BOX_STYLE}>
+            <div style={{ ...BOX_STYLE, marginTop: '100px' }}>
               <h2>&nbsp;&nbsp;&nbsp;Classification Plot</h2>
-              <div style={{ position: 'absolute', top: 10, right: 10 }}>
+              <div style={{ position: 'absolute', top: 110, right: 10 }}>
                 <Tooltip title="This plot shows the fraction of each class above and below the cutoff.">
                   <Button type="link" icon={<QuestionOutlined />} />
                 </Tooltip>
@@ -686,9 +685,9 @@ class AccountabilityMetricsPage extends Component {
             </div>
           </Col>
           <Col className="gutter-row" span={12} style={{ marginTop: "24px" }} id="precision_plot">
-            <div style={BOX_STYLE}>
+            <div style={{ ...BOX_STYLE, marginTop: '100px' }}>
               <h2>&nbsp;&nbsp;&nbsp;Precision Plot</h2>
-              <div style={{ position: 'absolute', top: 10, right: 10 }}>
+              <div style={{ position: 'absolute', top: 110, right: 10 }}>
                 <Tooltip title={"The precision plot shows the precision values binned by equal prediction probabilities. It provides an overview of how precision changes as the prediction probability increases."}>
                   <Button type="link" icon={<QuestionOutlined />} />
                 </Tooltip>
@@ -697,9 +696,9 @@ class AccountabilityMetricsPage extends Component {
             </div>
           </Col>
           <Col className="gutter-row" span={12} style={{ marginTop: "24px" }} id="currentness">
-            <div style={BOX_STYLE}>
+            <div style={{ ...BOX_STYLE, marginTop: '100px' }}>
               <h2>&nbsp;&nbsp;&nbsp;Currentness Metric</h2>
-              <div style={{ position: 'absolute', top: 10, right: 10 }}>
+              <div style={{ position: 'absolute', top: 110, right: 10 }}>
                 <Tooltip title="Currentness metric measures the time of executing different XAI methods compared to the time of executing AI models.">
                   <Button type="link" icon={<QuestionOutlined />} />
                 </Tooltip>

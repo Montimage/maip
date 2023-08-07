@@ -413,33 +413,40 @@ class DatasetPage extends Component {
       <LayoutPage pageTitle="Dataset" 
         pageSubTitle={`${datasetType.charAt(0).toUpperCase() + datasetType.slice(1)}ing dataset of the model ${modelId}`}>
 
-        <Menu mode="horizontal" style={{ backgroundColor: 'transparent', fontSize: '16px' }}>
+        <Menu mode="horizontal" style={{ backgroundColor: 'transparent', fontSize: '18px' }}>
           {DATASET_MENU_ITEMS.map(item => (
             <Menu.Item key={item.key}>
-              <a href={item.link}><strong>{item.label}</strong></a>
+              <a href={item.link}>{item.label}</a>
             </Menu.Item>
           ))}
         </Menu>
 
-        {/* TODO: Fix "ResizeObserver loop limit exceeded", fixed header ? */}        
-        <div style={{ fontSize: '16px', marginTop: '20px' }} id="data">
-          Total number of samples: <strong>{csvData.length}</strong>;
-          Total number of features: <strong>{Object.keys(FEATURES_DESCRIPTIONS).length - 3}</strong>
-        </div>
-        <div style={{ maxWidth: '100vw', overflowX: 'auto', marginTop: '20px', height: 490 }}>
-          <Table columns={columns} 
-            dataSource={csvData} 
-            size="small" bordered
-            scroll={{ x: 'max-content', /* y: 400 */ }}
-            pagination={{ pageSize: 10 }}
-          />
-        </div>
+        {/* TODO: Fix "ResizeObserver loop limit exceeded", fixed header ? */}    
+        <Row gutter={24} style={{ marginTop: '20px' }} id="data">
+          <Col className="gutter-row" span={24}>
+          <div style={{ ...BOX_STYLE, marginTop: '100px' }} >
+            <h2>&nbsp;&nbsp;&nbsp;Data</h2>
+            <div style={{ fontSize: '16px', marginTop: '20px' }}>
+              &nbsp;&nbsp;&nbsp;Total number of samples: <strong>{csvData.length}</strong>;
+              Total number of features: <strong>{Object.keys(FEATURES_DESCRIPTIONS).length - 3}</strong>
+            </div>
+            <div style={{ maxWidth: '100vw', overflowX: 'auto', marginTop: '20px', height: 490 }}>
+              <Table columns={columns} 
+                dataSource={csvData} 
+                size="small" bordered
+                scroll={{ x: 'max-content', /* y: 400 */ }}
+                pagination={{ pageSize: 10 }}
+              />
+            </div>
+          </div>
+          </Col>
+        </Row>
 
         <Row gutter={24} style={{ marginTop: '20px' }} id="feature_descriptions">
           <Col className="gutter-row" span={24}>
-            <div style={BOX_STYLE}>
+            <div style={{ ...BOX_STYLE, marginTop: '100px' }}>
               <h2>&nbsp;&nbsp;&nbsp;Feature Descriptions</h2>
-              <div style={{ position: 'absolute', top: 10, right: 10 }}>
+              <div style={{ position: 'absolute', top: 110, right: 10 }}>
                 <Tooltip title={`Displays all features with detailed description.`}>
                   <Button type="link" icon={<QuestionOutlined />} />
                 </Tooltip>
@@ -454,10 +461,10 @@ class DatasetPage extends Component {
         <Row gutter={24} style={{ marginTop: '20px' }} id="histogram_plot">
           <Col className="gutter-row" span={24}>
             {headers.length > 0 && (
-              <div style={BOX_STYLE}>
+              <div style={{ ...BOX_STYLE, marginTop: '100px' }}>
                 <h2>&nbsp;&nbsp;&nbsp;Histogram Plot</h2>
                 <div style={{ marginBottom: '30px', marginTop: '10px' }}>
-                  <div style={{ position: 'absolute', top: 10, right: 10 }}>
+                  <div style={{ position: 'absolute', top: 110, right: 10 }}>
                     <Tooltip title="A table contains different statistics of the feature, such as the number of unique values, number of missing values, mean, standard deviation, median, minimum, and maximum value. A histogram plot for each feature of the database shows the distribution of values in that feature.">
                       <Button type="link" icon={<QuestionOutlined />} />
                     </Tooltip>
@@ -514,10 +521,10 @@ class DatasetPage extends Component {
 
         <Row gutter={24} style={{ marginTop: '20px' }} id="scatter_plot">
           <Col className="gutter-row" span={24}>
-            <div style={BOX_STYLE}>
+            <div style={{ ...BOX_STYLE, marginTop: '100px' }}>
               <h2>&nbsp;&nbsp;&nbsp;Scatter Plot</h2>
               <div style={{ marginBottom: '30px', marginTop: '10px' }}>
-                <div style={{ position: 'absolute', top: 10, right: 10 }}>
+                <div style={{ position: 'absolute', top: 110, right: 10 }}>
                   <Tooltip title="The scatter plot represents the relationship between two features of a dataset, each data point as a circle on a two-dimensional coordinate system. The color of each circle represents whether the traffic was Malware or Normal. Malware traffic is denoted with the color blue, while Normal traffic is denoted with the color red.">
                     <Button type="link" icon={<QuestionOutlined />} />
                   </Tooltip>
@@ -566,10 +573,10 @@ class DatasetPage extends Component {
 
         <Row gutter={24} style={{ marginTop: '20px' }} id="bar_plot">
           <Col className="gutter-row" span={12}>
-            <div style={BOX_STYLE}>
+            <div style={{ ...BOX_STYLE, marginTop: '100px' }}>
               <h2>&nbsp;&nbsp;&nbsp;Bar Plot</h2>
               <div style={{ marginBottom: '30px', marginTop: '10px' }}>
-                <div style={{ position: 'absolute', top: 10, right: 10 }}>
+                <div style={{ position: 'absolute', top: 110, right: 10 }}>
                   <Tooltip title="The bar plot displays the frequency or proportion of a categorical feature.">
                     <Button type="link" icon={<QuestionOutlined />} />
                   </Tooltip>
@@ -597,7 +604,7 @@ class DatasetPage extends Component {
           </Col>
 
           <Col className="gutter-row" span={12} id="heatmap_plot">
-            <div style={BOX_STYLE}>
+            <div style={{ ...BOX_STYLE, marginTop: '100px' }}>
               <h2>&nbsp;&nbsp;&nbsp;Heatmap Plot (TODO)</h2>
             </div>
           </Col>

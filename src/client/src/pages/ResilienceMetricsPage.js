@@ -18,7 +18,6 @@ import {
   ATTACK_OPTIONS, RES_METRICS_MENU_ITEMS, HEADER_ACCURACY_STATS
 } from "../constants";
 
-// TODO: check reading some empty files
 let isModelIdPresent = getLastPath() !== "resilience";
 
 class ResilienceMetricsPage extends Component {
@@ -393,10 +392,10 @@ class ResilienceMetricsPage extends Component {
 
     return (
       <LayoutPage pageTitle="Resilience Metrics" pageSubTitle={subTitle}>
-        <Menu mode="horizontal" style={{ backgroundColor: 'transparent', fontSize: '16px' }}>
+        <Menu mode="horizontal" style={{ backgroundColor: 'transparent', fontSize: '18px' }}>
           {RES_METRICS_MENU_ITEMS.map(item => (
             <Menu.Item key={item.key}>
-              <a href={item.link}><strong>{item.label}</strong></a>
+              <a href={item.link}>{item.label}</a>
             </Menu.Item>
           ))}
         </Menu>
@@ -433,7 +432,7 @@ class ResilienceMetricsPage extends Component {
         </Row>
         <Row gutter={24} style={{ marginTop: '10px' }}>
           <Col className="gutter-row" span={24} id="impact">
-            <div style={BOX_STYLE}>
+            <div style={{ ...BOX_STYLE, marginTop: '100px' }}>
               <h2>&nbsp;&nbsp;&nbsp;Impact Metric</h2>
               &nbsp;&nbsp;&nbsp;
               <Form name="control-hooks" style={{ maxWidth: 700 }}>
