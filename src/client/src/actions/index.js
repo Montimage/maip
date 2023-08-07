@@ -63,3 +63,8 @@ export const setMetrics = createAction('SET_METRICS');
 export const requestPerformAttack = createAction('REQUEST_PERFORM_ATTACK');
 export const requestAttacksStatus = createAction('REQUEST_ATTACKS_STATUS');
 export const setAttacksStatus = createAction('SET_ATTACKS_STATUS');
+
+// Predict
+export const requestPredict = createAction('REQUEST_PREDICT');
+export const requestPredictStatus = createAction('REQUEST_PREDICT_STATUS');
+export const setPredictStatus = createAction('SET_PREDICT_STATUS');

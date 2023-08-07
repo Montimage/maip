@@ -10,7 +10,7 @@ import requestLimeSaga from "./requestLimeSaga";
 import requestReportSaga from "./requestReportSaga";
 import requestMetricsSaga from "./requestMetricsSaga";
 import requestAttacksSaga from "./requestAttacksSaga";
-
+import requestPredictSaga from "./requestPredictSaga";
 
 function* rootSaga() {
   yield all([
@@ -24,6 +24,7 @@ function* rootSaga() {
     requestReportSaga(),
     requestMetricsSaga(),
     requestAttacksSaga(),
+    requestPredictSaga(),
   ]);
 }
 

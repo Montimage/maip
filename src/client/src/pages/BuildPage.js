@@ -1,6 +1,5 @@
 import React, { Component, useState } from 'react';
 import LayoutPage from './LayoutPage';
-import { getLastPath, getQuery } from "../utils";
 import { connect } from "react-redux";
 import { Row, Col, Tooltip, message, Upload, Spin, Button, InputNumber, Space, Form, Input, Select, Checkbox } from 'antd';
 import { UploadOutlined } from "@ant-design/icons";
@@ -25,9 +24,9 @@ class BuildPage extends Component {
   constructor(props) {
     super(props);
     this.state = {
-      attackDataset: "",
+      attackDataset: null,
       attackPcapFile: null,
-      normalDataset: "",
+      normalDataset: null,
       normalPcapFile: null,
       featureList: "Raw Features",
       training_ratio: 0.7,
@@ -118,6 +117,8 @@ class BuildPage extends Component {
           { datasetId: attackDataset, isAttack: true },
           { datasetId: normalDataset, isAttack: false },
         ];
+
+        await delay(5000); // TODO: test again option of uploading pcaps
       }
 
       if (!datasets) {
@@ -134,13 +135,11 @@ class BuildPage extends Component {
       };
       console.log(buildConfig);
 
-      await delay(5000); // TODO: improve?
       this.props.fetchBuildModel(datasets, training_ratio, training_parameters);
     }
   }
 
   componentDidUpdate(prevProps, prevState) {
-    const modelId = getLastPath();
     const { isRunning } = this.state;
     const { buildStatus } = this.props;
     console.log(`buildStatus: ${buildStatus.isRunning}`);
@@ -151,6 +150,15 @@ class BuildPage extends Component {
       if (!this.props.buildStatus.isRunning) {
         console.log('isRunning changed from True to False');  
         clearInterval(this.intervalId);
+        notification.success({
+          message: 'Success',
+          description: 'The model was built successfully!',
+          placement: 'topRight',
+        });
+        this.setState({
+          attackDataset: null, 
+          normalDataset: null,
+        });
       }
     }
   }
@@ -246,22 +254,21 @@ class BuildPage extends Component {
         <Col span={12}>
         <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 700 }}>
           <Form.Item
-            label="Attack Dataset"
+            label="Malicious Dataset"
             name="attackDataset"
             rules={[
               {
                 required: true,
-                message: 'Please select an attack dataset!',
+                message: 'Please select an malicious dataset!',
               },
             ]}
           >
-            <Tooltip title="Select MMT's analyzing reports of malware traffic.">
+            <Tooltip title="Select MMT's analyzing reports of malicious traffic.">
               <Select
-                /*placeholder="Select an attack dataset"*/
+                placeholder="Select malicious MMT reports ..."
+                value={this.state.attackDataset}
                 showSearch allowClear
-                onChange={(value) => {
-                  this.setState({ attackDataset: value });
-                }}
+                onChange={v => this.setState({ attackDataset: v })}
                 options={reportsOptions}
                 disabled={this.state.attackPcapFile !== null}
               />
@@ -291,9 +298,10 @@ class BuildPage extends Component {
           >
             <Tooltip title="Select MMT's analyzing reports of normal traffic.">
               <Select
-                /*placeholder="Select a normal dataset"*/
+                placeholder="Select normal MMT reports ..."
+                value={this.state.normalDataset}
                 showSearch allowClear
-                onChange={value => this.setState({ normalDataset: value })}
+                onChange={v => this.setState({ normalDataset: v })}
                 options={reportsOptions}
                 disabled={this.state.normalPcapFile !== null}
               />
@@ -316,7 +324,7 @@ class BuildPage extends Component {
             <Tooltip title="Select feature lists used to build models.">
               <Select
                 value={this.state.featureList}
-                onChange={value => this.setState({ featureList: value })}
+                onChange={v => this.setState({ featureList: v })}
                 options={featureOptions}
               />
             </Tooltip>
@@ -327,7 +335,7 @@ class BuildPage extends Component {
                 name="training_ratio"
                 value={this.state.training_ratio}
                 min={0} max={1} step={0.1} defaultValue={0.7}
-                onChange={(v) => this.setState({ training_ratio: v })}
+                onChange={v => this.setState({ training_ratio: v })}
               />
             </Tooltip>
           </Form.Item>
@@ -412,8 +420,9 @@ class BuildPage extends Component {
         </Form>
         </Col>
         <Col span={12} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-          <img src="../../img/architecture.png" 
-            style={{ width: '40%' }} />
+          <Tooltip title="This is the description of the image">
+            <img src="../../img/architecture.png" style={{ width: '40%' }} />
+          </Tooltip>
         </Col>
         </Row>
       </LayoutPage>

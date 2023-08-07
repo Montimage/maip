@@ -20,6 +20,7 @@ class PredictOnlinePage extends Component {
     super(props);
     this.state = {
       modelId: null,
+      interface: null,
     };
     this.handleButtonPredict = this.handleButtonPredict.bind(this);
   }
@@ -68,10 +69,7 @@ class PredictOnlinePage extends Component {
     const { models, mmtStatus, reports } = this.props;
     const { modelId } = this.state;
 
-    const reportsOptions = reports ? reports.map(report => ({
-      value: report,
-      label: report,
-    })) : [];
+    const interfacesOptions = [];
 
     const modelsOptions = models ? models.map(model => ({
       value: model.modelId,
@@ -94,7 +92,7 @@ class PredictOnlinePage extends Component {
               },
             ]}
           > 
-            <Tooltip title="Select a model to make predictions.">
+            <Tooltip title="Select a model to perform online predictions.">
               <Select placeholder="Select a model ..."
                 style={{ width: '100%' }}
                 allowClear showSearch
@@ -106,6 +104,25 @@ class PredictOnlinePage extends Component {
                 }}
                 //optionLabelProp="label"
                 options={modelsOptions}
+              />
+            </Tooltip>
+          </Form.Item>
+          <Form.Item name="interface" label="Network interface" 
+            style={{ flex: 'none', marginBottom: 10 }}
+            rules={[
+              {
+                required: true,
+                message: 'Please select a network interface!',
+              },
+            ]}
+          > 
+            <Tooltip title="Select a network interface to perform online predictions.">
+              <Select placeholder="Select a network interface ..."
+                style={{ width: '100%' }}
+                allowClear showSearch
+                value={this.state.interface}
+                onChange={v => this.setState({ interface: v })}
+                options={interfacesOptions}
               />
             </Tooltip>
           </Form.Item>

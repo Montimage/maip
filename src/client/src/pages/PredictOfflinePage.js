@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
 import { getLastPath, getQuery } from "../utils";
-import { Tooltip, message, Upload, Spin, Button, Form, Select, Checkbox } from 'antd';
+import { Tooltip, message, notification, Upload, Spin, Button, Form, Select, Checkbox } from 'antd';
 import { UploadOutlined } from "@ant-design/icons";
 import { connect } from "react-redux";
 import {
@@ -9,9 +9,12 @@ import {
   SERVER_URL,
 } from "../constants";
 import {
+  requestBuildConfigModel,
   requestMMTStatus,
   requestAllReports,
   requestAllModels,
+  requestPredict,
+  requestPredictStatus,
 } from "../actions";
 
 let isModelIdPresent = getLastPath() !== "offline";
@@ -23,8 +26,10 @@ class PredictOfflinePage extends Component {
       modelId: null,
       testingPcapFile: null,
       testingDataset: null,
+      isRunning: props.predictStatus.isRunning,
+      isMMTRunning: props.mmtStatus.isRunning,
     };
-    this.handleButtonPredict = this.handleButtonPredict.bind(this);
+    this.handlePredictOffline = this.handlePredictOffline.bind(this);
   }
 
   componentDidMount() {
@@ -46,6 +51,17 @@ class PredictOfflinePage extends Component {
     console.log(data.mmtStatus);
     return data.mmtStatus;
   };
+
+  async requestCsvReports(reportId) {
+    const url = `${SERVER_URL}/api/reports/${reportId}`;
+    const response = await fetch(url);
+    const data = await response.json();
+    if (data.error) {
+      throw data.error;
+    }
+    console.log(data.csvFiles);
+    return data.csvFiles;  
+  }
 
   async requestMMTOffline(file) {
     console.log(`Uploaded file ${file.name}`);
@@ -109,17 +125,80 @@ class PredictOfflinePage extends Component {
     }
   }
 
-  async handleButtonPredict() {
+  async handlePredictOffline() {
+    const delay = ms => new Promise(res => setTimeout(res, ms));
     const { 
       modelId,
       testingPcapFile,
       testingDataset,
+      isRunning,
     } = this.state;
+
+    let fetchModelId = isModelIdPresent ? getLastPath() : modelId;
+    let csvReports = [];
+    let updatedTestingDataset = null;
+
+    if (!isRunning) {
+      
+        
+      if (testingDataset) {
+        updatedTestingDataset = testingDataset;
+      } else if (testingPcapFile) {
+        await this.requestMMTOffline(testingPcapFile);
+        const pcapFileStatus = await this.requestMMTStatus();
+        
+        await delay(10000); // TODO: improve?
+        updatedTestingDataset = `report-${pcapFileStatus.sessionId}`;
+        this.setState({ testingDataset: updatedTestingDataset });
+      }
+
+      if (updatedTestingDataset) {
+        try {
+          csvReports = await this.requestCsvReports(updatedTestingDataset);
+          if (csvReports.length == 0) {
+            console.error(`Testing dataset is not valid!`);
+          } else {
+            // Suppose that there is at most one csv report in each report folder
+            console.log(csvReports[0]);
+            console.log(fetchModelId);
+            console.log(updatedTestingDataset);
+            this.props.fetchPredict(fetchModelId, updatedTestingDataset, csvReports[0]);
+            console.log("update isRunning state!");
+            this.setState({ isRunning: true });        
+            this.intervalId = setInterval(() => { // start interval when button is clicked
+              this.props.fetchPredictStatus();
+            }, 2000);
+          }
+        } catch (error) {
+          console.error('Error in requestCsvReports:', error);
+        }
+      }
+    }  
+  }
+
+  componentDidUpdate(prevProps, prevState) {
+    if (prevProps.predictStatus.isRunning !== this.props.predictStatus.isRunning) {
+      console.log('isRunning has been changed');
+      this.setState({ isRunning: this.props.predictStatus.isRunning });
+      if (!this.props.predictStatus.isRunning) {
+        //console.log('isRunning changed from True to False');  
+        clearInterval(this.intervalId);
+        notification.success({
+          message: 'Success',
+          description: 'Make predictions successfully!',
+          placement: 'topRight',
+        });
+        this.setState({
+          testingDataset: null, 
+          testingPcapFile: null,
+        });
+      }
+    }
   }
 
   render() {
     const { models, mmtStatus, reports } = this.props;
-    const { modelId } = this.state;
+    const { modelId, testingDataset, testingPcapFile, isRunning } = this.state;
 
     const reportsOptions = reports ? reports.map(report => ({
       value: report,
@@ -147,7 +226,7 @@ class PredictOfflinePage extends Component {
               },
             ]}
           > 
-            <Tooltip title="Select a model to make predictions.">
+            <Tooltip title="Select a model to perform offline predictions.">
               <Select placeholder="Select a model ..."
                 style={{ width: '100%' }}
                 allowClear showSearch
@@ -174,7 +253,7 @@ class PredictOfflinePage extends Component {
           >
             <Tooltip title="Select MMT's analyzing reports of testing traffic.">
               <Select
-                placeholder="Select testing reports ..."
+                placeholder="Select testing MMT reports ..."
                 showSearch allowClear
                 onChange={(value) => {
                   this.setState({ testingDataset: value });
@@ -200,10 +279,15 @@ class PredictOfflinePage extends Component {
           </Form.Item>
           <div style={{ display: 'flex', justifyContent: 'center', }}>
             <Button type="primary"
-              onClick={this.handleButtonPredict}
-              disabled={ !this.state.modelId || !(this.state.testingDataset || this.state.testingPcapFile) }
+              onClick={this.handlePredictOffline}
+              disabled={ isRunning || !this.state.modelId || !(this.state.testingDataset || this.state.testingPcapFile) }
             >
               Predict
+              {isRunning && 
+                <Spin size="large" style={{ marginBottom: '8px' }}>
+                  <div className="content" />
+                </Spin>
+              }
             </Button>
           </div>
         </Form>
@@ -212,14 +296,18 @@ class PredictOfflinePage extends Component {
   }
 }
 
-const mapPropsToStates = ({ models, mmtStatus, reports }) => ({
-  models, mmtStatus, reports,
+const mapPropsToStates = ({ models, mmtStatus, reports, predictStatus }) => ({
+  models, mmtStatus, reports, predictStatus,
 });
 
 const mapDispatchToProps = (dispatch) => ({
   fetchAllModels: () => dispatch(requestAllModels()),
+  fetchBuildConfigModel: (modelId) => dispatch(requestBuildConfigModel(modelId)),
   fetchMMTStatus: () => dispatch(requestMMTStatus()),
   fetchAllReports: () => dispatch(requestAllReports()),
+  fetchPredict: (modelId, reportId, reportFileName) =>
+    dispatch(requestPredict({modelId, reportId, reportFileName})), 
+  fetchPredictStatus: () => dispatch(requestPredictStatus()),
 });
 
 export default connect(mapPropsToStates, mapDispatchToProps)(PredictOfflinePage);

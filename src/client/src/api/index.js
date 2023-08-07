@@ -368,3 +368,40 @@ export const requestPerformAttack = async (modelId, selectedAttack, poisoningRat
   console.log(`Perform attack ${selectedAttack} against the model ${modelId} on server`);
   return data;
 };
+
+export const requestPredictStatus = async () => {
+  const url = `${SERVER_URL}/api/predict`;
+  const response = await fetch(url);
+  const data = await response.json();
+  if (data.error) {
+    throw data.error;
+  }
+  console.log(data.predictingStatus);
+  return data.predictingStatus;
+};
+
+export const requestPredict = async (modelId, reportId, reportFileName) => {
+  const url = `${SERVER_URL}/api/predict`;
+
+  const predictConfig = {
+    modelId,
+    inputTraffic: {
+      type: "report",
+      value: {
+        reportId: reportId,
+        reportFileName: reportFileName,
+      }
+    },
+  };
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ predictConfig }),
+  });
+  console.log(predictConfig);
+  const data = await response.json();
+  console.log(`Prediction on server with config ${predictConfig}`);
+  return data;
+};

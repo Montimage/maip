@@ -42,7 +42,7 @@ class AttacksPage extends Component {
     if (isModelIdPresent) {
       this.setState({ modelId });
     }
-    this.props.fetchAllModels(); 
+    this.props.fetchAllModels();
   }
 
   // TODO: improve user exps
@@ -269,6 +269,7 @@ class AttacksPage extends Component {
           > 
             <Tooltip title="Select a model to perform attacks.">
               <Select
+                placeholder="Select a model ..."
                 style={{ width: '100%' }}
                 allowClear showSearch
                 value={this.state.modelId}
