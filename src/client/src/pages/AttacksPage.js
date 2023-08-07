@@ -19,7 +19,6 @@ import {
   ATTACK_OPTIONS, ATTACKS_SLIDER_MARKS
 } from "../constants";
 
-// TODO: users must select only 1 option in TLF attack
 let isModelIdPresent = getLastPath() !== "attacks";
 
 class AttacksPage extends Component {
@@ -32,6 +31,7 @@ class AttacksPage extends Component {
       poisoningRate: 50,
       selectedAttack: null,
       targetClass: null,
+      checkboxValues: [],
       isRunning: props.attacksStatus.isRunning,
     };
     this.handleTargetClass = this.handleTargetClass.bind(this);
@@ -45,21 +45,22 @@ class AttacksPage extends Component {
     this.props.fetchAllModels();
   }
 
-  // TODO: improve user exps
-  handleTargetClass(checkedValues) {
+  handleTargetClass = (checkedValues) => {
     let targetClass = null;
-    if (checkedValues.length === 1) {
-      if (checkedValues[0].includes('Malware')) {
-        targetClass = 1;
-      } else {
-        targetClass = 0;
-      }
+    if (checkedValues.length > 1) {
+      message.error('You can only select one option');
+      this.setState({ targetClass: null, checkboxValues: [] });
     } else {
-      message.warning('Please select only one option.');
-      targetClass = null;
+      if (checkedValues.length === 1) {
+        if (checkedValues[0].includes('Malware')) {
+          targetClass = 1;
+        } else {
+          targetClass = 0;
+        }
+      }
+      this.setState({ targetClass, checkboxValues: checkedValues });
     }
-    this.setState({ targetClass });
-  };
+  }
 
   displayPoisonedDataset(modelId, selectedAttack, poisoningRate, targetClass) {
     fetch(`${SERVER_URL}/api/attacks/poisoning/${selectedAttack}/${modelId}/view`)
@@ -322,7 +323,7 @@ class AttacksPage extends Component {
           >
             <Checkbox.Group 
               options={['Normal traffic', 'Malware traffic']}
-              defaultValue={[]}
+              value={this.state.checkboxValues}
               disabled={selectedAttack !== 'tlf'}
               onChange={this.handleTargetClass}
             />
@@ -333,31 +334,30 @@ class AttacksPage extends Component {
                 console.log({ modelId, selectedAttack, poisoningRate, targetClass });
                 this.handlePerformAttackClick(modelId, selectedAttack, poisoningRate, targetClass);
               }}
-              disabled={ !this.state.modelId || !this.state.selectedAttack }
+              disabled={ !this.state.modelId || !this.state.selectedAttack || this.state.targetClass === null }
               >Perform Attack
             </Button>
           </div>
         </Form>
 
-        {/* TODO: only make it appeared once the process is terminated */}
-        <Divider orientation="left">
-          <h1 style={{ fontSize: '24px' }}>Compare Original and Poisoned Training Datasets</h1>
-        </Divider>
-
         {csvDataOriginal.length > 0 && csvDataPoisoned.length > 0 &&
-          <Row gutter={24}>
-            <Col className="gutter-row" span={12}>
-              <div style={BOX_STYLE}>          
-                <div style={{ position: 'absolute', top: 10, right: 10 }}>
-                  <Tooltip title="The plot displays the frequency of output labels before and after an attack, represented as percentages. It provides a visual comparison of the distribution of labels in the original and poisoned training datasets.">
-                    <Button type="link" icon={<QuestionOutlined />} />
-                  </Tooltip>
+          <>
+            <Divider orientation="left">
+              <h1 style={{ fontSize: '24px' }}>Compare Original and Poisoned Training Datasets</h1>
+            </Divider>
+            <Row gutter={24}>
+              <Col className="gutter-row" span={12}>
+                <div style={BOX_STYLE}>          
+                  <div style={{ position: 'absolute', top: 10, right: 10 }}>
+                    <Tooltip title="The plot displays the frequency of output labels before and after an attack, represented as percentages. It provides a visual comparison of the distribution of labels in the original and poisoned training datasets.">
+                      <Button type="link" icon={<QuestionOutlined />} />
+                    </Tooltip>
+                  </div>
+                  <Column {...configLabelsColumn} style={{ margin: '20px' }}/>
                 </div>
-                <Column {...configLabelsColumn} style={{ margin: '20px' }}/>
-              </div>
-            </Col>
-          </Row>
-          
+              </Col>
+            </Row>
+          </>
         }
       </LayoutPage>
     );
