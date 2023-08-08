@@ -9,6 +9,7 @@ import {
   setNotification,
 } from "../../actions";
 import "./styles.css";
+import { setApp } from "../../actions";
 
 const { Header } = Layout;
 const { SubMenu } = Menu;
@@ -143,6 +144,7 @@ class MAIPHeader extends Component {
         // TODO: check correct link
         window.open('https://rca.montimage.com', '_blank');
       }
+      this.props.setApp(this.state.selectedValue);
     });
   }
   
@@ -188,19 +190,6 @@ class MAIPHeader extends Component {
               <Option style={{ fontSize: '16px', }} value="ad">Anomaly Detection</Option>
               <Option style={{ fontSize: '16px', }} value="rca">Root Cause Analysis</Option>
             </Select>
-            {/* <Radio.Group defaultValue="ad" buttonStyle="solid"
-              onChange={this.handleChange}  
-            >
-              <Radio.Button value="ac" style={{ width: '120px', height: '52px', lineHeight: '1.7' }}>
-                Activity Classification
-              </Radio.Button>
-              <Radio.Button value="ad" style={{ width: '120px', height: '52px', lineHeight: '1.7' }}>
-                Anomaly Detection
-              </Radio.Button>
-              <Radio.Button value="rca" style={{ width: '120px', height: '52px', lineHeight: '1.7' }}>
-                Root Cause Analysis
-              </Radio.Button>
-            </Radio.Group> */}
           </Col>
           <Col span={10}>
             <Menu
@@ -243,6 +232,7 @@ const mapPropsToStates = ({ requesting }) => ({
 const mapDispatchToProps = (dispatch) => ({
   setNotification: ({ type, message }) =>
     dispatch(setNotification({ type, message })),
+  setApp: (app) => dispatch(setApp(app)),
 });
 
 export default connect(mapPropsToStates, mapDispatchToProps)(MAIPHeader);

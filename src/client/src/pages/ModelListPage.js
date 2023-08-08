@@ -8,6 +8,7 @@ import {
   HourglassOutlined, RestOutlined, CopyOutlined, HighlightOutlined
 } from '@ant-design/icons';
 import {
+  requestApp,
   requestAllModels,
   requestDeleteModel,
   requestUpdateModel,
@@ -58,11 +59,13 @@ class ModelListPage extends Component {
   }
 
   componentDidMount() {
+    this.props.fetchApp();
     this.props.fetchAllModels();
   }
 
   render() {
     const { 
+      app,
       models, 
       downloadModel, 
       downloadDatasets,
@@ -73,6 +76,7 @@ class ModelListPage extends Component {
       selectedOption,
     } = this.state;
     //console.log(models);
+    console.log(`Selected app from ModelListPage: ${app}`);
 
     if (!models) {
       console.error("No models")
@@ -334,11 +338,12 @@ class ModelListPage extends Component {
   }
 }
 
-const mapPropsToStates = ({ models }) => ({
-  models
+const mapPropsToStates = ({ models, app }) => ({
+  models, app,
 });
 
 const mapDispatchToProps = (dispatch) => ({
+  fetchApp: () => dispatch(requestApp()),
   fetchAllModels: () => dispatch(requestAllModels()),
   downloadModel: (modelId) => dispatch(requestDownloadModel(modelId)),
   downloadDatasets: (modelId, datasetType) => {

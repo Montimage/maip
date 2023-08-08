@@ -1,7 +1,19 @@
+import store from '../store/index.js';
+
 // read and pass the environment variables into reactjs application
 const {
   SERVER_URL,
 } = require('../constants');
+
+export const requestApp = () => {
+  const state = store.getState();
+  const selectedApp = state.app;
+  console.log(selectedApp);
+
+  return new Promise((resolve, reject) => {
+    resolve(selectedApp);
+  });
+};
 
 export const requestMMTStatus = async () => {
   const url = `${SERVER_URL}/api/mmt`;

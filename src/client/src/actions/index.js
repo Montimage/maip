@@ -1,5 +1,9 @@
 import {createAction } from 'redux-act';
 
+// Application
+export const requestApp = createAction('REQUEST_APP');
+export const setApp = createAction('SET_APP');
+
 // MMT
 export const requestMMTStatus = createAction('REQUEST_MMT_STATUS');
 export const setMMTStatus = createAction('SET_MMT_STATUS');

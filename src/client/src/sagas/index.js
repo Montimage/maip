@@ -11,6 +11,7 @@ import requestReportSaga from "./requestReportSaga";
 import requestMetricsSaga from "./requestMetricsSaga";
 import requestAttacksSaga from "./requestAttacksSaga";
 import requestPredictSaga from "./requestPredictSaga";
+import requestAppSaga from "./requestAppSaga";
 
 function* rootSaga() {
   yield all([
@@ -25,6 +26,7 @@ function* rootSaga() {
     requestMetricsSaga(),
     requestAttacksSaga(),
     requestPredictSaga(),
+    requestAppSaga(),
   ]);
 }
 

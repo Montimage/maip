@@ -19,6 +19,7 @@ import retrainStatusReducer from './retrainStatusReducer';
 import mmtStatusReducer from './mmtStatusReducer';
 import predictReducer from './predictReducer';
 import predictStatusReducer from './predictStatusReducer';
+import appReducer from './appReducer';
 
 const rootReducer = combineReducers({
   notify: notificationReducer,
@@ -38,6 +39,7 @@ const rootReducer = combineReducers({
   mmtStatus: mmtStatusReducer,
   predict: predictReducer,
   predictStatus: predictStatusReducer,
+  app: appReducer,
 });
 
 export default rootReducer;
