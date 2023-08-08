@@ -26,7 +26,8 @@ router.get('/', async (req, res, next) => {
     }
 
     const files = await readdirAsync(MODEL_PATH);
-    const allModels = files.filter(file => path.extname(file) === '.h5');
+    // As users can change model's name, should return all files in this dir
+    const allModels = files; //.filter(file => path.extname(file) === '.h5');
     const modelList = [];
 
     for (const modelId of allModels) {
