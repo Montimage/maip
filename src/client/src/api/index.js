@@ -1,18 +1,13 @@
-import store from '../store/index.js';
-
 // read and pass the environment variables into reactjs application
 const {
   SERVER_URL,
 } = require('../constants');
 
-export const requestApp = () => {
-  const state = store.getState();
-  const selectedApp = state.app;
-  console.log(selectedApp);
+export const getSelectedApp = state => state.app;
 
-  return new Promise((resolve, reject) => {
-    resolve(selectedApp);
-  });
+export const requestApp = (state) => {
+  const selectedApp = getSelectedApp(state);
+  return selectedApp;
 };
 
 export const requestMMTStatus = async () => {

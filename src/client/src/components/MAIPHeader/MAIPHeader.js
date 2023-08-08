@@ -8,9 +8,9 @@ import {
 } from "@ant-design/icons";
 import {
   setNotification,
+  setApp,
 } from "../../actions";
 import "./styles.css";
-import { setApp } from "../../actions";
 import {
   MENU_OPTIONS,
 } from "../../constants";
@@ -124,7 +124,7 @@ class MAIPHeader extends Component {
   constructor(props) {
     super(props);
     this.state = {
-      selectedValue: 'ad',
+      selectedValue: this.props.app,
     };
   }
 
@@ -172,6 +172,8 @@ class MAIPHeader extends Component {
 
           <Col span={7} style={{ marginLeft: '100px', marginRight: '100px', marginTop: '-7px' }}>
             <Select defaultValue="ad" bordered={false}
+              value={this.props.app}
+              //value={this.state.selectedValue}
               className="selectApp"
               style={{ width: '60%' }} 
               onChange={this.handleChange}
@@ -216,8 +218,8 @@ class MAIPHeader extends Component {
   }
 }
 
-const mapPropsToStates = ({ requesting }) => ({
-  requesting,
+const mapPropsToStates = ({ app, requesting }) => ({
+  app, requesting,
 });
 
 const mapDispatchToProps = (dispatch) => ({

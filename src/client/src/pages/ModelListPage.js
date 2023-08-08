@@ -90,9 +90,14 @@ class ModelListPage extends Component {
       this.setState({ selectedOption: null });
     };
 
-    const modelIds = models.map((model) => model.modelId);
-    console.log(modelIds);
-    const dataSource = models.map((model, index) => ({ ...model, key: index }));
+    let filteredModels;
+    // Suppose models of the activity classification app start with "ac-"
+    if (app === 'ac') {
+      filteredModels = models.filter(model => model.modelId.startsWith('ac-'));
+    } else {
+      filteredModels = models.filter(model => !model.modelId.startsWith('ac-'));
+    }
+    const dataSource = filteredModels.map((model, index) => ({ ...model, key: index }));
     const columns = [
       {
         title: "Model Id",
