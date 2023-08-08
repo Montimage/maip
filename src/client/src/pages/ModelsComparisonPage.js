@@ -4,6 +4,7 @@ import { Row, Col, Tooltip, Table, Select } from "antd";
 import LayoutPage from "./LayoutPage";
 import { Heatmap } from '@ant-design/plots';
 import {
+  requestApp,
   requestAllModels,
 } from "../actions";
 const {
@@ -53,7 +54,19 @@ class ModelListPage extends Component {
   }
 
   componentDidMount() {
+    this.props.fetchApp();
     this.props.fetchAllModels();
+  }
+
+  componentDidUpdate(prevProps, prevState) {
+    const { app } = this.props;
+    if (prevProps.app !== app) {
+      this.setState({
+        selectedModelLeft: null, 
+        selectedModelRight: null,
+        selectedCriteria: null,
+      });
+    }
   }
 
   loadPredictions = async (modelId, isLeft) => {
@@ -210,6 +223,7 @@ class ModelListPage extends Component {
 
   render() {
     const { 
+      app,
       models, 
     } = this.props;
     const { 
@@ -229,7 +243,15 @@ class ModelListPage extends Component {
       console.error("No models")
       return null;
     }
-    const modelIds = models.map((model) => model.modelId);
+
+    let filteredModels;
+    // Suppose models of the activity classification app start with "ac-"
+    if (app === 'ac') {
+      filteredModels = models.filter(model => model.modelId.startsWith('ac-'));
+    } else {
+      filteredModels = models.filter(model => !model.modelId.startsWith('ac-'));
+    }
+    const modelIds = filteredModels.map((model) => model.modelId);
     console.log(modelIds);
 
     return (
@@ -250,6 +272,7 @@ class ModelListPage extends Component {
               <Tooltip title="Select a model to compare.">
                 <Select
                   showSearch allowClear
+                  value={this.state.selectedModelLeft}
                   placeholder="Select a model ..."
                   onChange={(modelId) => this.loadPredictions(modelId, true)}
                   optionFilterProp="children"
@@ -269,6 +292,7 @@ class ModelListPage extends Component {
               <Tooltip title="Select a criteria for comparing the two selected models.">
                 <Select
                   showSearch allowClear
+                  value={this.state.selectedCriteria}
                   placeholder="Select a criteria ..."
                   onChange={(criteria) => this.setState({ selectedCriteria: criteria })}
                   optionFilterProp="children"
@@ -288,6 +312,7 @@ class ModelListPage extends Component {
               <Tooltip title="Select a model to compare.">
                 <Select
                   showSearch allowClear
+                  value={this.state.selectedModelRight}
                   placeholder="Select a model ..."
                   onChange={(modelId) => this.loadPredictions(modelId, false)}
                   optionFilterProp="children"
@@ -369,11 +394,12 @@ class ModelListPage extends Component {
   }
 }
 
-const mapPropsToStates = ({ models }) => ({
-  models
+const mapPropsToStates = ({ app, models }) => ({
+  app, models,
 });
 
 const mapDispatchToProps = (dispatch) => ({
+  fetchApp: () => dispatch(requestApp()),
   fetchAllModels: () => dispatch(requestAllModels()),
 });
 

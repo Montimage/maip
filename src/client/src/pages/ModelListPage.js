@@ -318,7 +318,7 @@ class ModelListPage extends Component {
     ];
 
     return (
-      <LayoutPage pageTitle="All Models" pageSubTitle="All the deep learning models">
+      <LayoutPage pageTitle="All Models" pageSubTitle="All the machine learning models">
         {/* <a href={`/build`}>
           <Space wrap>
             <Button type="primary" style={{ marginBottom: '16px' }}>
