@@ -4,128 +4,119 @@ import { Layout, Menu, Row, Col, Radio, Button, Select } from "antd";
 import {
   DeploymentUnitOutlined, FolderOpenOutlined, BlockOutlined, LineChartOutlined, 
   SolutionOutlined, BugOutlined, SafetyOutlined, ExperimentOutlined, FilePdfOutlined, DownOutlined,
+  InfoCircleOutlined,
 } from "@ant-design/icons";
 import {
   setNotification,
 } from "../../actions";
 import "./styles.css";
 import { setApp } from "../../actions";
+import {
+  MENU_OPTIONS,
+} from "../../constants";
 
 const { Header } = Layout;
 const { SubMenu } = Menu;
 const { Option } = Select;
 
-const menuOptions = [
-  { key: '0', link: '/build' },
-  { key: '1', link: '/models' },
-  { key: '2', link: '/models/all' },
-  { key: '3', link: '/models/comparison' },
-  { key: '4', link: '/predict' },
-  { key: '5', link: '/predict/online' },
-  { key: '6', link: '/predict/offline' },
-  { key: '7', link: '/attacks' },
-  { key: '8', link: '/xai' },
-  { key: '9', link: '/xai/shap' },
-  { key: '10', link: '/xai/lime' },
-  { key: '11', link: '/metrics' },
-  { key: '12', link: '/metrics/accountability' },
-  { key: '13', link: '/metrics/resilience' },
-  { key: '14', link: '/reports' },
-  { key: '15', link: '/models/retrain' },
-];
-
 const menuItems = [
   {
-    key: menuOptions[0].key,
+    key: MENU_OPTIONS[0].key,
     label: 'Build',
     icon: <DeploymentUnitOutlined />,
-    link: menuOptions[0].link,
+    link: MENU_OPTIONS[0].link,
   },
   {
-    key: menuOptions[1].key,
+    key: MENU_OPTIONS[1].key,
     label: 'Models',
     icon: <BlockOutlined />,
     children: [
       {
-        key: menuOptions[2].key,
+        key: MENU_OPTIONS[2].key,
         label: 'All Models',
-        link: menuOptions[2].link,
+        link: MENU_OPTIONS[2].link,
       },
       {
-        key: menuOptions[3].key,
+        key: MENU_OPTIONS[3].key,
         label: 'Models Comparison',
-        link: menuOptions[3].link,
+        link: MENU_OPTIONS[3].link,
       },
       {
-        key: menuOptions[15].key,
+        key: MENU_OPTIONS[15].key,
         label: 'Models Retraining',
-        link: menuOptions[15].link,
+        link: MENU_OPTIONS[15].link,
       },
     ],
   },
   {
-    key: menuOptions[4].key,
+    key: MENU_OPTIONS[4].key,
     label: 'Predict',
     icon: <LineChartOutlined />,
     children: [
       {
-        key: menuOptions[5].key,
+        key: MENU_OPTIONS[5].key,
         label: 'Online Mode',
-        link: menuOptions[5].link,
+        link: MENU_OPTIONS[5].link,
       },
       {
-        key: menuOptions[6].key,
+        key: MENU_OPTIONS[6].key,
         label: 'Offline Mode',
-        link: menuOptions[6].link,
+        link: MENU_OPTIONS[6].link,
       },
     ],
   },
   {
-    key: menuOptions[7].key,
+    key: MENU_OPTIONS[7].key,
     label: 'Attacks',
     icon: <BugOutlined />,
-    link: menuOptions[7].link,
+    link: MENU_OPTIONS[7].link,
   },
   {
-    key: menuOptions[8].key,
+    key: MENU_OPTIONS[8].key,
     label: 'XAI',
     icon: <SolutionOutlined />,
     children: [
       {
-        key: menuOptions[9].key,
+        key: MENU_OPTIONS[9].key,
         label: 'SHAP',
-        link: menuOptions[9].link,
+        link: MENU_OPTIONS[9].link,
       },
       {
-        key: menuOptions[10].key,
+        key: MENU_OPTIONS[10].key,
         label: 'LIME',
-        link: menuOptions[10].link,
+        link: MENU_OPTIONS[10].link,
       },
     ],
   },
   
   {
-    key: menuOptions[11].key,
+    key: MENU_OPTIONS[11].key,
     label: 'Metrics',
     icon: <ExperimentOutlined />,
     children: [
       {
-        key: menuOptions[12].key,
+        key: MENU_OPTIONS[12].key,
         label: 'Accountability Metrics',
-        link: menuOptions[12].link,
+        link: MENU_OPTIONS[12].link,
       },
       {
-        key: menuOptions[13].key,
+        key: MENU_OPTIONS[13].key,
         label: 'Resilience Metrics',
-        link: menuOptions[13].link,
+        link: MENU_OPTIONS[13].link,
       },
     ],
   },
+  // {
+  //   key: MENU_OPTIONS[14].key,
+  //   label: 'Reports',
+  //   icon: <FilePdfOutlined />,
+  //   link: MENU_OPTIONS[14].link,
+  // },
   {
-    key: menuOptions[14].key,
-    label: 'Reports',
-    icon: <FilePdfOutlined />,
-    link: menuOptions[14].link,
+    key: MENU_OPTIONS[16].key,
+    label: 'About',
+    icon: <InfoCircleOutlined />,
+    link: MENU_OPTIONS[16].link,
   },
 ];
 
@@ -155,11 +146,11 @@ class MAIPHeader extends Component {
     pathname = pathname === "/" ? "/models/all" : pathname;
 
     // Calculate the selected menu
-    const selectedMenu = menuOptions.findIndex(
+    const selectedMenu = MENU_OPTIONS.findIndex(
       menuOption => pathname.startsWith(menuOption.link));
 
     let selectedKeys = [];
-    menuOptions.forEach(option => {
+    MENU_OPTIONS.forEach(option => {
       if (pathname.includes(option.link)) {
         selectedKeys.push(option.key);
       }

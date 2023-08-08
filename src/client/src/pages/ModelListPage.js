@@ -277,7 +277,7 @@ class ModelListPage extends Component {
           return (
             <Select placeholder="Select an action ..."
               style={{ width: 230 }}
-              dropdownMatchSelectWidth={false}  // Set to false so dropdown width doesn't follow the select width
+              popupMatchSelectWidth={false}  // Set to false so dropdown width doesn't follow the select width
               value={selectedOption}
               onChange={(value, option) => handleOptionClick(option, model.modelId)}
             >

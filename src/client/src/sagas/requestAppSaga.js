@@ -9,7 +9,6 @@ import {
   requestApp,
 } from '../api';
 import {
-  setNotification,
   setApp,
 } from '../actions';
 
@@ -17,11 +16,11 @@ import {
 function* handleRequestApp() {
   try {
     const app = yield call(() => requestApp());
-    // dispatch data
     yield put(setApp(app));
   } catch (error) {
-    // dispatch error
-    yield put(setNotification({ type: "error", message: error }));
+    // TODO: get error _store_index_js__WEBPACK_IMPORTED_MODULE_0__.default.getState is not a function
+    //const errorMessage = error.message ? error.message : error;
+    //yield put(setNotification({ type: "error", message: errorMessage }));
   }
 }
 
