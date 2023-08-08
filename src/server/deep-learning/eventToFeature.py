@@ -3,83 +3,9 @@ import numpy
 from pathlib import Path
 import pandas as pd
 from scipy.stats import entropy
+import constants
 
 sys.path.append(sys.path[0] + '/..')
-
-
-"""
-tls_event, tcp_event, etc are the predefined mmt-probe attributes that are taken from the packets using MMT-probe. Those values need
-to be aligned with probe config file.
-
-"""
-
-
-tls_event = ["ssl.tls_version",
-             "ssl.tls_content_type",
-             "ssl.tls_length",
-             "ssl.ssl_handshake_type",
-             "ip.session_id",
-             "meta.direction"]
-
-tcp_event = ["tcp.src_port",
-             "tcp.dest_port",
-             "tcp.payload_len",
-             "tcp.fin",
-             "tcp.syn",
-             "tcp.rst",
-             "tcp.psh",
-             "tcp.ack",
-             "tcp.urg",
-             "tcp.tcp_session_payload_up_len",
-             "tcp.tcp_session_payload_down_len",
-             "ip.session_id",
-             "meta.direction"]  # if = 0 then its client -> server (Checked with syn=1 ack=0)
-
-ipv4_event = ["time",
-              "ip.version",
-              "ip.session_id",
-              "meta.direction",
-              "ip.first_packet_time",
-              "ip.last_packet_time",
-              "ip.header_len",
-              "ip.tot_len",
-              "ip.src",
-              "ip.dst"
-              ]
-
-ipv6_event = ["time",
-              "ip.version",
-              "ip.session_id",
-              "meta.direction",
-              "ip.first_packet_time",
-              "ip.last_packet_time",
-              "ip.src",
-              "ip.dst"
-              ]
-
-"""
-Deals with calculation of actual ML features.
-
-feature_names - predefined col names for the final ML feature dataframe
-
-"""
-
-feature_names = ['ip.pkts_per_flow', 'duration', 'ip.header_len',
-                 'ip.payload_len', 'ip.avg_bytes_tot_len', 'time_between_pkts_sum',
-                 'time_between_pkts_avg', 'time_between_pkts_max',
-                 'time_between_pkts_min', 'time_between_pkts_std', '(-0.001, 50.0]',
-                 '(50.0, 100.0]', '(100.0, 150.0]', '(150.0, 200.0]', '(200.0, 250.0]',
-                 '(250.0, 300.0]', '(300.0, 350.0]', '(350.0, 400.0]', '(400.0, 450.0]',
-                 '(450.0, 500.0]', '(500.0, 550.0]', 'tcp_pkts_per_flow', 'pkts_rate',
-                 'tcp_bytes_per_flow', 'byte_rate', 'tcp.tcp_session_payload_up_len',
-                 'tcp.tcp_session_payload_down_len', '(-0.001, 150.0]',
-                 '(150.0, 300.0]', '(300.0, 450.0]', '(450.0, 600.0]', '(600.0, 750.0]',
-                 '(750.0, 900.0]', '(900.0, 1050.0]', '(1050.0, 1200.0]',
-                 '(1200.0, 1350.0]', '(1350.0, 1500.0]', '(1500.0, 10000.0]', 'tcp.fin',
-                 'tcp.syn', 'tcp.rst', 'tcp.psh', 'tcp.ack', 'tcp.urg', 'sport_g', 'sport_le', 'dport_g',
-                 'dport_le', 'mean_tcp_pkts', 'std_tcp_pkts', 'min_tcp_pkts',
-                 'max_tcp_pkts', 'entropy_tcp_pkts', 'mean_tcp_len', 'std_tcp_len',
-                 'min_tcp_len', 'max_tcp_len', 'entropy_tcp_len', 'ssl.tls_version']
 
 
 def calculateFeatures(ip_traffic, tcp_traffic, tls_traffic):
@@ -380,7 +306,7 @@ def calculateFeatures(ip_traffic, tcp_traffic, tls_traffic):
 
     #Features should have always same columns (as predefined), hence in case some features were not calculated due to
     # the lack of data (e.g. no TCP packets) the columns should be added anyway filled with 0 values
-    features = features.reindex(features.columns.union(feature_names, sort=False), axis=1, fill_value=0)
+    features = features.reindex(features.columns.union(constants.FEATURES[3:], sort=False), axis=1, fill_value=0)
 
     # ips = features['ip.session_id', 'meta.direction']
     # features.drop(columns=['ip.session_id', 'meta.direction'], inplace=True)
@@ -432,9 +358,9 @@ def extractReport(df, report_name):
         new_df.dropna(axis=1, inplace=True)
         # print(new_df)
         if not new_df.empty:
-            new_df.columns = ipv4_event  ##colnames from mmt-probe conf file
+            new_df.columns = constants.IPV4_FEATURES  ##colnames from mmt-probe conf file
         else:
-            new_df = pd.DataFrame(columns=ipv4_event)
+            new_df = pd.DataFrame(columns=constants.IPV4_FEATURES)
 
     elif report_name == "ipv6-event":
         new_df.drop(columns=[0, 1, 2, 4],
@@ -442,9 +368,9 @@ def extractReport(df, report_name):
         new_df.dropna(axis=1, inplace=True)
         # print(new_df)
         if not new_df.empty:
-            new_df.columns = ipv6_event  ##colnames from mmt-probe conf file
+            new_df.columns = constants.IPV6_FEATURES  ##colnames from mmt-probe conf file
         else:
-            new_df = pd.DataFrame(columns=ipv6_event)
+            new_df = pd.DataFrame(columns=constants.IPV6_FEATURES)
 
     else:
         new_df.drop(columns=[0, 1, 2, 3, 4],
@@ -452,14 +378,14 @@ def extractReport(df, report_name):
         new_df.dropna(axis=1, inplace=True)
         if report_name == "tcp-event":
             if not new_df.empty:
-                new_df.columns = tcp_event  ##colnames from mmt-probe conf file
+                new_df.columns = constants.TCP_FEATURES  ##colnames from mmt-probe conf file
             else:
-                new_df = pd.DataFrame(columns=tcp_event)
+                new_df = pd.DataFrame(columns=constants.TCP_FEATURES)
         elif report_name == "tls-event":
             if not new_df.empty:
-                new_df.columns = tls_event  ##colnames from mmt-probe conf file
+                new_df.columns = constants.TLS_FEATURES  ##colnames from mmt-probe conf file
             else:
-                new_df = pd.DataFrame(columns=tls_event)
+                new_df = pd.DataFrame(columns=constants.TLS_FEATURES)
     return new_df
 
 

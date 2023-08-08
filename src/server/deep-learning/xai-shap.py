@@ -17,25 +17,9 @@ from datetime import datetime
 from tools import dataScale_cnn
 
 from sklearn.inspection import permutation_importance
+import constants
 
 deepLearningPath = str(Path.cwd()) + '/src/server/deep-learning/'
-
-xai_features = ['ip.pkts_per_flow', 'duration', 'ip.header_len',
-                'ip.payload_len', 'ip.avg_bytes_tot_len', 'time_between_pkts_sum',
-                'time_between_pkts_avg', 'time_between_pkts_max',
-                'time_between_pkts_min', 'time_between_pkts_std', '(-0.001, 50.0]',
-                '(50.0, 100.0]', '(100.0, 150.0]', '(150.0, 200.0]', '(200.0, 250.0]',
-                '(250.0, 300.0]', '(300.0, 350.0]', '(350.0, 400.0]', '(400.0, 450.0]',
-                '(450.0, 500.0]', '(500.0, 550.0]', 'tcp_pkts_per_flow', 'pkts_rate',
-                'tcp_bytes_per_flow', 'byte_rate', 'tcp.tcp_session_payload_up_len',
-                'tcp.tcp_session_payload_down_len', '(-0.001, 150.0]',
-                '(150.0, 300.0]', '(300.0, 450.0]', '(450.0, 600.0]', '(600.0, 750.0]',
-                '(750.0, 900.0]', '(900.0, 1050.0]', '(1050.0, 1200.0]',
-                '(1200.0, 1350.0]', '(1350.0, 1500.0]', '(1500.0, 10000.0]', 'tcp.fin',
-                'tcp.syn', 'tcp.rst', 'tcp.psh', 'tcp.ack', 'tcp.urg', 'sport_g', 'sport_le', 'dport_g',
-                'dport_le', 'mean_tcp_pkts', 'std_tcp_pkts', 'min_tcp_pkts',
-                'max_tcp_pkts', 'entropy_tcp_pkts', 'mean_tcp_len', 'std_tcp_len',
-                'min_tcp_len', 'max_tcp_len', 'entropy_tcp_len', 'ssl.tls_version']
 
 def running_shap(numberBackgroundSamples, maxDisplay):
 
@@ -51,8 +35,8 @@ def running_shap(numberBackgroundSamples, maxDisplay):
   if not os.path.exists(explanations_path):
     os.makedirs(explanations_path) 
 
-  x_train_df = pd.DataFrame(x_train, columns=xai_features)
-  x_test_df = pd.DataFrame(x_test, columns=xai_features)
+  x_train_df = pd.DataFrame(x_train, columns=constants.FEATURES[3:])
+  x_test_df = pd.DataFrame(x_test, columns=constants.FEATURES[3:])
   x_train_df = x_train_df.reset_index(drop=True)
 
   background = x_train[np.random.choice(x_train.shape[0], int(numberBackgroundSamples), replace=False)]
@@ -65,7 +49,7 @@ def running_shap(numberBackgroundSamples, maxDisplay):
     # Compute the permutation importance of each feature
     #perm_importance = shap.permutation_importance(explainer, x_test)
     #print(perm_importance.importances_mean)
-    shap_df = pd.DataFrame(shap_values[0], columns=xai_features)
+    shap_df = pd.DataFrame(shap_values[0], columns=constants.FEATURES[3:])
     #shap_df = shap_df.reset_index(drop=True)
     #shap.plots.heatmap(shap_df, max_display=int(maxDisplay))
     #shap.plots.heatmap(shap_values, max_display=int(maxDisplay))
@@ -78,17 +62,17 @@ def running_shap(numberBackgroundSamples, maxDisplay):
     #interaction_values = explainer.shap_interaction_values(x_samples)
     #print(interaction_values)
 
-  #shap_dict = dict(zip(xai_features, shap_values[0][0]))
+  #shap_dict = dict(zip(constants.FEATURES[3:], shap_values[0][0]))
   #shap.plots.bar(shap_dict, max_display=10)
   #plt.savefig(os.path.join(explanations_path, 'shap_instance.png'))
 
   columns = ['feature','importance_value'] 
   vals= np.abs(shap_values).mean(0)
-  #feature_importance = pd.DataFrame(list(zip(xai_features,sum(vals))),columns=['feature','importance_value'])
+  #feature_importance = pd.DataFrame(list(zip(constants.FEATURES[3:],sum(vals))),columns=['feature','importance_value'])
   #feature_importance.sort_values(by=['importance_value'],ascending=False,inplace=True)  
   #feature_importance.head()
 
-  sorted_feature_vals = sorted(list(zip(xai_features,sum(vals))), key = lambda x: x[1], reverse=True)
+  sorted_feature_vals = sorted(list(zip(constants.FEATURES[3:],sum(vals))), key = lambda x: x[1], reverse=True)
   #features_to_display = [dict(zip(columns, row)) for row in sorted_feature_vals][:int(maxDisplay)]
   # dump full values and process maxDisplay later ?
   features_to_display = [dict(zip(columns, row)) for row in sorted_feature_vals]
@@ -104,7 +88,7 @@ def running_shap(numberBackgroundSamples, maxDisplay):
   #plt.figure(figsize=(15,10))
   #plt.grid(b=None)
   #shap.summary_plot(shap_values, x_test, color_bar_label='Feature value for all', 
-  #  feature_names=xai_features, max_display=int(maxDisplay), class_names=classes, plot_size=None)
+  #  feature_names=constants.FEATURES[3:], max_display=int(maxDisplay), class_names=classes, plot_size=None)
   #plt.savefig(os.path.join(explanations_path, 'shap.png'))
 
 

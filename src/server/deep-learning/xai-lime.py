@@ -19,23 +19,6 @@ from tools import dataScale_cnn
 
 deepLearningPath = str(Path.cwd()) + '/src/server/deep-learning/'
 
-xai_features = ['ip', 'ip.pkts_per_flow', 'duration', 'ip.header_len',
-                    'ip.payload_len', 'ip.avg_bytes_tot_len', 'time_between_pkts_sum',
-                    'time_between_pkts_avg', 'time_between_pkts_max',
-                    'time_between_pkts_min', 'time_between_pkts_std', '(-0.001, 50.0]',
-                    '(50.0, 100.0]', '(100.0, 150.0]', '(150.0, 200.0]', '(200.0, 250.0]',
-                    '(250.0, 300.0]', '(300.0, 350.0]', '(350.0, 400.0]', '(400.0, 450.0]',
-                    '(450.0, 500.0]', '(500.0, 550.0]', 'tcp_pkts_per_flow', 'pkts_rate',
-                    'tcp_bytes_per_flow', 'byte_rate', 'tcp.tcp_session_payload_up_len',
-                    'tcp.tcp_session_payload_down_len', '(-0.001, 150.0]',
-                    '(150.0, 300.0]', '(300.0, 450.0]', '(450.0, 600.0]', '(600.0, 750.0]',
-                    '(750.0, 900.0]', '(900.0, 1050.0]', '(1050.0, 1200.0]',
-                    '(1200.0, 1350.0]', '(1350.0, 1500.0]', '(1500.0, 10000.0]', 'tcp.fin',
-                    'tcp.syn', 'tcp.rst', 'tcp.psh', 'tcp.ack', 'tcp.urg', 'sport_g', 'sport_le', 'dport_g',
-                    'dport_le', 'mean_tcp_pkts', 'std_tcp_pkts', 'min_tcp_pkts',
-                    'max_tcp_pkts', 'entropy_tcp_pkts', 'mean_tcp_len', 'std_tcp_len',
-                    'min_tcp_len', 'max_tcp_len', 'entropy_tcp_len', 'ssl.tls_version']
-
 def running_lime(sampleId, numberFeatures):
 
   """
@@ -54,9 +37,9 @@ def running_lime(sampleId, numberFeatures):
   classes=['Botnet']
   predict_fn_nn= lambda x: model.predict(x.reshape(1,-1))
   explainer = lime_tabular.LimeTabularExplainer(x_test, mode="classification", feature_selection= 'auto', class_names=classes,
-                                                  feature_names=xai_features, kernel_width=None, discretize_continuous=True)
+                                                  feature_names=constants.FEATURES[3:], kernel_width=None, discretize_continuous=True)
   explanation = explainer.explain_instance(x_test[idx], model.predict, labels=(0,), num_features=int(numberFeatures))
-  full_explanation = explainer.explain_instance(x_test[idx], model.predict, labels=(0,), num_features=len(xai_features))
+  full_explanation = explainer.explain_instance(x_test[idx], model.predict, labels=(0,), num_features=len(constants.FEATURES[3:]))
   full_lime_exps = full_explanation.as_list(label=0)
   print(full_lime_exps)
   full_lime_values = full_explanation.as_map()
@@ -67,16 +50,16 @@ def running_lime(sampleId, numberFeatures):
   #explanation.show_in_notebook()
 
   columns = ['feature','value'] 
-  #feature_importance = pd.DataFrame(list(zip(xai_features,sum(vals))),columns=['feature','importance_value'])
+  #feature_importance = pd.DataFrame(list(zip(constants.FEATURES[3:],sum(vals))),columns=['feature','importance_value'])
   #feature_importance.sort_values(by=['importance_value'],ascending=False,inplace=True)  
   #feature_importance.head()
 
-  #sorted_feature_vals = sorted(list(zip(xai_features,sum(vals))), key = lambda x: x[1], reverse=True)
+  #sorted_feature_vals = sorted(list(zip(constants.FEATURES[3:],sum(vals))), key = lambda x: x[1], reverse=True)
   #features_to_display = [dict(zip(columns, row)) for row in sorted_feature_vals][:int(maxDisplay)]
   # dump full values and process maxDisplay later ?
   exps_to_display = [dict(zip(columns, row)) for row in full_lime_exps]
   print(json.dumps(exps_to_display, indent=2, ensure_ascii=False))
-  values_to_display = [{"feature": xai_features[x], "value": y} for x, y in full_lime_values[0]]
+  values_to_display = [{"feature": constants.FEATURES[3:][x], "value": y} for x, y in full_lime_values[0]]
   print(json.dumps(values_to_display, indent=2, ensure_ascii=False))
 
   explanations_path = deepLearningPath + '/xai/' + model_name
