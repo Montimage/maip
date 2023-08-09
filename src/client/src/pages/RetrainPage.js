@@ -4,6 +4,7 @@ import { getLastPath } from "../utils";
 import { connect } from "react-redux";
 import { Collapse, Spin, Tooltip, Button, InputNumber, Form, Select } from 'antd';
 import {
+  requestApp,
   requestAllModels,
   requestRetrainModel,
   requestRetrainStatus,
@@ -49,6 +50,7 @@ class RetrainPage extends Component {
     this.fetchModelDatasets();
     this.fetchAttacksDatasets();
     this.props.fetchAllModels(); 
+    this.props.fetchApp();
   }
 
   fetchModelDatasets = async () => {
@@ -132,10 +134,7 @@ class RetrainPage extends Component {
 
   render() {
     const { modelId, modelDatasets, attacksDatasets, isRunning } = this.state;
-    const {
-      models,
-      retrainStatus, 
-    } = this.props;
+    const { app, models, retrainStatus } = this.props;
     const allDatasets = [...modelDatasets, ...attacksDatasets];
 
     const trainingDatasetsOptions = allDatasets ? allDatasets.map(dataset => ({
@@ -152,7 +151,15 @@ class RetrainPage extends Component {
       label: feature,
     })) : [];
 
-    const modelsOptions = models ? models.map(model => ({
+    let filteredModels;
+    if (app === 'ac') {
+      filteredModels = models.filter(model => model.modelId.startsWith('ac-'));
+    } else if (app === 'ad') {
+      filteredModels = models.filter(model => !model.modelId.startsWith('ac-'));
+    } else {
+      filteredModels = [];
+    }
+    const modelsOptions = filteredModels ? filteredModels.map(model => ({
       value: model.modelId,
       label: model.modelId,
     })) : [];
@@ -233,76 +240,80 @@ class RetrainPage extends Component {
           <Form.Item label="Feature List" name="featureList">
             <Tooltip title="Select feature lists used to build models.">
               <Select
+                //showSearch allowClear
+                //placeholder="Select features ..."
                 value={this.state.featureList}
                 onChange={value => this.setState({ featureList: value })}
                 options={featureOptions}
               />
             </Tooltip>
           </Form.Item>
-          <Collapse>
-            <Panel header="Training Parameters">
-              <Form.Item
-                label="Number of Epochs (CNN)"
-                name="nb_epoch_cnn"
-              >
-                <InputNumber
+          { this.props.app === 'ad' && (
+            <Collapse>
+              <Panel header="Training Parameters">
+                <Form.Item
+                  label="Number of Epochs (CNN)"
                   name="nb_epoch_cnn"
-                  value={this.state.nb_epoch_cnn}
-                  min={1} max={1000} defaultValue={2}
-                  onChange={(v) =>
-                    this.setState({
-                      trainingParameters: { ...this.state.trainingParameters, nb_epoch_cnn: v },
-                    })
-                  }
-                />
-              </Form.Item>
-              <Form.Item
-                label="Number of Epochs (SAE)"
-                name="nb_epoch_sae"
-              >
-                <InputNumber
+                >
+                  <InputNumber
+                    name="nb_epoch_cnn"
+                    value={this.state.nb_epoch_cnn}
+                    min={1} max={1000} defaultValue={2}
+                    onChange={(v) =>
+                      this.setState({
+                        trainingParameters: { ...this.state.trainingParameters, nb_epoch_cnn: v },
+                      })
+                    }
+                  />
+                </Form.Item>
+                <Form.Item
+                  label="Number of Epochs (SAE)"
                   name="nb_epoch_sae"
-                  value={this.state.nb_epoch_sae}
-                  min={1} max={1000} defaultValue={5}
-                  onChange={(v) =>
-                    this.setState({
-                      trainingParameters: { ...this.state.trainingParameters, nb_epoch_sae: v },
-                    })
-                  }
-                />
-              </Form.Item>
-              <Form.Item
-                label="Batch Size (CNN)"
-                name="batch_size_cnn"
-              >
-                <InputNumber
+                >
+                  <InputNumber
+                    name="nb_epoch_sae"
+                    value={this.state.nb_epoch_sae}
+                    min={1} max={1000} defaultValue={5}
+                    onChange={(v) =>
+                      this.setState({
+                        trainingParameters: { ...this.state.trainingParameters, nb_epoch_sae: v },
+                      })
+                    }
+                  />
+                </Form.Item>
+                <Form.Item
+                  label="Batch Size (CNN)"
                   name="batch_size_cnn"
-                  value={this.state.batch_size_cnn}
-                  min={1} max={1000} defaultValue={32}
-                  onChange={(v) =>
-                    this.setState({
-                      trainingParameters: { ...this.state.trainingParameters, batch_size_cnn: v },
-                    })
-                  }
-                />
-              </Form.Item>
-              <Form.Item
-                label="Batch Size (SAE)"
-                name="batch_size_sae"
-              >
-                <InputNumber
+                >
+                  <InputNumber
+                    name="batch_size_cnn"
+                    value={this.state.batch_size_cnn}
+                    min={1} max={1000} defaultValue={32}
+                    onChange={(v) =>
+                      this.setState({
+                        trainingParameters: { ...this.state.trainingParameters, batch_size_cnn: v },
+                      })
+                    }
+                  />
+                </Form.Item>
+                <Form.Item
+                  label="Batch Size (SAE)"
                   name="batch_size_sae"
-                  value={this.state.batch_size_sae}
-                  min={1} max={1000} defaultValue={16}
-                  onChange={(v) =>
-                    this.setState({
-                      trainingParameters: { ...this.state.trainingParameters, batch_size_sae: v },
-                    })
-                  }
-                />
-              </Form.Item>
-            </Panel>
-          </Collapse>
+                >
+                  <InputNumber
+                    name="batch_size_sae"
+                    value={this.state.batch_size_sae}
+                    min={1} max={1000} defaultValue={16}
+                    onChange={(v) =>
+                      this.setState({
+                        trainingParameters: { ...this.state.trainingParameters, batch_size_sae: v },
+                      })
+                    }
+                  />
+                </Form.Item>
+              </Panel>
+            </Collapse>
+          )}
           <div style={{ textAlign: 'center', marginTop: 10 }}>
             <Button
               type="primary"
@@ -325,11 +336,12 @@ class RetrainPage extends Component {
   }
 }
 
-const mapPropsToStates = ({ models, retrainStatus }) => ({
-  models, retrainStatus,
+const mapPropsToStates = ({ app, models, retrainStatus }) => ({
+  app, models, retrainStatus,
 });
 
 const mapDispatchToProps = (dispatch) => ({
+  fetchApp: () => dispatch(requestApp()),
   fetchAllModels: () => dispatch(requestAllModels()),
   fetchRetrainStatus: () => dispatch(requestRetrainStatus()),
   fetchRetrainModel: (modelId, trainingDataset, testingDataset, params) =>
