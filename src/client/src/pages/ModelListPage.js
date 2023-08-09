@@ -15,6 +15,10 @@ import {
   requestDownloadModel,
   requestDownloadDatasets,
 } from "../actions";
+import {
+  getFilteredModels,
+  getLastPath,
+} from "../utils";
 import moment from "moment";
 const { Text } = Typography;
 const { Option, OptGroup } = Select;
@@ -90,15 +94,7 @@ class ModelListPage extends Component {
       this.setState({ selectedOption: null });
     };
 
-    let filteredModels;
-    // Suppose models of the activity classification app start with "ac-"
-    if (app === 'ac') {
-      filteredModels = models.filter(model => model.modelId.startsWith('ac-'));
-    } else if (app === 'ad') {
-      filteredModels = models.filter(model => !model.modelId.startsWith('ac-'));
-    } else {
-      filteredModels = [];
-    }
+    const filteredModels = getFilteredModels(app, models);
     const dataSource = filteredModels.map((model, index) => ({ ...model, key: index }));
     const columns = [
       {

@@ -1,6 +1,5 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
-import { getLastPath, getQuery } from "../utils";
 import { Tooltip, message, Upload, Spin, Button, Form, Select, Checkbox } from 'antd';
 import { UploadOutlined } from "@ant-design/icons";
 import { connect } from "react-redux";
@@ -9,9 +8,14 @@ import {
   SERVER_URL,
 } from "../constants";
 import {
+  requestApp,
   requestMMTStatus,
   requestAllModels,
 } from "../actions";
+import {
+  filteredModelsOptions,
+  getLastPath,
+} from "../utils";
 
 let isModelIdPresent = getLastPath() !== "online";
 
@@ -31,8 +35,15 @@ class PredictOnlinePage extends Component {
     if (isModelIdPresent) {
       this.setState({ modelId });
     }
+    this.props.fetchApp();
     this.props.fetchAllModels(); 
     this.fetchInterfacesAndSetOptions();
+  }
+
+  async componentDidUpdate(prevProps, prevState) {
+    if (this.props.app !== prevProps.app && !isModelIdPresent) {
+      this.setState({ modelId: null });
+    }
   }
 
   async requestMMTStatus() {
@@ -93,13 +104,10 @@ class PredictOnlinePage extends Component {
   }
 
   render() {
-    const { models, mmtStatus, reports } = this.props;
+    const { app, models, mmtStatus, reports } = this.props;
     const { modelId, interfacesOptions } = this.state;
 
-    const modelsOptions = models ? models.map(model => ({
-      value: model.modelId,
-      label: model.modelId,
-    })) : []; 
+    const modelsOptions = filteredModelsOptions(app, models);
 
     const subTitle = isModelIdPresent ? 
       `Online prediction using the model ${modelId}` : 
@@ -166,11 +174,12 @@ class PredictOnlinePage extends Component {
   }
 }
 
-const mapPropsToStates = ({ models, mmtStatus }) => ({
-  models, mmtStatus,
+const mapPropsToStates = ({ app, models, mmtStatus }) => ({
+  app, models, mmtStatus,
 });
 
 const mapDispatchToProps = (dispatch) => ({
+  fetchApp: () => dispatch(requestApp()),
   fetchAllModels: () => dispatch(requestAllModels()),
   fetchMMTStatus: () => dispatch(requestMMTStatus()),
 });

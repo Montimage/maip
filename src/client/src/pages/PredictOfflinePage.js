@@ -1,6 +1,5 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
-import { getLastPath, getQuery } from "../utils";
 import { Tooltip, message, notification, Upload, Spin, Button, Form, Select, Checkbox } from 'antd';
 import { UploadOutlined } from "@ant-design/icons";
 import { connect } from "react-redux";
@@ -9,6 +8,7 @@ import {
   SERVER_URL,
 } from "../constants";
 import {
+  requestApp,
   requestBuildConfigModel,
   requestMMTStatus,
   requestAllReports,
@@ -16,6 +16,10 @@ import {
   requestPredict,
   requestPredictStatus,
 } from "../actions";
+import {
+  filteredModelsOptions,
+  getLastPath,
+} from "../utils";
 
 let isModelIdPresent = getLastPath() !== "offline";
 
@@ -37,6 +41,7 @@ class PredictOfflinePage extends Component {
     if (isModelIdPresent) {
       this.setState({ modelId });
     }
+    this.props.fetchApp();
     this.props.fetchAllReports();
     this.props.fetchAllModels(); 
   }
@@ -177,6 +182,10 @@ class PredictOfflinePage extends Component {
   }
 
   componentDidUpdate(prevProps, prevState) {
+    if (this.props.app !== prevProps.app && !isModelIdPresent) {
+      this.setState({ modelId: null });
+    }
+
     if (prevProps.predictStatus.isRunning !== this.props.predictStatus.isRunning) {
       console.log('isRunning has been changed');
       this.setState({ isRunning: this.props.predictStatus.isRunning });
@@ -197,18 +206,16 @@ class PredictOfflinePage extends Component {
   }
 
   render() {
-    const { models, mmtStatus, reports } = this.props;
+    const { app, models, mmtStatus, reports } = this.props;
     const { modelId, testingDataset, testingPcapFile, isRunning } = this.state;
 
+    // TODO: need to filter mmt reports ?
     const reportsOptions = reports ? reports.map(report => ({
       value: report,
       label: report,
     })) : [];
 
-    const modelsOptions = models ? models.map(model => ({
-      value: model.modelId,
-      label: model.modelId,
-    })) : []; 
+    const modelsOptions = filteredModelsOptions(app, models);
 
     const subTitle = isModelIdPresent ? 
       `Offline prediction using the model ${modelId}` : 
@@ -296,11 +303,12 @@ class PredictOfflinePage extends Component {
   }
 }
 
-const mapPropsToStates = ({ models, mmtStatus, reports, predictStatus }) => ({
-  models, mmtStatus, reports, predictStatus,
+const mapPropsToStates = ({ app, models, mmtStatus, reports, predictStatus }) => ({
+  app, models, mmtStatus, reports, predictStatus,
 });
 
 const mapDispatchToProps = (dispatch) => ({
+  fetchApp: () => dispatch(requestApp()),
   fetchAllModels: () => dispatch(requestAllModels()),
   fetchBuildConfigModel: (modelId) => dispatch(requestBuildConfigModel(modelId)),
   fetchMMTStatus: () => dispatch(requestMMTStatus()),

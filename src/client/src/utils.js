@@ -161,14 +161,19 @@ const getLastPath = () => {
   return array[array.length - id];
 }
 
-// TODO: Filter models based on selected applications
-const filteredModelsOptions = (app, models = []) => {
+const getFilteredModels = (app, models = []) => {
   let filteredModels = [];
   if (app === 'ac') {
     filteredModels = models.filter(model => model.modelId.startsWith('ac-'));
   } else if (app === 'ad') {
     filteredModels = models.filter(model => !model.modelId.startsWith('ac-'));
   }
+  return filteredModels;
+}
+
+// TODO: Filter models based on selected applications
+const filteredModelsOptions = (app, models = []) => {
+  const filteredModels = getFilteredModels(app, models); 
   
   return filteredModels.map(model => ({
     value: model.modelId,
@@ -224,6 +229,7 @@ export {
   deepCloneObject,
   getLastPath,
   getBeforeLastPath,
+  getFilteredModels,
   filteredModelsOptions,
   filteredFeatures,
   filteredFeaturesOptions,
