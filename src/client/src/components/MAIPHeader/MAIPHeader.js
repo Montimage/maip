@@ -136,8 +136,7 @@ class MAIPHeader extends Component {
   hasModelIdInUrl = () => {
     const { pathname } = window.location;
     // Define a regular expression pattern to match the URL structures
-    const pattern = /\/(xai\/shap|xai\/lime|models\/retrain|datasets\/[^/]+|metrics|metrics\/accountability|metrics\/resilience|attacks|predict\/online|predict\/offline)\/[^/]+$/;
-
+    const pattern = /\/(xai\/shap|xai\/lime|models\/retrain|datasets\/[^/]+|(metrics\/accountability|metrics\/resilience|attacks|predict\/online|predict\/offline))\/[^/]+$/;
     return pattern.test(pathname);
   }
 
