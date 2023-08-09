@@ -1,10 +1,14 @@
 import React, { Component } from "react";
 import LayoutPage from "./LayoutPage";
+import { connect } from "react-redux";
 import { QuestionOutlined } from "@ant-design/icons";
 import { 
   getBeforeLastPath,
   getLastPath,
 } from "../utils";
+import {
+  requestApp,
+} from "../actions";
 import { Menu, Button, Tooltip, Select, Col, Row, Table } from 'antd';
 import Papa from "papaparse";
 import { Bar, Scatter, Histogram } from '@ant-design/plots';
@@ -12,10 +16,13 @@ import { Bar, Scatter, Histogram } from '@ant-design/plots';
 const {
   BOX_STYLE,
   SERVER_URL,
-  FEATURES_DESCRIPTIONS,
+  AD_FEATURES_DESCRIPTIONS, AC_FEATURES_DESCRIPTIONS,
   BIN_CHOICES, DATASET_TABLE_STATS, DATASET_MENU_ITEMS
 } = require('../constants');
 const { Option } = Select;
+
+let numberFeatures;
+let featuresDescriptions = {};
 
 // TODO: scatter plot is a straight line if features on the x-axis and y-axis are similar ???
 
@@ -86,18 +93,15 @@ class DatasetPage extends Component {
     this.state = {
       csvData: [],
       headers: [],
-      selectedFeature: '',
-      chartData: [],
+      selectedFeature: null,
       binWidthChoice: 'square-root',
-      xScatterFeature: '',
-      yScatterFeature: '',
-      barFeature: '',
+      xScatterFeature: null,
+      yScatterFeature: null,
+      barFeature: null,
     };
   }
 
-  componentDidMount() {
-    const modelId = getBeforeLastPath(2);
-    const datasetType = getLastPath();
+  fetchCSVData(modelId, datasetType) {
     fetch(`${SERVER_URL}/api/models/${modelId}/datasets/${datasetType}/view`)
       .then(response => response.text())
       .then(data => {
@@ -107,7 +111,8 @@ class DatasetPage extends Component {
           delimiter: ';',
           complete: (results) => {
             const csvData = results.data;
-            const headers = Object.keys(csvData[0]);
+            const headers = Object.keys(featuresDescriptions);
+            console.log(headers);
             this.setState({
               csvData: csvData,
               headers: headers,
@@ -120,16 +125,41 @@ class DatasetPage extends Component {
       });
   }
 
-  getChartData(feature) {
-    const { csvData } = this.state;
-    
-    let chartData = [];
+  componentDidMount() {
+    this.props.fetchApp();
+    const modelId = getBeforeLastPath(2);
+    const datasetType = getLastPath();
+    this.fetchCSVData(modelId, datasetType);
+  }
 
-    if (csvData.length > 0) {
-      chartData = csvData.map(row => ({ value: parseFloat(row[feature]) }));
-      //console.log(JSON.stringify(chartData));
+  componentDidUpdate(prevProps) {
+    const modelId = getBeforeLastPath(2);
+    const datasetType = getLastPath(); 
+ 
+    const shouldFetchData = 
+      (this.props.app === 'ac' && modelId.startsWith('ac-')) || 
+      (this.props.app === 'ad' && !modelId.startsWith('ac-'));
+
+    if (this.props.app !== prevProps.app) {
+      const commonStateUpdate = {
+        headers: Object.keys(featuresDescriptions),
+        selectedFeature: null,
+        xScatterFeature: null,
+        yScatterFeature: null,
+        barFeature: null,
+      };
+  
+      if (shouldFetchData) {
+        this.setState(commonStateUpdate, () => {
+          this.fetchCSVData(modelId, datasetType);
+        });
+      } else {
+        this.setState({
+          ...commonStateUpdate,
+          csvData: [],
+        });
+      }
     }
-    return chartData;
   }
 
   render() {
@@ -139,15 +169,37 @@ class DatasetPage extends Component {
       csvData, 
       headers, 
       selectedFeature, 
-      chartData,
       binWidthChoice,
       xScatterFeature,
       yScatterFeature,
       barFeature,
     } = this.state;
+    const { app } = this.props;
     //console.log({selectedFeature, binWidthChoice});
     //const displayedCsvData = csvData.slice(0, 100);
     //console.log(JSON.stringify(csvData));
+
+    if (app === 'ac') {
+      featuresDescriptions = AC_FEATURES_DESCRIPTIONS;
+      numberFeatures = Object.keys(featuresDescriptions).length - 1; // 21
+    } else if (app === 'ad') {
+      featuresDescriptions = AD_FEATURES_DESCRIPTIONS;
+      numberFeatures = Object.keys(featuresDescriptions).length - 3; // 59
+    }
+    
+    const allFeatures = Object.keys(featuresDescriptions).map((feature, index) => {
+      return {
+        key: index + 1,
+        name: feature,
+        description: featuresDescriptions[feature].description,
+        type: featuresDescriptions[feature].type,
+      };
+    });
+    const categoricalFeatures = Object.entries(featuresDescriptions)
+      .filter(([key, value]) => value.type === 'categorical')
+      .map(([key, value]) => key);
+    //console.log(categoricalFeatures);
+
     const columns = csvData.length > 0 ? Object.keys(csvData[0]).map(key => ({
       title: key,
       dataIndex: key,
@@ -261,19 +313,6 @@ class DatasetPage extends Component {
         max: max.toFixed(2),
       },
     ];
-
-    const allFeatures = Object.keys(FEATURES_DESCRIPTIONS).map((feature, index) => {
-      return {
-        key: index + 1,
-        name: feature,
-        description: FEATURES_DESCRIPTIONS[feature].description,
-        type: FEATURES_DESCRIPTIONS[feature].type,
-      };
-    });
-    const categoricalFeatures = Object.entries(FEATURES_DESCRIPTIONS)
-      .filter(([key, value]) => value.type === 'categorical')
-      .map(([key, value]) => key);
-    //console.log(categoricalFeatures);
     
     const columnsAllFeatures = [
       {
@@ -428,7 +467,7 @@ class DatasetPage extends Component {
             <h2>&nbsp;&nbsp;&nbsp;Data</h2>
             <div style={{ fontSize: '16px', marginTop: '20px' }}>
               &nbsp;&nbsp;&nbsp;Total number of samples: <strong>{csvData.length}</strong>;
-              Total number of features: <strong>{Object.keys(FEATURES_DESCRIPTIONS).length - 3}</strong>
+              Total number of features: <strong>{numberFeatures}</strong>
             </div>
             <div style={{ maxWidth: '100vw', overflowX: 'auto', marginTop: '20px', height: 490 }}>
               <Table columns={columns} 
@@ -473,7 +512,7 @@ class DatasetPage extends Component {
                   <Tooltip title="Select the feature to plot on the histogram">
                     <Select
                       showSearch allowClear
-                      placeholder="Select a feature"
+                      placeholder="Select a feature ..."
                       onChange={value => this.setState({ selectedFeature: value })}
                       optionFilterProp="children"
                       filterOption={(input, option) => (option?.value ?? '').includes(input)}
@@ -490,7 +529,7 @@ class DatasetPage extends Component {
                   <Tooltip title="Select the bin selection algorithm">
                     <Select
                       showSearch allowClear
-                      placeholder="Select bin width"
+                      placeholder="Select bin width ..."
                       options={binWidthOptions}
                       defaultValue="square-root"
                       onChange={value => this.setState({ binWidthChoice: value })}
@@ -533,7 +572,7 @@ class DatasetPage extends Component {
                 <Tooltip title="Select a feature displayed on x-axis">
                   <Select
                     showSearch allowClear
-                    placeholder="Select a feature"
+                    placeholder="Select a feature ..."
                     onChange={value => this.setState({ xScatterFeature: value })}
                     optionFilterProp="children"
                     filterOption={(input, option) => (option?.value ?? '').includes(input)}
@@ -550,7 +589,7 @@ class DatasetPage extends Component {
                 <Tooltip title="Select a feature displayed on y-axis">
                   <Select
                     showSearch allowClear
-                    placeholder="Select a feature"
+                    placeholder="Select a feature ..."
                     onChange={value => this.setState({ yScatterFeature: value })}
                     optionFilterProp="children"
                     filterOption={(input, option) => (option?.value ?? '').includes(input)}
@@ -585,7 +624,7 @@ class DatasetPage extends Component {
                 <Tooltip title="Select a categorical feature">
                   <Select
                     showSearch allowClear
-                    placeholder="Select a feature"
+                    placeholder="Select a feature ..."
                     onChange={value => this.setState({ barFeature: value })}
                     optionFilterProp="children"
                     filterOption={(input, option) => (option?.value ?? '').includes(input)}
@@ -615,4 +654,12 @@ class DatasetPage extends Component {
   }
 }
 
-export default DatasetPage;
+const mapPropsToStates = ({ app }) => ({
+  app,
+});
+
+const mapDispatchToProps = (dispatch) => ({
+  fetchApp: () => dispatch(requestApp()),
+});
+
+export default connect(mapPropsToStates, mapDispatchToProps)(DatasetPage);

@@ -22,7 +22,7 @@ const MENU_OPTIONS = [
   { key: '16', link: '/about' },
 ];
 
-const FEATURES_DESCRIPTIONS = {
+const AD_FEATURES_DESCRIPTIONS = {
   'ip.session_id': { 
     description: 'Session ID', 
     type: 'numerical', 
@@ -269,6 +269,97 @@ const FEATURES_DESCRIPTIONS = {
   },
   'malware': { 
     description: 'Label (0 means normal traffic and 1 means malware traffic)', // output's label
+    type: 'categorical', 
+  },
+};
+
+const AC_FEATURES_DESCRIPTIONS = {
+  'session_time': { 
+    description: 'Total time wherein a user interacts with apps', 
+    type: 'numerical', 
+  },
+  '%tcp_protocol': { 
+    description: 'Percentage of TCP traffic', 
+    type: 'numerical', 
+  },
+  '%udp_protocol': { 
+    description: 'Percentage of UDP traffic', 
+    type: 'numerical', 
+  },
+  'ul_data_volume': { 
+    description: 'Uplink data volume in bytes', 
+    type: 'numerical', 
+  },
+  'max_ul_volume': { 
+    description: 'Maximum of uplink data volume', 
+    type: 'numerical', 
+  },
+  'min_ul_volume': { 
+    description: 'Minimum of uplink data volume', 
+    type: 'numerical', 
+  },
+  'avg_ul_volume': { 
+    description: 'Average of uplink data volume', 
+    type: 'numerical', 
+  },
+  'std_ul_volume': { 
+    description: 'Standard deviation of uplink data volume', 
+    type: 'numerical', 
+  },
+  '%ul_volume': { 
+    description: 'Percentage of uplink data volume', 
+    type: 'numerical', 
+  },
+  'dl_data_volume': { 
+    description: 'Downlink data volume in bytes', 
+    type: 'numerical', 
+  },
+  'max_dl_volume': { 
+    description: 'Maximum of downlink data volume', 
+    type: 'numerical', 
+  },
+  'min_dl_volume': { 
+    description: 'Minimum of downlink data volume', 
+    type: '', 
+  },
+  'avg_dl_volume': { 
+    description: 'Average of downlink data volume', 
+    type: 'numerical', 
+  },
+  'std_dl_volume': { 
+    description: 'Standard deviation of downlink data volume', 
+    type: 'numerical', 
+  },
+  '%dl_volume': { 
+    description: 'Percentage of downlink data volume', 
+    type: 'numerical', 
+  },
+  'nb_uplink_packet': { 
+    description: 'Number of uplink packets', 
+    type: 'numerical', 
+  },
+  'nb_downlink_packet': { 
+    description: 'Number of downlink packets', 
+    type: 'numerical', 
+  },
+  'ul_packet': { 
+    description: 'Percentage of uplink packets', 
+    type: 'numerical', 
+  },
+  'dl_packet': { 
+    description: 'Percentage of downlink packets', 
+    type: 'numerical', 
+  },
+  'kB/s': { 
+    description: 'Number of kB per second', 
+    type: 'numerical', 
+  },
+  'nb_packet/s': { 
+    description: 'Number of packets per second', 
+    type: 'numerical', 
+  },
+  'output': { 
+    description: 'Label (0 means Web, 1 means Interaction and 2 means Video)', // output's label
     type: 'categorical', 
   },
 };
@@ -548,7 +639,8 @@ module.exports = {
   MENU_OPTIONS,
   FORM_LAYOUT, BOX_STYLE,
   SERVER_HOST, SERVER_PORT, SERVER_URL,
-  FEATURES_DESCRIPTIONS, FEATURES_OPTIONS,
+  AD_FEATURES_DESCRIPTIONS, FEATURES_OPTIONS,
+  AC_FEATURES_DESCRIPTIONS,
   CRITERIA_LIST, TABLE_BUILD_CONFIGS, COLUMNS_PERF_STATS, 
   ATTACK_OPTIONS,
   BIN_CHOICES, DATASET_TABLE_STATS, DATASET_MENU_ITEMS,

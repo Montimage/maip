@@ -94,8 +94,10 @@ class ModelListPage extends Component {
     // Suppose models of the activity classification app start with "ac-"
     if (app === 'ac') {
       filteredModels = models.filter(model => model.modelId.startsWith('ac-'));
-    } else {
+    } else if (app === 'ad') {
       filteredModels = models.filter(model => !model.modelId.startsWith('ac-'));
+    } else {
+      filteredModels = [];
     }
     const dataSource = filteredModels.map((model, index) => ({ ...model, key: index }));
     const columns = [
