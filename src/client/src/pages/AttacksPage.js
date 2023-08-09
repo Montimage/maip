@@ -2,6 +2,7 @@ import React, { Component } from "react";
 import { connect } from "react-redux";
 import LayoutPage from "./LayoutPage";
 import {
+  requestApp,
   requestAllModels,
   requestPerformAttack,
   requestAttacksStatus,
@@ -42,6 +43,7 @@ class AttacksPage extends Component {
     if (isModelIdPresent) {
       this.setState({ modelId });
     }
+    this.props.fetchApp();
     this.props.fetchAllModels();
   }
 
@@ -139,6 +141,13 @@ class AttacksPage extends Component {
     }
   }
 
+  handleChangeSelectedAttack = value => {
+    this.setState({ selectedAttack: value });
+    if (value !== 'tlf') {
+      this.setState({ checkboxValues: [] });
+    }
+  }
+
   render() {
     const {
       modelId,
@@ -149,13 +158,26 @@ class AttacksPage extends Component {
       targetClass,
     } = this.state;
     const {
+      app,
       models,
       attacksStatus, 
     } = this.props;
     console.log(models);
     console.log(`Attacks isRunning: ${attacksStatus.isRunning}`);
 
-    const modelsOptions = models ? models.map(model => ({
+    let filteredModels = [];
+    let targetOptions = [];
+    if (app === 'ac') {
+      filteredModels = models.filter(model => model.modelId.startsWith('ac-'));
+      targetOptions = ['Web', 'Interaction', 'Video']; 
+    } else if (app === 'ad') {
+      filteredModels = models.filter(model => !model.modelId.startsWith('ac-'));
+      targetOptions = ['Normal traffic', 'Malware traffic'];
+    } else {
+      // TODO: handle the RCA app
+      targetOptions = ['Normal traffic', 'Malware traffic'];
+    }
+    const modelsOptions = filteredModels ? filteredModels.map(model => ({
       value: model.modelId,
       label: model.modelId,
     })) : [];
@@ -311,7 +333,7 @@ class AttacksPage extends Component {
                 }}
                 allowClear
                 placeholder="Select an attack ..."
-                onChange={value => this.setState({ selectedAttack: value })}
+                onChange={this.handleChangeSelectedAttack}
                 optionLabelProp="label"
                 options={ATTACK_OPTIONS}
               />
@@ -322,9 +344,9 @@ class AttacksPage extends Component {
             style={{ flex: 'none', marginBottom: 10 }}
           >
             <Checkbox.Group 
-              options={['Normal traffic', 'Malware traffic']}
+              options={targetOptions}
               value={this.state.checkboxValues}
-              disabled={selectedAttack !== 'tlf'}
+              disabled={this.state.selectedAttack !== 'tlf'}
               onChange={this.handleTargetClass}
             />
           </Form.Item>
@@ -334,7 +356,8 @@ class AttacksPage extends Component {
                 console.log({ modelId, selectedAttack, poisoningRate, targetClass });
                 this.handlePerformAttackClick(modelId, selectedAttack, poisoningRate, targetClass);
               }}
-              disabled={ !this.state.modelId || !this.state.selectedAttack || this.state.targetClass === null }
+              disabled={ !this.state.modelId || !this.state.selectedAttack || 
+                (this.state.selectedAttack === 'tlf' && this.state.targetClass === null) }
               >Perform Attack
             </Button>
           </div>
@@ -364,11 +387,12 @@ class AttacksPage extends Component {
   }
 }
 
-const mapPropsToStates = ({ models, attacksStatus }) => ({
-  models, attacksStatus
+const mapPropsToStates = ({ app, models, attacksStatus }) => ({
+  app, models, attacksStatus,
 });
 
 const mapDispatchToProps = (dispatch) => ({
+  fetchApp: () => dispatch(requestApp()),
   fetchAllModels: () => dispatch(requestAllModels()),
   fetchAttacksStatus: () => dispatch(requestAttacksStatus()),
   fetchPerformAttack: (modelId, selectedAttack, poisoningRate, targetClass) =>
