@@ -1,19 +1,24 @@
 import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
-import { getLastPath } from "../utils";
 import { Spin, Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Tooltip } from 'antd';
 import { QuestionOutlined, CameraOutlined } from "@ant-design/icons";
 import { Bar, Pie } from '@ant-design/plots';
 import {
+  requestApp,
   requestAllModels,
   requestModel,
   requestRunLime,
   requestXAIStatus,
 } from "../actions";
 import {
+  filteredFeaturesOptions,
+  filteredModelsOptions,
+  getLastPath,
+} from "../utils";
+import {
   FORM_LAYOUT, BOX_STYLE,
-  FEATURES_DESCRIPTIONS,
+  AC_FEATURES_DESCRIPTIONS, AD_FEATURES_DESCRIPTIONS,
   SERVER_URL,
   LIME_URL, XAI_SLIDER_MARKS, COLUMNS_TABLE_PROBS,
 } from "../constants";
@@ -48,6 +53,7 @@ class XAILimePage extends Component {
       this.setState({ modelId });
     }
     this.props.fetchAllModels(); 
+    this.props.fetchApp();
   }
 
   handleContributionsChange(checkedValues){
@@ -58,6 +64,18 @@ class XAILimePage extends Component {
 
   async componentDidUpdate(prevProps, prevState) {
     const { modelId } = this.state;
+
+    if (this.props.app !== prevProps.app) {
+      // TODO: how to reset the current state when changing app
+      this.setState({
+        modelId: null,
+        sampleId: 5,
+        maxDisplay: 15,
+        positiveChecked: true,
+        negativeChecked: true,
+        maskedFeatures: [], 
+      });
+    }
 
     if (prevProps.xaiStatus.isRunning !== this.props.xaiStatus.isRunning) {
       console.log('isRunning has been changed');
@@ -77,6 +95,7 @@ class XAILimePage extends Component {
   // Pay attention to re-render
   shouldComponentUpdate(nextProps, nextState) {
     return (
+      this.props.app !== nextProps.app ||
       this.props.models !== nextProps.models ||
       this.state.modelId !== nextState.modelId ||
       this.state.limeValues !== nextState.limeValues ||
@@ -181,14 +200,10 @@ class XAILimePage extends Component {
       dataTableProbs,
     } = this.state;
     console.log(`XAI isRunning: ${isRunning}`);
-    const { 
-      models,
-    } = this.props;
+    const { app, models, } = this.props;
 
-    const modelsOptions = models ? models.map(model => ({
-      value: model.modelId,
-      label: model.modelId,
-    })) : [];
+    const modelsOptions = filteredModelsOptions(app, models);
+    const selectFeaturesOptions = filteredFeaturesOptions(app);
 
     const pieConfig = {
       appendPadding: 10,
@@ -209,12 +224,6 @@ class XAILimePage extends Component {
       },
       interactions: [{ type: 'element-highlight' }],
     };
-
-    // TODO: remove the first two keys and the last one
-    const features = Object.keys(FEATURES_DESCRIPTIONS).sort();
-    const selectFeaturesOptions = features.map((label, index) => ({
-      value: label, label,
-    }));
 
     //const sortedValuesLime = limeValues.slice().sort((a, b) => b.value - a.value);
     //const notZeroSortedValuesLime = sortedValuesLime.filter(d => d.value !== 0);
@@ -392,11 +401,12 @@ class XAILimePage extends Component {
   } 
 }
 
-const mapPropsToStates = ({ models, model, xaiStatus }) => ({
-  models, model, xaiStatus,
+const mapPropsToStates = ({ app, models, model, xaiStatus }) => ({
+  app, models, model, xaiStatus,
 });
 
 const mapDispatchToProps = (dispatch) => ({
+  fetchApp: () => dispatch(requestApp()),
   fetchAllModels: () => dispatch(requestAllModels()),
   fetchModel: (modelId) => dispatch(requestModel(modelId)),
   fetchXAIStatus: () => dispatch(requestXAIStatus()),

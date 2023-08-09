@@ -1,15 +1,22 @@
 import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
-import { getLastPath } from "../utils";
 import { Spin, Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Tooltip, Typography } from 'antd';
 import { QuestionOutlined, CameraOutlined } from "@ant-design/icons";
 import { Bar } from '@ant-design/plots';
 import {
+  requestApp,
   requestAllModels,
   requestRunShap,
   requestXAIStatus,
 } from "../actions";
+import {
+  filteredModelsOptions,
+  filteredFeatures,
+  getLastPath,
+  filteredFeaturesOptions,
+  getNumberFeatures,
+} from "../utils";
 import {
   FORM_LAYOUT, BOX_STYLE,
   FEATURES_DESCRIPTIONS,
@@ -42,6 +49,7 @@ class XAIShapPage extends Component {
     if (isModelIdPresent) {
       this.setState({ modelId });
     }
+    this.props.fetchApp();
     this.props.fetchAllModels(); 
   }
 
@@ -54,6 +62,7 @@ class XAIShapPage extends Component {
   // Pay attention to re-render
   shouldComponentUpdate(nextProps, nextState) {
     return (
+      this.props.app !== nextProps.app ||
       this.props.models !== nextProps.models ||
       this.state.modelId !== nextState.modelId ||
       this.state.shapValues !== nextState.shapValues ||
@@ -68,6 +77,18 @@ class XAIShapPage extends Component {
 
   async componentDidUpdate(prevProps, prevState) {
     const { modelId } = this.state;
+
+    if (this.props.app !== prevProps.app) {
+      // TODO: how to reset the current state when changing app
+      this.setState({
+        modelId: null,
+        numberSamples: 10,
+        maxDisplay: 10,
+        positiveChecked: true,
+        negativeChecked: true,
+        maskedFeatures: [], 
+      });
+    }
 
     if (prevProps.xaiStatus.isRunning !== this.props.xaiStatus.isRunning) {
       console.log('isRunning has been changed');
@@ -133,23 +154,12 @@ class XAIShapPage extends Component {
       shapValues,
     } = this.state;
     console.log(`XAI isRunning: ${isRunning}`);
-    const {
-      models,
-    } = this.props;
+    const { app, models } = this.props;
 
-    console.log(models);
-
-    const modelsOptions = this.props.models ? this.props.models.map(model => ({
-      value: model.modelId,
-      label: model.modelId,
-    })) : [];
-    console.log(modelsOptions);
-
-    // TODO: remove the first two keys and the last one
-    const features = Object.keys(FEATURES_DESCRIPTIONS).sort();
-    const selectFeaturesOptions = features.map((label, index) => ({
-      value: label, label,
-    }));
+    const modelsOptions = filteredModelsOptions(app, models);
+    const features = filteredFeatures(app);
+    const selectFeaturesOptions = filteredFeaturesOptions(app);
+    const numberFeatures = getNumberFeatures(app);
 
     const filteredValuesShap = shapValues.filter((d) => {
       if (d.importance_value > 0 && positiveChecked) return true;
@@ -179,11 +189,10 @@ class XAIShapPage extends Component {
     };
 
     const topFeatures = toDisplayShap.map((item, index) => ({
-      key: index + 1,
-      name: item.feature,
-      description: FEATURES_DESCRIPTIONS[item.feature].description || 'N/A',
-    }));
-    //console.log(topFeatures);
+        key: index + 1,
+        name: item.feature,
+        description: features[item.feature]?.description || 'N/A',
+    })); 
 
     const subTitle = isModelIdPresent ? 
       `SHAP explanations of the model ${modelId}` : 
@@ -223,6 +232,7 @@ class XAIShapPage extends Component {
             <div style={{ display: 'inline-flex' }}>
               <Form.Item label="bg" name="bg" noStyle>
                 <InputNumber min={1} defaultValue={10} 
+                  value={this.state.numberSamples}
                   onChange={v => this.setState({ numberSamples: v })}
                 />
               </Form.Item>
@@ -234,7 +244,7 @@ class XAIShapPage extends Component {
             <Slider
               marks={XAI_SLIDER_MARKS}
               min={1} max={30} defaultValue={maxDisplay}
-              value={maxDisplay}
+              value={this.state.maxDisplay}
               onChange={v => this.setState({ maxDisplay: v })}
             />
           </Form.Item>
@@ -245,6 +255,7 @@ class XAIShapPage extends Component {
             <Checkbox.Group 
               options={['Positive', 'Negative']}
               defaultValue={['Positive', 'Negative']}
+              
               onChange={this.handleContributionsChange} 
             />
           </Form.Item>
@@ -258,6 +269,7 @@ class XAIShapPage extends Component {
               }}
               allowClear
               placeholder="Select feature(s) ..."
+              value={this.state.maskedFeatures}
               onChange={v => this.setState({ maskedFeatures: v })}
               optionLabelProp="label"
               options={selectFeaturesOptions}
@@ -304,7 +316,7 @@ class XAIShapPage extends Component {
               <Typography.Title level={4} style={{ textAlign: 'center', fontSize: '16px' }}>
                 Average impact on predicted Malware traffic <br />
               </Typography.Title>
-              <center>(Total number of features: {Object.keys(FEATURES_DESCRIPTIONS).length - 3})</center>
+              <center>(Total number of features: {numberFeatures})</center>
               {shapValuesBarConfig && (
                 <Bar {...shapValuesBarConfig} onReady={(bar) => (barShap = bar)}/>
               )}
@@ -337,11 +349,12 @@ class XAIShapPage extends Component {
   }
 }
 
-const mapPropsToStates = ({ models, xaiStatus }) => ({
-  models, xaiStatus,
+const mapPropsToStates = ({ app, models, xaiStatus }) => ({
+  app, models, xaiStatus,
 });
 
 const mapDispatchToProps = (dispatch) => ({
+  fetchApp: () => dispatch(requestApp()),
   fetchAllModels: () => dispatch(requestAllModels()),
   fetchXAIStatus: () => dispatch(requestXAIStatus()),
   fetchRunShap: (modelId, numberSamples, maxDisplay) =>

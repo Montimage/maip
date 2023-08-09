@@ -1,4 +1,6 @@
-//import crypto from 'crypto';
+import {
+  AC_FEATURES_DESCRIPTIONS, AD_FEATURES_DESCRIPTIONS,
+} from "./constants";
 
 /**
  *
@@ -159,6 +161,57 @@ const getLastPath = () => {
   return array[array.length - id];
 }
 
+// TODO: Filter models based on selected applications
+const filteredModelsOptions = (app, models = []) => {
+  let filteredModels = [];
+  if (app === 'ac') {
+    filteredModels = models.filter(model => model.modelId.startsWith('ac-'));
+  } else if (app === 'ad') {
+    filteredModels = models.filter(model => !model.modelId.startsWith('ac-'));
+  }
+  
+  return filteredModels.map(model => ({
+    value: model.modelId,
+    label: model.modelId,
+  }));
+}
+
+const filteredFeatures = (app) => {
+  if (app === 'ac') {
+    return AC_FEATURES_DESCRIPTIONS;
+  } else if (app === 'ad') {
+    return AD_FEATURES_DESCRIPTIONS;
+  } else {
+    return {};
+  }
+}
+
+// TODO: remove the first two keys and the last one
+const filteredFeaturesOptions = (app) => {
+  let features = [];
+  if (app === 'ac') {
+    features = Object.keys(AC_FEATURES_DESCRIPTIONS).sort();
+  } else if (app === 'ad') {
+    features = Object.keys(AD_FEATURES_DESCRIPTIONS).sort();
+  }
+  
+  return features.map((label, index) => ({
+    value: label, label,
+  }));  
+}
+
+const getNumberFeatures = (app) => {
+  let numberFeatures = 0;
+  if (app === 'ac') {
+    numberFeatures = Object.keys(AC_FEATURES_DESCRIPTIONS).length - 1; // 21
+  } else if (app === 'ad') {
+    numberFeatures = Object.keys(AD_FEATURES_DESCRIPTIONS).length - 3; // 59
+  }
+  
+  return numberFeatures;
+}
+
+  
 
 export {
   getQuery,
@@ -171,4 +224,8 @@ export {
   deepCloneObject,
   getLastPath,
   getBeforeLastPath,
+  filteredModelsOptions,
+  filteredFeatures,
+  filteredFeaturesOptions,
+  getNumberFeatures,
 };

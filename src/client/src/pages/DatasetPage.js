@@ -5,6 +5,7 @@ import { QuestionOutlined } from "@ant-design/icons";
 import { 
   getBeforeLastPath,
   getLastPath,
+  getNumberFeatures,
 } from "../utils";
 import {
   requestApp,
@@ -179,13 +180,7 @@ class DatasetPage extends Component {
     //const displayedCsvData = csvData.slice(0, 100);
     //console.log(JSON.stringify(csvData));
 
-    if (app === 'ac') {
-      featuresDescriptions = AC_FEATURES_DESCRIPTIONS;
-      numberFeatures = Object.keys(featuresDescriptions).length - 1; // 21
-    } else if (app === 'ad') {
-      featuresDescriptions = AD_FEATURES_DESCRIPTIONS;
-      numberFeatures = Object.keys(featuresDescriptions).length - 3; // 59
-    }
+    const numberFeatures = getNumberFeatures(app);
     
     const allFeatures = Object.keys(featuresDescriptions).map((feature, index) => {
       return {
