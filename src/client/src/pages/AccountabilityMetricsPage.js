@@ -1,11 +1,11 @@
 import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
-import { getLastPath } from "../utils";
 import { Select, Menu, Form, Slider, Table, Col, Row, Button, Tooltip } from 'antd';
 import { QuestionOutlined } from "@ant-design/icons";
 import { Line, Heatmap, Column, G2 } from '@ant-design/plots';
 import {
+  requestApp,
   requestAllModels,
   requestModel,
   requestMetricCurrentness,
@@ -16,6 +16,10 @@ import {
   ACC_METRICS_MENU_ITEMS, COLUMNS_CURRENTNESS_METRICS, HEADER_ACCURACY_STATS,
   COLUMNS_PERF_STATS
 } from "../constants";
+import {
+  filteredModelsOptions,
+  getLastPath,
+} from "../utils";
 
 let isModelIdPresent = getLastPath() !== "accountability";
 
@@ -43,16 +47,50 @@ class AccountabilityMetricsPage extends Component {
     if (isModelIdPresent) {
       this.setState({ modelId });
     }
+    this.props.fetchApp();
     this.props.fetchAllModels();
   }
 
   componentDidUpdate(prevProps, prevState) {
     const { modelId } = this.state;  
-    if (modelId && modelId !== prevState.modelId) {
-      this.props.fetchModel(modelId);
-      this.loadPredictions(modelId);
-      this.props.fetchMetricCurrentness(modelId);
-      this.fetchModelBuildConfig();
+    // reset states once app is changed
+    if (this.props.app !== prevProps.app && !isModelIdPresent) {
+      this.setState({ 
+        modelId: null,
+        stats: [],
+        predictions: [],
+        confusionMatrix: [],
+        classificationData: [],
+        cutoffProb: 0.5,
+        cutoffPercentile: 0.5,
+        fprs: [], 
+        tprs: [], 
+        auc: 0,
+        dataPrecision: null,
+      });
+    }
+    if (modelId !== prevState.modelId) {
+      if (modelId) {
+        this.props.fetchModel(modelId);
+        this.loadPredictions(modelId);
+        this.props.fetchMetricCurrentness(modelId);
+        this.fetchModelBuildConfig();
+      } else {
+        // reset states once modelId is cleared
+        this.setState({ 
+          modelId: null,
+          stats: [],
+          predictions: [],
+          confusionMatrix: [],
+          classificationData: [],
+          cutoffProb: 0.5,
+          cutoffPercentile: 0.5,
+          fprs: [], 
+          tprs: [], 
+          auc: 0,
+          dataPrecision: null,
+        });
+      }
     }
   }
 
@@ -330,7 +368,7 @@ class AccountabilityMetricsPage extends Component {
   }
 
   render() {
-    const { models, model, metrics } = this.props;
+    const { app, models, model, metrics } = this.props;
 
     const { 
       modelId, 
@@ -344,10 +382,7 @@ class AccountabilityMetricsPage extends Component {
       dataPrecision,
     } = this.state;
 
-    const modelsOptions = models ? models.map(model => ({
-      value: model.modelId,
-      label: model.modelId,
-    })) : [];
+    const modelsOptions = filteredModelsOptions(app, models);
 
     const statsStr = stats.map((row, i) => `${i},${row.join(',')}`).join('\n');
     const rowsStats = statsStr.split('\n').map(row => row.split(','));
@@ -713,11 +748,12 @@ class AccountabilityMetricsPage extends Component {
   }
 }
 
-const mapPropsToStates = ({ models, model, metrics, }) => ({
-  models, model, metrics,
+const mapPropsToStates = ({ app, models, model, metrics, }) => ({
+  app, models, model, metrics,
 });
 
 const mapDispatchToProps = (dispatch) => ({
+  fetchApp: () => dispatch(requestApp()),
   fetchAllModels: () => dispatch(requestAllModels()),
   fetchModel: (modelId) => dispatch(requestModel(modelId)),
   fetchMetricCurrentness: (modelId) => dispatch(requestMetricCurrentness(modelId)),

@@ -1,11 +1,11 @@
 import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
-import { getLastPath } from "../utils";
 import { Menu, Select, Col, Row, Button, Tooltip, Form } from 'antd';
 import { QuestionOutlined } from "@ant-design/icons";
 import { Heatmap } from '@ant-design/plots';
 import {
+  requestApp,
   requestAllModels,
   requestModel,
   requestMetricCurrentness,
@@ -17,6 +17,10 @@ import {
   SERVER_URL,
   ATTACK_OPTIONS, RES_METRICS_MENU_ITEMS, HEADER_ACCURACY_STATS
 } from "../constants";
+import {
+  filteredModelsOptions,
+  getLastPath,
+} from "../utils";
 
 let isModelIdPresent = getLastPath() !== "resilience";
 
@@ -79,6 +83,28 @@ class ResilienceMetricsPage extends Component {
 
   async componentDidUpdate(prevProps, prevState) {
     const { modelId } = this.state;  
+    // TODO: optimize code to remove redundant states
+    if (this.props.app !== prevProps.app && !isModelIdPresent) {
+      this.setState({ 
+        modelId: null,
+        stats: [],
+        predictions: [],
+        confusionMatrix: [],
+        classificationData: [],
+        cutoffProb: 0.5,
+        cutoffPercentile: 0.5,
+        fprs: [], 
+        tprs: [], 
+        auc: 0,
+        dataPrecision: null,
+        selectedAttack: null,
+        buildConfig: null,
+        modelDatasets: [],
+        attacksDatasets: [],
+        attacksPredictions: [],
+        attacksConfusionMatrix: null,
+      });
+    }
 
     if (modelId && modelId !== prevState.modelId) {
       this.props.fetchModel(modelId);
@@ -265,7 +291,7 @@ class ResilienceMetricsPage extends Component {
   }
 
   render() {
-    const { models, model, metrics, retrainStatus } = this.props;
+    const { app, models, model, metrics, retrainStatus } = this.props;
     console.log(retrainStatus);
 
     const {
@@ -275,10 +301,7 @@ class ResilienceMetricsPage extends Component {
       attacksConfusionMatrix,
     } = this.state;
 
-    const modelsOptions = models ? models.map(model => ({
-      value: model.modelId,
-      label: model.modelId,
-    })) : [];
+    const modelsOptions = filteredModelsOptions(app, models);
 
     const statsStr = stats.map((row, i) => `${i},${row.join(',')}`).join('\n');
     const rowsStats = statsStr.split('\n').map(row => row.split(','));
@@ -501,11 +524,12 @@ class ResilienceMetricsPage extends Component {
   }
 }
 
-const mapPropsToStates = ({ models, model, metrics, retrainStatus }) => ({
-  models, model, metrics, retrainStatus,
+const mapPropsToStates = ({ app, models, model, metrics, retrainStatus }) => ({
+  app, models, model, metrics, retrainStatus,
 });
 
 const mapDispatchToProps = (dispatch) => ({
+  fetchApp: () => dispatch(requestApp()),
   fetchAllModels: () => dispatch(requestAllModels()),
   fetchRetrainStatus: () => dispatch(requestRetrainStatus()),
   fetchModel: (modelId) => dispatch(requestModel(modelId)),
