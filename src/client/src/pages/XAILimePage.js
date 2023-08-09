@@ -65,7 +65,7 @@ class XAILimePage extends Component {
   async componentDidUpdate(prevProps, prevState) {
     const { modelId } = this.state;
 
-    if (this.props.app !== prevProps.app) {
+    if (this.props.app !== prevProps.app && !isModelIdPresent) {
       // TODO: how to reset the current state when changing app
       this.setState({
         modelId: null,
