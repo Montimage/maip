@@ -36,6 +36,11 @@ const menuItems = [
         label: 'All Models',
         link: MENU_OPTIONS[2].link,
       },
+      // {
+      //   key: MENU_OPTIONS[17].key,
+      //   label: 'Datasets',
+      //   link: MENU_OPTIONS[17].link,
+      // },
       {
         key: MENU_OPTIONS[3].key,
         label: 'Models Comparison',
@@ -128,6 +133,14 @@ class MAIPHeader extends Component {
     };
   }
 
+  hasModelIdInUrl = () => {
+    const { pathname } = window.location;
+    // Define a regular expression pattern to match the URL structures
+    const pattern = /\/(xai\/shap|xai\/lime|models\/retrain|datasets\/[^/]+|metrics|metrics\/accountability|metrics\/resilience|attacks|predict\/online|predict\/offline)\/[^/]+$/;
+
+    return pattern.test(pathname);
+  }
+
   handleChange = (value) => {
     this.setState({ selectedValue: value }, () => {
       console.log(`selected ${value}`);
@@ -177,6 +190,7 @@ class MAIPHeader extends Component {
               className="selectApp"
               style={{ width: '60%' }} 
               onChange={this.handleChange}
+              disabled={this.hasModelIdInUrl()}
               suffixIcon={<DownOutlined style={{ color: '#fff' }} />}
             >
               <Option style={{ fontSize: '16px' }} value="ac">Activity Classification</Option>
