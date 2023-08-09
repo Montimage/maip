@@ -513,6 +513,7 @@ class DatasetPage extends Component {
                     <Select
                       showSearch allowClear
                       placeholder="Select a feature ..."
+                      value={this.state.selectedFeature}
                       onChange={value => this.setState({ selectedFeature: value })}
                       optionFilterProp="children"
                       filterOption={(input, option) => (option?.value ?? '').includes(input)}
@@ -573,6 +574,7 @@ class DatasetPage extends Component {
                   <Select
                     showSearch allowClear
                     placeholder="Select a feature ..."
+                    value={this.state.xScatterFeature}
                     onChange={value => this.setState({ xScatterFeature: value })}
                     optionFilterProp="children"
                     filterOption={(input, option) => (option?.value ?? '').includes(input)}
@@ -590,6 +592,7 @@ class DatasetPage extends Component {
                   <Select
                     showSearch allowClear
                     placeholder="Select a feature ..."
+                    value={this.state.yScatterFeature}
                     onChange={value => this.setState({ yScatterFeature: value })}
                     optionFilterProp="children"
                     filterOption={(input, option) => (option?.value ?? '').includes(input)}
@@ -624,6 +627,7 @@ class DatasetPage extends Component {
                 <Tooltip title="Select a categorical feature">
                   <Select
                     showSearch allowClear
+                    value={this.state.barFeature}
                     placeholder="Select a feature ..."
                     onChange={value => this.setState({ barFeature: value })}
                     optionFilterProp="children"
