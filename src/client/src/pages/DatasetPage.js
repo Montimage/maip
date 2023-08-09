@@ -339,19 +339,48 @@ class DatasetPage extends Component {
       },
     ];
 
-    const newCsvData = csvData.map((data) => {
-      const malware = data.malware === "0" ? "Normal traffic" : "Malware traffic";
-      return { ...data, malware };
+    const getLabelAndColor = (app, data) => {
+      let dataLabel;
+      if (app === 'ad') {
+        dataLabel = data.malware;
+      } else if (app === 'ac') {
+        dataLabel = data.output;
+      } else {
+        return { label: "Unknown", color: '#000000' };
+      }
+    
+      if (app === 'ad') {
+        return {
+          label: dataLabel === "0" ? "Normal traffic" : "Malware traffic",
+          color: dataLabel === "0" ? '#0693e3' : '#EB144C',
+        };
+      } else if (app === 'ac') {
+        switch(dataLabel) {
+          case "1":
+            return { label: "Web", color: '#0693e3' };
+          case "2":
+            return { label: "Interaction", color: '#EB144C' };
+          case "3":
+            // TODO: Video points are not gold
+            return { label: "Video", color: '#ffd700' };
+          default:
+            return { label: "Unknown", color: '#000000' };
+        }
+      }
+    };
+    
+    const labelCsvData = csvData.map((data) => {
+      const { label, color } = getLabelAndColor(this.props.app, data);
+      return { ...data, label, color };
     });
 
     const configScatter = {
       appendPadding: 10,
-      data: newCsvData,
+      data: labelCsvData,
       xField: xScatterFeature,
       yField: yScatterFeature,
       shape: 'circle',
-      colorField: 'malware',
-      color: ['#0693e3', '#EB144C'],
+      colorField: 'label',
       size: 4,
       yAxis: {
         title: {
