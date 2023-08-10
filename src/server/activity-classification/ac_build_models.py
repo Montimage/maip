@@ -1,59 +1,171 @@
+import sys
 import json
 import os
 import shutil
 from pathlib import Path
 import pandas as pd
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_score, KFold
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import StandardScaler
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
+import xgboost as xgb
+import lightgbm as ltb
+from sklearn import metrics
+from sklearn.metrics import ConfusionMatrixDisplay
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import classification_report
+from sklearn.metrics import mean_squared_error, accuracy_score, precision_score, recall_score, f1_score
 
 acPath = str(Path.cwd()) + '/src/server/activity-classification/'
 deepLearningPath = str(Path.cwd()) + '/src/server/deep-learning/'
+#acPath = "/home/strongcourage/maip/src/server/activity-classification/"
+#deepLearningPath = "/home/strongcourage/maip/src/server/deep-learning/"
 
-def build_model(modelId, buildConfigFilePath):
-  # Read & parse buildConfig file
-  if not os.path.exists(buildConfigFilePath):
-    print("ERROR: Build config file does not exist: " + buildConfigFilePath)
-    return ''
-  else:
-    f = open(buildConfigFilePath)
-    buildConfig = json.load(f)
-    modelType = buildConfig['modelType']
-    dataset = buildConfig['dataset']
-    trainingRatio = buildConfig['trainingRatio']
+def split_datasets(modelId, buildConfigFilePath):
+  # Load dataset
+  datasetFilePath = os.path.join(acPath,'datasets/', dataset)
+  fullDataset = pd.read_csv(datasetFilePath, header=0, usecols=[*range(1,23)], sep=";") 
+  fullDataset.dropna(axis=0, inplace=True)
 
-    # Load dataset
-    datasetFilePath = os.path.join(acPath,'datasets/', dataset)
-    fullDataset = pd.read_csv(datasetFilePath, header=0, usecols=[*range(1,23)], sep=";") 
-    fullDataset.dropna(axis=0, inplace=True)
+  y_df = fullDataset['output'].to_frame()
+  X_df = fullDataset[fullDataset.columns.difference(['output'])]
 
-    y_df = fullDataset['output'].to_frame()
-    X_df = fullDataset[fullDataset.columns.difference(['output'])]
+  # Split dataset into training and testing
+  X_train, X_test, y_train_orig, y_test_orig = train_test_split(X_df, y_df, train_size=trainingRatio, random_state=1)
 
-    # Split dataset into training and testing
-    X_train, X_test, y_train_orig, y_test_orig = train_test_split(X_df, y_df, train_size=trainingRatio, random_state=1)
+  # Concatenate the results back into dataframes while maintaining column order
+  train_dataset = pd.concat([X_train, y_train_orig], axis=1)[fullDataset.columns]
+  test_dataset = pd.concat([X_test, y_test_orig], axis=1)[fullDataset.columns]
 
-    # Concatenate the results back into dataframes while maintaining column order
-    train_dataset = pd.concat([X_train, y_train_orig], axis=1)[fullDataset.columns]
-    test_dataset = pd.concat([X_test, y_test_orig], axis=1)[fullDataset.columns]
+  # Save training/testing datasets to .csv
+  trainingPath = os.path.join(deepLearningPath, 'trainings/', modelId + '/datasets')
+  if os.path.exists(trainingPath):
+    shutil.rmtree(trainingPath)
+  os.makedirs(trainingPath)
 
-    # Save training/testing datasets to .csv
-    trainingPath = os.path.join(deepLearningPath, 'trainings/', modelId + '/datasets')
-    if os.path.exists(trainingPath):
-      shutil.rmtree(trainingPath)
-    os.makedirs(trainingPath)
+  trainDatasetPath = os.path.join(trainingPath, 'Train_samples.csv') 
+  testDatasetPath = os.path.join(trainingPath, 'Test_samples.csv')
+  train_dataset.to_csv(trainDatasetPath, index=False, sep=";")
+  test_dataset.to_csv(testDatasetPath, index=False, sep=";")
 
-    trainDatasetPath = os.path.join(trainingPath, 'Train_samples.csv') 
-    testDatasetPath = os.path.join(trainingPath, 'Test_samples.csv')
-    train_dataset.to_csv(trainDatasetPath, index=False, sep=";")
-    test_dataset.to_csv(testDatasetPath, index=False, sep=";")
+  print("Created the training dataset: " + trainDatasetPath)
+  print("Created the testing dataset: " + testDatasetPath)
 
-    print("Created the training dataset: " + trainDatasetPath)
-    print("Created the testing dataset: " + testDatasetPath)
+  return X_train, X_test, y_train_orig, y_test_orig
+
+def preprocess_datasets(X_train, X_test, y_train_orig, y_test_orig):
+  # Convert the expected output into arrays, e.g., 1 -> [1,0,0], 2 -> [0,1,0], 3 -> [0,0,1]
+  output_train = []
+  output_test = []
+  prep_outputs = [[1,0,0], [0,1,0], [0,0,1]]
+
+  for i, row in y_train_orig.iterrows():
+      output_train.append(prep_outputs[row["output"] - 1])
+
+  for i, row in y_test_orig.iterrows():
+      output_test.append(prep_outputs[row["output"] - 1])
+
+  #print(output_train)
+  #print(output_test)
+
+  # Preprocessing the data
+  scaler = StandardScaler()
+  scaler.fit(X_train)
+
+  # Apply transform to both the training/testing dataset.
+  X_train = scaler.transform(X_train)
+  y_train = np.array(output_train)
+
+  X_test = scaler.transform(X_test)
+  y_test = np.array(output_test)
+
+  return X_train, y_train, X_test, y_test
+
+def build_neural_network(X_train, y_train, X_test, y_test):
+  # Define the Keras model
+  keras_model = Sequential()
+  keras_model.add(Dense(12, input_shape=(21,), activation='relu'))
+  keras_model.add(Dense(8, activation='relu'))
+  keras_model.add(Dense(3, activation='sigmoid'))
+
+  # Compile the Keras model
+  keras_model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+
+  # Fit the Keras model on the dataset
+  keras_model.fit(X_train, y_train, epochs=150, batch_size=10)
+
+  # Evaluate the Keras model
+  _, accuracy = keras_model.evaluate(X_train, y_train)
+  print('Accuracy: %.2f' % (accuracy * 100))
+
+  y_pred = (keras_model.predict(X_test) > 0.5).astype(int)
+  cm = confusion_matrix(y_test.argmax(axis=1), y_pred.argmax(axis=1))
+  print("Confusion matrix: \n" + str(cm))
+  print(classification_report(y_test, y_pred))
+  print('\nAccuracy: {:.2f}\n'.format(accuracy_score(y_test, y_pred)))
+
+  
+def build_xgboost(X_train, y_train, X_test, y_test):
+  xgbc_model = xgb.XGBClassifier()
+  xgbc_model.fit(X_train, y_train)
+
+  scores = cross_val_score(xgbc_model, X_train, y_train, cv=5)
+  print("Mean cross-validation score: %.2f" % scores.mean())
+
+  kfold = KFold(n_splits=10, shuffle=True)
+  kf_cv_scores = cross_val_score(xgbc_model, X_train, y_train, cv=kfold )
+  print("K-fold CV average score: %.2f" % kf_cv_scores.mean())
+
+  y_pred = xgbc_model.predict(X_test, output_margin=True)
+  y_pred = (y_pred > 0.5) 
+  cm = confusion_matrix(y_test.argmax(axis=1), y_pred.argmax(axis=1))
+  print("Confusion matrix: \n" + str(cm))
+  print(classification_report(y_test, y_pred))
+  print('\nAccuracy: {:.2f}\n'.format(accuracy_score(y_test, y_pred)))
+
+def build_lightgbm(X_train, y_train, X_test, y_test):
+  lgbm_model = ltb.LGBMClassifier()
+  lgbm_model.fit(X_train, y_train_orig)
+
+  y_pred = lgbm_model.predict(X_test)
+  #y_pred = (y_pred > 0.5) 
+
+  r_2_score = metrics.r2_score(y_test_orig, y_pred)
+  mean_squared_log_error_score = metrics.mean_squared_log_error(y_test_orig, y_pred)
+  print("r_2 score: %f" % (r_2_score))
+  print("mean_squared_log_error score: %f" % (mean_squared_log_error_score))
+
+  cm = confusion_matrix(y_test_orig, y_pred)
+  print("Confusion matrix: \n" + str(cm))
+  print(classification_report(y_test_orig, y_pred))
+  print('\nAccuracy: {:.2f}\n'.format(accuracy_score(y_test_orig, y_pred)))
+
 
 if __name__ == "__main__":
-  import sys
-  print(sys.argv)
   if len(sys.argv) != 3:
     print('Invalid inputs')
     print('python ac_build_models.py modelId buildConfig.json')
   else:
-    build_model(sys.argv[1], sys.argv[2])
+    modelId = sys.argv[1]
+    buildConfigFilePath = sys.argv[2] 
+    # Read & parse buildConfig file
+    if not os.path.exists(buildConfigFilePath):
+      print("ERROR: Build config file does not exist: " + buildConfigFilePath)
+    else:
+      f = open(buildConfigFilePath)
+      buildConfig = json.load(f)
+      modelType = buildConfig['modelType']
+      dataset = buildConfig['dataset']
+      trainingRatio = buildConfig['trainingRatio']
+      X_train, X_test, y_train_orig, y_test_orig = split_datasets(modelId, buildConfigFilePath)
+      X_train, y_train, X_test, y_test = preprocess_datasets(X_train, X_test, y_train_orig, y_test_orig)
+      if modelType == "Neural Network":
+        build_neural_network(X_train, y_train, X_test, y_test)
+      elif modelType == "XGBoost":
+        build_xgboost(X_train, y_train, X_test, y_test)
+      elif modelType == "LightGBM":
+        build_lightgbm(X_train, y_train, X_test, y_test)
+      else:
+        print("ERROR: Model type is not valid")  
