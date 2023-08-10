@@ -146,7 +146,7 @@ class ModelListPage extends Component {
         width: '20%',
         render: (model) => (
           <div>
-            <a href={`/datasets/${model.modelId}/train`} view>
+            <a href={`/models/datasets/${model.modelId}/train`} view>
               <Space wrap>
                 <Button icon={<FolderViewOutlined />}>View</Button>
               </Space>
@@ -166,7 +166,7 @@ class ModelListPage extends Component {
         width: '20%',
         render: (model) => (
           <div>
-            <a href={`/datasets/${model.modelId}/test`} view>
+            <a href={`/models/datasets/${model.modelId}/test`} view>
                 <Space wrap>
                   <Button icon={<FolderViewOutlined />}>View</Button>
                 </Space>

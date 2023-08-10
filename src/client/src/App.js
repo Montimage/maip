@@ -53,7 +53,7 @@ function App() {
             <Route path="/models/retrain" element={<RetrainPage />}/>
             <Route path="/models/retrain/:modelId" element={<RetrainPage />}/>
             <Route path="/build" element={<BuildPage />}/>
-            <Route path="/datasets/:modelId/:datasetType" element={<DatasetPage />}/>
+            <Route path="/models/datasets/:modelId/:datasetType" element={<DatasetPage />}/>
             <Route path="/xai/test/:modelId" element={<XAITestPage />}/>
             <Route path="/xai/shap" element={<XAIShapPage />}/>
             <Route path="/xai/shap/:modelId" element={<XAIShapPage />}/>
