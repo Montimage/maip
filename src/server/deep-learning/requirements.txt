@@ -7,3 +7,5 @@ seaborn==0.12.2
 tensorflow==2.11.0
 lime==0.2.0.1
 shap==0.42.1
+xgboost==1.7.6
+lightgbm=4.0.0
