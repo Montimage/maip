@@ -139,9 +139,8 @@ class ModelListPage extends Component {
       },
       {
         title: "Built At",
-        dataIndex: "lastBuildAt",
         key: "data",
-        sorter: (a, b) => b.lastBuildAt - a.lastBuildAt,
+        sorter: (a, b) => a.lastBuildAt - b.lastBuildAt,
         defaultSortOrder: 'descend',
         render: (model) => {
           console.log(model.lastBuildAt);
