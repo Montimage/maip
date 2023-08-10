@@ -65,9 +65,9 @@ const startBuildingModelAC = (buildConfig, callback) => {
       });
     }
   });
-  
+
   const logFilePath = `${LOG_PATH}training_${modelId}.log`;
-  spawnCommand(PYTHON_CMD, [`${AC_PATH}/ac_build_models.py`, modelId, buildConfig], logFilePath, () => {
+  spawnCommand(PYTHON_CMD, [`${AC_PATH}/ac_build_models.py`, modelId, buildConfigPath], logFilePath, () => {
     buildingStatus.isRunning = false;
   });
   callback(buildingStatus);
