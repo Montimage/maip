@@ -13,7 +13,7 @@ import {
   requestAllModels,
 } from "../actions";
 import {
-  filteredModelsOptions,
+  getFilteredModelsOptions,
   getLastPath,
 } from "../utils";
 
@@ -107,7 +107,7 @@ class PredictOnlinePage extends Component {
     const { app, models, mmtStatus, reports } = this.props;
     const { modelId, interfacesOptions } = this.state;
 
-    const modelsOptions = filteredModelsOptions(app, models);
+    const modelsOptions = getFilteredModelsOptions(app, models);
 
     const subTitle = isModelIdPresent ? 
       `Online prediction using the model ${modelId}` : 

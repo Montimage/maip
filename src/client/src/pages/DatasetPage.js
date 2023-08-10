@@ -6,6 +6,8 @@ import {
   getBeforeLastPath,
   getLastPath,
   getNumberFeatures,
+  getFilteredFeatures,
+  getLabelAndColorScatterPlot,
 } from "../utils";
 import {
   requestApp,
@@ -22,7 +24,6 @@ const {
 } = require('../constants');
 const { Option } = Select;
 
-let numberFeatures;
 let featuresDescriptions = {};
 
 // TODO: scatter plot is a straight line if features on the x-axis and y-axis are similar ???
@@ -181,6 +182,7 @@ class DatasetPage extends Component {
     //console.log(JSON.stringify(csvData));
 
     const numberFeatures = getNumberFeatures(app);
+    featuresDescriptions = getFilteredFeatures(app);
     
     const allFeatures = Object.keys(featuresDescriptions).map((feature, index) => {
       return {
@@ -333,39 +335,9 @@ class DatasetPage extends Component {
         key: 'type',
       },
     ];
-
-    const getLabelAndColor = (app, data) => {
-      let dataLabel;
-      if (app === 'ad') {
-        dataLabel = data.malware;
-      } else if (app === 'ac') {
-        dataLabel = data.output;
-      } else {
-        return { label: "Unknown", color: '#000000' };
-      }
-    
-      if (app === 'ad') {
-        return {
-          label: dataLabel === "0" ? "Normal traffic" : "Malware traffic",
-          color: dataLabel === "0" ? '#0693e3' : '#EB144C',
-        };
-      } else if (app === 'ac') {
-        switch(dataLabel) {
-          case "1":
-            return { label: "Web", color: '#0693e3' };
-          case "2":
-            return { label: "Interaction", color: '#EB144C' };
-          case "3":
-            // TODO: Video points are not gold
-            return { label: "Video", color: '#ffd700' };
-          default:
-            return { label: "Unknown", color: '#000000' };
-        }
-      }
-    };
     
     const labelCsvData = csvData.map((data) => {
-      const { label, color } = getLabelAndColor(this.props.app, data);
+      const { label, color } = getLabelAndColorScatterPlot(this.props.app, data);
       return { ...data, label, color };
     });
 

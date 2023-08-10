@@ -17,7 +17,7 @@ import {
   COLUMNS_PERF_STATS
 } from "../constants";
 import {
-  filteredModelsOptions,
+  getFilteredModelsOptions,
   getLastPath,
 } from "../utils";
 
@@ -382,7 +382,7 @@ class AccountabilityMetricsPage extends Component {
       dataPrecision,
     } = this.state;
 
-    const modelsOptions = filteredModelsOptions(app, models);
+    const modelsOptions = getFilteredModelsOptions(app, models);
 
     const statsStr = stats.map((row, i) => `${i},${row.join(',')}`).join('\n');
     const rowsStats = statsStr.split('\n').map(row => row.split(','));

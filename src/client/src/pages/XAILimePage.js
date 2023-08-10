@@ -12,8 +12,8 @@ import {
   requestXAIStatus,
 } from "../actions";
 import {
-  filteredFeaturesOptions,
-  filteredModelsOptions,
+  getFilteredFeaturesOptions,
+  getFilteredModelsOptions,
   getLastPath,
 } from "../utils";
 import {
@@ -202,8 +202,8 @@ class XAILimePage extends Component {
     console.log(`XAI isRunning: ${isRunning}`);
     const { app, models, } = this.props;
 
-    const modelsOptions = filteredModelsOptions(app, models);
-    const selectFeaturesOptions = filteredFeaturesOptions(app);
+    const modelsOptions = getFilteredModelsOptions(app, models);
+    const selectFeaturesOptions = getFilteredFeaturesOptions(app);
 
     const pieConfig = {
       appendPadding: 10,

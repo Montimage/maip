@@ -18,7 +18,7 @@ import {
   ATTACK_OPTIONS, RES_METRICS_MENU_ITEMS, HEADER_ACCURACY_STATS
 } from "../constants";
 import {
-  filteredModelsOptions,
+  getFilteredModelsOptions,
   getLastPath,
 } from "../utils";
 
@@ -301,7 +301,7 @@ class ResilienceMetricsPage extends Component {
       attacksConfusionMatrix,
     } = this.state;
 
-    const modelsOptions = filteredModelsOptions(app, models);
+    const modelsOptions = getFilteredModelsOptions(app, models);
 
     const statsStr = stats.map((row, i) => `${i},${row.join(',')}`).join('\n');
     const rowsStats = statsStr.split('\n').map(row => row.split(','));

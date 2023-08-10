@@ -11,10 +11,10 @@ import {
   requestXAIStatus,
 } from "../actions";
 import {
-  filteredModelsOptions,
-  filteredFeatures,
+  getFilteredModelsOptions,
+  getFilteredFeatures,
   getLastPath,
-  filteredFeaturesOptions,
+  getFilteredFeaturesOptions,
   getNumberFeatures,
 } from "../utils";
 import {
@@ -156,9 +156,9 @@ class XAIShapPage extends Component {
     console.log(`XAI isRunning: ${isRunning}`);
     const { app, models } = this.props;
 
-    const modelsOptions = filteredModelsOptions(app, models);
-    const features = filteredFeatures(app);
-    const selectFeaturesOptions = filteredFeaturesOptions(app);
+    const modelsOptions = getFilteredModelsOptions(app, models);
+    const features = getFilteredFeatures(app);
+    const selectFeaturesOptions = getFilteredFeaturesOptions(app);
     const numberFeatures = getNumberFeatures(app);
 
     const filteredValuesShap = shapValues.filter((d) => {

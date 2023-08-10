@@ -17,7 +17,7 @@ import {
   requestPredictStatus,
 } from "../actions";
 import {
-  filteredModelsOptions,
+  getFilteredModelsOptions,
   getLastPath,
 } from "../utils";
 
@@ -215,7 +215,7 @@ class PredictOfflinePage extends Component {
       label: report,
     })) : [];
 
-    const modelsOptions = filteredModelsOptions(app, models);
+    const modelsOptions = getFilteredModelsOptions(app, models);
 
     const subTitle = isModelIdPresent ? 
       `Offline prediction using the model ${modelId}` : 

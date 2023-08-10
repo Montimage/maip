@@ -172,7 +172,7 @@ const getFilteredModels = (app, models = []) => {
 }
 
 // TODO: Filter models based on selected applications
-const filteredModelsOptions = (app, models = []) => {
+const getFilteredModelsOptions = (app, models = []) => {
   const filteredModels = getFilteredModels(app, models); 
   
   return filteredModels.map(model => ({
@@ -181,7 +181,7 @@ const filteredModelsOptions = (app, models = []) => {
   }));
 }
 
-const filteredFeatures = (app) => {
+const getFilteredFeatures = (app) => {
   if (app === 'ac') {
     return AC_FEATURES_DESCRIPTIONS;
   } else if (app === 'ad') {
@@ -192,7 +192,7 @@ const filteredFeatures = (app) => {
 }
 
 // TODO: remove the first two keys and the last one
-const filteredFeaturesOptions = (app) => {
+const getFilteredFeaturesOptions = (app) => {
   let features = [];
   if (app === 'ac') {
     features = Object.keys(AC_FEATURES_DESCRIPTIONS).sort();
@@ -216,6 +216,35 @@ const getNumberFeatures = (app) => {
   return numberFeatures;
 }
 
+const getLabelAndColorScatterPlot = (app, data) => {
+  let dataLabel;
+  if (app === 'ad') {
+    dataLabel = data.malware;
+  } else if (app === 'ac') {
+    dataLabel = data.output;
+  } else {
+    return { label: "Unknown", color: '#000000' };
+  }
+
+  if (app === 'ad') {
+    return {
+      label: dataLabel === "0" ? "Normal traffic" : "Malware traffic",
+      color: dataLabel === "0" ? '#0693e3' : '#EB144C',
+    };
+  } else if (app === 'ac') {
+    switch(dataLabel) {
+      case "1":
+        return { label: "Web", color: '#0693e3' };
+      case "2":
+        return { label: "Interaction", color: '#EB144C' };
+      case "3":
+        // TODO: Video points are not gold
+        return { label: "Video", color: '#ffd700' };
+      default:
+        return { label: "Unknown", color: '#000000' };
+    }
+  }
+};
   
 
 export {
@@ -230,8 +259,9 @@ export {
   getLastPath,
   getBeforeLastPath,
   getFilteredModels,
-  filteredModelsOptions,
-  filteredFeatures,
-  filteredFeaturesOptions,
+  getFilteredModelsOptions,
+  getFilteredFeatures,
+  getFilteredFeaturesOptions,
   getNumberFeatures,
+  getLabelAndColorScatterPlot,
 };
