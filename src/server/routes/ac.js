@@ -8,7 +8,7 @@ const readFileAsync = promisify(fs.readFile);
 const csv = require('csv-parser');
 const router = express.Router();
 const {
-  AC_PATH, AC_TRAINING_PATH
+  AC_PATH, TRAINING_PATH,
 } = require('../constants');
 const {
   listFiles, readTextFile, isFileExist,

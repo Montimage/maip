@@ -1,6 +1,7 @@
 /* eslint-disable no-plusplus */
 const {
-  TRAINING_PATH, MODEL_PATH,
+  TRAINING_PATH, MODEL_PATH, LOG_PATH,
+  PYTHON_CMD, AC_PATH,
 } = require('../constants');
 const {
   isFileExist,
@@ -11,6 +12,7 @@ const {
   listFilesByTypeAsync,
 } = require('../utils/file-utils');
 const {
+  spawnCommand,
   getUniqueId,
 } = require('../utils/utils');
 
@@ -30,7 +32,7 @@ const buildingStatus = {
 // Get the building status
 const getBuildingStatusAC = () => buildingStatus;
 
-const startBuildingModelAC = (buildConfig) => {
+const startBuildingModelAC = (buildConfig, callback) => {
   console.log('Start building the AC model');
   const buildId = getUniqueId();
   const modelId = `ac-${buildId}`;
@@ -53,18 +55,8 @@ const startBuildingModelAC = (buildConfig) => {
     }
   });
 
-  const buildStatusFilePath = `${TRAINING_PATH}${modelId}/buildingStatus.json`;
-  console.log(buildStatusFilePath);
-  fs.writeFile(buildStatusFilePath, JSON.stringify(buildingStatus), (error) => {
-    if (error) {
-      console.log(`Error saving buildStatus of model ${modelId} to file: ${error}`);
-    } else {
-      console.log(`BuildStatus of model ${modelId} saved to file: ${buildStatusFilePath}`);
-    }
-  });
-
   // AC model is actually buildConfig :D
-  const modelFilePath = `${MODEL_PATH}ac-${buildId}`;
+  const modelFilePath = `${MODEL_PATH}${modelId}`;
   writeTextFile(modelFilePath, JSON.stringify(buildConfig), (error) => {
     if (error) {
       console.log('Failed to create model file');
@@ -73,7 +65,13 @@ const startBuildingModelAC = (buildConfig) => {
       });
     }
   });
-};
+  
+  const logFilePath = `${LOG_PATH}training_${modelId}.log`;
+  spawnCommand(PYTHON_CMD, [`${AC_PATH}/ac_build_models.py`, modelId, buildConfig], logFilePath, () => {
+    buildingStatus.isRunning = false;
+  });
+  callback(buildingStatus);
+}
 
 module.exports = {
   getBuildingStatusAC,
