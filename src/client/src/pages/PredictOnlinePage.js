@@ -163,7 +163,7 @@ class PredictOnlinePage extends Component {
             <Button
               type="primary"
               onClick={this.handleButtonPredict}
-              disabled={ !this.state.modelId }
+              disabled={ !this.state.modelId || !this.state.interface }
             >
               Predict
             </Button>

@@ -139,9 +139,33 @@ class MAIPHeader extends Component {
 
   hasModelIdInUrl = () => {
     const { pathname } = window.location;
-    // Define a regular expression pattern to match the URL structures
-    const pattern = /\/(xai\/shap|xai\/lime|models\/retrain|datasets\/[^/]+|(metrics\/accountability|metrics\/resilience|attacks|predict\/online|predict\/offline|build\/ad|build\/ac))\/?$/;
-    return pattern.test(pathname);
+    const pathParts = pathname.split('/').filter(Boolean);
+
+    // List of all specific routes that should disable the updating app
+    const restrictedRoutes = [
+      '/xai/shap/',
+      '/xai/lime/',
+      '/metrics/accountability/',
+      '/metrics/resilience/',
+      '/attacks/',
+      '/predict/online/',
+      '/predict/offline/',
+      '/build/ad',
+      '/build/ac'
+    ];
+
+    if (restrictedRoutes.some(route => pathname.startsWith(route))) {
+      return true;
+    }
+
+    if (pathParts[0] === 'models') {
+      if ((pathParts[1] === 'datasets' && pathParts[2]) || 
+            (pathParts[1] === 'retrain' && pathParts[2])) {
+          return true;
+      }
+    }
+
+    return false;
   }
 
   handleChange = (value) => {
