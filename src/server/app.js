@@ -11,6 +11,7 @@ const cors = require('cors');
 // read and pass the environment variables into reactjs application
 const env = dotenv.config().parsed;
 
+const acRouter = require('./routes/ac');
 const mmtRouter = require('./routes/mmt');
 const pcapRouter = require('./routes/pcap');
 const reportRouter = require('./routes/report');
@@ -74,6 +75,7 @@ app.use(cors({
   next();
 });*/
 
+app.use('/api/ac', acRouter);
 app.use('/api/mmt', mmtRouter);
 app.use('/api/pcaps', pcapRouter);
 app.use('/api/reports', reportRouter);

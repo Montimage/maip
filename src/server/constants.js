@@ -1,6 +1,7 @@
 const LOG_PATH = `${__dirname}/logs/`;
 const DEFAULT_LOG_PATH = `${__dirname}/logs/all-logs.log`;
 const MMT_PATH = `${__dirname}/mmt/`;
+const AC_PATH = `${__dirname}/activity-classification/`;
 const REPORT_PATH = `${MMT_PATH}/outputs/`;
 const PCAP_PATH = `${MMT_PATH}/pcaps/`;
 const MMT_PROBE_CONFIG_PATH = `${MMT_PATH}/mmt-probe.conf`;
@@ -17,6 +18,7 @@ const PYTHON_CMD = `python3`;
 
 module.exports = {
   PYTHON_CMD,
+  AC_PATH,
   MMT_PATH,
   REPORT_PATH,
   MMT_PROBE_CONFIG_PATH,

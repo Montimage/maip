@@ -4,12 +4,12 @@ import {
 import produce from "immer";
 
 import {
-  setDataset,
+  setDatasetsAC,
 } from "../actions";
 
 
 export default createReducer({
-    [setDataset]: produce((draft, dataset) => (draft = dataset)),
+    [setDatasetsAC]: produce((draft, datasets) => (draft = datasets)),
   },
   []
 );

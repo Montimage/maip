@@ -8,7 +8,7 @@ import modelReducer from './modelReducer';
 import xaiStatusReducer from './xaiStatusReducer';
 import shapReducer from './shapReducer';
 import limeReducer from './limeReducer';
-//import datasetReducer from './datasetReducer';
+import datasetsReducer from './datasetsReducer';
 import buildReducer from './buildReducer';
 import reportsReducer from './reportsReducer';
 import metricsReducer from './metricsReducer';
@@ -28,7 +28,7 @@ const rootReducer = combineReducers({
   shapValues: shapReducer,
   limeValues: limeReducer,
   xaiStatus: xaiStatusReducer,
-//  dataset: datasetReducer,
+  datasets: datasetsReducer,
   build: buildReducer,
   reports: reportsReducer,
   metrics: metricsReducer,

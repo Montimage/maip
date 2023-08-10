@@ -2,7 +2,7 @@ import { all } from "redux-saga/effects";
 
 import requestMMTSaga from "./requestMMTSaga";
 import requestModelSaga from "./requestModelSaga";
-//import requestDatasetSaga from "./requestDatasetSaga";
+import requestDatasetsSaga from "./requestDatasetsSaga";
 import requestBuildSaga from "./requestBuildSaga";
 import requestRetrainSaga from "./requestRetrainSaga";
 import requestShapSaga from "./requestShapSaga";
@@ -17,7 +17,7 @@ function* rootSaga() {
   yield all([
     requestMMTSaga(),
     requestModelSaga(),
-//    requestDatasetSaga(),
+    requestDatasetsSaga(),
     requestBuildSaga(),
     requestRetrainSaga(),
     requestShapSaga(),

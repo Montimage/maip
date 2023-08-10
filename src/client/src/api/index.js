@@ -10,6 +10,17 @@ export const requestApp = (state) => {
   return selectedApp;
 };
 
+export const requestDatasetsAC = async () => {
+  const url = `${SERVER_URL}/api/ac/datasets`;
+  const response = await fetch(url);
+  const data = await response.json();
+  if (data.error) {
+    throw data.error;
+  }
+  console.log(data.datasets);
+  return data.datasets;
+};
+
 export const requestMMTStatus = async () => {
   const url = `${SERVER_URL}/api/mmt`;
   const response = await fetch(url);

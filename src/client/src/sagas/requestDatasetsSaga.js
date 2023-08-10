@@ -6,19 +6,18 @@ import {
 } from 'redux-saga/effects';
 
 import {
-  requestDownloadDatasetModel,
+  requestDatasetsAC,
 } from '../api';
 import {
   setNotification,
-  setDataset,
+  setDatasetsAC,
 } from '../actions';
 
-function* handleRequestDownloadDatasetModel(action) {
+function* handleRequestDatasetsAC(action) {
   try {
     console.log(action.payload);
-    const {modelId, typeDataset} = action.payload;
-    const model = yield call(() => requestDownloadDatasetModel(modelId, typeDataset));
-    yield put(setDataset(model));
+    const datasets = yield call(() => requestDatasetsAC());
+    yield put(setDatasetsAC(datasets));
     // dispatch data
   } catch (error) {
     // dispatch error
@@ -26,9 +25,8 @@ function* handleRequestDownloadDatasetModel(action) {
   }
 }
 
-
 function* watchDatasets() {
-  yield takeEvery('REQUEST_DOWNLOAD_DATASET_MODEL', handleRequestDownloadDatasetModel);
+  yield takeEvery('REQUEST_DATASETS_AC', handleRequestDatasetsAC);
 }
 
 export default watchDatasets;

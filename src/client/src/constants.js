@@ -378,6 +378,13 @@ const BOX_STYLE = {
   border: '1px solid black',
 };
 
+// BuildACPage.js
+const AI_MODEL_TYPES = [
+  "Neural Network",
+  "XGBoost",
+  "LightGBM",
+];
+
 // ModelComparisonPage.js
 const CRITERIA_LIST = [
   "Build Configuration",
@@ -638,6 +645,7 @@ const ATTACKS_SLIDER_MARKS = {
 module.exports = {
   MENU_OPTIONS,
   FORM_LAYOUT, BOX_STYLE,
+  AI_MODEL_TYPES,
   SERVER_HOST, SERVER_PORT, SERVER_URL,
   AD_FEATURES_DESCRIPTIONS, FEATURES_OPTIONS,
   AC_FEATURES_DESCRIPTIONS,

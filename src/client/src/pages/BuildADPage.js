@@ -38,15 +38,11 @@ class BuildADPage extends Component {
       },
       isRunning: props.buildStatus.isRunning,
     };
-    this.handleInputChange = this.handleInputChange.bind(this);
     this.handleButtonBuild = this.handleButtonBuild.bind(this);
   }
 
   componentDidMount() {
-    //this.props.fetchBuildModel();
     this.props.fetchAllReports();
-    //this.props.fetchBuildStatus();
-    //this.props.fetchMMTStatus();
   }
 
   async requestMMTStatus() {
@@ -74,7 +70,7 @@ class BuildADPage extends Component {
     return data;
   }
   
-  async handleButtonBuild(values) {
+  async handleButtonBuild() {
     const delay = ms => new Promise(res => setTimeout(res, ms));
     const { 
       attackDataset, 
@@ -162,12 +158,6 @@ class BuildADPage extends Component {
       }
     }
   }
-
-  handleInputChange = (name, value) => {
-    this.setState({
-      [name]: value,
-    });
-  };
 
   beforeUploadPcap = (file) => {
     const isPCAP = file.name.endsWith('.pcap');
