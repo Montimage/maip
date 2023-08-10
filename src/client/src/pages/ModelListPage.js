@@ -67,6 +67,13 @@ class ModelListPage extends Component {
     this.props.fetchAllModels();
   }
 
+  processBuildConfig = (buildConfig) => {
+    if (this.props.app === "ac") {
+      return JSON.stringify(buildConfig, null, 2);
+    }
+    return JSON.stringify(removeCsvPath(buildConfig), null, 2);
+  };
+
   render() {
     const { 
       app,
@@ -331,7 +338,7 @@ class ModelListPage extends Component {
               <p style={{ margin: 0 }}>
                 <h3><b>Build config:</b></h3>
                 <pre style={{ fontSize: "12px" }}>
-                  {JSON.stringify(removeCsvPath(model.buildConfig), null, 2)}
+                  {this.processBuildConfig(model.buildConfig)}
                 </pre>
               </p>,
           }}

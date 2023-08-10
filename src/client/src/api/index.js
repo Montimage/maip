@@ -21,6 +21,33 @@ export const requestDatasetsAC = async () => {
   return data.datasets;
 };
 
+export const requestBuildModelAC = async (modelType, dataset, featuresList ,trainingRatio) => {
+  const url = `${SERVER_URL}/api/ac/build`;
+  const buildConfig = { modelType, dataset, featuresList ,trainingRatio };
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ buildConfig }),
+  });
+  console.log(buildConfig);
+  const data = await response.json();
+  console.log(`Build an AC model on server with config ${buildConfig}`);
+  return data;
+};
+
+export const requestBuildStatusAC = async () => {
+  const url = `${SERVER_URL}/api/ac/build`;
+  const response = await fetch(url);
+  const data = await response.json();
+  if (data.error) {
+    throw data.error;
+  }
+  console.log(data.buildStatus);
+  return data.buildStatus;
+};
+
 export const requestMMTStatus = async () => {
   const url = `${SERVER_URL}/api/mmt`;
   const response = await fetch(url);

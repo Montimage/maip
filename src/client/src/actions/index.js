@@ -76,3 +76,7 @@ export const setPredictStatus = createAction('SET_PREDICT_STATUS');
 // AC app
 export const requestDatasetsAC = createAction('REQUEST_DATASETS_AC');
 export const setDatasetsAC = createAction('SET_DATASETS_AC');
+export const requestBuildModelAC = createAction('REQUEST_BUILD_MODEL_AC');
+export const setBuildModelAC = createAction('SET_BUILD_MODEL_AC');
+export const requestBuildStatusAC = createAction('REQUEST_BUILD_STATUS_AC');
+export const setBuildStatusAC = createAction('SET_BUILD_STATUS_AC');

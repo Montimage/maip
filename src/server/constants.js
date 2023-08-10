@@ -1,7 +1,6 @@
 const LOG_PATH = `${__dirname}/logs/`;
 const DEFAULT_LOG_PATH = `${__dirname}/logs/all-logs.log`;
 const MMT_PATH = `${__dirname}/mmt/`;
-const AC_PATH = `${__dirname}/activity-classification/`;
 const REPORT_PATH = `${MMT_PATH}/outputs/`;
 const PCAP_PATH = `${MMT_PATH}/pcaps/`;
 const MMT_PROBE_CONFIG_PATH = `${MMT_PATH}/mmt-probe.conf`;
@@ -16,9 +15,12 @@ const ATTACKS_PATH = `${DEEP_LEARNING_PATH}/attacks/`;
 const DATASETS_PATH = `${DEEP_LEARNING_PATH}/datasets/`;
 const PYTHON_CMD = `python3`;
 
+const AC_PATH = `${__dirname}/activity-classification/`;
+const AC_TRAINING_PATH = `${AC_PATH}/trainings/`;
+
 module.exports = {
   PYTHON_CMD,
-  AC_PATH,
+  AC_PATH, AC_TRAINING_PATH,
   MMT_PATH,
   REPORT_PATH,
   MMT_PROBE_CONFIG_PATH,

@@ -1,6 +1,7 @@
 import { createReducer } from 'redux-act';
-import { setBuildStatus } from '../actions';
+import { setBuildStatus, setBuildStatusAC } from '../actions';
 
 export default createReducer({
-  [setBuildStatus] : (state, buildStatus) => buildStatus
+  [setBuildStatus] : (state, buildStatus) => buildStatus,
+  [setBuildStatusAC] : (state, buildStatus) => buildStatus,
 }, false);

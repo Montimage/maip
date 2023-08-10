@@ -5,6 +5,7 @@ import { Row, Col, Tooltip, message, notification, Upload, Spin, Button, InputNu
 import {
   requestApp,
   requestDatasetsAC,
+  requestBuildModelAC,
 } from "../actions";
 import { connect } from 'react-redux';
 import {
@@ -17,10 +18,10 @@ class BuildACPage extends Component {
   constructor(props) {
     super(props);
     this.state = {
-      typeModel: null,
+      modelType: null,
       dataset: null,
       featureList: "Raw Features",
-      training_ratio: 0.7,
+      trainingRatio: 0.7,
     };
     this.handleButtonBuild = this.handleButtonBuild.bind(this);
   }
@@ -32,6 +33,14 @@ class BuildACPage extends Component {
 
   async handleButtonBuild() {
     console.log('Build model');
+    const { modelType, dataset, featureList, trainingRatio } = this.state;
+    const buildConfig = {
+      buildConfig: {
+        modelType, dataset, featureList, trainingRatio
+      }
+    };
+    console.log(buildConfig);
+    this.props.fetchBuildModelAC(modelType, dataset, featureList, trainingRatio);
   }
 
   render() {
@@ -103,13 +112,13 @@ class BuildACPage extends Component {
             </Tooltip>
           </Form.Item>
 
-          <Form.Item label="Training Ratio" name="training_ratio">
+          <Form.Item label="Training Ratio" name="trainingRatio">
             <Tooltip title="The training ratio refers to the proportion of data used for training a machine learning model compared to the total dataset. The training ratio is 0.7, meaning 70% for training and 30% for testing/validation.">
               <InputNumber
-                name="training_ratio"
-                value={this.state.training_ratio}
+                name="trainingRatio"
+                value={this.state.trainingRatio}
                 min={0} max={1} step={0.1} defaultValue={0.7}
-                onChange={v => this.setState({ training_ratio: v })}
+                onChange={v => this.setState({ trainingRatio: v })}
               />
             </Tooltip>
           </Form.Item>
@@ -139,6 +148,8 @@ const mapPropsToStates = ({ app, datasets }) => ({
 const mapDispatchToProps = (dispatch) => ({
   fetchApp: () => dispatch(requestApp()),
   fetchDatasetsAC: () => dispatch(requestDatasetsAC()),
+  fetchBuildModelAC: (modelType, dataset, featuresList ,trainingRatio) =>
+    dispatch(requestBuildModelAC({ modelType, dataset, featuresList ,trainingRatio })),
 });
 
 export default connect(mapPropsToStates, mapDispatchToProps)(BuildACPage);
