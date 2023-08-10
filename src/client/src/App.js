@@ -16,7 +16,8 @@ import ModelPage from "./pages/ModelPage";
 import ModelsComparisonPage from "./pages/ModelsComparisonPage";
 import DatasetListPage from "./pages/DatasetListPage";
 import DatasetPage from "./pages/DatasetPage";
-import BuildPage from "./pages/BuildPage";
+import BuildADPage from "./pages/BuildADPage";
+import BuildACPage from "./pages/BuildACPage";
 import RetrainPage from "./pages/RetrainPage";
 import AttacksPage from "./pages/AttacksPage";
 //import DummyPage from "./pages/DummyPage";
@@ -52,7 +53,8 @@ function App() {
             <Route path="/models/comparison" element={<ModelsComparisonPage />}/>
             <Route path="/models/retrain" element={<RetrainPage />}/>
             <Route path="/models/retrain/:modelId" element={<RetrainPage />}/>
-            <Route path="/build" element={<BuildPage />}/>
+            <Route path="/build/ad" element={<BuildADPage />}/>
+            <Route path="/build/ac" element={<BuildACPage />}/>
             <Route path="/models/datasets/:modelId/:datasetType" element={<DatasetPage />}/>
             <Route path="/xai/test/:modelId" element={<XAITestPage />}/>
             <Route path="/xai/shap" element={<XAIShapPage />}/>

@@ -20,7 +20,7 @@ const { Panel } = Collapse;
 
 // TODO: if building a model is done, jump to ModelsPage -> seems to be difficult!
 
-class BuildPage extends Component {
+class BuildADPage extends Component {
   constructor(props) {
     super(props);
     this.state = {
@@ -249,7 +249,7 @@ class BuildPage extends Component {
 
     // TODO: disable button Upload pcaps if users selected already datasets and vice versa
     return (
-      <LayoutPage pageTitle="Build Models" pageSubTitle="Build a new deep learning model">
+      <LayoutPage pageTitle="Build Models" pageSubTitle="Build a new AI model for anomaly detection">
         <Row>
         <Col span={12}>
         <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 700 }}>
@@ -442,4 +442,4 @@ const mapDispatchToProps = (dispatch) => ({
   fetchAllReports: () => dispatch(requestAllReports()),
 });
 
-export default connect(mapPropsToStates, mapDispatchToProps)(BuildPage);
+export default connect(mapPropsToStates, mapDispatchToProps)(BuildADPage);

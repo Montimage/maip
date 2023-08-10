@@ -644,7 +644,7 @@ class DatasetPage extends Component {
 
           <Col className="gutter-row" span={12} id="heatmap_plot">
             <div style={{ ...BOX_STYLE, marginTop: '100px' }}>
-              <h2>&nbsp;&nbsp;&nbsp;Heatmap Plot (TODO)</h2>
+              <h2>&nbsp;&nbsp;&nbsp;Heatmap Plot</h2>
             </div>
           </Col>
         </Row>
