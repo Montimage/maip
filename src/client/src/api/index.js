@@ -279,11 +279,11 @@ export const requestRunLime = async (modelId, sampleId, numberFeature) => {
   return data;
 };
 
-export const requestLimeValues = async (modelId) => {
-  const url = `${SERVER_URL}/api/xai/lime/explanations/${modelId}`;
+export const requestLimeValues = async (modelId, label) => {
+  const url = `${SERVER_URL}/api/xai/lime/explanations/${modelId}/${label}`;
   const response = await fetch(url);
   const limeValues = await response.json();
-  console.log(`Get LIME values of the model ${modelId} from server`);
+  console.log(`Get LIME values of the model ${modelId} for the label ${label} from server`);
   console.log(JSON.stringify(limeValues));
   return limeValues;
 };

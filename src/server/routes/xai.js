@@ -129,10 +129,21 @@ router.get('/shap/explanations/:modelId/:labelId', (req, res, next) => {
 /**
  * Get LIME explanations of a specific model
  */
- router.get('/lime/explanations/:modelId', (req, res, next) => {
-  const { modelId } = req.params;
+ router.get('/lime/explanations/:modelId/:labelId', (req, res, next) => {
+  const { modelId, labelId } = req.params;
+  let label;
+  if (modelId.startsWith('ac-')) {
+    label = AC_OUTPUT_LABELS[parseInt(labelId)];
+  } else {
+    label = AD_OUTPUT_LABELS[parseInt(labelId)];
+  }
+
+  if (!label) {
+    return res.status(400).send(`Invalid labelId: ${labelId}`);
+  }
+
   const xaiFilePath = `${XAI_PATH}${modelId.replace('.h5', '')}`;
-  const limeExpsFile = `${xaiFilePath}/lime_explanations.json`; 
+  const limeExpsFile = `${xaiFilePath}/${label}_lime_explanations.json`; 
   console.log(limeExpsFile);
 
   isFileExist(limeExpsFile, (ret) => {
@@ -147,10 +158,21 @@ router.get('/shap/explanations/:modelId/:labelId', (req, res, next) => {
 /**
  * Get LIME feature importance values of a specific model
  */
- router.get('/lime/importance-values/:modelId', (req, res, next) => {
-  const { modelId } = req.params;
+ router.get('/lime/importance-values/:modelId/:labelId', (req, res, next) => {
+  const { modelId, labelId } = req.params;
+  let label;
+  if (modelId.startsWith('ac-')) {
+    label = AC_OUTPUT_LABELS[parseInt(labelId)];
+  } else {
+    label = AD_OUTPUT_LABELS[parseInt(labelId)];
+  }
+
+  if (!label) {
+    return res.status(400).send(`Invalid labelId: ${labelId}`);
+  }
+
   const xaiFilePath = `${XAI_PATH}${modelId.replace('.h5', '')}`;
-  const limeValuesFile = `${xaiFilePath}/lime_values.json`; 
+  const limeValuesFile = `${xaiFilePath}/${label}_lime_values.json`; 
   console.log(limeValuesFile);
 
   isFileExist(limeValuesFile, (ret) => {

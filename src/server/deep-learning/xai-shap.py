@@ -21,6 +21,7 @@ import constants
 
 deepLearningPath = str(Path.cwd()) + '/src/server/deep-learning/'
 
+# TODO: change numberBackgroundSamples to numberExplainedSamples and retest
 def running_shap(numberBackgroundSamples, maxDisplay):
 
   """

@@ -35,7 +35,7 @@ class XAIShapPage extends Component {
     super(props);
     this.state = {
       modelId: null,
-      label: "Web",
+      label: null,
       numberSamples: 10,
       maxDisplay: 10,
       positiveChecked: true,

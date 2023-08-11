@@ -15,23 +15,29 @@ import {
   getFilteredFeaturesOptions,
   getFilteredModelsOptions,
   getLastPath,
+  getLabelsOptions,
 } from "../utils";
 import {
   FORM_LAYOUT, BOX_STYLE,
   AC_FEATURES_DESCRIPTIONS, AD_FEATURES_DESCRIPTIONS,
+  AC_OUTPUT_LABELS, AD_OUTPUT_LABELS,
   SERVER_URL,
   LIME_URL, XAI_SLIDER_MARKS, COLUMNS_TABLE_PROBS,
 } from "../constants";
 
+const { Option } = Select;
 let barLime;
 let isModelIdPresent = getLastPath() !== "lime";
 const downloadLimeImage = () => { barLime?.downloadImage(); };
+
+let defaultLabel;
 
 class XAILimePage extends Component {
   constructor(props) {
     super(props);
     this.state = {
       modelId: null,
+      label: "Web", // TODO: fix hardcode
       sampleId: 5,
       numberSamples: 10,
       maxDisplay: 15,
@@ -54,6 +60,8 @@ class XAILimePage extends Component {
     }
     this.props.fetchAllModels(); 
     this.props.fetchApp();
+    //defaultLabel = modelId.startsWith('ac-') ? AC_FEATURES_DESCRIPTIONS[0] : AD_FEATURES_DESCRIPTIONS[0];
+    //console.log(defaultLabel);
   }
 
   handleContributionsChange(checkedValues){
@@ -63,12 +71,13 @@ class XAILimePage extends Component {
   };
 
   async componentDidUpdate(prevProps, prevState) {
-    const { modelId } = this.state;
+    const { modelId, label } = this.state;
 
     if (this.props.app !== prevProps.app && !isModelIdPresent) {
       // TODO: how to reset the current state when changing app
       this.setState({
         modelId: null,
+        label: "Web",
         sampleId: 5,
         maxDisplay: 15,
         positiveChecked: true,
@@ -77,12 +86,16 @@ class XAILimePage extends Component {
       });
     }
 
+    if (prevState.label !== this.state.label) {
+      await this.fetchNewValues(modelId, label);
+    }
+
     if (prevProps.xaiStatus.isRunning !== this.props.xaiStatus.isRunning) {
       console.log('isRunning has been changed');
       this.setState({ isRunning: this.props.xaiStatus.isRunning });
       if (!this.props.xaiStatus.isRunning) {
         console.log('isRunning changed from True to False');
-        await this.fetchNewValues(modelId);  
+        await this.fetchNewValues(modelId, label);  
       }
     }
 
@@ -98,6 +111,7 @@ class XAILimePage extends Component {
       this.props.app !== nextProps.app ||
       this.props.models !== nextProps.models ||
       this.state.modelId !== nextState.modelId ||
+      this.state.label !== nextState.label ||
       this.state.limeValues !== nextState.limeValues ||
       this.props.xaiStatus.isRunning !== nextProps.xaiStatus.isRunning ||
       (this.state.limeValues === nextState.limeValues &&
@@ -175,11 +189,20 @@ class XAILimePage extends Component {
     });
   }
 
-  async fetchNewValues(modelId) {
-    const limeValuesUrl = `${LIME_URL}/explanations/${modelId}`;
+  async fetchNewValues(modelId, label) {
+    const labelsOptions = modelId.includes('ac-') ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
+    const labelIndex = labelsOptions.indexOf(label);
+
+    if (labelIndex === -1) {
+      console.error(`Invalid label: ${label}`);
+      return;
+    }
+
+    const limeValuesUrl = `${LIME_URL}/explanations/${modelId}/${labelIndex}`;
     const limeValues = await fetch(limeValuesUrl).then(res => res.json());
-    console.log(`Get new LIME values of the model ${modelId} from server`);
+    console.log(`Get new LIME values of the model ${modelId} for label ${label} (index ${labelIndex}) from server`);
     //console.log(JSON.stringify(limeValues));
+
     // Update state only if new data is different than old data
     if (JSON.stringify(limeValues) !== JSON.stringify(this.state.limeValues)) {
       this.setState({ limeValues });
@@ -189,6 +212,7 @@ class XAILimePage extends Component {
   render() {
     const { 
       modelId,
+      label,
       sampleId,
       maxDisplay, 
       positiveChecked,
@@ -204,6 +228,7 @@ class XAILimePage extends Component {
 
     const modelsOptions = getFilteredModelsOptions(app, models);
     const selectFeaturesOptions = getFilteredFeaturesOptions(app);
+    const labelsOptions = getLabelsOptions(modelId);
 
     const pieConfig = {
       appendPadding: 10,
@@ -365,6 +390,22 @@ class XAILimePage extends Component {
                 </div>
               </div>
               &nbsp;&nbsp;&nbsp;
+              <Tooltip title="Select a label">
+                <Select
+                  value={this.state.label}
+                  placeholder="Select a label ..."
+                  onChange={v => this.setState({ label: v })}
+                  optionFilterProp="children"
+                  filterOption={(input, option) => (option?.value ?? '').includes(input)}
+                  style={{ width: 200, marginTop: '10px', marginBottom: '10px' }}
+                >
+                  {labelsOptions.map((header) => (
+                    <Option key={header} value={header}>
+                      {header}
+                    </Option>
+                  ))}
+                </Select>
+              </Tooltip>
               {limeValuesBarConfig && (
                 <Bar {...limeValuesBarConfig} onReady={(bar) => (barLime = bar)}/>
               )}
