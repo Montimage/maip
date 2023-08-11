@@ -1,3 +1,4 @@
+import sys
 import json
 import os
 import shutil
@@ -8,16 +9,19 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import timeit
 import xgboost as xgb
+import lightgbm as ltb
 from pathlib import Path
 from tensorflow.keras.models import load_model
 from pydoc import classname
 from datetime import datetime
 from sklearn.preprocessing import StandardScaler
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
 from sklearn.inspection import permutation_importance
 import constants
 
-#deepLearningPath = str(Path.cwd()) + '/src/server/deep-learning/'
-deepLearningPath = "/home/strongcourage/maip/src/server/deep-learning/"
+deepLearningPath = str(Path.cwd()) + '/src/server/deep-learning/'
+#deepLearningPath = "/home/strongcourage/maip/src/server/deep-learning/"
 
 def preprocess_datasets(X_train, X_test, y_train_orig, y_test_orig):
   # Convert the expected output into arrays, e.g., 1 -> [1,0,0], 2 -> [0,1,0], 3 -> [0,0,1]
@@ -35,17 +39,40 @@ def preprocess_datasets(X_train, X_test, y_train_orig, y_test_orig):
 
   return X_train, y_train, X_test, y_test
 
-def running_shap(numberBackgroundSamples, maxDisplay):
-  classes=['Web', 'Interactive', 'Video']
+# TODO: should use load_model() instead
+def get_model(modelType, X_train, y_train, y_train_orig):
+  model = None
+  if modelType == "Neural Network":
+    model = Sequential()
+    model.add(Dense(12, input_shape=(21,), activation='relu'))
+    model.add(Dense(8, activation='relu'))
+    model.add(Dense(3, activation='sigmoid'))
+    model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+    model.fit(X_train, y_train, epochs=150, batch_size=10)
+  elif modelType == "XGBoost":
+    model = xgb.XGBClassifier()
+    model.fit(X_train, y_train)
+  elif modelType == "LightGBM":
+    model = ltb.LGBMClassifier()
+    model.fit(X_train, y_train_orig)
+  else:
+    print("ERROR: Model type is not valid")
+  return model
 
-  # Create the SHAP explainer
-  explainer = shap.KernelExplainer(xgbc_model.predict, X_test)
+def running_shap(model, numberExplainedSamples, maxDisplay, modelType):
+  classes = ['Web', 'Interactive', 'Video']
+
+  #background_data = shap.sample(X_test, int(numberBackgroundSamples))
   
-  # Calculate SHAP values
+  if modelType == "LightGBM":
+    explainer = shap.TreeExplainer(model)
+  else:
+    explainer = shap.KernelExplainer(model.predict, X_test)
+
   with warnings.catch_warnings():
     warnings.filterwarnings("ignore")
-    shap_values = explainer.shap_values(X_test, nsamples=len(X_test)) 
-    #shap_values = explainer.shap_values(X_test, nsamples=numberBackgroundSamples)
+    X_test_sample = shap.sample(X_test, int(numberExplainedSamples))
+    shap_values = explainer.shap_values(X_test_sample)
     print(shap_values)
 
   explanations_path = deepLearningPath + '/xai/' + modelId
@@ -53,6 +80,7 @@ def running_shap(numberBackgroundSamples, maxDisplay):
     os.makedirs(explanations_path)
 
   for i, label in enumerate(classes):
+    print(f"Shape for {label}: {np.array(shap_values[i]).shape}")
     shap_df = pd.DataFrame(shap_values[i], columns=constants.AC_FEATURES)
     
     columns = ['feature', 'importance_value']
@@ -64,6 +92,7 @@ def running_shap(numberBackgroundSamples, maxDisplay):
     print(jsonfile)
     with open(jsonfile, "w") as outfile:
       json.dump(features_to_display, outfile)
+      print("SHAP values dumped to " + jsonfile)
 
   # # Convert SHAP values into a dictionary with class labels as keys
   # shap_dict = {}
@@ -79,17 +108,18 @@ def running_shap(numberBackgroundSamples, maxDisplay):
   # print(json.dump(shap_dict, file, indent=2, ensure_ascii=False))
 
 if __name__ == "__main__":
-  import sys
-  print(sys.argv)
-  if len(sys.argv) != 4:
+  if len(sys.argv) < 4 or len(sys.argv) > 5:
     print('Invalid inputs')
-    print('python ac_xai_shap.py modelId numberBackgroundSamples maxDisplay ')
+    print('Usage: python ac_xai_shap.py modelId numberExplainedSamples maxDisplay [modelType]')
   else:
     modelId = sys.argv[1]
-    numberBackgroundSamples = sys.argv[2]
+    numberExplainedSamples = sys.argv[2]
     maxDisplay = sys.argv[3]
 
-    # Step 1: Read the datasets from the csv files
+    modelType = None
+    if len(sys.argv) == 5:
+      modelType = sys.argv[4]
+
     output_path = deepLearningPath + '/trainings/' + modelId
     output_datasets_path = output_path + '/datasets/'
     train_data_path = os.path.join(output_datasets_path,'Train_samples.csv')
@@ -97,24 +127,18 @@ if __name__ == "__main__":
     train_data = pd.read_csv(train_data_path, delimiter=";")
     test_data = pd.read_csv(test_data_path, delimiter=";")
 
-    # Step 2: Split the train_dataset into X_train and y_train_orig
-    X_train = train_data.drop(columns=['output'])  # Assuming 'output' is the name of the target column
+    X_train = train_data.drop(columns=['output'])
     y_train_orig = train_data['output']
-
-    # Step 3: Split the test_dataset into X_test and y_test_orig
     X_test = test_data.drop(columns=['output'])
     y_test_orig = test_data['output']
 
     X_train, y_train, X_test, y_test = preprocess_datasets(X_train, X_test, y_train_orig, y_test_orig) 
-    
-    xgbc_model = xgb.XGBClassifier()
-    xgbc_model.fit(X_train, y_train)
 
-    #running_shap(numberBackgroundSamples, maxDisplay)
+    model = get_model(modelType, X_train, y_train, y_train_orig)
 
     # Compute time for producing explanations and save it to file 
     generation_iters = 1
-    time_taken = timeit.timeit(lambda: running_shap(numberBackgroundSamples, maxDisplay), number=generation_iters)
+    time_taken = timeit.timeit(lambda: running_shap(model, numberExplainedSamples, maxDisplay, modelType), number=generation_iters)
     print("Time taken for SHAP in seconds: ", time_taken)
     xai_path = deepLearningPath + '/xai/' + modelId
     statsfile = os.path.join(xai_path, 'time_stats_shap.txt')

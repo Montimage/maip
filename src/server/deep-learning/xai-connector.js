@@ -1,16 +1,18 @@
 /* eslint-disable no-plusplus */
 const {
-  LOG_PATH,
-  MODEL_PATH,
+  LOG_PATH, MODEL_PATH, TRAINING_PATH,
   DEEP_LEARNING_PATH, AC_PATH,
   PYTHON_CMD,
 } = require('../constants');
-
+const {
+  readTextFile,
+} = require('../utils/file-utils');
 const {
   spawnCommand,
 } = require('../utils/utils');
   
 const fs = require('fs');  
+const fsPromises = require('fs').promises;
 
 /**
  * The XAI status
@@ -23,7 +25,21 @@ const fs = require('fs');
 
 const getXAIStatus = () => xaiStatus;
 
-const runSHAP = (shapConfig, callback) => {
+const getModelType = async (modelId) => {
+  if (!modelId.startsWith("ac-")) return null;  // Return null for non "ac-" models
+  
+  const buildConfigFilePath = `${TRAINING_PATH}${modelId}/build-config.json`;
+  try {
+    const buildConfig = await fsPromises.readFile(buildConfigFilePath, 'utf-8');
+    const configData = JSON.parse(buildConfig);
+    return configData.modelType;
+  } catch (err) {
+    console.error("Error reading the file:", err);
+    return null;
+  }
+}
+
+const runSHAP = async (shapConfig, callback) => {
   const {
     modelId,
     numberSamples,
@@ -49,11 +65,12 @@ const runSHAP = (shapConfig, callback) => {
 
   const logFile = `${LOG_PATH}xai_${modelId}.log`;
   let scriptPath = `${DEEP_LEARNING_PATH}/xai-shap.py`;  // default path
-  if(modelId.startsWith("ac-")) {
+  const modelType = await getModelType(modelId);
+  if (modelId.startsWith("ac-")) {
     scriptPath = `${AC_PATH}/ac_xai_shap.py`;
   }
 
-  spawnCommand(PYTHON_CMD, [scriptPath, modelId, numberSamples, maxDisplay], logFile, () => {
+  spawnCommand(PYTHON_CMD, [scriptPath, modelId, numberSamples, maxDisplay, modelType], logFile, () => {
       xaiStatus.isRunning = false;
       console.log('Finish producing SHAP feature importance explanations');
   });

@@ -252,7 +252,7 @@ class XAIShapPage extends Component {
                 />
               </Tooltip>
             </Form.Item>
-          <Form.Item label="Background samples" style={{ marginBottom: 10 }} > 
+          <Form.Item label="Explained samples" style={{ marginBottom: 10 }} > 
             <div style={{ display: 'inline-flex' }}>
               <Form.Item label="bg" name="bg" noStyle>
                 <InputNumber min={1} defaultValue={10} 
@@ -339,7 +339,6 @@ class XAIShapPage extends Component {
               &nbsp;&nbsp;&nbsp;
               <Tooltip title="Select a label">
                 <Select
-                  showSearch allowClear
                   value={this.state.label}
                   placeholder="Select a label ..."
                   onChange={v => this.setState({ label: v })}
