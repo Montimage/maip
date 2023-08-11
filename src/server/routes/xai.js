@@ -14,6 +14,9 @@ const {
 const {
   XAI_PATH,
 } = require('../constants');
+const { 
+  AD_OUTPUT_LABELS, AC_OUTPUT_LABELS,
+} = require('../../client/src/constants');
 
 
 router.get('/', (_, res) => {
@@ -97,10 +100,21 @@ router.get('/explanations/:modelId', (req, res, next) => {
 /**
  * Get SHAP feature importance values of a specific model
  */
-router.get('/shap/explanations/:modelId', (req, res, next) => {
-  const { modelId } = req.params;
+router.get('/shap/explanations/:modelId/:labelId', (req, res, next) => {
+  const { modelId, labelId } = req.params;
+  let label;
+  if (modelId.startsWith('ac-')) {
+    label = AC_OUTPUT_LABELS[parseInt(labelId)];
+  } else {
+    label = AD_OUTPUT_LABELS[parseInt(labelId)];
+  }
+
+  if (!label) {
+    return res.status(400).send(`Invalid labelId: ${labelId}`);
+  }
+
   const xaiFilePath = `${XAI_PATH}${modelId.replace('.h5', '')}`;
-  const shapValuesFile = `${xaiFilePath}/importance_values.json`; 
+  const shapValuesFile = `${xaiFilePath}/${label}_importance_values.json`;
   console.log(shapValuesFile);
 
   isFileExist(shapValuesFile, (ret) => {

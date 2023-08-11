@@ -1,5 +1,6 @@
 import {
   AC_FEATURES_DESCRIPTIONS, AD_FEATURES_DESCRIPTIONS,
+  AC_OUTPUT_LABELS, AD_OUTPUT_LABELS,
 } from "./constants";
 
 /**
@@ -245,7 +246,11 @@ const getLabelAndColorScatterPlot = (app, data) => {
     }
   }
 };
-  
+
+const getLabelsOptions = (modelId) => {
+  return modelId && modelId.startsWith('ac-') ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
+}
+
 
 export {
   getQuery,
@@ -264,4 +269,5 @@ export {
   getFilteredFeaturesOptions,
   getNumberFeatures,
   getLabelAndColorScatterPlot,
+  getLabelsOptions,
 };

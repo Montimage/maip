@@ -251,11 +251,11 @@ export const requestRunShap = async (modelId, numberSamples, maxDisplay) => {
   return data;
 };
 
-export const requestShapValues = async (modelId) => {
-  const url = `${SERVER_URL}/api/xai/shap/importance-values/${modelId}`;
+export const requestShapValues = async (modelId, label) => {
+  const url = `${SERVER_URL}/api/xai/shap/importance-values/${modelId}/${label}`;
   const response = await fetch(url);
   const shapValues = await response.json();
-  console.log(`Get SHAP values of the model ${modelId} from server`);
+  console.log(`Get SHAP values of the model ${modelId} for the label ${label} from server`);
   console.log(JSON.stringify(shapValues));
   return shapValues;
 };

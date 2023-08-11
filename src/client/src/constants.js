@@ -601,7 +601,7 @@ const COLUMNS_TOP_FEATURES = [
   },
 ];
 
-const XAI_SLIDER_MARKS ={
+const XAI_SLIDER_MARKS = {
   1: '1',
   5: '5',
   10: '10',
@@ -609,7 +609,10 @@ const XAI_SLIDER_MARKS ={
   20: '20',
   25: '25',
   30: '30',
-}
+};
+
+const AD_OUTPUT_LABELS = ["Malware", "Normal"];
+const AC_OUTPUT_LABELS = ["Web", "Interactive", "Video"];
 
 // XAILimePage.js 
 const LIME_URL = `${SERVER_URL}/api/xai/lime`;
@@ -655,6 +658,7 @@ module.exports = {
   COLUMNS_CURRENTNESS_METRICS, ACC_METRICS_MENU_ITEMS,
   RES_METRICS_MENU_ITEMS, HEADER_ACCURACY_STATS,
   SHAP_URL, COLUMNS_TOP_FEATURES, XAI_SLIDER_MARKS,
+  AD_OUTPUT_LABELS, AC_OUTPUT_LABELS,
   LIME_URL, COLUMNS_TABLE_PROBS,
   ATTACKS_SLIDER_MARKS
 };

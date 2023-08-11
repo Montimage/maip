@@ -16,13 +16,16 @@ import {
   getLastPath,
   getFilteredFeaturesOptions,
   getNumberFeatures,
+  getLabelsOptions,
 } from "../utils";
 import {
   FORM_LAYOUT, BOX_STYLE,
   FEATURES_DESCRIPTIONS,
-  SHAP_URL, COLUMNS_TOP_FEATURES, XAI_SLIDER_MARKS
+  SHAP_URL, COLUMNS_TOP_FEATURES, XAI_SLIDER_MARKS,
+  AC_OUTPUT_LABELS, AD_OUTPUT_LABELS,
 } from "../constants";
 
+const { Option } = Select;
 let barShap;
 let isModelIdPresent = getLastPath() !== "shap";
 const downloadShapImage = () => { barShap?.downloadImage(); };
@@ -32,6 +35,7 @@ class XAIShapPage extends Component {
     super(props);
     this.state = {
       modelId: null,
+      label: "Web",
       numberSamples: 10,
       maxDisplay: 10,
       positiveChecked: true,
@@ -51,6 +55,7 @@ class XAIShapPage extends Component {
     }
     this.props.fetchApp();
     this.props.fetchAllModels(); 
+    //await this.fetchNewValues(this.state.modelId, this.state.label);
   }
 
   handleContributionsChange(checkedValues) {
@@ -65,6 +70,7 @@ class XAIShapPage extends Component {
       this.props.app !== nextProps.app ||
       this.props.models !== nextProps.models ||
       this.state.modelId !== nextState.modelId ||
+      this.state.label !== nextState.label ||
       this.state.shapValues !== nextState.shapValues ||
       this.props.xaiStatus.isRunning !== nextProps.xaiStatus.isRunning ||
       (this.state.limeValues === nextState.limeValues &&
@@ -76,12 +82,13 @@ class XAIShapPage extends Component {
   }
 
   async componentDidUpdate(prevProps, prevState) {
-    const { modelId } = this.state;
+    const { modelId, label } = this.state;
 
     if (this.props.app !== prevProps.app && !isModelIdPresent) {
       // TODO: how to reset the current state when changing app
       this.setState({
         modelId: null,
+        label: "Web",
         numberSamples: 10,
         maxDisplay: 10,
         positiveChecked: true,
@@ -90,12 +97,20 @@ class XAIShapPage extends Component {
       });
     }
 
+    if (prevState.modelId !== this.state.modelId) {
+      this.setState({ shapValues: [] }); 
+    }
+
+    if (prevState.label !== this.state.label) {
+      await this.fetchNewValues(modelId, label);
+    }
+
     if (prevProps.xaiStatus.isRunning !== this.props.xaiStatus.isRunning) {
       console.log('isRunning has been changed');
       this.setState({ isRunning: this.props.xaiStatus.isRunning });
       if (!this.props.xaiStatus.isRunning) {
         console.log('isRunning changed from True to False');
-        await this.fetchNewValues(modelId);  
+        await this.fetchNewValues(modelId, label);  
       }
     }
 
@@ -132,12 +147,19 @@ class XAIShapPage extends Component {
     }
   }
 
-  async fetchNewValues(modelId) {
-    const shapValuesUrl = `${SHAP_URL}/explanations/${modelId}`;
+  async fetchNewValues(modelId, label) {
+    const labelsOptions = modelId.includes('ac-') ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
+    const labelIndex = labelsOptions.indexOf(label);
+
+    if (labelIndex === -1) {
+      console.error(`Invalid label: ${label}`);
+      return;
+    }
+    
+    const shapValuesUrl = `${SHAP_URL}/explanations/${modelId}/${labelIndex}`;
     const shapValues = await fetch(shapValuesUrl).then(res => res.json());
-    console.log(`Get new SHAP values of the model ${modelId} from server`);
-    //console.log(JSON.stringify(shapValues));
-    // Update state only if new data is different than old data
+    console.log(`Get new SHAP values of the model ${modelId} for label ${label} (index ${labelIndex}) from server`);
+
     if (JSON.stringify(shapValues) !== JSON.stringify(this.state.shapValues)) {
       this.setState({ shapValues });
     }
@@ -146,6 +168,7 @@ class XAIShapPage extends Component {
   render() {
     const { 
       modelId,
+      label,
       maxDisplay, 
       positiveChecked,
       negativeChecked,
@@ -160,7 +183,8 @@ class XAIShapPage extends Component {
     const features = getFilteredFeatures(app);
     const selectFeaturesOptions = getFilteredFeaturesOptions(app);
     const numberFeatures = getNumberFeatures(app);
-
+    const labelsOptions = getLabelsOptions(modelId);
+    
     const filteredValuesShap = shapValues.filter((d) => {
       if (d.importance_value > 0 && positiveChecked) return true;
       if (d.importance_value < 0 && negativeChecked) return true;
@@ -313,8 +337,26 @@ class XAIShapPage extends Component {
                 </div>
               </div>
               &nbsp;&nbsp;&nbsp;
+              <Tooltip title="Select a label">
+                <Select
+                  showSearch allowClear
+                  value={this.state.label}
+                  placeholder="Select a label ..."
+                  onChange={v => this.setState({ label: v })}
+                  optionFilterProp="children"
+                  filterOption={(input, option) => (option?.value ?? '').includes(input)}
+                  style={{ width: 200, marginTop: '10px', marginBottom: '10px' }}
+                >
+                  {labelsOptions.map((header) => (
+                    <Option key={header} value={header}>
+                      {header}
+                    </Option>
+                  ))}
+                </Select>
+              </Tooltip>
+              &nbsp;&nbsp;&nbsp;
               <Typography.Title level={4} style={{ textAlign: 'center', fontSize: '16px' }}>
-                Average impact on predicted Malware traffic <br />
+                {`Average impact on predicted the ${this.state.label} label`} <br />
               </Typography.Title>
               <center>(Total number of features: {numberFeatures})</center>
               {shapValuesBarConfig && (

@@ -2,7 +2,7 @@
 const {
   LOG_PATH,
   MODEL_PATH,
-  DEEP_LEARNING_PATH,
+  DEEP_LEARNING_PATH, AC_PATH,
   PYTHON_CMD,
 } = require('../constants');
 
@@ -48,9 +48,14 @@ const runSHAP = (shapConfig, callback) => {
   xaiStatus.lastRunAt = Date.now();
 
   const logFile = `${LOG_PATH}xai_${modelId}.log`;
-  spawnCommand(PYTHON_CMD, [`${DEEP_LEARNING_PATH}/xai-shap.py`, modelId, numberSamples, maxDisplay], logFile, () => {
-    xaiStatus.isRunning = false;
-    console.log('Finish producing SHAP feature importance explanations');
+  let scriptPath = `${DEEP_LEARNING_PATH}/xai-shap.py`;  // default path
+  if(modelId.startsWith("ac-")) {
+    scriptPath = `${AC_PATH}/ac_xai_shap.py`;
+  }
+
+  spawnCommand(PYTHON_CMD, [scriptPath, modelId, numberSamples, maxDisplay], logFile, () => {
+      xaiStatus.isRunning = false;
+      console.log('Finish producing SHAP feature importance explanations');
   });
   
   return callback(xaiStatus);
