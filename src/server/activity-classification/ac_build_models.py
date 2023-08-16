@@ -18,6 +18,7 @@ from sklearn.metrics import confusion_matrix
 from sklearn.metrics import classification_report
 from sklearn.metrics import mean_squared_error, accuracy_score, precision_score, recall_score, f1_score
 import seaborn as sn
+import timeit
 
 acPath = str(Path.cwd()) + '/src/server/activity-classification/'
 deepLearningPath = str(Path.cwd()) + '/src/server/deep-learning/'
@@ -140,6 +141,7 @@ def build_neural_network(X_train, y_train, X_test, y_test, resultPath):
   saveConfMatrix(y_true=y_test_labels, y_pred=y_pred,
                   filepath_csv=f'{resultPath}/confusion_matrix.csv',
                   filepath_png=f'{resultPath}/confusion_matrix.jpg')
+  return keras_model
 
   
 def build_xgboost(X_train, y_train, X_test, y_test, resultPath):
@@ -181,6 +183,7 @@ def build_xgboost(X_train, y_train, X_test, y_test, resultPath):
   saveConfMatrix(y_true=y_test_labels, y_pred=y_pred,
                   filepath_csv=f'{resultPath}/confusion_matrix.csv',
                   filepath_png=f'{resultPath}/confusion_matrix.jpg')
+  return xgbc_model
 
 def build_lightgbm(X_train, y_train, X_test, y_test, resultPath):
   lgbm_model = ltb.LGBMClassifier()
@@ -218,6 +221,7 @@ def build_lightgbm(X_train, y_train, X_test, y_test, resultPath):
   saveConfMatrix(y_true=y_test_labels, y_pred=y_pred,
                   filepath_csv=f'{resultPath}/confusion_matrix.csv',
                   filepath_png=f'{resultPath}/confusion_matrix.jpg')
+  return lgbm_model 
 
 if __name__ == "__main__":
   if len(sys.argv) != 4:
@@ -238,11 +242,22 @@ if __name__ == "__main__":
       trainingRatio = buildConfig['trainingRatio']
       X_train, X_test, y_train_orig, y_test_orig = split_datasets(modelId, buildConfigFilePath)
       X_train, y_train, X_test, y_test = preprocess_datasets(X_train, X_test, y_train_orig, y_test_orig)
+      model = None
       if modelType == "Neural Network":
-        build_neural_network(X_train, y_train, X_test, y_test, resultPath)
+        model = build_neural_network(X_train, y_train, X_test, y_test, resultPath)
       elif modelType == "XGBoost":
-        build_xgboost(X_train, y_train, X_test, y_test, resultPath)
+        model = build_xgboost(X_train, y_train, X_test, y_test, resultPath)
       elif modelType == "LightGBM":
-        build_lightgbm(X_train, y_train, X_test, y_test, resultPath)
+        model = build_lightgbm(X_train, y_train, X_test, y_test, resultPath)
       else:
         print("ERROR: Model type is not valid")  
+
+      # Compute time for predictions and save it to file
+      generation_iters = 1
+      time_taken = timeit.timeit(lambda: model.predict(X_test), number=generation_iters)
+      print("Time taken for predictions in seconds: ", time_taken)
+      statsfile = os.path.join(resultPath, 'time_stats.txt') 
+      print(statsfile)
+      with open(statsfile, "w") as f:
+        f.write(str(time_taken))
+        f.close()
