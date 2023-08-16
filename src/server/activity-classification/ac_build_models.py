@@ -23,6 +23,11 @@ deepLearningPath = str(Path.cwd()) + '/src/server/deep-learning/'
 #acPath = "/home/strongcourage/maip/src/server/activity-classification/"
 #deepLearningPath = "/home/strongcourage/maip/src/server/deep-learning/"
 
+def saveStats(y_true, y_pred, filepath):
+  report = classification_report(y_true, y_pred, output_dict=True)
+  stats = pd.DataFrame(report).transpose()
+  stats.to_csv(filepath, header=True)
+
 def split_datasets(modelId, buildConfigFilePath):
   # Load dataset
   datasetFilePath = os.path.join(acPath,'datasets/', dataset)
@@ -83,7 +88,7 @@ def preprocess_datasets(X_train, X_test, y_train_orig, y_test_orig):
 
   return X_train, y_train, X_test, y_test
 
-def build_neural_network(X_train, y_train, X_test, y_test):
+def build_neural_network(X_train, y_train, X_test, y_test, resultPath):
   # Define the Keras model
   keras_model = Sequential()
   keras_model.add(Dense(12, input_shape=(21,), activation='relu'))
@@ -106,8 +111,27 @@ def build_neural_network(X_train, y_train, X_test, y_test):
   print(classification_report(y_test, y_pred))
   print('\nAccuracy: {:.2f}\n'.format(accuracy_score(y_test, y_pred)))
 
+  y_pred_proba = keras_model.predict(X_test)
+  y_pred = y_pred_proba.argmax(axis=1) + 1  # transforming one-hot encoding to class labels
+
+  # Create DataFrame for predictions and save to CSV
+  df_pred = pd.DataFrame({
+    'prediction': y_pred,
+    'true_label': y_test.argmax(axis=1) + 1  # transforming one-hot encoding to class labels
+  })
+  df_pred.to_csv(f'{resultPath}/predictions.csv', index=False, header=False)
+
+  # Create DataFrame for predicted probabilities and save to CSV
+  df_proba = pd.DataFrame(y_pred_proba, columns=['Web', 'Interactive', 'Video'])
+  df_proba.to_csv(f'{resultPath}/predicted_probabilities.csv', index=False)
+
+  # Transforming y_test from one-hot encoded to class labels
+  y_test_labels = y_test.argmax(axis=1) + 1
+  cm = confusion_matrix(y_test_labels, y_pred)
+  saveStats(y_true=y_test_labels, y_pred=y_pred, filepath=f'{resultPath}/stats.csv')
+
   
-def build_xgboost(X_train, y_train, X_test, y_test):
+def build_xgboost(X_train, y_train, X_test, y_test, resultPath):
   xgbc_model = xgb.XGBClassifier()
   xgbc_model.fit(X_train, y_train)
 
@@ -125,11 +149,31 @@ def build_xgboost(X_train, y_train, X_test, y_test):
   print(classification_report(y_test, y_pred))
   print('\nAccuracy: {:.2f}\n'.format(accuracy_score(y_test, y_pred)))
 
-def build_lightgbm(X_train, y_train, X_test, y_test):
+  y_pred_proba = xgbc_model.predict_proba(X_test)
+  y_pred = y_pred_proba.argmax(axis=1) + 1  # transforming one-hot encoding to class labels
+
+  # Create DataFrame for predictions and save to CSV
+  df_pred = pd.DataFrame({
+    'prediction': y_pred,
+    'true_label': y_test.argmax(axis=1) + 1  # transforming one-hot encoding to class labels
+  })
+  df_pred.to_csv(f'{resultPath}/predictions.csv', index=False, header=False)
+
+  # Create DataFrame for predicted probabilities and save to CSV
+  df_proba = pd.DataFrame(y_pred_proba, columns=['Web', 'Interactive', 'Video'])
+  df_proba.to_csv(f'{resultPath}/predicted_probabilities.csv', index=False)
+
+  # Transforming y_test from one-hot encoded to class labels
+  y_test_labels = y_test.argmax(axis=1) + 1
+  cm = confusion_matrix(y_test_labels, y_pred)
+  saveStats(y_true=y_test_labels, y_pred=y_pred, filepath=f'{resultPath}/stats.csv')
+
+def build_lightgbm(X_train, y_train, X_test, y_test, resultPath):
   lgbm_model = ltb.LGBMClassifier()
   lgbm_model.fit(X_train, y_train_orig)
 
   y_pred = lgbm_model.predict(X_test)
+  y_pred_proba = lgbm_model.predict_proba(X_test)  # Get predicted probabilities
   #y_pred = (y_pred > 0.5) 
 
   r_2_score = metrics.r2_score(y_test_orig, y_pred)
@@ -142,14 +186,30 @@ def build_lightgbm(X_train, y_train, X_test, y_test):
   print(classification_report(y_test_orig, y_pred))
   print('\nAccuracy: {:.2f}\n'.format(accuracy_score(y_test_orig, y_pred)))
 
+  # Create DataFrame for predictions and save to CSV
+  df_pred = pd.DataFrame({
+    'prediction': y_pred.flatten(),
+    'true_label': y_test_orig['output'].values.flatten()
+  })
+  df_pred.to_csv(f'{resultPath}/predictions.csv', index=False, header=False)
+
+  # Create DataFrame for predicted probabilities and save to CSV
+  df_proba = pd.DataFrame(y_pred_proba, columns=['Web', 'Interactive', 'Video'])
+  df_proba.to_csv(f'{resultPath}/predicted_probabilities.csv', index=False)
+
+  # Transforming y_test from one-hot encoded to class labels
+  y_test_labels = y_test.argmax(axis=1) + 1
+  cm = confusion_matrix(y_test_labels, y_pred)
+  saveStats(y_true=y_test_labels, y_pred=y_pred, filepath=f'{resultPath}/stats.csv')
 
 if __name__ == "__main__":
-  if len(sys.argv) != 3:
+  if len(sys.argv) != 4:
     print('Invalid inputs')
-    print('python ac_build_models.py modelId buildConfig.json')
+    print('python ac_build_models.py modelId buildConfig.json resultPath')
   else:
     modelId = sys.argv[1]
-    buildConfigFilePath = sys.argv[2] 
+    buildConfigFilePath = sys.argv[2]
+    resultPath = sys.argv[3]
     # Read & parse buildConfig file
     if not os.path.exists(buildConfigFilePath):
       print("ERROR: Build config file does not exist: " + buildConfigFilePath)
@@ -162,10 +222,10 @@ if __name__ == "__main__":
       X_train, X_test, y_train_orig, y_test_orig = split_datasets(modelId, buildConfigFilePath)
       X_train, y_train, X_test, y_test = preprocess_datasets(X_train, X_test, y_train_orig, y_test_orig)
       if modelType == "Neural Network":
-        build_neural_network(X_train, y_train, X_test, y_test)
+        build_neural_network(X_train, y_train, X_test, y_test, resultPath)
       elif modelType == "XGBoost":
-        build_xgboost(X_train, y_train, X_test, y_test)
+        build_xgboost(X_train, y_train, X_test, y_test, resultPath)
       elif modelType == "LightGBM":
-        build_lightgbm(X_train, y_train, X_test, y_test)
+        build_lightgbm(X_train, y_train, X_test, y_test, resultPath)
       else:
         print("ERROR: Model type is not valid")  
