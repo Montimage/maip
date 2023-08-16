@@ -14,11 +14,13 @@ import {
   BOX_STYLE, FORM_LAYOUT,
   SERVER_URL,
   ACC_METRICS_MENU_ITEMS, COLUMNS_CURRENTNESS_METRICS, HEADER_ACCURACY_STATS,
-  COLUMNS_PERF_STATS
+  AC_COLUMNS_PERF_STATS, AD_COLUMNS_PERF_STATS,
+  AC_OUTPUT_LABELS, AD_OUTPUT_LABELS,
 } from "../constants";
 import {
   getFilteredModelsOptions,
   getLastPath,
+  isACModel,
 } from "../utils";
 
 let isModelIdPresent = getLastPath() !== "accountability";
@@ -243,80 +245,68 @@ class AccountabilityMetricsPage extends Component {
     this.setState({ dataPrecision: dataPrecision });
   }
 
+  calculateMetrics(TP, FP, FN) {
+    const precision = Number((TP / (TP + FP)).toFixed(6));
+    const recall = Number((TP / (TP + FN)).toFixed(6));
+    const f1Score = Number((2 * precision * recall / (precision + recall)).toFixed(6));
+    const support = TP + FN;
+    return [precision, recall, f1Score, support];
+  }
+
+  computeAccuracy(confusionMatrix) {
+    const correctPredictions = confusionMatrix.reduce((sum, row, i) => sum + row[i], 0);
+    const totalPredictions = confusionMatrix.reduce((sum, row) => sum + row.reduce((a, b) => a + b, 0), 0);
+    return (correctPredictions / totalPredictions).toFixed(6);
+  }
+
   updateConfusionMatrix() {
-    const { predictions, cutoffProb } = this.state;
-    const TP = predictions.filter((d) => d.trueLabel === 1 && d.prediction >= cutoffProb).length;
-    const FP = predictions.filter((d) => d.trueLabel === 0 && d.prediction >= cutoffProb).length;
-    const TN = predictions.filter((d) => d.trueLabel === 0 && d.prediction < cutoffProb).length;
-    const FN = predictions.filter((d) => d.trueLabel === 1 && d.prediction < cutoffProb).length;
-    const confusionMatrix = [
-      [TP, FP],
-      [FN, TN],
-    ];
+    const { modelId, predictions, cutoffProb } = this.state;
 
-    this.setState({ confusionMatrix });
+    // TODO: add another cutoff Slider
+    let highCutoff = cutoffProb;
+    let lowCutoff = 0.33; 
 
-    const accuracy = (TP + TN) / (TP + TN + FP + FN);
-    const precision = TP / (TP + FP);
-    const recall = TP / (TP + FN);
-    const f1Score = (2 * precision * recall) / (precision + recall);
+    // Initialize confusion matrix
+    const classificationLabels = isACModel(modelId) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
+    const numClasses = classificationLabels.length; 
+    let confusionMatrix = Array.from({ length: numClasses }, () => Array(numClasses).fill(0));
+    let stats = [];
 
-    const precisionPositive = TP / (TP + FP);
-    const recallPositive = TP / (TP + FN);
-    const f1ScorePositive = (2 * precisionPositive * recallPositive) / (precisionPositive + recallPositive);
-    const supportPositive = TP + FN;
+    predictions.forEach((d) => {
+      if (isNaN(d.prediction) || isNaN(d.trueLabel)) return; // Skip NaN values
+      let predictedClass;
+      if (isACModel(modelId)) {
+        predictedClass = Math.round(d.prediction) - 1;
+      } else {
+        predictedClass = d.prediction >= cutoffProb ? 1 : 0;
+      }
+      confusionMatrix[d.trueLabel - 1][predictedClass]++;
+    });
 
-    const precisionNegative = TN / (TN + FN);
-    const recallNegative = TN / (TN + FP);
-    const f1ScoreNegative = (2 * precisionNegative * recallNegative) / (precisionNegative + recallNegative);
-    const supportNegative = TN + FP;
+    for (let i = 0; i < numClasses; i++) {
+      const TP = confusionMatrix[i][i];
+      const FP = confusionMatrix.map(row => row[i]).reduce((a, b) => a + b) - TP;
+      const FN = confusionMatrix[i].reduce((a, b) => a + b) - TP;
+      stats.push(this.calculateMetrics(TP, FP, FN));
+    }
 
-    //console.log({accuracy, precision, recall, f1Score});
-    //console.log({precisionPositive, recallPositive, f1ScorePositive, supportPositive});
-    //console.log({precisionNegative, recallNegative, f1ScoreNegative, supportNegative});
+    this.setState({ stats, confusionMatrix });
 
-    const stats = [
-      [precisionPositive, recallPositive, f1ScorePositive, supportPositive],
-      [precisionNegative, recallNegative, f1ScoreNegative, supportNegative],
-      [accuracy],
-    ];
-
-    this.setState({ stats: stats });
-
-    const classificationData = [
-      {
+    const classificationData = classificationLabels.map((label, index) => {
+      return {
         "cutoffProb": "Below cutoff",
-        "class": "Normal traffic",
-        "value": TN
-      },
-      {
-        "cutoffProb": "Below cutoff",
-        "class": "Malware traffic",
-        "value": FP
-      },
-      {
+        "class": label,
+        "value": confusionMatrix[index][index] // Diagonal of confusion matrix gives correct predictions
+      }
+    }).concat(classificationLabels.map((label, index) => {
+      return {
         "cutoffProb": "Above cutoff",
-        "class": "Normal traffic",
-        "value": FN
-      },
-      {
-        "cutoffProb": "Above cutoff",
-        "class": "Malware traffic",
-        "value": TP
-      },
-      {
-        "cutoffProb": "Total",
-        "class": "Normal traffic",
-        "value": (TN + FN)
-      },
-      {
-        "cutoffProb": "Total",
-        "class": "Malware traffic",
-        "value": (TP + FP)
-      },
-    ];    
+        "class": label,
+        "value": confusionMatrix.reduce((acc, row) => acc + row[index], 0) - confusionMatrix[index][index]  // Sum of column minus correct prediction
+      }
+    }));
 
-    this.setState({ classificationData: classificationData });
+    this.setState({ stats, classificationData });
   }
 
   handleCutoffProbChange(value) {
@@ -384,34 +374,52 @@ class AccountabilityMetricsPage extends Component {
 
     const modelsOptions = getFilteredModelsOptions(app, models);
 
+    console.log(stats);
     const statsStr = stats.map((row, i) => `${i},${row.join(',')}`).join('\n');
     const rowsStats = statsStr.split('\n').map(row => row.split(','));
     let dataStats = [];
-    if(rowsStats.length == 3) {
-      const accuracy = parseFloat(rowsStats[2][1]);
-      dataStats = HEADER_ACCURACY_STATS.map((metric, i) => ({
-        key: (i).toString(),
-        metric,
-        class0: +rowsStats[0][i+1],
-        class1: +rowsStats[1][i+1],
-      }));
-      dataStats.push({
-        key: '5',
-        metric: 'accuracy',
-        class0: accuracy,
-        class1: accuracy,
+
+    // Determine the number of classes based on model type
+    const classificationLabels = isACModel(modelId) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
+    const numClasses = modelId && classificationLabels.length;
+    const accuracy = this.computeAccuracy(confusionMatrix);
+
+    // Loop over the rows in rowsStats excluding the accuracy row
+    for (let rowIndex = 0; rowIndex < numClasses; rowIndex++) {
+      const row = rowsStats[rowIndex];
+      HEADER_ACCURACY_STATS.forEach((metric, metricIndex) => {
+        if (!dataStats[metricIndex]) {
+          dataStats[metricIndex] = {
+            key: metricIndex.toString(),
+            metric,
+          };
+        }
+        if (row && row[metricIndex + 1]) {
+          dataStats[metricIndex]['class' + rowIndex] = +row[metricIndex + 1];
+        }
       });
     }
 
+    // Append the accuracy metric to the stats
+    const accuracyRow = {
+      key: dataStats.length.toString(),
+      metric: 'accuracy',
+    };
+    for (let i = 0; i < numClasses; i++) {
+      accuracyRow['class' + i] = accuracy;
+    }
+    dataStats.push(accuracyRow);
+
+    console.log(dataStats);
+
     const cmStr = confusionMatrix.map((row, i) => `${i},${row.join(',')}`).join('\n');
-    const headers = ["Normal traffic", "Malware traffic"];
     const rows = cmStr.trim().split('\n');
     const data = rows.flatMap((row, i) => {
       const cols = row.split(',');
       const rowTotal = cols.slice(1).reduce((acc, val) => acc + Number(val), 0);
       return cols.slice(1).map((val, j) => ({
-        actual: headers[i],
-        predicted: headers[j],
+        actual: classificationLabels[i],
+        predicted: classificationLabels[j],
         count: Number(val),
         percentage: `${((Number(val) / rowTotal) * 100).toFixed(2)}%`,
       }));
@@ -689,7 +697,7 @@ class AccountabilityMetricsPage extends Component {
                   <Button type="link" icon={<QuestionOutlined />} />
                 </Tooltip>
               </div>
-              {dataStats && <Table columns={COLUMNS_PERF_STATS} dataSource={dataStats} pagination={false}
+              {dataStats && <Table columns={AC_COLUMNS_PERF_STATS} dataSource={dataStats} pagination={false}
                 style={{ marginTop: '20px' }} />}
             </div>
           </Col>
@@ -702,7 +710,7 @@ class AccountabilityMetricsPage extends Component {
                 </Tooltip>
               </div>
               <div style={{ display: 'flex', justifyContent: 'center', width: '100%', flex: 1, flexWrap: 'wrap', marginTop: '20px' }}>
-                <div style={{ position: 'relative', height: '320px', width: '100%', maxWidth: '390px' }}>
+                <div style={{ position: 'relative', height: '300px', width: '100%', maxWidth: '340px' }}>
                   <Heatmap {...configCM} />
                 </div>
               </div>

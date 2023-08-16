@@ -17,6 +17,7 @@ from sklearn.metrics import ConfusionMatrixDisplay
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import classification_report
 from sklearn.metrics import mean_squared_error, accuracy_score, precision_score, recall_score, f1_score
+import seaborn as sn
 
 acPath = str(Path.cwd()) + '/src/server/activity-classification/'
 deepLearningPath = str(Path.cwd()) + '/src/server/deep-learning/'
@@ -27,6 +28,13 @@ def saveStats(y_true, y_pred, filepath):
   report = classification_report(y_true, y_pred, output_dict=True)
   stats = pd.DataFrame(report).transpose()
   stats.to_csv(filepath, header=True)
+
+def saveConfMatrix(y_true, y_pred, filepath_csv, filepath_png):
+  cm = confusion_matrix(y_true, y_pred)
+  pd.DataFrame(cm).to_csv(filepath_csv)
+  df_cfm = pd.DataFrame(cm, index=['1', '2', '3'], columns=['1', '2', '3'])
+  cfm_plot = sn.heatmap(df_cfm, annot=True, fmt='.1f')
+  cfm_plot.figure.savefig(filepath_png)
 
 def split_datasets(modelId, buildConfigFilePath):
   # Load dataset
@@ -129,6 +137,9 @@ def build_neural_network(X_train, y_train, X_test, y_test, resultPath):
   y_test_labels = y_test.argmax(axis=1) + 1
   cm = confusion_matrix(y_test_labels, y_pred)
   saveStats(y_true=y_test_labels, y_pred=y_pred, filepath=f'{resultPath}/stats.csv')
+  saveConfMatrix(y_true=y_test_labels, y_pred=y_pred,
+                  filepath_csv=f'{resultPath}/confusion_matrix.csv',
+                  filepath_png=f'{resultPath}/confusion_matrix.jpg')
 
   
 def build_xgboost(X_train, y_train, X_test, y_test, resultPath):
@@ -167,6 +178,9 @@ def build_xgboost(X_train, y_train, X_test, y_test, resultPath):
   y_test_labels = y_test.argmax(axis=1) + 1
   cm = confusion_matrix(y_test_labels, y_pred)
   saveStats(y_true=y_test_labels, y_pred=y_pred, filepath=f'{resultPath}/stats.csv')
+  saveConfMatrix(y_true=y_test_labels, y_pred=y_pred,
+                  filepath_csv=f'{resultPath}/confusion_matrix.csv',
+                  filepath_png=f'{resultPath}/confusion_matrix.jpg')
 
 def build_lightgbm(X_train, y_train, X_test, y_test, resultPath):
   lgbm_model = ltb.LGBMClassifier()
@@ -201,6 +215,9 @@ def build_lightgbm(X_train, y_train, X_test, y_test, resultPath):
   y_test_labels = y_test.argmax(axis=1) + 1
   cm = confusion_matrix(y_test_labels, y_pred)
   saveStats(y_true=y_test_labels, y_pred=y_pred, filepath=f'{resultPath}/stats.csv')
+  saveConfMatrix(y_true=y_test_labels, y_pred=y_pred,
+                  filepath_csv=f'{resultPath}/confusion_matrix.csv',
+                  filepath_png=f'{resultPath}/confusion_matrix.jpg')
 
 if __name__ == "__main__":
   if len(sys.argv) != 4:

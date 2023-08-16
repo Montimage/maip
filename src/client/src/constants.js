@@ -405,7 +405,7 @@ const TABLE_BUILD_CONFIGS = [
   },
 ];
 
-const COLUMNS_PERF_STATS = [
+const AD_COLUMNS_PERF_STATS = [
   {
     title: 'Metric',
     dataIndex: 'metric',
@@ -423,6 +423,28 @@ const COLUMNS_PERF_STATS = [
   },
 ];
 
+const AC_COLUMNS_PERF_STATS = [
+  {
+    title: 'Metric',
+    dataIndex: 'metric',
+    key: 'metric',
+  },
+  {
+    title: 'Web',
+    dataIndex: 'class0',
+    key: 'class0',
+  },
+  {
+    title: 'Interactive',
+    dataIndex: 'class1',
+    key: 'class1',
+  },
+  {
+    title: 'Video',
+    dataIndex: 'class2',
+    key: 'class2',
+  },
+];
 
 const ATTACK_OPTIONS = 
   [
@@ -652,7 +674,7 @@ module.exports = {
   SERVER_HOST, SERVER_PORT, SERVER_URL,
   AD_FEATURES_DESCRIPTIONS, FEATURES_OPTIONS,
   AC_FEATURES_DESCRIPTIONS,
-  CRITERIA_LIST, TABLE_BUILD_CONFIGS, COLUMNS_PERF_STATS, 
+  CRITERIA_LIST, TABLE_BUILD_CONFIGS, AC_COLUMNS_PERF_STATS, AD_COLUMNS_PERF_STATS,  
   ATTACK_OPTIONS,
   BIN_CHOICES, DATASET_TABLE_STATS, DATASET_MENU_ITEMS,
   COLUMNS_CURRENTNESS_METRICS, ACC_METRICS_MENU_ITEMS,

@@ -251,6 +251,7 @@ const getLabelsOptions = (modelId) => {
   return modelId && modelId.startsWith('ac-') ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
 }
 
+const isACModel = modelId => modelId && modelId.startsWith('ac-');
 
 export {
   getQuery,
@@ -270,4 +271,5 @@ export {
   getNumberFeatures,
   getLabelAndColorScatterPlot,
   getLabelsOptions,
+  isACModel,
 };
