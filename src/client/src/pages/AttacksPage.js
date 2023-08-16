@@ -9,6 +9,9 @@ import {
 } from "../actions";
 import { 
   getLastPath,
+  getFilteredModelsOptions,
+  getLabelsOptions,
+  isACModel,
 } from "../utils";
 import Papa from "papaparse";
 import { Column, G2} from '@ant-design/plots';
@@ -17,7 +20,9 @@ import { QuestionOutlined } from "@ant-design/icons";
 import {
   FORM_LAYOUT, BOX_STYLE,
   SERVER_URL,
-  ATTACK_OPTIONS, ATTACKS_SLIDER_MARKS
+  ATTACK_OPTIONS, ATTACKS_SLIDER_MARKS, 
+  AC_OUTPUT_LABELS, AD_OUTPUT_LABELS,
+  AC_CLASS_MAPPING, AD_CLASS_MAPPING,
 } from "../constants";
 
 let isModelIdPresent = getLastPath() !== "attacks";
@@ -54,10 +59,14 @@ class AttacksPage extends Component {
       this.setState({ targetClass: null, checkboxValues: [] });
     } else {
       if (checkedValues.length === 1) {
-        if (checkedValues[0].includes('Malware')) {
-          targetClass = 1;
+        const labelMapping = isACModel ? AC_CLASS_MAPPING : AD_CLASS_MAPPING;
+        const targetClasses = Object.keys(labelMapping).filter(
+                                key => labelMapping[key] === checkedValues[0]);
+        
+        if (targetClasses.length > 0) {
+            targetClass = parseInt(targetClasses[0]);
         } else {
-          targetClass = 0;
+            message.error(`Invalid option for ${isACModel ? 'AC' : 'AD'} model`);
         }
       }
       this.setState({ targetClass, checkboxValues: checkedValues });
@@ -148,6 +157,49 @@ class AttacksPage extends Component {
     }
   }
 
+  updateData(modelId, csvDataOriginal, csvDataPoisoned) {
+    const CLASS_LABELS = isACModel(modelId) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
+    const CLASS_MAPPING = isACModel(modelId) ? AC_CLASS_MAPPING : AD_CLASS_MAPPING;
+
+    const labelsDataOriginal = csvDataOriginal.map((row) => CLASS_MAPPING[row.output]);
+    const labelsDataPoisoned = csvDataPoisoned.map((row) => CLASS_MAPPING[parseInt(row.output)]);
+    console.log(labelsDataOriginal);
+    console.log(labelsDataPoisoned);
+
+    const totalSamples = labelsDataOriginal.length;
+    const groupedDataOriginal = labelsDataOriginal.reduce((acc, label) => {
+      acc[label] = (acc[label] || 0) + 1;
+      return acc;
+    }, {});
+    const groupedDataPoisoned = labelsDataPoisoned.reduce((acc, label) => {
+      acc[label] = (acc[label] || 0) + 1;
+      return acc;
+    }, {});
+
+    const dataLabelsColumn = [];
+    // Generate data for each class label for both the original and poisoned datasets
+    CLASS_LABELS.forEach(label => {
+      dataLabelsColumn.push(
+        {
+          "datasetType": "original",
+          "class": label,
+          "count": (groupedDataOriginal[label] || 0),
+          "value": ((groupedDataOriginal[label] || 0) * 100) / totalSamples
+        },
+        {
+          "datasetType": "poisoned",
+          "class": label,
+          "count": (groupedDataPoisoned[label] || 0),
+          "value": ((groupedDataPoisoned[label] || 0) * 100) / totalSamples
+        }
+      );
+    });
+
+    console.log(dataLabelsColumn);
+
+    return dataLabelsColumn;
+  }
+
   render() {
     const {
       modelId,
@@ -164,67 +216,10 @@ class AttacksPage extends Component {
     } = this.props;
     console.log(models);
     console.log(`Attacks isRunning: ${attacksStatus.isRunning}`);
-
-    let filteredModels = [];
-    let targetOptions = [];
-    if (app === 'ac') {
-      filteredModels = models.filter(model => model.modelId.startsWith('ac-'));
-      targetOptions = ['Web', 'Interaction', 'Video']; 
-    } else if (app === 'ad') {
-      filteredModels = models.filter(model => !model.modelId.startsWith('ac-'));
-      targetOptions = ['Normal traffic', 'Malware traffic'];
-    } else {
-      // TODO: handle the RCA app
-      targetOptions = ['Normal traffic', 'Malware traffic'];
-    }
-    const modelsOptions = filteredModels ? filteredModels.map(model => ({
-      value: model.modelId,
-      label: model.modelId,
-    })) : [];
-    console.log(modelsOptions);
-
-    const labelsDataOriginal = csvDataOriginal.map((row) => row.malware);
-    const labelsDataPoisoned = csvDataPoisoned.map((row) => parseInt(row.malware).toString());
-    //console.log(labelsDataOriginal);
-    //console.log(labelsDataPoisoned);
-    const totalSamples = labelsDataOriginal.length;
-    const groupedDataOriginal = labelsDataOriginal.reduce((acc, label) => {
-      acc[label] = (acc[label] || 0) + 1;
-      return acc;
-    }, {});
-    const groupedDataPoisoned = labelsDataPoisoned.reduce((acc, label) => {
-      acc[label] = (acc[label] || 0) + 1;
-      return acc;
-    }, {});
-    console.log(groupedDataOriginal);
-    console.log(groupedDataPoisoned);
-
-    const dataLabelsColumn = [
-      {
-        "datasetType": "original",
-        "class": "Normal traffic",
-        "count": (groupedDataOriginal['0'] || 0),
-        "value": ((groupedDataOriginal['0'] || 0) * 100) / totalSamples
-      },
-      {
-        "datasetType": "original",
-        "class": "Malware traffic",
-        "count": (groupedDataOriginal['1'] || 0),
-        "value": ((groupedDataOriginal['1'] || 0) * 100) / totalSamples
-      },
-      {
-        "datasetType": "poisoned",
-        "class": "Normal traffic",
-        "count": (groupedDataPoisoned['0'] || 0),
-        "value": ((groupedDataPoisoned['0'] || 0) * 100) / totalSamples
-      },
-      {
-        "datasetType": "poisoned",
-        "class": "Malware traffic",
-        "count": (groupedDataPoisoned['1'] || 0),
-        "value": ((groupedDataPoisoned['1'] || 0) * 100) / totalSamples
-      },
-    ];
+    
+    const modelsOptions = getFilteredModelsOptions(app, models);
+    const targetOptions = getLabelsOptions(modelId);
+    const dataLabelsColumn = this.updateData(modelId, csvDataOriginal, csvDataPoisoned);
 
     G2.registerInteraction('element-link', {
       start: [
@@ -301,7 +296,6 @@ class AttacksPage extends Component {
                   this.setState({ modelId: value });
                   console.log(`Select model ${value}`);
                 }}
-                //optionLabelProp="label"
                 options={modelsOptions}
               />
             </Tooltip>
@@ -351,7 +345,7 @@ class AttacksPage extends Component {
             />
           </Form.Item>
           <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <Button type="primary" //>icon={<BugOutlined />}
+            <Button type="primary"
               onClick={() => {
                 console.log({ modelId, selectedAttack, poisoningRate, targetClass });
                 this.handlePerformAttackClick(modelId, selectedAttack, poisoningRate, targetClass);

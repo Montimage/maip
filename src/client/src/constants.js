@@ -667,6 +667,17 @@ const ATTACKS_SLIDER_MARKS = {
   100: '100',
 };
 
+const AD_CLASS_MAPPING = {
+  0: 'Normal traffic',
+  1: 'Malware traffic'
+};
+
+const AC_CLASS_MAPPING = {
+  1: 'Web',
+  2: 'Interactive',
+  3: 'Video'
+};
+
 module.exports = {
   MENU_OPTIONS,
   FORM_LAYOUT, BOX_STYLE,
@@ -682,5 +693,5 @@ module.exports = {
   SHAP_URL, COLUMNS_TOP_FEATURES, XAI_SLIDER_MARKS,
   AD_OUTPUT_LABELS, AC_OUTPUT_LABELS,
   LIME_URL, COLUMNS_TABLE_PROBS,
-  ATTACKS_SLIDER_MARKS
+  ATTACKS_SLIDER_MARKS, AD_CLASS_MAPPING, AC_CLASS_MAPPING,
 };

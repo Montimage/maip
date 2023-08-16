@@ -9,8 +9,10 @@ import random
 from datetime import datetime
 from tools import dataScale_cnn
 import constants
+from collections import Counter
 
 deepLearningPath = str(Path.cwd()) + '/src/server/deep-learning/'
+#deepLearningPath = "/home/strongcourage/maip/src/server/deep-learning/"
 
 def running_poisoning_attacks(modelId, typePoisoningAttacks, poisoningRate, targetClass):
 
@@ -27,13 +29,15 @@ def running_poisoning_attacks(modelId, typePoisoningAttacks, poisoningRate, targ
 
   output_path = deepLearningPath + '/trainings/' + model_name
   output_datasets_path = output_path + '/datasets/'
-  train_data_path = os.path.join(output_datasets_path,'Train_samples.csv')
-  test_data_path = os.path.join(output_datasets_path,'Test_samples.csv')
+  train_data_path = os.path.join(output_datasets_path, 'Train_samples.csv')
+  test_data_path = os.path.join(output_datasets_path, 'Test_samples.csv')
 
-  train_data = pd.read_csv(train_data_path, delimiter=",")
-  #train_data.drop(columns=['ip.session_id', 'meta.direction'], inplace=True)
-  test_data = pd.read_csv(test_data_path, delimiter=",")
-  #test_data.drop(columns=['ip.session_id', 'meta.direction'], inplace=True)
+  if 'ac-' in modelId:
+    train_data = pd.read_csv(train_data_path, delimiter=";")
+    test_data = pd.read_csv(test_data_path, delimiter=";")
+  else: 
+    train_data = pd.read_csv(train_data_path, delimiter=",")
+    test_data = pd.read_csv(test_data_path, delimiter=",")
 
   X_poisoned_train = train_data.iloc[:, :-1].copy().values.tolist()
   y_poisoned_train = train_data.iloc[:, -1].copy().values.tolist()
@@ -71,20 +75,28 @@ def running_poisoning_attacks(modelId, typePoisoningAttacks, poisoningRate, targ
     flip_amount = int(len(X_poisoned_train) * int(poisoningRate) * 0.01)
     original_count = len(train_data) - flip_amount
     poison_count = flip_amount
-
     print(len(X_poisoned_train) >= flip_amount)
+
+    different_label_count = 0
+
     if len(X_poisoned_train) >= flip_amount:
       for i in range(flip_amount):
         flip_id_1 = random.randint(0, len(y_poisoned_train) - 1)
         flip_id_2 = random.randint(0, len(y_poisoned_train) - 1)
-        y_poisoned_train[flip_id_1], y_poisoned_train[flip_id_2] = y_poisoned_train[flip_id_2], y_poisoned_train[flip_id_1]
+        #print("print(flip_id_1): " + str(flip_id_1) + "-" + str(y_poisoned_train[flip_id_1]))
+        #print("print(flip_id_2): " + str(flip_id_2) + "-" + str(y_poisoned_train[flip_id_2]))
+
+        # Check if labels of flip_id_1 and flip_id_2 are different
+        if y_poisoned_train[flip_id_1] != y_poisoned_train[flip_id_2]:
+          different_label_count += 1
+          y_poisoned_train[flip_id_1], y_poisoned_train[flip_id_2] = y_poisoned_train[flip_id_2], y_poisoned_train[flip_id_1]
+    print(f"Out of {poison_count} swaps, {different_label_count} times the two instances had different labels.")
 
   elif typePoisoningAttacks == 'tlf':
     print(str(targetClass))
     flip_amount = int(len(X_poisoned_train) * int(poisoningRate) * 0.01)
     original_count = len(train_data) - flip_amount
     poison_count = flip_amount
-    flip_amount = int(len(X_poisoned_train) * int(poisoningRate) * 0.01)
     if len(X_poisoned_train) >= flip_amount:
       for i in range(flip_amount):
         flip_id_1 = random.randint(0, len(y_poisoned_train) - 1)
@@ -94,6 +106,19 @@ def running_poisoning_attacks(modelId, typePoisoningAttacks, poisoningRate, targ
       raise Exception('Poison percentage should not exceed 100%')
   else:
     raise Exception('typePoisoningAttacks should be in [ctgan, rsl, tlf]')
+
+  # Count occurrences of each label
+  original_label_counts = Counter(train_data.iloc[:, -1].copy().values.tolist())
+  poisoned_label_counts = Counter(y_poisoned_train)
+
+  # Output the counts
+  print("Original Training Data Label Counts:")
+  for label, count in original_label_counts.items():
+      print(f"Label {label}: {count}")
+
+  print("\nPoisoned Training Data Label Counts:")
+  for label, count in poisoned_label_counts.items():
+      print(f"Label {label}: {count}")
 
   poisoned_dataset_file = os.path.join(attacks_path, typePoisoningAttacks + '_poisoned_dataset.csv')
   print(poisoned_dataset_file)
@@ -106,10 +131,15 @@ def running_poisoning_attacks(modelId, typePoisoningAttacks, poisoningRate, targ
   pd.DataFrame(poisoned_data).to_csv(poisoned_dataset_file, header=None, index=False)
 
   # work around code to append the header to the beginning of the csv file
+  str_features = None
+  if 'ac-' in modelId:
+    str_features = constants.AC_STR_FEATURES
+  else:
+    str_features = constants.AD_STR_FEATURES
   with open(poisoned_dataset_file, 'r') as file:
     data = file.read()
   with open(poisoned_dataset_file, 'w') as file:
-    file.write(constants.STR_FEATURES)
+    file.write(str_features)
     file.write(data)
 
 
