@@ -9,6 +9,7 @@ const csv = require('csv-parser');
 const fsex = require('fs-extra'); // Use fs-extra
 const router = express.Router();
 const {
+  OUTPUT_DIRS,
   MODEL_PATH, TRAINING_PATH, PREDICTION_PATH, XAI_PATH, ATTACKS_PATH,
 } = require('../constants');
 const {
@@ -216,13 +217,11 @@ router.get('/:modelId/predictions', (req, res, next) => {
   });
 });
 
-router.put('/:modelId', (req, res, next) => {
+router.put('/:modelId', async (req, res, next) => {
   const { modelId } = req.params;
   const { newModelId } = req.body;
   const modelFilePath = `${MODEL_PATH}${modelId}`;
   const newModelFilePath = `${MODEL_PATH}${newModelId}`;
-  const trainingModelDirPath = `${TRAINING_PATH}${modelId.replace('.h5', '')}`;
-  const newTrainingModelDirPath = `${TRAINING_PATH}${newModelId.replace('.h5', '')}`;
 
   // Check if new model directory already exists
   if (fs.existsSync(newModelFilePath)) {
@@ -231,35 +230,35 @@ router.put('/:modelId', (req, res, next) => {
     });
   }
 
-  // Rename model's name
-  fs.rename(modelFilePath, newModelFilePath, (err) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).send({
-        error: `Error renaming model's name from ${modelId} to ${newModelId}`,
-      });
-    }
-    // Rename model's training directory
-    fs.rename(trainingModelDirPath, newTrainingModelDirPath, (err) => {
-      if (err) {
-        console.error(err);
-        return res.status(500).send({
-          error: `Error renaming model's training directory from ${modelId} to ${newModelId}`,
-        });
+  try {
+    // Rename the main model file
+    await fsex.rename(modelFilePath, newModelFilePath);
+    console.log(`Model file ${modelId} has been renamed to ${newModelId}`);
+
+    // Loop through the directories and rename the model folder inside each
+    for (let dir of OUTPUT_DIRS) {
+      const modelDirPath = `${dir}/${modelId}`;
+      const newModelDirPath = `${dir}/${newModelId}`;
+
+      if (fsex.existsSync(modelDirPath)) {
+        await fsex.rename(modelDirPath, newModelDirPath);
+        console.log(`Model directory ${modelDirPath} has been renamed to ${newModelDirPath}`);
       }
-          
-      console.log(`Model ${modelId} has been renamed to ${newModelId}`);
-      res.send({
-        result: `Model ${modelId} has been renamed to ${newModelId}`,
-      });
+    }
+
+    res.send({
+      result: `Model ${modelId} has been renamed to ${newModelId}`,
     });
-  });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({
+      error: `Error renaming model from ${modelId} to ${newModelId}`,
+    });
+  }
 });
 
 router.delete('/:modelId', async (req, res, next) => {
   const { modelId } = req.params;
-  
-  const OUTPUT_DIRS = [TRAINING_PATH, PREDICTION_PATH, XAI_PATH, ATTACKS_PATH];
   const modelFilePath = `${MODEL_PATH}${modelId}`;
 
   try {

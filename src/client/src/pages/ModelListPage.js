@@ -110,6 +110,7 @@ class ModelListPage extends Component {
         width: '30%',
         render: (model) => (
           <Text
+            onClick={() => console.log('Text clicked!')}
             copyable={{
               text: model.modelId,
               tooltip: 'Copy',
@@ -120,6 +121,12 @@ class ModelListPage extends Component {
               tooltip: 'Edit',
               onChange: (newModelId) => {
                 updateModel(model.modelId, newModelId);
+                // TODO: notification is not showed up
+                notification.success({
+                  type: 'success',
+                  message: `Model ${model.modelId} name has been updated to ${newModelId}`,
+                  placement: 'topRight',
+                });
               },
             }}
             keyboard

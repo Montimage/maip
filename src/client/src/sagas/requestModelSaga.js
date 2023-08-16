@@ -78,10 +78,6 @@ function* handleRequestUpdateModel(action) {
   try {
     const { modelId, newModelId } = action.payload;
     yield call(() => requestUpdateModel(modelId, newModelId));
-    yield put(setNotification({
-      type: 'success',
-      message: `Model ${modelId} name has been updated`
-    }));
     // Fetch the updated list of models
     const models = yield call(requestAllModels);
     yield put(setAllModels(models));

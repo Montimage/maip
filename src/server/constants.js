@@ -18,6 +18,8 @@ const PYTHON_CMD = `python3`;
 const AC_PATH = `${__dirname}/activity-classification/`;
 const AC_TRAINING_PATH = `${AC_PATH}/trainings/`;
 
+const OUTPUT_DIRS = [TRAINING_PATH, PREDICTION_PATH, XAI_PATH, ATTACKS_PATH];
+
 module.exports = {
   PYTHON_CMD,
   AC_PATH, AC_TRAINING_PATH,
@@ -35,4 +37,5 @@ module.exports = {
   ATTACKS_PATH,
   DATASETS_PATH,
   allowExtensions,
+  OUTPUT_DIRS,
 };
