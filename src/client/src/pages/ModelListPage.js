@@ -1,6 +1,6 @@
 import React, { Component } from "react";
 import { connect } from "react-redux";
-import { Tooltip, Typography, Table, Space, Button, Select } from "antd";
+import { Tooltip, Typography, Table, Space, Button, Select, notification } from "antd";
 import LayoutPage from "./LayoutPage";
 import { 
   FolderViewOutlined, DownloadOutlined,
@@ -282,7 +282,14 @@ class ModelListPage extends Component {
             {
               label: 'Delete',
               icon: <RestOutlined />,
-              onClick: () => deleteModel(model.modelId)
+              onClick: () => {
+                deleteModel(model.modelId);
+                notification.success({
+                  type: 'success',
+                  message: `Model ${model.modelId} has been deleted`,
+                  placement: 'topRight',
+                });
+              }
             }
           ];
           return (

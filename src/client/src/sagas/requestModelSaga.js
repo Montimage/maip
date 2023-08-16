@@ -65,10 +65,6 @@ function* handleRequestDeleteModel(action) {
     const modelId = action.payload;
     yield call(() => requestDeleteModel(modelId));
     yield put(deleteModelOK(modelId));
-    yield put(setNotification({
-      type: 'success',
-      message: `Model ${modelId} has been deleted`
-    }));
     // Fetch the updated list of models
     const models = yield call(requestAllModels);
     yield put(setAllModels(models));
