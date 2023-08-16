@@ -14,6 +14,7 @@ import reportsReducer from './reportsReducer';
 import metricsReducer from './metricsReducer';
 import attacksReducer from './attacksReducer';
 import attacksStatusReducer from './attacksStatusReducer';
+import buildACStatusReducer from './buildACStatusReducer';
 import buildStatusReducer from './buildStatusReducer';
 import retrainStatusReducer from './retrainStatusReducer';
 import mmtStatusReducer from './mmtStatusReducer';
@@ -35,6 +36,7 @@ const rootReducer = combineReducers({
   attacks: attacksReducer,
   attacksStatus: attacksStatusReducer,
   buildStatus: buildStatusReducer,
+  buildACStatus: buildACStatusReducer, 
   retrainStatus: retrainStatusReducer,
   mmtStatus: mmtStatusReducer,
   predict: predictReducer,

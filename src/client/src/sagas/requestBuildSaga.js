@@ -35,7 +35,7 @@ function* handleRequestBuildModel(action) {
     const buildStatus = yield call(() => requestBuildModel(datasets, ratio, params));
     console.log(buildStatus);
     yield put(setBuildStatus(buildStatus));
-    yield put(setNotification({type: 'success', message: `Build a model!`}));
+    //yield put(setNotification({type: 'success', message: `Build a model!`}));
     // dispatch data
   } catch (error) {
     // dispatch error
@@ -60,7 +60,7 @@ function* handleRequestBuildModelAC(action) {
     const buildStatus = yield call(() => 
       requestBuildModelAC(modelType, dataset, featuresList ,trainingRatio));
     console.log(buildStatus);
-    yield put(setNotification({type: 'success', message: `Build a model!`}));
+    //yield put(setNotification({type: 'success', message: `Build a model!`}));
     // dispatch data
   } catch (error) {
     // dispatch error

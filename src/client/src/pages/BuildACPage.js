@@ -6,6 +6,7 @@ import {
   requestApp,
   requestDatasetsAC,
   requestBuildModelAC,
+  requestBuildStatusAC,
 } from "../actions";
 import { connect } from 'react-redux';
 import {
@@ -22,6 +23,7 @@ class BuildACPage extends Component {
       dataset: null,
       featureList: "Raw Features",
       trainingRatio: 0.7,
+      isRunning: props.buildACStatus.isRunning,
     };
     this.handleButtonBuild = this.handleButtonBuild.bind(this);
   }
@@ -33,19 +35,55 @@ class BuildACPage extends Component {
 
   async handleButtonBuild() {
     console.log('Build model');
-    const { modelType, dataset, featureList, trainingRatio } = this.state;
+    const { modelType, dataset, featureList, trainingRatio, isRunning } = this.state;
     const buildConfig = {
       buildConfig: {
         modelType, dataset, featureList, trainingRatio
       }
     };
     console.log(buildConfig);
-    this.props.fetchBuildModelAC(modelType, dataset, featureList, trainingRatio);
+
+    if (!isRunning) {
+      console.log("update isRunning state!");
+      this.setState({ isRunning: true });        
+      this.intervalId = setInterval(() => { // start interval when button is clicked
+        this.props.fetchBuildStatusAC();
+      }, 3000);   
+
+      this.props.fetchBuildModelAC(modelType, dataset, featureList, trainingRatio);
+    }
+  }
+
+  componentDidUpdate(prevProps, prevState) {
+    const { isRunning, modelType, dataset } = this.state;
+    const { buildACStatus } = this.props;
+    console.log(`buildACStatus: ${buildACStatus.isRunning}`);
+    console.log(`build isRunning: ${isRunning}`);
+    if (prevProps.buildACStatus.isRunning !== this.props.buildACStatus.isRunning) {
+      //&&
+        //prevProps.buildACStatus.isRunning) {
+      console.log('isRunning has been changed');
+      this.setState({ isRunning: this.props.buildACStatus.isRunning });
+      if (!this.props.buildACStatus.isRunning) {
+        console.log('isRunning changed from True to False');  
+        clearInterval(this.intervalId);
+        notification.success({
+          message: 'Success',
+          description: 'The model was built successfully!',
+          placement: 'topRight',
+        });
+        this.setState({
+          modelType: null, 
+          dataset: null,
+        });
+      }
+    }
   }
 
   render() {
-    const { datasets } = this.props;
+    const { buildACStatus, datasets } = this.props;
     console.log(datasets);
+    const { isRunning } = this.state;
     const modelTypesOptions = AI_MODEL_TYPES ? AI_MODEL_TYPES.map(feature => ({
       value: feature,
       label: feature,
@@ -127,10 +165,15 @@ class BuildACPage extends Component {
             <Button
               type="primary"
               style={{ marginTop: '16px' }}
-              disabled={ !this.state.modelType || !this.state.dataset }
+              disabled={ isRunning || !this.state.modelType || !this.state.dataset }
               onClick={this.handleButtonBuild}
             >
               Build model
+              {isRunning && 
+                <Spin size="large" style={{ marginBottom: '8px' }}>
+                  <div className="content" />
+                </Spin>
+              }
             </Button>
           </div>
         </Form>
@@ -141,12 +184,13 @@ class BuildACPage extends Component {
   }
 }
 
-const mapPropsToStates = ({ app, datasets }) => ({
-  app, datasets,
+const mapPropsToStates = ({ app, buildACStatus, datasets }) => ({
+  app, buildACStatus, datasets,
 });
 
 const mapDispatchToProps = (dispatch) => ({
   fetchApp: () => dispatch(requestApp()),
+  fetchBuildStatusAC: () => dispatch(requestBuildStatusAC()),
   fetchDatasetsAC: () => dispatch(requestDatasetsAC()),
   fetchBuildModelAC: (modelType, dataset, featuresList ,trainingRatio) =>
     dispatch(requestBuildModelAC({ modelType, dataset, featuresList ,trainingRatio })),
