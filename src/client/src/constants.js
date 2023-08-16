@@ -611,7 +611,7 @@ const XAI_SLIDER_MARKS = {
   30: '30',
 };
 
-const AD_OUTPUT_LABELS = ["Malware", "Normal"];
+const AD_OUTPUT_LABELS = ["Normal", "Malware"];
 const AC_OUTPUT_LABELS = ["Web", "Interactive", "Video"];
 
 // XAILimePage.js 

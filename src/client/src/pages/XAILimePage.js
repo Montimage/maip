@@ -161,36 +161,67 @@ class XAILimePage extends Component {
     const linesProbs = predictedProbs.split('\n');
     const dataProbs = linesProbs.slice(1).map(line => line.split(','));
     const yProbs = dataProbs.map(row => row.map(val => parseFloat(val)));
-    const dataTableProbs = [
-      {
-        key: 0,
-        label: 'Normal traffic',
-        probability: sampleId && yProbs[sampleId] ? `${(yProbs[sampleId][0] * 100).toFixed(0)}%` : '-'
-      },
-      {
-        key: 1,
-        label: 'Malware traffic',
-        probability: sampleId && yProbs[sampleId] ? `${(yProbs[sampleId][1] * 100).toFixed(0)}%` : '-'
-      }
+    
+    let dataTableProbs = [];
+    let pieData = [];
+    if (modelId.startsWith('ac-')) {
+      dataTableProbs = [
+        {
+          key: 0,
+          label: 'Web',
+          probability: sampleId && yProbs[sampleId] ? yProbs[sampleId][0].toFixed(6) : '-'
+        },
+        {
+          key: 1,
+          label: 'Interactive',
+          probability: sampleId && yProbs[sampleId] ? yProbs[sampleId][1].toFixed(6) : '-'
+        },
+        {
+          key: 2,
+          label: 'Video',
+          probability: sampleId && yProbs[sampleId] ? yProbs[sampleId][2].toFixed(6) : '-'
+        }
     ];
 
-    const pieData = sampleId ? yProbs[sampleId].map((prob, i) => {
-      const label = i === 0 ? "Normal traffic" : "Malware traffic";
-      const percentage = (prob * 100).toFixed(0);
+    pieData = sampleId ? yProbs[sampleId].map((prob, i) => {
+      const percentage = parseFloat((prob * 100).toFixed(2));
       return {
-        type: label,
-        value: prob,
+        type: `${AC_OUTPUT_LABELS[i]}`,
+        value: percentage,
       };
     }) : [];
-    
+    } else {
+      dataTableProbs = [
+        {
+          key: 0,
+          label: 'Normal traffic',
+          probability: sampleId && yProbs[sampleId] ? yProbs[sampleId][0].toFixed(6) : '-'
+        },
+        {
+          key: 1,
+          label: 'Malware traffic',
+          probability: sampleId && yProbs[sampleId] ? yProbs[sampleId][1].toFixed(6) : '-'
+        }
+      ];
+
+      pieData = sampleId ? yProbs[sampleId].map((prob, i) => {
+        const percentage = parseFloat((prob * 100).toFixed(2));
+        return {
+          type: `${AD_OUTPUT_LABELS[i]}`,
+          value: percentage,
+        };
+      }) : [];
+    }
+
     this.setState({ 
       pieData: pieData,
       dataTableProbs: dataTableProbs,
     });
+    
   }
 
   async fetchNewValues(modelId, label) {
-    const labelsOptions = modelId.includes('ac-') ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
+    const labelsOptions = modelId.startsWith('ac-') ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
     const labelIndex = labelsOptions.indexOf(label);
 
     if (labelIndex === -1) {
@@ -239,7 +270,7 @@ class XAILimePage extends Component {
       label: {
         type: 'inner',
         offset: '-50%',
-        content: '{value}',
+        content: '{value}%',
         style: {
           textAlign: 'center',
           fontSize: 18,
