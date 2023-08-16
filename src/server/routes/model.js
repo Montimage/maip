@@ -6,9 +6,10 @@ const { promisify } = require('util');
 const readdirAsync = promisify(fs.readdir);
 const readFileAsync = promisify(fs.readFile);
 const csv = require('csv-parser');
+const fsex = require('fs-extra'); // Use fs-extra
 const router = express.Router();
 const {
-  MODEL_PATH, TRAINING_PATH,
+  MODEL_PATH, TRAINING_PATH, PREDICTION_PATH, XAI_PATH, ATTACKS_PATH,
 } = require('../constants');
 const {
   listFiles, readTextFile, isFileExist,
@@ -255,23 +256,35 @@ router.put('/:modelId', (req, res, next) => {
   });
 });
 
-router.delete('/:modelId', (req, res, next) => {
+router.delete('/:modelId', async (req, res, next) => {
   const { modelId } = req.params;
-  const modelFilePath = `${MODEL_PATH}${modelId}`;
   
-  fs.unlink(modelFilePath, (err, ret) => {
-    if (err) {
-      console.error(err);
-      res.send({
-        error: `Error deleting model ${modelId}`,
-      });
-    } else {
-      console.log(`Model ${modelId} has been deleted`);
-      res.send({
-        result: ret,
-      });
+  const OUTPUT_DIRS = [TRAINING_PATH, PREDICTION_PATH, XAI_PATH, ATTACKS_PATH];
+  const modelFilePath = `${MODEL_PATH}${modelId}`;
+
+  try {
+    // Delete the main model file
+    await fsex.unlink(modelFilePath);
+    console.log(`Model file ${modelId} has been deleted`);
+
+    // Loop through the directories and delete the model folder inside each
+    for (let dir of OUTPUT_DIRS) {
+      const modelDirPath = `${dir}/${modelId}`;
+      if (await fsex.pathExists(modelDirPath)) {
+        await fsex.remove(modelDirPath);
+        console.log(`Model directory ${modelDirPath} has been deleted`);
+      }
     }
-  });
+
+    res.send({
+      result: "Deletion successful"
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({
+      error: `Error deleting model ${modelId}`,
+    });
+  }
 });
 
 router.get('/:modelId/datasets/', async (req, res, next) => {
