@@ -205,43 +205,81 @@ class AccountabilityMetricsPage extends Component {
     //console.log(rocData);
   }
 
+  // updatePrecisionPlot() {
+  //   const { predictions, cutoffProb } = this.state;
+  //   const binSize = 0.1; // Size of each bin
+  //   const binThresholds = []; // Array to store the bin thresholds
+  //   const precisionArray = []; // Array to store the precision values
+
+  //   for (let binStart = 0; binStart <= 1; binStart += binSize) {
+  //     const binEnd = binStart + binSize;
+
+  //     let tp = 0;
+  //     let fp = 0;
+
+  //     for (const { prediction, trueLabel } of predictions) {
+  //       if (prediction >= binStart && prediction < binEnd) {
+  //         if (trueLabel === 1) {
+  //           tp++;
+  //         } else {
+  //           fp++;
+  //         }
+  //       }
+  //     }
+
+  //     // Calculate Precision only if the cutoffProb is within the bin range
+  //     const precision = (cutoffProb >= binStart && cutoffProb < binEnd) ? tp / (tp + fp) : NaN;
+
+  //     // Add bin threshold and precision to arrays
+  //     binThresholds.push(binStart);
+  //     precisionArray.push(precision);
+  //   }
+
+  //   // Prepare data for the Line chart
+  //   const dataPrecision = binThresholds.map((threshold, index) => ({
+  //     threshold: threshold.toFixed(1),
+  //     precision: isNaN(precisionArray[index],) ? 0 : precisionArray[index],
+  //   }));
+
+  //   //console.log(dataPrecision);
+  //   this.setState({ dataPrecision: dataPrecision });
+  // }
+
+  // TODO: recheck the precision plot
   updatePrecisionPlot() {
-    const { predictions, cutoffProb } = this.state;
-    const binSize = 0.1; // Size of each bin
-    const binThresholds = []; // Array to store the bin thresholds
-    const precisionArray = []; // Array to store the precision values
+    const { predictions } = this.state;
 
-    for (let binStart = 0; binStart <= 1; binStart += binSize) {
-      const binEnd = binStart + binSize;
+    let labelCounts = {};
+    let correctCounts = {};
 
-      let tp = 0;
-      let fp = 0;
+    for (let i = 1; i <= 3; i++) {
+      labelCounts[i] = 0;
+      correctCounts[i] = 0;
+    }
 
-      for (const { prediction, trueLabel } of predictions) {
-        if (prediction >= binStart && prediction < binEnd) {
-          if (trueLabel === 1) {
-            tp++;
-          } else {
-            fp++;
-          }
-        }
+    for (const predObj of Object.values(predictions)) {
+      const { prediction, trueLabel } = predObj;
+
+      labelCounts[prediction]++;
+      if (prediction === trueLabel) {
+          correctCounts[prediction]++;
       }
+    }
 
-      // Calculate Precision only if the cutoffProb is within the bin range
-      const precision = (cutoffProb >= binStart && cutoffProb < binEnd) ? tp / (tp + fp) : NaN;
-
-      // Add bin threshold and precision to arrays
-      binThresholds.push(binStart);
+    const precisionArray = [];
+    for (let i = 1; i <= 3; i++) {
+      const precision = (labelCounts[i] === 0) 
+          ? 0 
+          : correctCounts[i] / labelCounts[i];
       precisionArray.push(precision);
     }
 
-    // Prepare data for the Line chart
-    const dataPrecision = binThresholds.map((threshold, index) => ({
-      threshold: threshold.toFixed(1),
-      precision: isNaN(precisionArray[index],) ? 0 : precisionArray[index],
+    const dataPrecision = precisionArray.map((precision, index) => ({
+      label: (index + 1).toString(),
+      precision: precision
     }));
 
-    //console.log(dataPrecision);
+    console.log(dataPrecision);
     this.setState({ dataPrecision: dataPrecision });
   }
 
@@ -575,7 +613,8 @@ class AccountabilityMetricsPage extends Component {
     const configPrecision = dataPrecision
     ? {
         data: dataPrecision,
-        xField: 'threshold',
+        //xField: 'threshold',
+        xField: 'label',
         yField: 'precision',
         smooth: true,
         lineStyle: {
