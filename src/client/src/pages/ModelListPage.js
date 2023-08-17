@@ -91,13 +91,20 @@ class ModelListPage extends Component {
               icon: <HighlightOutlined style={{ fontSize: '16px' }}/>,
               tooltip: 'Edit',
               onChange: (newModelId) => {
-                updateModel(model.modelId, newModelId);
-                // TODO: notification is not showed up
-                notification.success({
-                  type: 'success',
-                  message: `Model ${model.modelId} name has been updated to ${newModelId}`,
-                  placement: 'topRight',
-                });
+                if (this.props.app === 'ac' && !newModelId.startsWith('ac-')) {
+                  notification.error({
+                    type: 'error',
+                    message: `AC model names must start with 'ac-'`,
+                    placement: 'topRight',
+                  });
+                } else {
+                  updateModel(model.modelId, newModelId);
+                  notification.success({
+                    type: 'success',
+                    message: `Model ${model.modelId} name has been updated to ${newModelId}`,
+                    placement: 'topRight',
+                  });
+                }
               },
             }}
             keyboard
