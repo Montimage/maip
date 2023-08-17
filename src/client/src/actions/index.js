@@ -80,3 +80,6 @@ export const requestBuildModelAC = createAction('REQUEST_BUILD_MODEL_AC');
 export const setBuildModelAC = createAction('SET_BUILD_MODEL_AC');
 export const requestBuildStatusAC = createAction('REQUEST_BUILD_STATUS_AC');
 export const setBuildStatusAC = createAction('SET_BUILD_STATUS_AC');
+export const requestRetrainModelAC = createAction('REQUEST_RETRAIN_MODEL_AC');
+export const requestRetrainStatusAC = createAction('REQUEST_RETRAIN_STATUS_AC');
+export const setRetrainStatusAC = createAction('SET_RETRAIN_STATUS_AC');

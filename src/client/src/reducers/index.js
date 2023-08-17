@@ -17,6 +17,7 @@ import attacksStatusReducer from './attacksStatusReducer';
 import buildACStatusReducer from './buildACStatusReducer';
 import buildStatusReducer from './buildStatusReducer';
 import retrainStatusReducer from './retrainStatusReducer';
+import retrainACStatusReducer from './retrainACStatusReducer';
 import mmtStatusReducer from './mmtStatusReducer';
 import predictReducer from './predictReducer';
 import predictStatusReducer from './predictStatusReducer';
@@ -38,6 +39,7 @@ const rootReducer = combineReducers({
   buildStatus: buildStatusReducer,
   buildACStatus: buildACStatusReducer, 
   retrainStatus: retrainStatusReducer,
+  retrainACStatus: retrainACStatusReducer,
   mmtStatus: mmtStatusReducer,
   predict: predictReducer,
   predictStatus: predictStatusReducer,

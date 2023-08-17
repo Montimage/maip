@@ -48,6 +48,37 @@ export const requestBuildStatusAC = async () => {
   return data.buildStatus;
 };
 
+export const requestRetrainStatusAC = async () => {
+  const url = `${SERVER_URL}/api/ac/retrain`;
+  const response = await fetch(url);
+  const data = await response.json();
+  if (data.error) {
+    throw data.error;
+  }
+  console.log(data.retrainStatus);
+  return data.retrainStatus;
+};
+
+export const requestRetrainModelAC = async (modelId, trainingDataset, testingDataset) => {
+  const url = `${SERVER_URL}/api/ac/retrain`;
+  const retrainConfig = {
+    "modelId": modelId,
+    "trainingDataset": trainingDataset,
+    "testingDataset": testingDataset,
+  };
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ retrainConfig }),
+  });
+  console.log(retrainConfig);
+  const data = await response.json();
+  console.log(`Retrain an AC model on server with config ${retrainConfig}`);
+  return data;
+};
+
 export const requestMMTStatus = async () => {
   const url = `${SERVER_URL}/api/mmt`;
   const response = await fetch(url);

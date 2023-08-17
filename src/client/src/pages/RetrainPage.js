@@ -1,6 +1,5 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
-import { getLastPath } from "../utils";
 import { connect } from "react-redux";
 import { Collapse, Spin, Tooltip, Button, InputNumber, Form, Select } from 'antd';
 import {
@@ -8,12 +7,19 @@ import {
   requestAllModels,
   requestRetrainModel,
   requestRetrainStatus,
+  requestRetrainModelAC,
+  requestRetrainStatusAC,
 } from "../actions";
 import {
   FORM_LAYOUT,
   SERVER_URL,
   FEATURES_OPTIONS,
 } from "../constants";
+import { 
+  getLastPath,
+  getFilteredModelsOptions,
+  isACModel,
+} from "../utils";
 const { Panel } = Collapse;
 
 let modelDatasets = [];
@@ -37,9 +43,11 @@ class RetrainPage extends Component {
         batch_size_sae: 16,
       },
       isRunning: props.retrainStatus.isRunning,
+      isRunningAC: props.retrainACStatus.isRunning,
     };
     this.handleInputChange = this.handleInputChange.bind(this);
     this.handleButtonRetrain = this.handleButtonRetrain.bind(this);
+    this.handleButtonRetrainAC = this.handleButtonRetrainAC.bind(this);
   }
 
   componentDidMount() {
@@ -81,7 +89,7 @@ class RetrainPage extends Component {
     }
   };
 
-  handleButtonRetrain(values) {
+  handleButtonRetrain() {
     const { modelId } = this.state;
     let fetchModelId = isModelIdPresent ? getLastPath() : modelId;
     console.log(modelId);
@@ -112,6 +120,35 @@ class RetrainPage extends Component {
     }    
   }
 
+  handleButtonRetrainAC() {
+    const { modelId } = this.state;
+    let fetchModelId = isModelIdPresent ? getLastPath() : modelId;
+    console.log(modelId);
+    const { 
+      trainingDataset, 
+      testingDataset, 
+      isRunningAC,
+    } = this.state;
+    if (!isRunningAC) {
+      console.log("update isRunningAC state!");
+      this.setState({ isRunningAC: true });        
+      this.intervalId = setInterval(() => { // start interval when button is clicked
+        this.props.fetchRetrainStatusAC();
+      }, 2000);
+      const retrainConfig = {
+        retrainConfig: {
+          modelId: fetchModelId,
+          trainingDataset,
+          testingDataset,
+        }
+      };
+      console.log(retrainConfig);
+      this.props.fetchRetrainModelAC(
+        modelId, trainingDataset, testingDataset,
+      );
+    }    
+  }
+
   componentDidUpdate(prevProps, prevState) {
     //console.log(`retrainStatus: ${retrainStatus.isRunning}`);
     //console.log(`retrain isRunning: ${isRunning}`);
@@ -119,6 +156,15 @@ class RetrainPage extends Component {
       console.log('isRunning has been changed');
       this.setState({ isRunning: this.props.retrainStatus.isRunning });
       if (!this.props.retrainStatus.isRunning) {
+        //console.log('isRunning changed from True to False');  
+        clearInterval(this.intervalId);
+      }
+    }
+
+    if (prevProps.retrainACStatus.isRunning !== this.props.retrainACStatus.isRunning) {
+      console.log('isRunning has been changed');
+      this.setState({ isRunningAC: this.props.retrainACStatus.isRunning });
+      if (!this.props.retrainACStatus.isRunning) {
         //console.log('isRunning changed from True to False');  
         clearInterval(this.intervalId);
       }
@@ -133,7 +179,7 @@ class RetrainPage extends Component {
   };
 
   render() {
-    const { modelId, modelDatasets, attacksDatasets, isRunning } = this.state;
+    const { modelId, modelDatasets, attacksDatasets, isRunning, isRunningAC } = this.state;
     const { app, models, retrainStatus } = this.props;
     const allDatasets = [...modelDatasets, ...attacksDatasets];
 
@@ -151,19 +197,7 @@ class RetrainPage extends Component {
       label: feature,
     })) : [];
 
-    let filteredModels;
-    if (app === 'ac') {
-      filteredModels = models.filter(model => model.modelId.startsWith('ac-'));
-    } else if (app === 'ad') {
-      filteredModels = models.filter(model => !model.modelId.startsWith('ac-'));
-    } else {
-      filteredModels = [];
-    }
-    const modelsOptions = filteredModels ? filteredModels.map(model => ({
-      value: model.modelId,
-      label: model.modelId,
-    })) : [];
-    console.log(modelsOptions);
+    const modelsOptions = getFilteredModelsOptions(app, models);
 
     const subTitle = isModelIdPresent ? 
       `Retrain the model ${modelId} using different datasets and hyperparameters` : 
@@ -317,13 +351,13 @@ class RetrainPage extends Component {
           <div style={{ textAlign: 'center', marginTop: 10 }}>
             <Button
               type="primary"
-              onClick={this.handleButtonRetrain} 
-              disabled={ isRunning || !this.state.modelId || 
+              onClick={ this.props.app === 'ac'? this.handleButtonRetrainAC : this.handleButtonRetrain } 
+              disabled={ (this.props.app === 'ac'? isRunningAC : isRunning) || !this.state.modelId || 
                 !(this.state.trainingDataset && this.state.testingDataset)
               }
             >
               Retrain model
-              {isRunning && 
+              {((this.props.app === 'ac'? isRunningAC : isRunning)) && 
                 <Spin size="large" style={{ marginBottom: '8px' }}>
                   <div className="content" />
                 </Spin>
@@ -336,8 +370,8 @@ class RetrainPage extends Component {
   }
 }
 
-const mapPropsToStates = ({ app, models, retrainStatus }) => ({
-  app, models, retrainStatus,
+const mapPropsToStates = ({ app, models, retrainStatus, retrainACStatus }) => ({
+  app, models, retrainStatus, retrainACStatus
 });
 
 const mapDispatchToProps = (dispatch) => ({
@@ -346,6 +380,9 @@ const mapDispatchToProps = (dispatch) => ({
   fetchRetrainStatus: () => dispatch(requestRetrainStatus()),
   fetchRetrainModel: (modelId, trainingDataset, testingDataset, params) =>
     dispatch(requestRetrainModel({ modelId, trainingDataset, testingDataset, params })),
+  fetchRetrainStatusAC: () => dispatch(requestRetrainStatusAC()),
+  fetchRetrainModelAC: (modelId, trainingDataset, testingDataset) =>
+    dispatch(requestRetrainModelAC({ modelId, trainingDataset, testingDataset })),
 });
 
 export default connect(mapPropsToStates, mapDispatchToProps)(RetrainPage);

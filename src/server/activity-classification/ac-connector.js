@@ -1,7 +1,7 @@
 /* eslint-disable no-plusplus */
 const {
   TRAINING_PATH, MODEL_PATH, LOG_PATH,
-  PYTHON_CMD, AC_PATH,
+  PYTHON_CMD, AC_PATH, ATTACKS_PATH,
 } = require('../constants');
 const {
   isFileExist,
@@ -29,7 +29,113 @@ const buildingStatus = {
   config: null, // the configuration of the last build
 };
 
-// Get the building status
+/**
+ * The retrain status
+ */
+ const retrainStatus = {
+  isRunning: false, // indicate if the retraining process is ongoing
+  lastRetrainAt: null, // indicate the time started time of the last retraining model
+  config: null, // the configuration of the last retraining model
+};
+
+const getRetrainStatusAC = () => retrainStatus;
+
+const startRetrainModelAC = (retrainConfig, callback) => {
+  const {
+    modelId,
+    trainingDataset,
+    testingDataset,
+  } = retrainConfig;
+  console.log(retrainConfig);
+  
+  if (retrainStatus.isRunning) {
+    console.warn('An retrain process is on going. Only one process can be run at a time');
+    return callback({
+      error: 'An retrain process is on going',
+    });
+  }
+
+  const retrainId = getUniqueId();
+  const retrainPath = `${TRAINING_PATH}${retrainId}/`;
+  createFolderSync(retrainPath);
+  console.log(retrainPath);
+  const retrainConfigPath = `${retrainPath}retrain-config.json`;
+  writeTextFile(retrainConfigPath, JSON.stringify(retrainConfig), (error) => {
+    if (error) {
+      console.log('Failed to create retrainConfig file');
+      return callback({
+        error: 'Failed to create retrainConfig file',
+      });
+    }
+  });
+
+  const attacksPath = `${ATTACKS_PATH}${modelId.replace('.h5', '')}/`;
+  const trainingPath = `${TRAINING_PATH}${modelId.replace('.h5', '')}/datasets/`;
+
+  let trainingDatasetFile = null;
+  let testingDatasetFile = null;
+  
+  if (isFileExistSync(path.join(attacksPath, trainingDataset))) {
+    trainingDatasetFile = path.join(attacksPath, trainingDataset);
+  } else if (isFileExistSync(path.join(trainingPath, trainingDataset))) {
+    trainingDatasetFile = path.join(trainingPath, trainingDataset);
+  } else {
+    return callback({
+      error: `Invalid training dataset`,
+    });
+  }
+  console.log(path.join(trainingPath, testingDataset));
+  if (isFileExistSync(path.join(trainingPath, testingDataset))) {
+    testingDatasetFile = path.join(trainingPath, testingDataset);
+  } else {
+    return callback({
+      error: `Invalid testing dataset`,
+    });
+  }
+
+  console.log(trainingDatasetFile);
+  console.log(testingDatasetFile);
+
+  const datasetsPath = `${TRAINING_PATH}${retrainId.replace('.h5', '')}/datasets`;
+  createFolderSync(datasetsPath);
+  fs.copyFile(trainingDatasetFile, path.join(datasetsPath, 'Train_samples.csv'), (err) => {
+    if (err) {
+      callback(err);
+    }
+  });
+  fs.copyFile(testingDatasetFile, path.join(datasetsPath, 'Test_samples.csv'), (err) => {
+    if (err) {
+      callback(err);
+    }
+  });
+
+  const inputModelFilePath = `${MODEL_PATH}${modelId}`;
+  if (!fs.existsSync(inputModelFilePath)) {
+    return callback({
+      error: `The given model file ${modelId} does not exist`,
+    });
+  }
+
+  retrainStatus.isRunning = true;
+  retrainStatus.config = retrainConfig;
+  retrainStatus.lastRetrainId = retrainId;
+  retrainStatus.lastRetrainAt = Date.now();
+
+  const logFile = `${LOG_PATH}retraining_${retrainId.replace('.h5', '')}.log`;
+  const resultsPath = `${TRAINING_PATH}${retrainId.replace('.h5', '')}/results`;
+  createFolderSync(resultsPath);
+  spawnCommand(PYTHON_CMD, [`${AC_PATH}/ac_retrain_models.py`, modelId, trainingDatasetFile, testingDatasetFile, resultsPath], logFile, () => {
+    retrainStatus.isRunning = false;
+    console.log('Finish retraining the model');
+  });
+  
+  return callback({
+    retrainConfig: retrainConfigPath,
+    retrainId,
+  });
+
+}
+
 const getBuildingStatusAC = () => buildingStatus;
 
 const startBuildingModelAC = (buildConfig, callback) => {
@@ -77,6 +183,8 @@ const startBuildingModelAC = (buildConfig, callback) => {
 
 module.exports = {
   getBuildingStatusAC,
-  startBuildingModelAC
+  startBuildingModelAC,
+  getRetrainStatusAC,
+  startRetrainModelAC,
 };
   
