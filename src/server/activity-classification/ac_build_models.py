@@ -141,6 +141,10 @@ def build_neural_network(X_train, y_train, X_test, y_test, resultPath):
   saveConfMatrix(y_true=y_test_labels, y_pred=y_pred,
                   filepath_csv=f'{resultPath}/confusion_matrix.csv',
                   filepath_png=f'{resultPath}/confusion_matrix.jpg')
+
+  print('Going to save model')
+  keras_model.save(f'{resultPath}/model.h5')
+  
   return keras_model
 
   
@@ -183,6 +187,10 @@ def build_xgboost(X_train, y_train, X_test, y_test, resultPath):
   saveConfMatrix(y_true=y_test_labels, y_pred=y_pred,
                   filepath_csv=f'{resultPath}/confusion_matrix.csv',
                   filepath_png=f'{resultPath}/confusion_matrix.jpg')
+
+  print('Going to save model')
+  xgbc_model.save_model(f'{resultPath}/model.bin')
+
   return xgbc_model
 
 def build_lightgbm(X_train, y_train, X_test, y_test, resultPath):
@@ -221,6 +229,10 @@ def build_lightgbm(X_train, y_train, X_test, y_test, resultPath):
   saveConfMatrix(y_true=y_test_labels, y_pred=y_pred,
                   filepath_csv=f'{resultPath}/confusion_matrix.csv',
                   filepath_png=f'{resultPath}/confusion_matrix.jpg')
+  
+  print('Going to save model')
+  lgbm_model.booster_.save_model(f'{resultPath}/model.bin')
+
   return lgbm_model 
 
 if __name__ == "__main__":
@@ -243,14 +255,22 @@ if __name__ == "__main__":
       X_train, X_test, y_train_orig, y_test_orig = split_datasets(modelId, buildConfigFilePath)
       X_train, y_train, X_test, y_test = preprocess_datasets(X_train, X_test, y_train_orig, y_test_orig)
       model = None
+      modelFile = None
       if modelType == "Neural Network":
         model = build_neural_network(X_train, y_train, X_test, y_test, resultPath)
+        modelFile = 'model.h5'
       elif modelType == "XGBoost":
         model = build_xgboost(X_train, y_train, X_test, y_test, resultPath)
+        modelFile = 'model.bin'
       elif modelType == "LightGBM":
         model = build_lightgbm(X_train, y_train, X_test, y_test, resultPath)
+        modelFile = 'model.bin'
       else:
         print("ERROR: Model type is not valid")  
+
+      # Copy model to the directory /models
+      modelFilePath = os.path.join(resultPath, modelFile)
+      shutil.copy(modelFilePath, os.path.join(deepLearningPath, 'models', modelId))
 
       # Compute time for predictions and save it to file
       generation_iters = 1

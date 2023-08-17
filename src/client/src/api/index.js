@@ -169,7 +169,8 @@ export const requestDownloadModel = async (modelId) => {
     const url = window.URL.createObjectURL(new Blob([blob]));
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', modelId);
+    // Make sure to download the model in bin format
+    link.setAttribute('download', `${modelId}.bin`);
     document.body.appendChild(link);
     link.click();
   } catch (error) {

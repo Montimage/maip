@@ -303,6 +303,12 @@ const removeCsvPath = (buildConfig) => {
   };
 }
 
+const convertBuildConfigStrToJson = (app, buildConfig) => {
+  if (app === "ac") {
+    return JSON.stringify(buildConfig, null, 2);
+  }
+  return JSON.stringify(removeCsvPath(buildConfig), null, 2);
+};
 
 export {
   getQuery,
@@ -327,4 +333,5 @@ export {
   calculateMetrics,
   transformConfigStrToTableData,
   removeCsvPath,
+  convertBuildConfigStrToJson,
 };

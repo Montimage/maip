@@ -17,14 +17,11 @@ import {
 } from "../actions";
 import {
   getFilteredModels,
-  getLastPath,
-  removeCsvPath,
+  convertBuildConfigStrToJson
 } from "../utils";
 import moment from "moment";
 const { Text } = Typography;
 const { Option, OptGroup } = Select;
-
-// TODO: add Grouped Column plot to compare model performance of 2 models?
 
 class ModelListPage extends Component {
   constructor(props) {
@@ -48,13 +45,6 @@ class ModelListPage extends Component {
     this.props.fetchApp();
     this.props.fetchAllModels();
   }
-
-  processBuildConfig = (buildConfig) => {
-    if (this.props.app === "ac") {
-      return JSON.stringify(buildConfig, null, 2);
-    }
-    return JSON.stringify(removeCsvPath(buildConfig), null, 2);
-  };
 
   render() {
     const { 
@@ -92,7 +82,6 @@ class ModelListPage extends Component {
         width: '30%',
         render: (model) => (
           <Text
-            onClick={() => console.log('Text clicked!')}
             copyable={{
               text: model.modelId,
               tooltip: 'Copy',
@@ -321,13 +310,6 @@ class ModelListPage extends Component {
 
     return (
       <LayoutPage pageTitle="All Models" pageSubTitle="All the machine learning models">
-        {/* <a href={`/build`}>
-          <Space wrap>
-            <Button type="primary" style={{ marginBottom: '16px' }}>
-              Build a new model
-            </Button>
-          </Space>
-        </a> */}
         <Table columns={columns} dataSource={dataSource}
           pagination={{ pageSize: 5 }}
           expandable={{
@@ -335,7 +317,7 @@ class ModelListPage extends Component {
               <p style={{ margin: 0 }}>
                 <h3><b>Build config:</b></h3>
                 <pre style={{ fontSize: "12px" }}>
-                  {this.processBuildConfig(model.buildConfig)}
+                  {convertBuildConfigStrToJson(this.props.app, model.buildConfig)}
                 </pre>
               </p>,
           }}
