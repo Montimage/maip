@@ -21,6 +21,8 @@ import {
   getFilteredModelsOptions,
   getLastPath,
   isACModel,
+  computeAccuracy,
+  calculateMetrics,
 } from "../utils";
 
 let isModelIdPresent = getLastPath() !== "accountability";
@@ -283,20 +285,6 @@ class AccountabilityMetricsPage extends Component {
     this.setState({ dataPrecision: dataPrecision });
   }
 
-  calculateMetrics(TP, FP, FN) {
-    const precision = Number((TP / (TP + FP)).toFixed(6));
-    const recall = Number((TP / (TP + FN)).toFixed(6));
-    const f1Score = Number((2 * precision * recall / (precision + recall)).toFixed(6));
-    const support = TP + FN;
-    return [precision, recall, f1Score, support];
-  }
-
-  computeAccuracy(confusionMatrix) {
-    const correctPredictions = confusionMatrix.reduce((sum, row, i) => sum + row[i], 0);
-    const totalPredictions = confusionMatrix.reduce((sum, row) => sum + row.reduce((a, b) => a + b, 0), 0);
-    return (correctPredictions / totalPredictions).toFixed(6);
-  }
-
   updateConfusionMatrix() {
     const { modelId, predictions, cutoffProb } = this.state;
 
@@ -325,7 +313,7 @@ class AccountabilityMetricsPage extends Component {
       const TP = confusionMatrix[i][i];
       const FP = confusionMatrix.map(row => row[i]).reduce((a, b) => a + b) - TP;
       const FN = confusionMatrix[i].reduce((a, b) => a + b) - TP;
-      stats.push(this.calculateMetrics(TP, FP, FN));
+      stats.push(calculateMetrics(TP, FP, FN));
     }
 
     this.setState({ stats, confusionMatrix });
@@ -420,7 +408,7 @@ class AccountabilityMetricsPage extends Component {
     // Determine the number of classes based on model type
     const classificationLabels = isACModel(modelId) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
     const numClasses = modelId && classificationLabels.length;
-    const accuracy = this.computeAccuracy(confusionMatrix);
+    const accuracy = computeAccuracy(confusionMatrix);
 
     // Loop over the rows in rowsStats excluding the accuracy row
     for (let rowIndex = 0; rowIndex < numClasses; rowIndex++) {

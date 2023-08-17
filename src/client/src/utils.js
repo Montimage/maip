@@ -253,6 +253,56 @@ const getLabelsOptions = (modelId) => {
   return isACModel(modelId) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
 }
 
+const computeAccuracy = (confusionMatrix) => {
+  const correctPredictions = confusionMatrix.reduce((sum, row, i) => sum + row[i], 0);
+  const totalPredictions = confusionMatrix.reduce((sum, row) => sum + row.reduce((a, b) => a + b, 0), 0);
+  return (correctPredictions / totalPredictions).toFixed(6);
+}
+
+const calculateMetrics = (TP, FP, FN) => {
+  const precision = Number((TP / (TP + FP)).toFixed(6));
+  const recall = Number((TP / (TP + FN)).toFixed(6));
+  const f1Score = Number((2 * precision * recall / (precision + recall)).toFixed(6));
+  const support = TP + FN;
+  return [precision, recall, f1Score, support];
+}
+
+const transformConfigStrToTableData = (configStr) => {
+  let config;
+  
+  try {
+    config = JSON.parse(configStr);
+  } catch(e) {
+    console.error('Failed to parse config as JSON:', e);
+    return [];
+  }
+  
+  return Object.entries(config).map(([key, value]) => ({
+      parameter: key,
+      value: value.toString()
+  }));
+}
+
+// Remove dataset's path of the buildConfig for AD models
+const removeCsvPath = (buildConfig) => {
+  const updatedDatasets = buildConfig.datasets.map((dataset) => {
+    const parts = dataset.csvPath.split('/');
+    const newCsvPath = parts.slice(parts.indexOf('outputs') + 1).join('/');
+    //console.log(newCsvPath);
+    return {
+      ...dataset,
+      csvPath: newCsvPath,
+    };
+  });
+
+  // remove "total_samples" for old buildConfig
+  const { total_samples, ...newBuildConfig } = buildConfig;
+  return {
+    ...newBuildConfig,
+    datasets: updatedDatasets,
+  };
+}
+
 
 export {
   getQuery,
@@ -273,4 +323,8 @@ export {
   getLabelAndColorScatterPlot,
   getLabelsOptions,
   isACModel,
+  computeAccuracy,
+  calculateMetrics,
+  transformConfigStrToTableData,
+  removeCsvPath,
 };

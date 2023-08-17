@@ -7,31 +7,21 @@ import {
   requestApp,
   requestAllModels,
 } from "../actions";
+import {
+  isACModel,
+  computeAccuracy,
+  calculateMetrics,
+  transformConfigStrToTableData,
+  removeCsvPath,
+} from "../utils";
 const {
   BOX_STYLE,
   SERVER_URL,
-  CRITERIA_LIST, TABLE_BUILD_CONFIGS, COLUMNS_PERF_STATS,
+  CRITERIA_LIST, TABLE_BUILD_CONFIGS, AC_COLUMNS_PERF_STATS, AD_COLUMNS_PERF_STATS,
+  HEADER_ACCURACY_STATS,
+  AC_OUTPUT_LABELS, AD_OUTPUT_LABELS,
 } = require('../constants');
 const { Option } = Select;
-
-function removeCsvPath(buildConfig) {
-  const updatedDatasets = buildConfig.datasets.map((dataset) => {
-    const parts = dataset.csvPath.split('/');
-    const newCsvPath = parts.slice(parts.indexOf('outputs') + 1).join('/');
-    //console.log(newCsvPath);
-    return {
-      ...dataset,
-      csvPath: newCsvPath,
-    };
-  });
-
-  // remove "total_samples" for old buildConfig
-  const { total_samples, ...newBuildConfig } = buildConfig;
-  return {
-    ...newBuildConfig,
-    datasets: updatedDatasets,
-  };
-}
 
 // TODO: add Grouped Column plot to compare model performance of 2 models?
 
@@ -69,74 +59,143 @@ class ModelListPage extends Component {
     }
   }
 
-  loadPredictions = async (modelId, isLeft) => {
-    console.log(modelId);    
+  async loadPredictions(modelId, isLeft) {
+    const buildConfigResponse = await fetch(`${SERVER_URL}/api/models/${modelId}/build-config`, {
+      method: 'GET',
+    });
+    const buildConfig = await buildConfigResponse.json();
+    const buildConfigStr = buildConfig.buildConfig;
+    //console.log(buildConfigStr);
+    let dataBuildConfig;
+    if (this.props.app === 'ad') {
+      const transformedBuildConfig = removeCsvPath(JSON.parse(buildConfigStr));
+      //console.log(transformedBuildConfig);
+
+      const { datasets, training_ratio, training_parameters } = transformedBuildConfig;
+
+      dataBuildConfig = [
+        ...datasets.map(({ csvPath, isAttack }) => ({
+          parameter: isAttack ? 'attack dataset' : 'normal dataset',
+          value: csvPath,
+        })),
+        { parameter: 'training ratio', value: training_ratio },
+        ...Object.entries(training_parameters).map(([parameter, value]) => ({
+          parameter: parameter,
+          value: value,
+        })),
+      ];
+      console.log(dataBuildConfig);
+    } else {
+      dataBuildConfig = transformConfigStrToTableData(buildConfigStr); 
+    }
+    console.log(dataBuildConfig);
+
     const predictionsResponse = await fetch(`${SERVER_URL}/api/models/${modelId}/predictions`, {
       method: 'GET',
     });
     const predictionsData = await predictionsResponse.json();
     const predictionsValues = predictionsData.predictions;
+    console.log(predictionsData);
     const predictions = predictionsValues.split('\n').map((d) => ({
       prediction: parseFloat(d.split(',')[0]),
       trueLabel: parseInt(d.split(',')[1]),
     }));
+    console.log(predictions);
+  //  this.setState({ predictions }, this.updateConfusionMatrix(predictions, isLeft));
+  //}
 
-    const cutoffProb = 0.5;
-    //const { predictions } = this.state;
-    const TP = predictions.filter((d) => d.trueLabel === 1 && d.prediction >= cutoffProb).length;
-    const FP = predictions.filter((d) => d.trueLabel === 0 && d.prediction >= cutoffProb).length;
-    const TN = predictions.filter((d) => d.trueLabel === 0 && d.prediction < cutoffProb).length;
-    const FN = predictions.filter((d) => d.trueLabel === 1 && d.prediction < cutoffProb).length;
-    const confusionMatrix = [
-      [TP, FP],
-      [FN, TN],
-    ];
+  //updateConfusionMatrix(predictions, isLeft) {
+    const { cutoffProb } = this.state;
 
-    const accuracy = (TP + TN) / (TP + TN + FP + FN);
-    const precision = TP / (TP + FP);
-    const recall = TP / (TP + FN);
-    const f1Score = (2 * precision * recall) / (precision + recall);
+    // TODO: add another cutoff Slider
+    let highCutoff = cutoffProb;
+    let lowCutoff = 0.33; 
 
-    const precisionPositive = TP / (TP + FP);
-    const recallPositive = TP / (TP + FN);
-    const f1ScorePositive = (2 * precisionPositive * recallPositive) / (precisionPositive + recallPositive);
-    const supportPositive = TP + FN;
+    // Initialize confusion matrix
+    const classificationLabels = isACModel(modelId) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
+    const numClasses = classificationLabels.length; 
+    let confusionMatrix = Array.from({ length: numClasses }, () => Array(numClasses).fill(0));
+    let stats = [];
 
-    const precisionNegative = TN / (TN + FN);
-    const recallNegative = TN / (TN + FP);
-    const f1ScoreNegative = (2 * precisionNegative * recallNegative) / (precisionNegative + recallNegative);
-    const supportNegative = TN + FP;
+    if (!predictions) {
+      console.warn('Predictions are null or undefined');
+      return;
+    }
 
-    //console.log({accuracy, precision, recall, f1Score});
-    //console.log({precisionPositive, recallPositive, f1ScorePositive, supportPositive});
-    //console.log({precisionNegative, recallNegative, f1ScoreNegative, supportNegative});
+    predictions.forEach((d) => {
+      if (isNaN(d.prediction) || isNaN(d.trueLabel)) return; // Skip NaN values
+      let predictedClass;
+      if (isACModel(modelId)) {
+        predictedClass = Math.round(d.prediction) - 1;
+      } else {
+        predictedClass = d.prediction >= cutoffProb ? 1 : 0;
+      }
+      //confusionMatrix[d.trueLabel - 1][predictedClass]++;
+      if (confusionMatrix[d.trueLabel - 1] && 
+          (confusionMatrix[d.trueLabel - 1][predictedClass] !== undefined)) {
+        confusionMatrix[d.trueLabel - 1][predictedClass]++;
+      } else {
+          console.warn(`Unexpected index encountered: ${d.trueLabel - 1}, ${predictedClass}`);
+      }
+    });
 
-    const stats = [
-      [precisionPositive, recallPositive, f1ScorePositive, supportPositive],
-      [precisionNegative, recallNegative, f1ScoreNegative, supportNegative],
-      [accuracy],
-    ];
+    for (let i = 0; i < numClasses; i++) {
+      const TP = confusionMatrix[i][i];
+      const FP = confusionMatrix.map(row => row[i]).reduce((a, b) => a + b) - TP;
+      const FN = confusionMatrix[i].reduce((a, b) => a + b) - TP;
+      stats.push(calculateMetrics(TP, FP, FN));
+    }
+    console.log(confusionMatrix);
+
+    this.setState({ stats, confusionMatrix });
+
+    const classificationData = classificationLabels.map((label, index) => {
+      return {
+        "cutoffProb": "Below cutoff",
+        "class": label,
+        "value": confusionMatrix[index][index] // Diagonal of confusion matrix gives correct predictions
+      }
+    }).concat(classificationLabels.map((label, index) => {
+      return {
+        "cutoffProb": "Above cutoff",
+        "class": label,
+        "value": confusionMatrix.reduce((acc, row) => acc + row[index], 0) - confusionMatrix[index][index]  // Sum of column minus correct prediction
+      }
+    }));
+
+    this.setState({ stats, classificationData });
 
     const statsStr = stats.map((row, i) => `${i},${row.join(',')}`).join('\n');
     const rowsStats = statsStr.split('\n').map(row => row.split(','));
-    const headerStats = ["precision", "recall", "f1score", "support"];
     let dataStats = [];
-    if(rowsStats.length === 3) {
-      const accuracy = parseFloat(rowsStats[2][1]);
-      dataStats = headerStats.map((metric, i) => ({
-        key: (i).toString(),
-        metric,
-        class0: +rowsStats[0][i+1],
-        class1: +rowsStats[1][i+1],
-      }));
-      dataStats.push({
-        key: '5',
-        metric: 'accuracy',
-        class0: accuracy,
-        class1: accuracy,
+    const accuracy = computeAccuracy(confusionMatrix);
+
+    // Loop over the rows in rowsStats excluding the accuracy row
+    for (let rowIndex = 0; rowIndex < numClasses; rowIndex++) {
+      const row = rowsStats[rowIndex];
+      HEADER_ACCURACY_STATS.forEach((metric, metricIndex) => {
+        if (!dataStats[metricIndex]) {
+          dataStats[metricIndex] = {
+            key: metricIndex.toString(),
+            metric,
+          };
+        }
+        if (row && row[metricIndex + 1]) {
+          dataStats[metricIndex]['class' + rowIndex] = +row[metricIndex + 1];
+        }
       });
     }
 
+    // Append the accuracy metric to the stats
+    const accuracyRow = {
+      key: dataStats.length.toString(),
+      metric: 'accuracy',
+    };
+    for (let i = 0; i < numClasses; i++) {
+      accuracyRow['class' + i] = accuracy;
+    }
+    dataStats.push(accuracyRow);
+    console.log(dataStats);
     if (isLeft) {
       this.setState({ dataStatsLeft: dataStats }); 
     } else {
@@ -144,14 +203,13 @@ class ModelListPage extends Component {
     }
 
     const cmStr = confusionMatrix.map((row, i) => `${i},${row.join(',')}`).join('\n');
-    const headers = ["Normal traffic", "Malware traffic"];
     const rows = cmStr.trim().split('\n');
     const data = rows.flatMap((row, i) => {
       const cols = row.split(',');
       const rowTotal = cols.slice(1).reduce((acc, val) => acc + Number(val), 0);
       return cols.slice(1).map((val, j) => ({
-        actual: headers[i],
-        predicted: headers[j],
+        actual: classificationLabels[i],
+        predicted: classificationLabels[j],
         count: Number(val),
         percentage: `${((Number(val) / rowTotal) * 100).toFixed(2)}%`,
       }));
@@ -183,26 +241,6 @@ class ModelListPage extends Component {
         lineWidth: 1,
       },
     };
-
-    const { models } = this.props;
-    const model = models.find((modelId) => modelId === modelId);
-    const modelBuildConfig = removeCsvPath(model.buildConfig);
-    //console.log(modelBuildConfig);
-
-    const { datasets, training_ratio, training_parameters } = modelBuildConfig;
-
-    const dataBuildConfig = [
-      ...datasets.map(({ csvPath, isAttack }) => ({
-        parameter: isAttack ? 'attack dataset' : 'normal dataset',
-        value: csvPath,
-      })),
-      { parameter: 'training ratio', value: training_ratio },
-      ...Object.entries(training_parameters).map(([parameter, value]) => ({
-        parameter: parameter,
-        value: value,
-      })),
-    ];
-    //console.log(dataBuildConfig);
 
     if (isLeft) {
       this.setState({
@@ -244,17 +282,19 @@ class ModelListPage extends Component {
       return null;
     }
 
-    let filteredModels;
+    let filteredModels, columnsPerfStats;
     // Suppose models of the activity classification app start with "ac-"
     if (app === 'ac') {
       filteredModels = models.filter(model => model.modelId.startsWith('ac-'));
+      columnsPerfStats = AC_COLUMNS_PERF_STATS;
     } else if (app === 'ad') {
       filteredModels = models.filter(model => !model.modelId.startsWith('ac-'));
+      columnsPerfStats = AD_COLUMNS_PERF_STATS;
     } else {
       filteredModels = [];
     }
     const modelIds = filteredModels.map((model) => model.modelId);
-    console.log(modelIds);
+    //console.log(modelIds);
 
     return (
       <LayoutPage pageTitle="Models Comparison" pageSubTitle="Comparing models based on performance metrics">
@@ -276,7 +316,8 @@ class ModelListPage extends Component {
                   showSearch allowClear
                   value={this.state.selectedModelLeft}
                   placeholder="Select a model ..."
-                  onChange={(modelId) => this.loadPredictions(modelId, true)}
+                  onChange={(modelId) => modelId && this.loadPredictions(modelId, true)}
+                  onClear={() => this.setState({ selectedModelLeft: null })}
                   optionFilterProp="children"
                   filterOption={(input, option) => (option?.value ?? '').includes(input)}
                   style={{ width: 350, marginTop: '15px', marginBottom: '15px' }}
@@ -297,6 +338,7 @@ class ModelListPage extends Component {
                   value={this.state.selectedCriteria}
                   placeholder="Select a criteria ..."
                   onChange={(criteria) => this.setState({ selectedCriteria: criteria })}
+                  onClear={() => this.setState({ selectedCriteria: null })}
                   optionFilterProp="children"
                   filterOption={(input, option) => (option?.value ?? '').includes(input)}
                   style={{ width: 350, marginTop: '15px', marginBottom: '15px' }}
@@ -316,7 +358,8 @@ class ModelListPage extends Component {
                   showSearch allowClear
                   value={this.state.selectedModelRight}
                   placeholder="Select a model ..."
-                  onChange={(modelId) => this.loadPredictions(modelId, false)}
+                  onChange={(modelId) => modelId && this.loadPredictions(modelId, false)}
+                  onClear={() => this.setState({ selectedModelRight: null })}
                   optionFilterProp="children"
                   filterOption={(input, option) => (option?.value ?? '').includes(input)}
                   style={{ width: 350, marginTop: '15px', marginBottom: '15px' }}
@@ -340,7 +383,7 @@ class ModelListPage extends Component {
               }
             </Col>
             <Col className="gutter-row" span={12}>
-              {selectedModelRight && dataBuildConfigRight && (selectedCriteria === "Build Configuration") &&
+              {selectedModelRight &&dataBuildConfigRight && (selectedCriteria === "Build Configuration") &&
                 <div style={{ marginBottom: '20px', marginTop: '30px' }}>
                   <Table columns={TABLE_BUILD_CONFIGS} dataSource={dataBuildConfigRight} pagination={false}
                   />
@@ -352,7 +395,7 @@ class ModelListPage extends Component {
             <Col className="gutter-row" span={12}>
               {selectedModelLeft && dataStatsLeft && (selectedCriteria === "Model Performance") &&
                 <div style={{marginBottom: '20px', marginTop: '30px'}}>
-                  <Table columns={COLUMNS_PERF_STATS} dataSource={dataStatsLeft} pagination={false}
+                  <Table columns={columnsPerfStats} dataSource={dataStatsLeft} pagination={false}
                   />
                 </div>
               }
@@ -360,7 +403,7 @@ class ModelListPage extends Component {
             <Col className="gutter-row" span={12}>
               {selectedModelRight && dataStatsRight && (selectedCriteria === "Model Performance") &&
                 <div style={{marginBottom: '20px', marginTop: '30px'}}>
-                  <Table columns={COLUMNS_PERF_STATS} dataSource={dataStatsRight} pagination={false}
+                  <Table columns={columnsPerfStats} dataSource={dataStatsRight} pagination={false}
                   />
                 </div>
               }
@@ -368,10 +411,10 @@ class ModelListPage extends Component {
           </Row>
           <Row gutter={24}>
             <Col className="gutter-row" span={12}>
-              {selectedModelRight && cmConfigLeft && (selectedCriteria === "Confusion Matrix") &&
+              {selectedModelLeft && cmConfigLeft && (selectedCriteria === "Confusion Matrix") &&
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'center', width: '100%', flex: 1, flexWrap: 'wrap', marginTop: '40px', marginBottom: '10px' }}>
-                    <div style={{ position: 'relative', height: '320px', width: '100%', maxWidth: '390px' }}>
+                    <div style={{ position: 'relative', height: '300px', width: '100%', maxWidth: '340px' }}>
                       <Heatmap {...cmConfigLeft}/>
                     </div>
                   </div>
@@ -382,7 +425,7 @@ class ModelListPage extends Component {
               {selectedModelRight && cmConfigRight && (selectedCriteria === "Confusion Matrix") &&
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'center', width: '100%', flex: 1, flexWrap: 'wrap', marginTop: '40px', marginBottom: '10px' }}>
-                    <div style={{ position: 'relative', height: '320px', width: '100%', maxWidth: '390px' }}>
+                    <div style={{ position: 'relative', height: '300px', width: '100%', maxWidth: '340px' }}>
                       <Heatmap {...cmConfigRight}/>
                     </div>
                   </div>

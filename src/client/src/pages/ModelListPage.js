@@ -18,29 +18,11 @@ import {
 import {
   getFilteredModels,
   getLastPath,
+  removeCsvPath,
 } from "../utils";
 import moment from "moment";
 const { Text } = Typography;
 const { Option, OptGroup } = Select;
-
-function removeCsvPath(buildConfig) {
-  const updatedDatasets = buildConfig.datasets.map((dataset) => {
-    const parts = dataset.csvPath.split('/');
-    const newCsvPath = parts.slice(parts.indexOf('outputs') + 1).join('/');
-    //console.log(newCsvPath);
-    return {
-      ...dataset,
-      csvPath: newCsvPath,
-    };
-  });
-
-  // remove "total_samples" for old buildConfig
-  const { total_samples, ...newBuildConfig } = buildConfig;
-  return {
-    ...newBuildConfig,
-    datasets: updatedDatasets,
-  };
-}
 
 // TODO: add Grouped Column plot to compare model performance of 2 models?
 
