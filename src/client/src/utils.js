@@ -237,7 +237,7 @@ const getLabelAndColorScatterPlot = (app, data) => {
       case "1":
         return { label: "Web", color: '#0693e3' };
       case "2":
-        return { label: "Interaction", color: '#EB144C' };
+        return { label: "Interactive", color: '#EB144C' };
       case "3":
         // TODO: Video points are not gold
         return { label: "Video", color: '#ffd700' };

@@ -18,13 +18,18 @@ import {
 import { 
   getLastPath,
   getFilteredModelsOptions,
-  isACModel,
 } from "../utils";
 const { Panel } = Collapse;
 
 let modelDatasets = [];
 let attacksDatasets = [];
 let isModelIdPresent = getLastPath() !== "retrain";
+
+const isACApp = (app) => app === 'ac';
+
+const isRunningApp = (app, retrainACStatus, retrainStatus) => {
+  return isACApp(app) ? retrainACStatus.isRunning : retrainStatus.isRunning;
+}
 
 class RetrainPage extends Component {
   constructor(props) {
@@ -42,12 +47,10 @@ class RetrainPage extends Component {
         batch_size_cnn: 32,
         batch_size_sae: 16,
       },
-      isRunning: props.retrainStatus.isRunning,
-      isRunningAC: props.retrainACStatus.isRunning,
+      isRunning: isRunningApp(this.props.app, this.props.retrainACStatus, this.props.retrainStatus),
     };
     this.handleInputChange = this.handleInputChange.bind(this);
     this.handleButtonRetrain = this.handleButtonRetrain.bind(this);
-    this.handleButtonRetrainAC = this.handleButtonRetrainAC.bind(this);
   }
 
   componentDidMount() {
@@ -90,82 +93,35 @@ class RetrainPage extends Component {
   };
 
   handleButtonRetrain() {
-    const { modelId } = this.state;
-    let fetchModelId = isModelIdPresent ? getLastPath() : modelId;
-    console.log(modelId);
-    const { 
-      trainingDataset, 
-      testingDataset, 
-      trainingParameters,
-      isRunning,
-    } = this.state;
+    const { modelId, trainingDataset, testingDataset, trainingParameters, isRunning } = this.state;
+    
     if (!isRunning) {
-      console.log("update isRunning state!");
+      const fetchModelId = isModelIdPresent ? getLastPath() : modelId;
+      
       this.setState({ isRunning: true });        
-      this.intervalId = setInterval(() => { // start interval when button is clicked
-        this.props.fetchRetrainStatus();
+      this.intervalId = setInterval(() => { 
+        isACApp(this.props.app) ? this.props.fetchRetrainStatusAC() : this.props.fetchRetrainStatus();
       }, 2000);
-      const retrainConfig = {
-        retrainConfig: {
-          modelId: fetchModelId,
-          trainingDataset,
-          testingDataset,
-          training_parameters: trainingParameters,
-        }
-      };
+      
+      const retrainConfig = isACApp(this.props.app) ? 
+        { retrainConfig: { modelId: fetchModelId, trainingDataset, testingDataset } } :
+        { retrainConfig: { modelId: fetchModelId, trainingDataset, testingDataset, training_parameters: trainingParameters } };
       console.log(retrainConfig);
-      this.props.fetchRetrainModel(
-        modelId, trainingDataset, testingDataset, trainingParameters,
-      );
-    }    
-  }
-
-  handleButtonRetrainAC() {
-    const { modelId } = this.state;
-    let fetchModelId = isModelIdPresent ? getLastPath() : modelId;
-    console.log(modelId);
-    const { 
-      trainingDataset, 
-      testingDataset, 
-      isRunningAC,
-    } = this.state;
-    if (!isRunningAC) {
-      console.log("update isRunningAC state!");
-      this.setState({ isRunningAC: true });        
-      this.intervalId = setInterval(() => { // start interval when button is clicked
-        this.props.fetchRetrainStatusAC();
-      }, 2000);
-      const retrainConfig = {
-        retrainConfig: {
-          modelId: fetchModelId,
-          trainingDataset,
-          testingDataset,
-        }
-      };
-      console.log(retrainConfig);
-      this.props.fetchRetrainModelAC(
-        modelId, trainingDataset, testingDataset,
-      );
-    }    
+      
+      isACApp(this.props.app) ? 
+        this.props.fetchRetrainModelAC(modelId, trainingDataset, testingDataset) :
+        this.props.fetchRetrainModel(modelId, trainingDataset, testingDataset, trainingParameters);
+    }
   }
 
   componentDidUpdate(prevProps, prevState) {
-    //console.log(`retrainStatus: ${retrainStatus.isRunning}`);
-    //console.log(`retrain isRunning: ${isRunning}`);
-    if (prevProps.retrainStatus.isRunning !== this.props.retrainStatus.isRunning) {
-      console.log('isRunning has been changed');
-      this.setState({ isRunning: this.props.retrainStatus.isRunning });
-      if (!this.props.retrainStatus.isRunning) {
-        //console.log('isRunning changed from True to False');  
-        clearInterval(this.intervalId);
-      }
-    }
-
-    if (prevProps.retrainACStatus.isRunning !== this.props.retrainACStatus.isRunning) {
-      console.log('isRunning has been changed');
-      this.setState({ isRunningAC: this.props.retrainACStatus.isRunning });
-      if (!this.props.retrainACStatus.isRunning) {
-        //console.log('isRunning changed from True to False');  
+    const isRunningProp = isACApp(this.props.app) ? 
+                            this.props.retrainACStatus.isRunning : 
+                            this.props.retrainStatus.isRunning;
+    
+    if (prevProps.retrainStatus.isRunning !== isRunningProp || prevProps.retrainACStatus.isRunning !== isRunningProp) {
+      this.setState({ isRunning: isRunningProp });
+      if (!isRunningProp) {
         clearInterval(this.intervalId);
       }
     }
@@ -179,8 +135,8 @@ class RetrainPage extends Component {
   };
 
   render() {
-    const { modelId, modelDatasets, attacksDatasets, isRunning, isRunningAC } = this.state;
-    const { app, models, retrainStatus } = this.props;
+    const { modelId, modelDatasets, attacksDatasets } = this.state;
+    const { app, models } = this.props;
     const allDatasets = [...modelDatasets, ...attacksDatasets];
 
     const trainingDatasetsOptions = allDatasets ? allDatasets.map(dataset => ({
@@ -228,7 +184,6 @@ class RetrainPage extends Component {
                   });
                   console.log(`Select model ${value}`);
                 }}
-                //optionLabelProp="label"
                 options={modelsOptions}
               />
             </Tooltip>
@@ -351,13 +306,13 @@ class RetrainPage extends Component {
           <div style={{ textAlign: 'center', marginTop: 10 }}>
             <Button
               type="primary"
-              onClick={ this.props.app === 'ac'? this.handleButtonRetrainAC : this.handleButtonRetrain } 
-              disabled={ (this.props.app === 'ac'? isRunningAC : isRunning) || !this.state.modelId || 
-                !(this.state.trainingDataset && this.state.testingDataset)
+              onClick={ this.handleButtonRetrain } 
+              disabled={ isRunningApp(this.props.app, this.props.retrainACStatus, this.props.retrainStatus) || 
+                !this.state.modelId || !(this.state.trainingDataset && this.state.testingDataset)
               }
             >
               Retrain model
-              {((this.props.app === 'ac'? isRunningAC : isRunning)) && 
+              {isRunningApp(this.props.app, this.props.retrainACStatus, this.props.retrainStatus) && 
                 <Spin size="large" style={{ marginBottom: '8px' }}>
                   <div className="content" />
                 </Spin>

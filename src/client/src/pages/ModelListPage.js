@@ -128,7 +128,6 @@ class ModelListPage extends Component {
         sorter: (a, b) => a.lastBuildAt - b.lastBuildAt,
         defaultSortOrder: 'descend',
         render: (model) => {
-          console.log(model.lastBuildAt);
           return moment(model.lastBuildAt).format("MMMM Do YYYY, h:mm:ss a");
         },
         width: '20%', /* width: 300, */
