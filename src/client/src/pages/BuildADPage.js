@@ -144,11 +144,12 @@ class BuildADPage extends Component {
       console.log('isRunning has been changed');
       this.setState({ isRunning: this.props.buildStatus.isRunning });
       if (!this.props.buildStatus.isRunning) {
+        let builtModelId = this.props.buildStatus.lastBuildId;
         console.log('isRunning changed from True to False');  
         clearInterval(this.intervalId);
         notification.success({
           message: 'Success',
-          description: 'The model was built successfully!',
+          description: `The model ${builtModelId} was built successfully!`,
           placement: 'topRight',
         });
         this.setState({

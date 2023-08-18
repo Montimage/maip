@@ -65,11 +65,13 @@ class BuildACPage extends Component {
       console.log('isRunning has been changed');
       this.setState({ isRunning: this.props.buildACStatus.isRunning });
       if (!this.props.buildACStatus.isRunning) {
+        let builtModelId = this.props.buildACStatus.lastBuildId;
+        builtModelId = `ac-${builtModelId}`;
         console.log('isRunning changed from True to False');  
         clearInterval(this.intervalId);
         notification.success({
           message: 'Success',
-          description: 'The model was built successfully!',
+          description: `The model ${builtModelId} was built successfully!`,
           placement: 'topRight',
         });
         this.setState({
