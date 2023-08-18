@@ -11,15 +11,21 @@ import {
   requestMetricCurrentness,
   requestRetrainModel,
   requestRetrainStatus,
+  requestRetrainStatusAC,
+  requestRetrainModelAC,
 } from "../actions";
 import {
   BOX_STYLE, FORM_LAYOUT,
   SERVER_URL,
-  ATTACK_OPTIONS, RES_METRICS_MENU_ITEMS, HEADER_ACCURACY_STATS
+  ATTACK_OPTIONS, RES_METRICS_MENU_ITEMS, HEADER_ACCURACY_STATS,
+  AC_OUTPUT_LABELS, AD_OUTPUT_LABELS,
 } from "../constants";
 import {
   getFilteredModelsOptions,
   getLastPath,
+  isACModel,
+  computeAccuracy,
+  calculateMetrics,
 } from "../utils";
 
 let isModelIdPresent = getLastPath() !== "resilience";
@@ -47,6 +53,7 @@ class ResilienceMetricsPage extends Component {
       attacksPredictions: [],
       attacksConfusionMatrix: null,
       isRunning: props.retrainStatus.isRunning,
+      isRunningAC: props.retrainACStatus.isRunning,
     }
   }
 
@@ -54,29 +61,38 @@ class ResilienceMetricsPage extends Component {
     let modelId = getLastPath();
     if (isModelIdPresent) {
       this.setState({ modelId });
+      this.props.fetchModel(modelId);
+      this.loadPredictions();
+      this.props.fetchMetricCurrentness(modelId);
+      this.fetchModelBuildConfig();
     }
     this.props.fetchAllModels();
     
   }
-
-  // TODO: fix why classification plot and CM are rendered even values are not changed
-  /*shouldComponentUpdate(nextProps, nextState) {
-    return (
-      this.state.classificationData !== nextState.classificationData ||
-      this.props.retrainStatus.isRunning !== nextProps.retrainStatus.isRunning ||
-      this.state.confusionMatrix !== nextState.confusionMatrix
-    );
-  }*/
-
+  
   calculateImpact() {
     const { confusionMatrix, attacksConfusionMatrix } = this.state;
     let impact = 0;
     if (confusionMatrix && attacksConfusionMatrix) {
-      const errors = confusionMatrix[0][1] + confusionMatrix[1][0];
-      const errorsAttack = attacksConfusionMatrix[0][1] + attacksConfusionMatrix[1][0];
-      console.log(errors);
-      console.log(errorsAttack);
-      impact = (errorsAttack - errors) / errors;
+      let errors = 0;
+      let errorsAttack = 0;
+      
+      if (this.props.app === 'ad') {
+        errors = confusionMatrix[0][1] + confusionMatrix[1][0];
+        errorsAttack = attacksConfusionMatrix[0][1] + attacksConfusionMatrix[1][0];
+      } else if (this.props.app === 'ac') {
+        errors = confusionMatrix[0][1] + confusionMatrix[0][2] +
+                 confusionMatrix[1][0] + confusionMatrix[1][2] +
+                 confusionMatrix[2][0] + confusionMatrix[2][1];
+        
+        errorsAttack = attacksConfusionMatrix[0][1] + attacksConfusionMatrix[0][2] +
+                       attacksConfusionMatrix[1][0] + attacksConfusionMatrix[1][2] +
+                       attacksConfusionMatrix[2][0] + attacksConfusionMatrix[2][1];
+      }
+  
+      //console.log(errors);
+      //console.log(errorsAttack);
+      impact = errors !== 0 ? (errorsAttack - errors) / errors : 0;  // Handle divide by zero
     }
     return impact;
   }
@@ -111,22 +127,39 @@ class ResilienceMetricsPage extends Component {
       this.loadPredictions();
       this.props.fetchMetricCurrentness(modelId);
       this.fetchModelBuildConfig();
-    
-      // TODO: check whether the adversarial datasets are already generated 
-      if (prevProps.retrainStatus.isRunning !== this.props.retrainStatus.isRunning) {
-        console.log('isRunning has been changed');
-        this.setState({ isRunning: this.props.retrainStatus.isRunning });
-        if (!this.props.retrainStatus.isRunning) {
-          console.log('isRunning changed from True to False');
-          const retrainId = this.props.retrainStatus.lastRetrainId;
-          await this.loadAttacksPredictions(retrainId);  
-        }
-      }
+    }
 
-      // Check if attacksPredictions state is updated and clear the interval if it is
-      if (prevState.attacksConfusionMatrix !== this.state.attacksConfusionMatrix) {
+    // TODO: check whether the adversarial datasets are already generated 
+    if (prevProps.retrainACStatus.isRunning && prevProps.retrainStatus.isRunning !== this.props.retrainStatus.isRunning) {
+      console.log('isRunning has been changed');
+      this.setState({ isRunning: this.props.retrainStatus.isRunning });
+      if (!this.props.retrainStatus.isRunning) {
         clearInterval(this.intervalId);
+        console.log('isRunning changed from True to False');
+        const retrainId = this.props.retrainStatus.lastRetrainId;
+        await this.loadAttacksPredictions(retrainId);  
       }
+    }
+
+    if (prevProps.retrainACStatus.isRunning && prevProps.retrainACStatus.isRunning !== this.props.retrainACStatus.isRunning) {
+      console.log('isRunningAC has been changed');
+      this.setState({ isRunningAC: this.props.retrainACStatus.isRunning });
+      if (!this.props.retrainACStatus.isRunning) {
+        clearInterval(this.intervalId);
+        console.log('isRunningAC changed from True to False');
+        const retrainId = this.props.retrainACStatus.lastRetrainId;
+        await this.loadAttacksPredictions(retrainId);  
+      }
+    }
+
+    if (prevState.selectedAttack !== this.state.selectedAttack) {
+      this.handleSelectedAttack(this.state.selectedAttack);
+    }
+  }
+
+  componentWillUnmount() {
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
     }
   }
 
@@ -147,94 +180,88 @@ class ResilienceMetricsPage extends Component {
   }
 
   updateAttacksConfusionMatrix() {
-    const { attacksPredictions } = this.state;
-    const cutoffProb = 0.5;
-    const TP = attacksPredictions.filter((d) => d.trueLabel === 1 && d.prediction >= cutoffProb).length;
-    const FP = attacksPredictions.filter((d) => d.trueLabel === 0 && d.prediction >= cutoffProb).length;
-    const TN = attacksPredictions.filter((d) => d.trueLabel === 0 && d.prediction < cutoffProb).length;
-    const FN = attacksPredictions.filter((d) => d.trueLabel === 1 && d.prediction < cutoffProb).length;
-    const confusionMatrix = [
-      [TP, FP],
-      [FN, TN],
-    ];
+    const { modelId, predictions, cutoffProb, attacksPredictions} = this.state;
+    // TODO: add another cutoff Slider
+    let highCutoff = cutoffProb;
+    let lowCutoff = 0.33; 
+
+    // Initialize confusion matrix
+    const classificationLabels = isACModel(modelId) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
+    const numClasses = classificationLabels.length; 
+    let confusionMatrix = Array.from({ length: numClasses }, () => Array(numClasses).fill(0));
+    let stats = [];
+
+    //console.log(attacksPredictions);
+
+    attacksPredictions.forEach((d) => {
+      if (isNaN(d.prediction) || isNaN(d.trueLabel)) return; // Skip NaN values
+      let predictedClass;
+      if (isACModel(modelId)) {
+        predictedClass = Math.round(d.prediction) - 1;
+      } else {
+        predictedClass = d.prediction >= cutoffProb ? 1 : 0;
+      }
+      confusionMatrix[d.trueLabel - 1][predictedClass]++;
+    });
+
+    for (let i = 0; i < numClasses; i++) {
+      const TP = confusionMatrix[i][i];
+      const FP = confusionMatrix.map(row => row[i]).reduce((a, b) => a + b) - TP;
+      const FN = confusionMatrix[i].reduce((a, b) => a + b) - TP;
+      stats.push(calculateMetrics(TP, FP, FN));
+    }
 
     this.setState({ attacksConfusionMatrix: confusionMatrix });
   }
 
   updateConfusionMatrix() {
-    const { predictions, cutoffProb } = this.state;
-    const TP = predictions.filter((d) => d.trueLabel === 1 && d.prediction >= cutoffProb).length;
-    const FP = predictions.filter((d) => d.trueLabel === 0 && d.prediction >= cutoffProb).length;
-    const TN = predictions.filter((d) => d.trueLabel === 0 && d.prediction < cutoffProb).length;
-    const FN = predictions.filter((d) => d.trueLabel === 1 && d.prediction < cutoffProb).length;
-    const confusionMatrix = [
-      [TP, FP],
-      [FN, TN],
-    ];
+    const { modelId, predictions, cutoffProb } = this.state;
 
-    this.setState({ confusionMatrix });
+    // TODO: add another cutoff Slider
+    let highCutoff = cutoffProb;
+    let lowCutoff = 0.33; 
 
-    const accuracy = (TP + TN) / (TP + TN + FP + FN);
-    const precision = TP / (TP + FP);
-    const recall = TP / (TP + FN);
-    const f1Score = (2 * precision * recall) / (precision + recall);
+    // Initialize confusion matrix
+    const classificationLabels = isACModel(modelId) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
+    const numClasses = classificationLabels.length; 
+    let confusionMatrix = Array.from({ length: numClasses }, () => Array(numClasses).fill(0));
+    let stats = [];
 
-    const precisionPositive = TP / (TP + FP);
-    const recallPositive = TP / (TP + FN);
-    const f1ScorePositive = (2 * precisionPositive * recallPositive) / (precisionPositive + recallPositive);
-    const supportPositive = TP + FN;
+    predictions.forEach((d) => {
+      if (isNaN(d.prediction) || isNaN(d.trueLabel)) return; // Skip NaN values
+      let predictedClass;
+      if (isACModel(modelId)) {
+        predictedClass = Math.round(d.prediction) - 1;
+      } else {
+        predictedClass = d.prediction >= cutoffProb ? 1 : 0;
+      }
+      confusionMatrix[d.trueLabel - 1][predictedClass]++;
+    });
 
-    const precisionNegative = TN / (TN + FN);
-    const recallNegative = TN / (TN + FP);
-    const f1ScoreNegative = (2 * precisionNegative * recallNegative) / (precisionNegative + recallNegative);
-    const supportNegative = TN + FP;
+    for (let i = 0; i < numClasses; i++) {
+      const TP = confusionMatrix[i][i];
+      const FP = confusionMatrix.map(row => row[i]).reduce((a, b) => a + b) - TP;
+      const FN = confusionMatrix[i].reduce((a, b) => a + b) - TP;
+      stats.push(calculateMetrics(TP, FP, FN));
+    }
 
-    //console.log({accuracy, precision, recall, f1Score});
-    //console.log({precisionPositive, recallPositive, f1ScorePositive, supportPositive});
-    //console.log({precisionNegative, recallNegative, f1ScoreNegative, supportNegative});
+    this.setState({ stats, confusionMatrix });
 
-    const stats = [
-      [precisionPositive, recallPositive, f1ScorePositive, supportPositive],
-      [precisionNegative, recallNegative, f1ScoreNegative, supportNegative],
-      [accuracy],
-    ];
-
-    this.setState({ stats: stats });
-
-    const classificationData = [
-      {
+    const classificationData = classificationLabels.map((label, index) => {
+      return {
         "cutoffProb": "Below cutoff",
-        "class": "Normal traffic",
-        "value": TN
-      },
-      {
-        "cutoffProb": "Below cutoff",
-        "class": "Malware traffic",
-        "value": FP
-      },
-      {
+        "class": label,
+        "value": confusionMatrix[index][index] // Diagonal of confusion matrix gives correct predictions
+      }
+    }).concat(classificationLabels.map((label, index) => {
+      return {
         "cutoffProb": "Above cutoff",
-        "class": "Normal traffic",
-        "value": FN
-      },
-      {
-        "cutoffProb": "Above cutoff",
-        "class": "Malware traffic",
-        "value": TP
-      },
-      {
-        "cutoffProb": "Total",
-        "class": "Normal traffic",
-        "value": (TN + FN)
-      },
-      {
-        "cutoffProb": "Total",
-        "class": "Malware traffic",
-        "value": (TP + FP)
-      },
-    ];    
+        "class": label,
+        "value": confusionMatrix.reduce((acc, row) => acc + row[index], 0) - confusionMatrix[index][index]  // Sum of column minus correct prediction
+      }
+    }));
 
-    this.setState({ classificationData: classificationData });
+    this.setState({ stats, classificationData });
   }
 
   async loadPredictions() {
@@ -262,37 +289,58 @@ class ResilienceMetricsPage extends Component {
         const data = await response.json();
         const buildConfig = JSON.parse(data.buildConfig);
         this.setState({ buildConfig: buildConfig });
-        console.log(buildConfig.training_parameters);
+        //console.log(buildConfig.training_parameters);
       } catch (error) {
         console.error('Error fetching build-config:', error);
       }
     }
   }
 
+  // TODO: check testingDataset exists, better only show existing poisoned testingDataset
   handleSelectedAttack(selectedAttack) {
     const { modelId } = this.state;
-    this.setState({ selectedAttack: selectedAttack });
+    this.setState({ 
+      selectedAttack: selectedAttack,
+      attacksConfusionMatrix: null,
+    });
     
-    const { isRunning, buildConfig, modelDatasets, attacksDatasets } = this.state;
-    const trainingParameters = buildConfig.training_parameters;
+    const { isRunning, isRunningAC, buildConfig, modelDatasets, attacksDatasets } = this.state;
     const testingDataset = "Test_samples.csv";
     const trainingDataset = `${selectedAttack}_poisoned_dataset.csv`;
 
-    if (!isRunning) {
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+    }
+
+    if (this.props.app === 'ad' && !this.props.retrainStatus.isRunning) {
+      const trainingParameters = buildConfig.training_parameters;
       console.log("update isRunning state!");
       this.setState({ isRunning: true });
       this.props.fetchRetrainModel(
         modelId, trainingDataset, testingDataset, trainingParameters,
       );
-      this.intervalId = setInterval(() => { // start interval when button is clicked
+      
+      this.intervalId = setInterval(() => {
         this.props.fetchRetrainStatus();
       }, 5000);
+    }
+
+    if (this.props.app === 'ac' && !this.props.retrainACStatus.isRunning) {
+      console.log("update isRunningAC state!");
+      this.setState({ isRunningAC: true });
+      this.props.fetchRetrainModelAC(
+        modelId, trainingDataset, testingDataset,
+      );
+      
+      this.intervalId = setInterval(() => {
+        this.props.fetchRetrainStatusAC();
+      }, 3000);
     }
   }
 
   render() {
     const { app, models, model, metrics, retrainStatus } = this.props;
-    console.log(retrainStatus);
+    //console.log(retrainStatus);
 
     const {
       modelId,
@@ -302,35 +350,52 @@ class ResilienceMetricsPage extends Component {
     } = this.state;
 
     const modelsOptions = getFilteredModelsOptions(app, models);
-
+    //console.log(stats);
     const statsStr = stats.map((row, i) => `${i},${row.join(',')}`).join('\n');
     const rowsStats = statsStr.split('\n').map(row => row.split(','));
     let dataStats = [];
-    if(rowsStats.length === 3) {
-      const accuracy = parseFloat(rowsStats[2][1]);
-      dataStats = HEADER_ACCURACY_STATS.map((metric, i) => ({
-        key: (i).toString(),
-        metric,
-        class0: +rowsStats[0][i+1],
-        class1: +rowsStats[1][i+1],
-      }));
-      dataStats.push({
-        key: '5',
-        metric: 'accuracy',
-        class0: accuracy,
-        class1: accuracy,
+
+    // Determine the number of classes based on model type
+    const classificationLabels = isACModel(modelId) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
+    const numClasses = modelId && classificationLabels.length;
+    const accuracy = computeAccuracy(confusionMatrix);
+
+    // Loop over the rows in rowsStats excluding the accuracy row
+    for (let rowIndex = 0; rowIndex < numClasses; rowIndex++) {
+      const row = rowsStats[rowIndex];
+      HEADER_ACCURACY_STATS.forEach((metric, metricIndex) => {
+        if (!dataStats[metricIndex]) {
+          dataStats[metricIndex] = {
+            key: metricIndex.toString(),
+            metric,
+          };
+        }
+        if (row && row[metricIndex + 1]) {
+          dataStats[metricIndex]['class' + rowIndex] = +row[metricIndex + 1];
+        }
       });
     }
 
+    // Append the accuracy metric to the stats
+    const accuracyRow = {
+      key: dataStats.length.toString(),
+      metric: 'accuracy',
+    };
+    for (let i = 0; i < numClasses; i++) {
+      accuracyRow['class' + i] = accuracy;
+    }
+    dataStats.push(accuracyRow);
+
+    //console.log(dataStats);
+
     const cmStr = confusionMatrix.map((row, i) => `${i},${row.join(',')}`).join('\n');
-    const headers = ["Normal traffic", "Malware traffic"];
     const rows = cmStr.trim().split('\n');
     const data = rows.flatMap((row, i) => {
       const cols = row.split(',');
       const rowTotal = cols.slice(1).reduce((acc, val) => acc + Number(val), 0);
       return cols.slice(1).map((val, j) => ({
-        actual: headers[i],
-        predicted: headers[j],
+        actual: classificationLabels[i],
+        predicted: classificationLabels[j],
         count: Number(val),
         percentage: `${((Number(val) / rowTotal) * 100).toFixed(2)}%`,
       }));
@@ -364,6 +429,7 @@ class ResilienceMetricsPage extends Component {
     };
 
     let configAttacksCM = null;
+    //console.log(attacksConfusionMatrix);
     if (attacksConfusionMatrix) {
       const cmStrAtt = attacksConfusionMatrix.map((row, i) => `${i},${row.join(',')}`).join('\n');
       const rowsAtt = cmStrAtt.trim().split('\n');
@@ -371,13 +437,13 @@ class ResilienceMetricsPage extends Component {
         const colsAtt = row.split(',');
         const rowTotalAtt = colsAtt.slice(1).reduce((acc, val) => acc + Number(val), 0);
         return colsAtt.slice(1).map((val, j) => ({
-          actual: headers[i],
-          predicted: headers[j],
+          actual: classificationLabels[i],
+          predicted: classificationLabels[j],
           count: Number(val),
           percentage: `${((Number(val) / rowTotalAtt) * 100).toFixed(2)}%`,
         }));
       });
-      console.log(dataAtt);
+      //console.log(dataAtt);
       configAttacksCM = {
         data: dataAtt,
         forceFit: true,
@@ -443,7 +509,6 @@ class ResilienceMetricsPage extends Component {
                     disabled={isModelIdPresent}
                     onChange={(value) => {
                       this.setState({ modelId: value });
-                      console.log(`Select model ${value}`);
                     }}
                     //optionLabelProp="label"
                     options={modelsOptions}
@@ -475,10 +540,13 @@ class ResilienceMetricsPage extends Component {
                       allowClear
                       placeholder="Select an attack ..."
                       onChange={value => {
-                        if (value) { // TODO: this function is auto executed even users have not selected an attack yet
+                        if (!value) {
+                          this.setState({ attacksConfusionMatrix: null });
+                        } else {
                           this.handleSelectedAttack(value);
                         }
                       }}
+                      onClear={ this.setState() }
                       optionLabelProp="label"
                       options={ATTACK_OPTIONS}
                       style={{ width: 250 }}
@@ -497,7 +565,7 @@ class ResilienceMetricsPage extends Component {
                 </div>
                 <Col className="gutter-row" span={12} style={{ display: 'flex', justifyContent: 'center' }}>
                   <div style={{ display: 'flex', justifyContent: 'center', width: '100%', flex: 1, flexWrap: 'wrap', marginTop: '20px' }}>
-                    <div style={{ position: 'relative', height: '320px', width: '100%', maxWidth: '390px' }}>
+                    <div style={{ position: 'relative', height: '300px', width: '100%', maxWidth: '340px' }}>
                     <h3> Model before attack </h3>
                     { attacksConfusionMatrix &&
                       <Heatmap {...configCM} />
@@ -507,7 +575,7 @@ class ResilienceMetricsPage extends Component {
                 </Col>
                 <Col className="gutter-row" span={12} style={{ display: 'flex', justifyContent: 'center' }}>
                   <div style={{ display: 'flex', justifyContent: 'center', width: '100%', flex: 1, flexWrap: 'wrap', marginTop: '20px' }}>
-                    <div style={{ position: 'relative', height: '320px', width: '100%', maxWidth: '390px' }}>
+                    <div style={{ position: 'relative', height: '300px', width: '100%', maxWidth: '340px' }}>
                       <h3> Model after attack </h3>
                       { attacksConfusionMatrix &&
                         <Heatmap {...configAttacksCM} />
@@ -524,8 +592,8 @@ class ResilienceMetricsPage extends Component {
   }
 }
 
-const mapPropsToStates = ({ app, models, model, metrics, retrainStatus }) => ({
-  app, models, model, metrics, retrainStatus,
+const mapPropsToStates = ({ app, models, model, metrics, retrainStatus, retrainACStatus }) => ({
+  app, models, model, metrics, retrainStatus, retrainACStatus
 });
 
 const mapDispatchToProps = (dispatch) => ({
@@ -536,6 +604,9 @@ const mapDispatchToProps = (dispatch) => ({
   fetchMetricCurrentness: (modelId) => dispatch(requestMetricCurrentness(modelId)),
   fetchRetrainModel: (modelId, trainingDataset, testingDataset, params) =>
     dispatch(requestRetrainModel({ modelId, trainingDataset, testingDataset, params })),
+  fetchRetrainStatusAC: () => dispatch(requestRetrainStatusAC()),
+  fetchRetrainModelAC: (modelId, trainingDataset, testingDataset) =>
+    dispatch(requestRetrainModelAC({ modelId, trainingDataset, testingDataset })),
 });
 
 export default connect(mapPropsToStates, mapDispatchToProps)(ResilienceMetricsPage);

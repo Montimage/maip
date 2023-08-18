@@ -118,4 +118,37 @@ router.post('/retrain', async (req, res, next) => {
   }
 });
 
+router.post('/retrain/:modelId', (req, res) => {
+  const { modelId } = req.params;
+  const {
+    retrainConfig,
+  } = req.body;
+  console.log(retrainConfig);
+  if (!retrainConfig) {
+    res.status(401).send({
+      error: 'Missing retrain configuration. Please read the docs',
+    });
+  } else {
+    const retrainStatus = getRetrainStatusAC();
+    if (retrainStatus.isRunning) {
+      res.status(401).send({
+        error: 'A retrain process is running. Only one process is allowed at the time. Please try again later',
+      });
+    } else {
+      //const retrainConfig = { "modelId": modelId, ...retrainConfig1 };
+      //console.log(retrainConfig);
+      startRetrainModelAC(retrainConfig, (retrainStatus) => {
+        if (retrainStatus.error) {
+          res.status(401).send({
+            error: retrainStatus.error,
+          });
+        } else {
+          console.log(retrainStatus);
+          res.send(retrainStatus);
+        }
+      });
+    }
+  }
+});
+
 module.exports = router;
