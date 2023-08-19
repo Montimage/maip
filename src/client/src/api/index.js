@@ -226,6 +226,28 @@ export const requestDownloadDatasets = async (modelId, datasetType) => {
   }
 };
 
+export const requestModelDatasets = async (modelId) => {
+  const url = `${SERVER_URL}/api/models/${modelId}/datasets`;
+  const response = await fetch(url);
+  const data = await response.json();
+  if (data.error) {
+    throw data.error;
+  }
+  console.log(data.datasets);
+  return data.datasets;
+}
+
+export const requestAttacksDatasets = async (modelId) => {
+  const url = `${SERVER_URL}/api/attacks/${modelId}/datasets`;
+  const response = await fetch(url);
+  const data = await response.json();
+  if (data.error) {
+    throw data.error;
+  }
+  console.log(data.datasets);
+  return data.datasets;
+}
+
 export const requestConfusionMatrixModel = async (modelId) => {
   const url = `${SERVER_URL}/api/models/${modelId}/confusion-matrix`;
   const response = await fetch(url, {

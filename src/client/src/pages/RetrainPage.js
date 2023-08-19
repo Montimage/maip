@@ -11,25 +11,23 @@ import {
   requestRetrainStatusAC,
 } from "../actions";
 import {
+  requestModelDatasets,
+  requestAttacksDatasets,
+} from "../api";
+
+import {
   FORM_LAYOUT,
-  SERVER_URL,
   FEATURES_OPTIONS,
 } from "../constants";
 import { 
   getLastPath,
   getFilteredModelsOptions,
+  isACApp,
+  isRunningApp,
 } from "../utils";
 const { Panel } = Collapse;
 
-let modelDatasets = [];
-let attacksDatasets = [];
 let isModelIdPresent = getLastPath() !== "retrain";
-
-const isACApp = (app) => app === 'ac';
-
-const isRunningApp = (app, retrainACStatus, retrainStatus) => {
-  return isACApp(app) ? retrainACStatus.isRunning : retrainStatus.isRunning;
-}
 
 class RetrainPage extends Component {
   constructor(props) {
@@ -53,44 +51,25 @@ class RetrainPage extends Component {
     this.handleButtonRetrain = this.handleButtonRetrain.bind(this);
   }
 
-  componentDidMount() {
-    let modelId = getLastPath();
+  async componentDidMount() {
     if (isModelIdPresent) {
+      const modelId = getLastPath();
       this.setState({ modelId });
-    }
-    this.fetchModelDatasets();
-    this.fetchAttacksDatasets();
+      try {
+        const modelDatasets = await requestModelDatasets(modelId);
+        this.setState({ modelDatasets });
+        console.log(modelDatasets);
+  
+        const attacksDatasets = await requestAttacksDatasets(modelId);
+        this.setState({ attacksDatasets });
+        console.log(attacksDatasets);
+      } catch (error) {
+        console.error("Error fetching datasets:", error);
+      }
+    } 
     this.props.fetchAllModels(); 
     this.props.fetchApp();
   }
-
-  fetchModelDatasets = async () => {
-    const { modelId } = this.state;
-    let fetchModelId = isModelIdPresent ? getLastPath() : modelId;
-    try {
-      const response = await fetch(`${SERVER_URL}/api/models/${fetchModelId}/datasets`);
-      const data = await response.json();
-      modelDatasets = data.datasets;
-      this.setState({ modelDatasets });
-      console.log(modelDatasets);
-    } catch (error) {
-      console.error('Error fetching model datasets:', error);
-    }
-  };
-
-  fetchAttacksDatasets = async () => {
-    const { modelId } = this.state; 
-    let fetchModelId = isModelIdPresent ? getLastPath() : modelId;
-    try {
-      const response = await fetch(`${SERVER_URL}/api/attacks/${fetchModelId}/datasets`);
-      const data = await response.json();
-      attacksDatasets = data.datasets;
-      this.setState({ attacksDatasets });
-      console.log(attacksDatasets);
-    } catch (error) {
-      console.error('Error fetching attacks datasets:', error);
-    }
-  };
 
   handleButtonRetrain() {
     const { modelId, trainingDataset, testingDataset, trainingParameters, isRunning } = this.state;
@@ -114,12 +93,13 @@ class RetrainPage extends Component {
     }
   }
 
-  componentDidUpdate(prevProps, prevState) {
+  componentDidUpdate(prevProps) {
     const isRunningProp = isACApp(this.props.app) ? 
                             this.props.retrainACStatus.isRunning : 
                             this.props.retrainStatus.isRunning;
     
-    if (prevProps.retrainStatus.isRunning !== isRunningProp || prevProps.retrainACStatus.isRunning !== isRunningProp) {
+    if (prevProps.retrainStatus.isRunning !== isRunningProp || 
+        prevProps.retrainACStatus.isRunning !== isRunningProp) {
       this.setState({ isRunning: isRunningProp });
       if (!isRunningProp) {
         clearInterval(this.intervalId);
@@ -137,16 +117,19 @@ class RetrainPage extends Component {
   render() {
     const { modelId, modelDatasets, attacksDatasets } = this.state;
     const { app, models } = this.props;
-    const allDatasets = [...modelDatasets, ...attacksDatasets];
-
-    const trainingDatasetsOptions = allDatasets ? allDatasets.map(dataset => ({
-      value: dataset,
-      label: dataset,
-    })) : [];
-    const testingDatasetsOptions = modelDatasets ? modelDatasets.map(dataset => ({
-      value: dataset,
-      label: dataset,
-    })) : [];
+    let allDatasets = [];
+    let trainingDatasetsOptions = [], testingDatasetsOptions = []; 
+    if (modelDatasets.length && attacksDatasets.length) {
+      allDatasets = [...modelDatasets, ...attacksDatasets];
+      trainingDatasetsOptions = allDatasets ? allDatasets.map(dataset => ({
+        value: dataset,
+        label: dataset,
+      })) : [];
+      testingDatasetsOptions = modelDatasets ? modelDatasets.map(dataset => ({
+        value: dataset,
+        label: dataset,
+      })) : [];
+    }
 
     const featureOptions = FEATURES_OPTIONS ? FEATURES_OPTIONS.map(feature => ({
       value: feature,
@@ -177,10 +160,18 @@ class RetrainPage extends Component {
                 allowClear showSearch
                 value={this.state.modelId}
                 disabled={isModelIdPresent}
-                onChange={(value) => {
-                  this.setState({ modelId: value }, () => {
-                    this.fetchModelDatasets();
-                    this.fetchAttacksDatasets();
+                onChange={async (value) => {
+                  this.setState({ modelId: value }, async () => {
+                    try {
+                      const modelDatasets = await requestModelDatasets(value);
+                      const attacksDatasets = await requestAttacksDatasets(value);
+                      this.setState({
+                        modelDatasets,
+                        attacksDatasets
+                      });
+                    } catch (error) {
+                      console.error("Error loading datasets:", error);
+                    }
                   });
                   console.log(`Select model ${value}`);
                 }}
