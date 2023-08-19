@@ -7,7 +7,8 @@ import {
   getLastPath,
   getNumberFeatures,
   getFilteredFeatures,
-  getLabelAndColorScatterPlot,
+  getConfigScatterPlot,
+  getConfigBarPlot,
 } from "../utils";
 import {
   requestApp,
@@ -19,8 +20,8 @@ import { Bar, Scatter, Histogram } from '@ant-design/plots';
 const {
   BOX_STYLE,
   SERVER_URL,
-  AD_FEATURES_DESCRIPTIONS, AC_FEATURES_DESCRIPTIONS,
-  BIN_CHOICES, DATASET_TABLE_STATS, DATASET_MENU_ITEMS
+  BIN_CHOICES, DATASET_TABLE_STATS, DATASET_MENU_ITEMS,
+  COLUMNS_ALL_FEATURES,
 } = require('../constants');
 const { Option } = Select;
 
@@ -311,138 +312,9 @@ class DatasetPage extends Component {
       },
     ];
     
-    const columnsAllFeatures = [
-      {
-        title: 'ID',
-        dataIndex: 'key',
-        key: 'key',
-        sorter: (a, b) => a.key - b.key,
-      },
-      {
-        title: 'Name',
-        dataIndex: 'name',
-        key: 'name',
-        sorter: (a, b) => a.name.localeCompare(b.name),
-      },
-      {
-        title: 'Description',
-        dataIndex: 'description',
-        key: 'description',
-      },
-      {
-        title: 'Type',
-        dataIndex: 'type',
-        key: 'type',
-      },
-    ];
-    
-    const labelCsvData = csvData.map((data) => {
-      const { label, color } = getLabelAndColorScatterPlot(this.props.app, data);
-      return { ...data, label, color };
-    });
+    const configScatter = getConfigScatterPlot(this.props.app, csvData, xScatterFeature, yScatterFeature);
 
-    const configScatter = {
-      appendPadding: 10,
-      data: labelCsvData,
-      xField: xScatterFeature,
-      yField: yScatterFeature,
-      shape: 'circle',
-      colorField: 'label',
-      size: 4,
-      yAxis: {
-        title: {
-          text: yScatterFeature,
-          style: {
-            fontSize: 16,
-          },
-        },
-        nice: true,
-        line: {
-          style: {
-            stroke: '#aaa',
-          },
-        },
-      },
-      xAxis: {
-        title: {
-          text: xScatterFeature,
-          style: {
-            fontSize: 16,
-          },
-        },
-        grid: {
-          line: {
-            style: {
-              stroke: '#eee',
-            },
-          },
-        },
-        nice: true,
-        line: {
-          style: {
-            stroke: '#aaa',
-          },
-        },
-      },
-      /*regressionLine: {
-        type: 'linear', // linear, exp, loess, log, poly, pow, quad
-      },*/
-    };
-
-    const countByFeature = csvData.reduce((acc, row) => {
-      const category = row[barFeature];
-      return { ...acc, [category]: (acc[category] || 0) + 1 };
-    }, {});
-    const totalCount = Object.values(countByFeature).reduce((acc, count) => acc + count, 0);
-    const dataBar = Object.entries(countByFeature).map(([category, count]) => ({
-      feature: category,
-      count,
-      percentage: (count / totalCount) * 100,
-    }));
-
-    const configBar = {
-      data: dataBar,
-      xField: 'count',
-      yField: 'feature',
-      seriesField: 'feature',
-      legend: {
-        position: 'top-right',
-      },
-      label: {
-        position: 'middle',
-        style: {
-          fill: '#FFFFFF',
-        },
-        formatter: (datum) => `${datum.count}`,
-      },
-      label: {
-        position: 'middle',
-        /*content: ({ percentage }) => `${percentage.toFixed(2)}%`,*/
-        formatter: (datum) => `${datum.count} (${datum.percentage.toFixed(2)}%)`,
-        style: {
-          fill: '#FFFFFF',
-          fontSize: 16,
-        },
-      },
-      xAxis: {
-        title: {
-          text: barFeature,
-          style: {
-            fontSize: 16,
-          },
-        },
-      },
-      yAxis: {
-        title: {
-          text: 'frequency',
-          style: {
-            fontSize: 16,
-          },
-        },
-      },
-      interactions: [{ type: 'element-highlight' }],
-    };
-    //console.log(dataBar);
+    const configBar = getConfigBarPlot(csvData, barFeature);
 
     return (
       <LayoutPage pageTitle="Dataset" 
@@ -486,7 +358,7 @@ class DatasetPage extends Component {
                   <Button type="link" icon={<QuestionOutlined />} />
                 </Tooltip>
               </div>
-              <Table dataSource={allFeatures} columns={columnsAllFeatures} 
+              <Table dataSource={allFeatures} columns={COLUMNS_ALL_FEATURES} 
                 size="small" style={{ marginTop: '10px' }}
               />
             </div>

@@ -678,6 +678,31 @@ const AC_CLASS_MAPPING = {
   3: 'Video'
 };
 
+const COLUMNS_ALL_FEATURES = [
+  {
+    title: 'ID',
+    dataIndex: 'key',
+    key: 'key',
+    sorter: (a, b) => a.key - b.key,
+  },
+  {
+    title: 'Name',
+    dataIndex: 'name',
+    key: 'name',
+    sorter: (a, b) => a.name.localeCompare(b.name),
+  },
+  {
+    title: 'Description',
+    dataIndex: 'description',
+    key: 'description',
+  },
+  {
+    title: 'Type',
+    dataIndex: 'type',
+    key: 'type',
+  },
+];
+
 module.exports = {
   MENU_OPTIONS,
   FORM_LAYOUT, BOX_STYLE,
@@ -694,4 +719,5 @@ module.exports = {
   AD_OUTPUT_LABELS, AC_OUTPUT_LABELS,
   LIME_URL, COLUMNS_TABLE_PROBS,
   ATTACKS_SLIDER_MARKS, AD_CLASS_MAPPING, AC_CLASS_MAPPING,
+  COLUMNS_ALL_FEATURES,
 };

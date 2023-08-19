@@ -205,35 +205,84 @@ export const getNumberFeatures = (app) => {
             Object.keys(AD_FEATURES_DESCRIPTIONS).length - 3; // 59
 }
 
-export const getLabelAndColorScatterPlot = (app, data) => {
-  let dataLabel;
-  if (app === 'ad') {
-    dataLabel = data.malware;
-  } else if (app === 'ac') {
-    dataLabel = data.output;
-  } else {
-    return { label: "Unknown", color: '#000000' };
-  }
-
-  if (app === 'ad') {
-    return {
-      label: dataLabel === "0" ? "Normal traffic" : "Malware traffic",
-      color: dataLabel === "0" ? '#0693e3' : '#EB144C',
-    };
-  } else if (app === 'ac') {
-    switch(dataLabel) {
-      case "1":
-        return { label: "Web", color: '#0693e3' };
-      case "2":
-        return { label: "Interactive", color: '#EB144C' };
-      case "3":
-        // TODO: Video points are not gold
-        return { label: "Video", color: '#ffd700' };
-      default:
-        return { label: "Unknown", color: '#000000' };
-    }
-  }
+const getLabelScatterPlot = (app, data) => {
+  const dataLabel = isACApp(app) ? data.output : data.malware;
+  const labelMapping = {
+    "1": { label: "Web" },
+    "2": { label: "Interactive" },
+    "3": { label: "Video" }
+  };
+  return isACApp(app) ? 
+            labelMapping[dataLabel] : 
+            { label: dataLabel === "0" ? "Normal traffic" : "Malware traffic" };
 };
+
+export const getConfigScatterPlot = (app, csvData, xScatterFeature, yScatterFeature) => {
+  const labelCsvData = csvData.map((data) => {
+    const { label } = getLabelScatterPlot(app, data);
+    return { ...data, label };
+  });
+  //console.log(labelCsvData);
+
+  const configScatter = {
+    appendPadding: 10,
+    data: labelCsvData,
+    xField: xScatterFeature,
+    yField: yScatterFeature,
+    shape: 'circle',
+    colorField: 'label',
+    // Specify points' color based on label
+    color: ({ label }) => {
+      const labelColors = {
+        "Web": '#0693e3',
+        "Interactive": '#EB144C',
+        "Video": '#ffd700'
+      };
+      return labelColors[label];
+    },
+    size: 4,
+    yAxis: {
+      title: {
+        text: yScatterFeature,
+        style: {
+          fontSize: 16,
+        },
+      },
+      nice: true,
+      line: {
+        style: {
+          stroke: '#aaa',
+        },
+      },
+    },
+    xAxis: {
+      title: {
+        text: xScatterFeature,
+        style: {
+          fontSize: 16,
+        },
+      },
+      grid: {
+        line: {
+          style: {
+            stroke: '#eee',
+          },
+        },
+      },
+      nice: true,
+      line: {
+        style: {
+          stroke: '#aaa',
+        },
+      },
+    },
+    // regressionLine: {
+    //   type: 'linear', // linear, exp, loess, log, poly, pow, quad
+    // },
+  };
+
+  return configScatter; 
+}
 
 export const isACModel = modelId => modelId && modelId.startsWith('ac-');
 
@@ -591,4 +640,55 @@ export const getConfigPrecisionPlot = (dataPrecision) => {
   : null;
 
   return configPrecision;
+}
+
+export const getConfigBarPlot = (csvData, barFeature) => {
+  const countByFeature = csvData.reduce((acc, row) => {
+    const category = row[barFeature];
+    return { ...acc, [category]: (acc[category] || 0) + 1 };
+  }, {});
+  const totalCount = Object.values(countByFeature).reduce((acc, count) => acc + count, 0);
+  const dataBar = Object.entries(countByFeature).map(([category, count]) => ({
+    feature: category,
+    count,
+    percentage: (count / totalCount) * 100,
+  }));
+
+  const configBar = {
+    data: dataBar,
+    xField: 'count',
+    yField: 'feature',
+    seriesField: 'feature',
+    legend: {
+      position: 'top-right',
+    },
+    label: {
+      position: 'middle',
+      /*content: ({ percentage }) => `${percentage.toFixed(2)}%`,*/
+      formatter: (datum) => `${datum.count} (${datum.percentage.toFixed(2)}%)`,
+      style: {
+        fill: '#FFFFFF',
+        fontSize: 16,
+      },
+    },
+    xAxis: {
+      title: {
+        text: barFeature,
+        style: {
+          fontSize: 16,
+        },
+      },
+    },
+    yAxis: {
+      title: {
+        text: 'frequency',
+        style: {
+          fontSize: 16,
+        },
+      },
+    },
+    interactions: [{ type: 'element-highlight' }],
+  };
+
+  return configBar;
 }
