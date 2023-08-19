@@ -34,7 +34,6 @@ class BuildACPage extends Component {
   }
 
   async handleButtonBuild() {
-    console.log('Build model');
     const { modelType, dataset, featureList, trainingRatio, isRunning } = this.state;
     const buildConfig = {
       buildConfig: {
@@ -60,8 +59,6 @@ class BuildACPage extends Component {
     console.log(`buildACStatus: ${buildACStatus.isRunning}`);
     console.log(`build isRunning: ${isRunning}`);
     if (prevProps.buildACStatus.isRunning !== this.props.buildACStatus.isRunning) {
-      //&&
-        //prevProps.buildACStatus.isRunning) {
       console.log('isRunning has been changed');
       this.setState({ isRunning: this.props.buildACStatus.isRunning });
       if (!this.props.buildACStatus.isRunning) {

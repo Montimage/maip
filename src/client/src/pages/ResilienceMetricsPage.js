@@ -8,24 +8,28 @@ import {
   requestApp,
   requestAllModels,
   requestModel,
-  requestMetricCurrentness,
   requestRetrainModel,
   requestRetrainStatus,
   requestRetrainStatusAC,
   requestRetrainModelAC,
 } from "../actions";
 import {
-  BOX_STYLE, FORM_LAYOUT,
+  requestBuildConfigModel,
+  requestPredictionsModel,
+} from "../api";
+import {
+  BOX_STYLE,
   SERVER_URL,
-  ATTACK_OPTIONS, RES_METRICS_MENU_ITEMS, HEADER_ACCURACY_STATS,
-  AC_OUTPUT_LABELS, AD_OUTPUT_LABELS,
+  ATTACK_OPTIONS, RES_METRICS_MENU_ITEMS,
 } from "../constants";
 import {
   getFilteredModelsOptions,
   getLastPath,
-  isACModel,
-  computeAccuracy,
-  calculateMetrics,
+  getConfigConfusionMatrix,
+  calculateImpactMetric,
+  isACApp,
+  isRunningApp,
+  updateConfusionMatrix,
 } from "../utils";
 
 let isModelIdPresent = getLastPath() !== "resilience";
@@ -38,22 +42,14 @@ class ResilienceMetricsPage extends Component {
       modelId: null,
       stats: [],
       predictions: [],
-      confusionMatrix: [],
+      confusionMatrix: null,
       classificationData: [],
       cutoffProb: 0.5,
-      cutoffPercentile: 0.5,
-      fprs: [], 
-      tprs: [], 
-      auc: 0,
-      dataPrecision: null,
       selectedAttack: null,
       buildConfig: null,
-      modelDatasets: [],
-      attacksDatasets: [],
       attacksPredictions: [],
       attacksConfusionMatrix: null,
-      isRunning: props.retrainStatus.isRunning,
-      isRunningAC: props.retrainACStatus.isRunning,
+      isRunning: isRunningApp(this.props.app, this.props.retrainACStatus, this.props.retrainStatus),
     }
   }
 
@@ -63,43 +59,15 @@ class ResilienceMetricsPage extends Component {
       this.setState({ modelId });
       this.props.fetchModel(modelId);
       this.loadPredictions();
-      this.props.fetchMetricCurrentness(modelId);
-      this.fetchModelBuildConfig();
+      const buildConfig = requestBuildConfigModel(modelId);
+      this.setState({ buildConfig });
+      console.log(buildConfig);
     }
     this.props.fetchAllModels();
-    
-  }
-  
-  calculateImpact() {
-    const { confusionMatrix, attacksConfusionMatrix } = this.state;
-    let impact = 0;
-    if (confusionMatrix && attacksConfusionMatrix) {
-      let errors = 0;
-      let errorsAttack = 0;
-      
-      if (this.props.app === 'ad') {
-        errors = confusionMatrix[0][1] + confusionMatrix[1][0];
-        errorsAttack = attacksConfusionMatrix[0][1] + attacksConfusionMatrix[1][0];
-      } else if (this.props.app === 'ac') {
-        errors = confusionMatrix[0][1] + confusionMatrix[0][2] +
-                 confusionMatrix[1][0] + confusionMatrix[1][2] +
-                 confusionMatrix[2][0] + confusionMatrix[2][1];
-        
-        errorsAttack = attacksConfusionMatrix[0][1] + attacksConfusionMatrix[0][2] +
-                       attacksConfusionMatrix[1][0] + attacksConfusionMatrix[1][2] +
-                       attacksConfusionMatrix[2][0] + attacksConfusionMatrix[2][1];
-      }
-  
-      //console.log(errors);
-      //console.log(errorsAttack);
-      impact = errors !== 0 ? (errorsAttack - errors) / errors : 0;  // Handle divide by zero
-    }
-    return impact;
   }
 
   async componentDidUpdate(prevProps, prevState) {
     const { modelId } = this.state;  
-    // TODO: optimize code to remove redundant states
     if (this.props.app !== prevProps.app && !isModelIdPresent) {
       this.setState({ 
         modelId: null,
@@ -108,15 +76,8 @@ class ResilienceMetricsPage extends Component {
         confusionMatrix: [],
         classificationData: [],
         cutoffProb: 0.5,
-        cutoffPercentile: 0.5,
-        fprs: [], 
-        tprs: [], 
-        auc: 0,
-        dataPrecision: null,
         selectedAttack: null,
         buildConfig: null,
-        modelDatasets: [],
-        attacksDatasets: [],
         attacksPredictions: [],
         attacksConfusionMatrix: null,
       });
@@ -125,35 +86,26 @@ class ResilienceMetricsPage extends Component {
     if (modelId && modelId !== prevState.modelId) {
       this.props.fetchModel(modelId);
       this.loadPredictions();
-      this.props.fetchMetricCurrentness(modelId);
-      this.fetchModelBuildConfig();
+      const buildConfig = requestBuildConfigModel(modelId);
+      this.setState({ buildConfig });
+      console.log(buildConfig);
     }
 
-    // TODO: check whether the adversarial datasets are already generated 
-    if (prevProps.retrainACStatus.isRunning && prevProps.retrainStatus.isRunning !== this.props.retrainStatus.isRunning) {
+    // Check the retrainStatus or retrainACStatus based on the app type
+    const currentIsRunning = isRunningApp(this.props.app, this.props.retrainACStatus, this.props.retrainStatus);
+    const prevIsRunning = isRunningApp(prevProps.app, prevProps.retrainACStatus, prevProps.retrainStatus);
+    
+    if (prevIsRunning && prevIsRunning !== currentIsRunning) {
       console.log('isRunning has been changed');
-      this.setState({ isRunning: this.props.retrainStatus.isRunning });
-      if (!this.props.retrainStatus.isRunning) {
+      this.setState({ isRunning: currentIsRunning });
+      
+      if (!currentIsRunning) {
         clearInterval(this.intervalId);
         console.log('isRunning changed from True to False');
-        const retrainId = this.props.retrainStatus.lastRetrainId;
+        const retrainId = isACApp(this.props.app) ? 
+                          this.props.retrainACStatus.lastRetrainId : this.props.retrainStatus.lastRetrainId;
         await this.loadAttacksPredictions(retrainId);  
       }
-    }
-
-    if (prevProps.retrainACStatus.isRunning && prevProps.retrainACStatus.isRunning !== this.props.retrainACStatus.isRunning) {
-      console.log('isRunningAC has been changed');
-      this.setState({ isRunningAC: this.props.retrainACStatus.isRunning });
-      if (!this.props.retrainACStatus.isRunning) {
-        clearInterval(this.intervalId);
-        console.log('isRunningAC changed from True to False');
-        const retrainId = this.props.retrainACStatus.lastRetrainId;
-        await this.loadAttacksPredictions(retrainId);  
-      }
-    }
-
-    if (prevState.selectedAttack !== this.state.selectedAttack) {
-      this.handleSelectedAttack(this.state.selectedAttack);
     }
   }
 
@@ -164,316 +116,102 @@ class ResilienceMetricsPage extends Component {
   }
 
   async loadAttacksPredictions(modelId) {
-    const predictionsResponse = await fetch(`${SERVER_URL}/api/models/${modelId}/predictions`, {
-      method: 'GET',
-    });
-    const predictionsData = await predictionsResponse.json();
-    const predictionsValues = predictionsData.predictions;
-    //console.log(predictionsData);
+    const predictionsValues = await requestPredictionsModel(modelId);
+    //console.log(predictionsValues);
     const predictions = predictionsValues.split('\n').map((d) => ({
       prediction: parseFloat(d.split(',')[0]),
       trueLabel: parseInt(d.split(',')[1]),
     }));
     //console.log(predictions);
     this.setState({ attacksPredictions: predictions });
-    this.updateAttacksConfusionMatrix();
-  }
-
-  updateAttacksConfusionMatrix() {
-    const { modelId, predictions, cutoffProb, attacksPredictions} = this.state;
-    // TODO: add another cutoff Slider
-    let highCutoff = cutoffProb;
-    let lowCutoff = 0.33; 
-
-    // Initialize confusion matrix
-    const classificationLabels = isACModel(modelId) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
-    const numClasses = classificationLabels.length; 
-    let confusionMatrix = Array.from({ length: numClasses }, () => Array(numClasses).fill(0));
-    let stats = [];
-
-    //console.log(attacksPredictions);
-
-    attacksPredictions.forEach((d) => {
-      if (isNaN(d.prediction) || isNaN(d.trueLabel)) return; // Skip NaN values
-      let predictedClass;
-      if (isACModel(modelId)) {
-        predictedClass = Math.round(d.prediction) - 1;
-      } else {
-        predictedClass = d.prediction >= cutoffProb ? 1 : 0;
-      }
-      confusionMatrix[d.trueLabel - 1][predictedClass]++;
+    const attCM = updateConfusionMatrix(this.props.app, predictions, this.state.cutoffProb);
+    this.setState({ 
+      stats: attCM.stats, 
+      attacksConfusionMatrix: attCM.confusionMatrix,
+      classificationData: attCM.classificationData
     });
-
-    for (let i = 0; i < numClasses; i++) {
-      const TP = confusionMatrix[i][i];
-      const FP = confusionMatrix.map(row => row[i]).reduce((a, b) => a + b) - TP;
-      const FN = confusionMatrix[i].reduce((a, b) => a + b) - TP;
-      stats.push(calculateMetrics(TP, FP, FN));
-    }
-
-    this.setState({ attacksConfusionMatrix: confusionMatrix });
-  }
-
-  updateConfusionMatrix() {
-    const { modelId, predictions, cutoffProb } = this.state;
-
-    // TODO: add another cutoff Slider
-    let highCutoff = cutoffProb;
-    let lowCutoff = 0.33; 
-
-    // Initialize confusion matrix
-    const classificationLabels = isACModel(modelId) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
-    const numClasses = classificationLabels.length; 
-    let confusionMatrix = Array.from({ length: numClasses }, () => Array(numClasses).fill(0));
-    let stats = [];
-
-    predictions.forEach((d) => {
-      if (isNaN(d.prediction) || isNaN(d.trueLabel)) return; // Skip NaN values
-      let predictedClass;
-      if (isACModel(modelId)) {
-        predictedClass = Math.round(d.prediction) - 1;
-      } else {
-        predictedClass = d.prediction >= cutoffProb ? 1 : 0;
-      }
-      confusionMatrix[d.trueLabel - 1][predictedClass]++;
-    });
-
-    for (let i = 0; i < numClasses; i++) {
-      const TP = confusionMatrix[i][i];
-      const FP = confusionMatrix.map(row => row[i]).reduce((a, b) => a + b) - TP;
-      const FN = confusionMatrix[i].reduce((a, b) => a + b) - TP;
-      stats.push(calculateMetrics(TP, FP, FN));
-    }
-
-    this.setState({ stats, confusionMatrix });
-
-    const classificationData = classificationLabels.map((label, index) => {
-      return {
-        "cutoffProb": "Below cutoff",
-        "class": label,
-        "value": confusionMatrix[index][index] // Diagonal of confusion matrix gives correct predictions
-      }
-    }).concat(classificationLabels.map((label, index) => {
-      return {
-        "cutoffProb": "Above cutoff",
-        "class": label,
-        "value": confusionMatrix.reduce((acc, row) => acc + row[index], 0) - confusionMatrix[index][index]  // Sum of column minus correct prediction
-      }
-    }));
-
-    this.setState({ stats, classificationData });
   }
 
   async loadPredictions() {
-    const { modelId } = this.state;
+    const { modelId, cutoffProb } = this.state;
 
-    const predictionsResponse = await fetch(`${SERVER_URL}/api/models/${modelId}/predictions`, {
-      method: 'GET',
-    });
-    const predictionsData = await predictionsResponse.json();
-    const predictionsValues = predictionsData.predictions;
-    //console.log(predictionsData);
-    const predictions = predictionsValues.split('\n').map((d) => ({
-      prediction: parseFloat(d.split(',')[0]),
-      trueLabel: parseInt(d.split(',')[1]),
-    }));
-    //console.log(predictions);
-    this.setState({ predictions }, this.updateConfusionMatrix);
-  }
-
-  async fetchModelBuildConfig() {
-    const { modelId } = this.state;
     if (modelId) {
-      try {
-        const response = await fetch(`${SERVER_URL}/api/models/${modelId}/build-config`);
-        const data = await response.json();
-        const buildConfig = JSON.parse(data.buildConfig);
-        this.setState({ buildConfig: buildConfig });
-        //console.log(buildConfig.training_parameters);
-      } catch (error) {
-        console.error('Error fetching build-config:', error);
-      }
+      const predictionsValues = await requestPredictionsModel(modelId);
+      //console.log(predictionsValues);
+      const predictions = predictionsValues.split('\n').map((d) => ({
+        prediction: parseFloat(d.split(',')[0]),
+        trueLabel: parseInt(d.split(',')[1]),
+      }));
+      //console.log(predictions);
+      
+      this.setState({ predictions }, () => {
+        const cm = updateConfusionMatrix(this.props.app, predictions, cutoffProb);
+        this.setState({ 
+          stats: cm.stats, 
+          confusionMatrix: cm.confusionMatrix,
+          classificationData: cm.classificationData
+        });
+      });
     }
   }
 
-  // TODO: check testingDataset exists, better only show existing poisoned testingDataset
   handleSelectedAttack(selectedAttack) {
-    const { modelId } = this.state;
     this.setState({ 
       selectedAttack: selectedAttack,
       attacksConfusionMatrix: null,
     });
     
-    const { isRunning, isRunningAC, buildConfig, modelDatasets, attacksDatasets } = this.state;
+    const { modelId, buildConfig } = this.state;
     const testingDataset = "Test_samples.csv";
+    // TODO: check testingDataset exists, better only show existing poisoned testingDataset
     const trainingDataset = `${selectedAttack}_poisoned_dataset.csv`;
+    const currentIsRunning = isRunningApp(this.props.app, this.props.retrainACStatus, this.props.retrainStatus);
 
     if (this.intervalId) {
       clearInterval(this.intervalId);
     }
 
-    if (this.props.app === 'ad' && !this.props.retrainStatus.isRunning) {
-      const trainingParameters = buildConfig.training_parameters;
-      console.log("update isRunning state!");
+    if (!currentIsRunning) {
       this.setState({ isRunning: true });
-      this.props.fetchRetrainModel(
-        modelId, trainingDataset, testingDataset, trainingParameters,
-      );
-      
-      this.intervalId = setInterval(() => {
-        this.props.fetchRetrainStatus();
-      }, 5000);
-    }
+      console.log("update isRunning state!");
 
-    if (this.props.app === 'ac' && !this.props.retrainACStatus.isRunning) {
-      console.log("update isRunningAC state!");
-      this.setState({ isRunningAC: true });
-      this.props.fetchRetrainModelAC(
-        modelId, trainingDataset, testingDataset,
-      );
-      
+      if (isACApp(this.props.app)) {
+        this.props.fetchRetrainModelAC(
+          modelId, trainingDataset, testingDataset,
+        );
+      }
+
+      if (!isACApp(this.props.app)) {
+        const trainingParameters = buildConfig.training_parameters;
+        this.props.fetchRetrainModel(
+          modelId, trainingDataset, testingDataset, trainingParameters,
+        );
+      }
+
       this.intervalId = setInterval(() => {
-        this.props.fetchRetrainStatusAC();
+        isACApp(this.props.app) ? this.props.fetchRetrainStatusAC() : this.props.fetchRetrainStatus();
       }, 3000);
     }
   }
 
   render() {
-    const { app, models, model, metrics, retrainStatus } = this.props;
-    //console.log(retrainStatus);
-
+    const { app, models } = this.props;
     const {
       modelId,
       confusionMatrix,
-      stats,
       attacksConfusionMatrix,
     } = this.state;
 
+    let configAttacksCM = null, impact = null;
+
     const modelsOptions = getFilteredModelsOptions(app, models);
-    //console.log(stats);
-    const statsStr = stats.map((row, i) => `${i},${row.join(',')}`).join('\n');
-    const rowsStats = statsStr.split('\n').map(row => row.split(','));
-    let dataStats = [];
-
-    // Determine the number of classes based on model type
-    const classificationLabels = isACModel(modelId) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
-    const numClasses = modelId && classificationLabels.length;
-    const accuracy = computeAccuracy(confusionMatrix);
-
-    // Loop over the rows in rowsStats excluding the accuracy row
-    for (let rowIndex = 0; rowIndex < numClasses; rowIndex++) {
-      const row = rowsStats[rowIndex];
-      HEADER_ACCURACY_STATS.forEach((metric, metricIndex) => {
-        if (!dataStats[metricIndex]) {
-          dataStats[metricIndex] = {
-            key: metricIndex.toString(),
-            metric,
-          };
-        }
-        if (row && row[metricIndex + 1]) {
-          dataStats[metricIndex]['class' + rowIndex] = +row[metricIndex + 1];
-        }
-      });
-    }
-
-    // Append the accuracy metric to the stats
-    const accuracyRow = {
-      key: dataStats.length.toString(),
-      metric: 'accuracy',
-    };
-    for (let i = 0; i < numClasses; i++) {
-      accuracyRow['class' + i] = accuracy;
-    }
-    dataStats.push(accuracyRow);
-
-    //console.log(dataStats);
-
-    const cmStr = confusionMatrix.map((row, i) => `${i},${row.join(',')}`).join('\n');
-    const rows = cmStr.trim().split('\n');
-    const data = rows.flatMap((row, i) => {
-      const cols = row.split(',');
-      const rowTotal = cols.slice(1).reduce((acc, val) => acc + Number(val), 0);
-      return cols.slice(1).map((val, j) => ({
-        actual: classificationLabels[i],
-        predicted: classificationLabels[j],
-        count: Number(val),
-        percentage: `${((Number(val) / rowTotal) * 100).toFixed(2)}%`,
-      }));
-    });
-
-    const configCM = {
-      data: data,
-      forceFit: true,
-      xField: 'predicted',
-      yField: 'actual',
-      colorField: 'count',
-      shape: 'square',
-      tooltip: false,
-      xAxis: { title: { style: { fontSize: 20 }, text: 'Predicted', } },
-      yAxis: { title: { style: { fontSize: 20 }, text: 'Observed', } },
-      label: {
-        visible: true,
-        position: 'middle',
-        style: {
-          fontSize: '18',
-        },
-        formatter: (datum) => {
-          return `${datum.count}\n(${datum.percentage})`;
-        },
-      },
-      heatmapStyle: {
-        padding: 0,  
-        stroke: '#fff',
-        lineWidth: 1,
-      },
-    };
-
-    let configAttacksCM = null;
-    //console.log(attacksConfusionMatrix);
+    const configCM = confusionMatrix && getConfigConfusionMatrix(modelId, confusionMatrix);
+    
     if (attacksConfusionMatrix) {
-      const cmStrAtt = attacksConfusionMatrix.map((row, i) => `${i},${row.join(',')}`).join('\n');
-      const rowsAtt = cmStrAtt.trim().split('\n');
-      const dataAtt = rowsAtt.flatMap((row, i) => {
-        const colsAtt = row.split(',');
-        const rowTotalAtt = colsAtt.slice(1).reduce((acc, val) => acc + Number(val), 0);
-        return colsAtt.slice(1).map((val, j) => ({
-          actual: classificationLabels[i],
-          predicted: classificationLabels[j],
-          count: Number(val),
-          percentage: `${((Number(val) / rowTotalAtt) * 100).toFixed(2)}%`,
-        }));
-      });
-      //console.log(dataAtt);
-      configAttacksCM = {
-        data: dataAtt,
-        forceFit: true,
-        xField: 'predicted',
-        yField: 'actual',
-        colorField: 'count',
-        shape: 'square',
-        tooltip: false,
-        xAxis: { title: { style: { fontSize: 20 }, text: 'Predicted', } },
-        yAxis: { title: { style: { fontSize: 20 }, text: 'Observed', } },
-        label: {
-          visible: true,
-          position: 'middle',
-          style: {
-            fontSize: '18',
-          },
-          formatter: (datum) => {
-            return `${datum.count}\n(${datum.percentage})`;
-          },
-        },
-        heatmapStyle: {
-          padding: 0,  
-          stroke: '#fff',
-          lineWidth: 1,
-        },
-      };
+      configAttacksCM = getConfigConfusionMatrix(modelId, attacksConfusionMatrix);
+      impact = calculateImpactMetric(this.props.app, confusionMatrix, attacksConfusionMatrix);
+      console.log(impact);
     }
-
-    const impact = this.calculateImpact();
-    console.log(impact);
 
     const subTitle = isModelIdPresent ? 
       `Resilience metrics of the model ${modelId}` : 
@@ -520,6 +258,11 @@ class ResilienceMetricsPage extends Component {
         </Row>
         <Row gutter={24} style={{ marginTop: '10px' }}>
           <Col className="gutter-row" span={24} id="impact">
+            <div style={{ position: 'absolute', top: 110, right: 10 }}>
+              <Tooltip title="Impact metric shows difference between the original accuracy of a benign model compared to the accuracy of the compromised model after a successful poisoning attack.">
+                <Button type="link" icon={<QuestionOutlined />} />
+              </Tooltip>
+            </div>
             <div style={{ ...BOX_STYLE, marginTop: '100px' }}>
               <h2>&nbsp;&nbsp;&nbsp;Impact Metric</h2>
               &nbsp;&nbsp;&nbsp;
@@ -534,9 +277,7 @@ class ResilienceMetricsPage extends Component {
                 > 
                   <Tooltip title="Select an adversarial attack to measure resilience metrics.">
                     <Select
-                      style={{
-                        width: '100%',
-                      }}
+                      style={{ width: '250px' }}
                       allowClear
                       placeholder="Select an attack ..."
                       onChange={value => {
@@ -547,9 +288,7 @@ class ResilienceMetricsPage extends Component {
                         }
                       }}
                       onClear={ this.setState() }
-                      optionLabelProp="label"
                       options={ATTACK_OPTIONS}
-                      style={{ width: 250 }}
                     />
                   </Tooltip>
                 </Form.Item>
@@ -558,11 +297,7 @@ class ResilienceMetricsPage extends Component {
                 <h3>&nbsp;&nbsp;&nbsp;Score: {impact}</h3>
               }
               <Row gutter={24} style={{height: '400px'}}>
-                <div style={{ position: 'absolute', top: 10, right: 10 }}>
-                  <Tooltip title="Impact metric shows difference between the original accuracy of a benign model compared to the accuracy of the compromised model after a successful poisoning attack.">
-                    <Button type="link" icon={<QuestionOutlined />} />
-                  </Tooltip>
-                </div>
+                
                 <Col className="gutter-row" span={12} style={{ display: 'flex', justifyContent: 'center' }}>
                   <div style={{ display: 'flex', justifyContent: 'center', width: '100%', flex: 1, flexWrap: 'wrap', marginTop: '20px' }}>
                     <div style={{ position: 'relative', height: '300px', width: '100%', maxWidth: '340px' }}>
@@ -601,7 +336,6 @@ const mapDispatchToProps = (dispatch) => ({
   fetchAllModels: () => dispatch(requestAllModels()),
   fetchRetrainStatus: () => dispatch(requestRetrainStatus()),
   fetchModel: (modelId) => dispatch(requestModel(modelId)),
-  fetchMetricCurrentness: (modelId) => dispatch(requestMetricCurrentness(modelId)),
   fetchRetrainModel: (modelId, trainingDataset, testingDataset, params) =>
     dispatch(requestRetrainModel({ modelId, trainingDataset, testingDataset, params })),
   fetchRetrainStatusAC: () => dispatch(requestRetrainStatusAC()),

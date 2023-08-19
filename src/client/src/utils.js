@@ -1,6 +1,7 @@
 import {
   AC_FEATURES_DESCRIPTIONS, AD_FEATURES_DESCRIPTIONS,
   AC_OUTPUT_LABELS, AD_OUTPUT_LABELS,
+  HEADER_ACCURACY_STATS,
 } from "./constants";
 
 /**
@@ -310,6 +311,176 @@ const convertBuildConfigStrToJson = (app, buildConfig) => {
   return JSON.stringify(removeCsvPath(buildConfig), null, 2);
 };
 
+const getConfigConfusionMatrix = (modelId, confusionMatrix) => {
+  const classificationLabels = isACModel(modelId) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
+  const cmStr = confusionMatrix.map((row, i) => `${i},${row.join(',')}`).join('\n');
+  const rows = cmStr.trim().split('\n');
+  const data = rows.flatMap((row, i) => {
+    const cols = row.split(',');
+    const rowTotal = cols.slice(1).reduce((acc, val) => acc + Number(val), 0);
+    return cols.slice(1).map((val, j) => ({
+      actual: classificationLabels[i],
+      predicted: classificationLabels[j],
+      count: Number(val),
+      percentage: `${((Number(val) / rowTotal) * 100).toFixed(2)}%`,
+    }));
+  });
+
+  const configCM = {
+    data: data,
+    forceFit: true,
+    xField: 'predicted',
+    yField: 'actual',
+    colorField: 'count',
+    shape: 'square',
+    tooltip: false,
+    xAxis: { title: { style: { fontSize: 20 }, text: 'Predicted', } },
+    yAxis: { title: { style: { fontSize: 20 }, text: 'Observed', } },
+    label: {
+      visible: true,
+      position: 'middle',
+      style: {
+        fontSize: '18',
+      },
+      formatter: (datum) => {
+        return `${datum.count}\n(${datum.percentage})`;
+      },
+    },
+    heatmapStyle: {
+      padding: 0,  
+      stroke: '#fff',
+      lineWidth: 1,
+    },
+  };
+
+  return configCM;
+}
+
+const getTablePerformanceStats = (modelId, stats, confusionMatrix) => {
+  let dataStats = [];
+
+  // Determine the number of classes based on model type
+  const classificationLabels = isACModel(modelId) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
+  const numClasses = modelId && classificationLabels.length;
+  const accuracy = computeAccuracy(confusionMatrix);
+
+  const statsStr = stats.map((row, i) => `${i},${row.join(',')}`).join('\n');
+  const rowsStats = statsStr.split('\n').map(row => row.split(','));
+
+  // Loop over the rows in rowsStats excluding the accuracy row
+  for (let rowIndex = 0; rowIndex < numClasses; rowIndex++) {
+    const row = rowsStats[rowIndex];
+    HEADER_ACCURACY_STATS.forEach((metric, metricIndex) => {
+      if (!dataStats[metricIndex]) {
+        dataStats[metricIndex] = {
+          key: metricIndex.toString(),
+          metric,
+        };
+      }
+      if (row && row[metricIndex + 1]) {
+        dataStats[metricIndex]['class' + rowIndex] = +row[metricIndex + 1];
+      }
+    });
+  }
+
+  // Append the accuracy metric to the stats
+  const accuracyRow = {
+    key: dataStats.length.toString(),
+    metric: 'accuracy',
+  };
+  for (let i = 0; i < numClasses; i++) {
+    accuracyRow['class' + i] = accuracy;
+  }
+  dataStats.push(accuracyRow);
+  return dataStats;
+}
+
+const calculateImpactMetric = (app, confusionMatrix, attacksConfusionMatrix) => {
+  let impact = 0;
+  if (confusionMatrix && attacksConfusionMatrix) {
+    let errors = 0;
+    let errorsAttack = 0;
+    
+    if (app === 'ad') {
+      errors = confusionMatrix[0][1] + confusionMatrix[1][0];
+      errorsAttack = attacksConfusionMatrix[0][1] + attacksConfusionMatrix[1][0];
+    } else if (app === 'ac' && confusionMatrix.length > 2 && attacksConfusionMatrix.length > 2) { // Check length before accessing
+      errors = confusionMatrix[0][1] + confusionMatrix[0][2] +
+               confusionMatrix[1][0] + confusionMatrix[1][2] +
+               confusionMatrix[2][0] + confusionMatrix[2][1];
+      
+      errorsAttack = attacksConfusionMatrix[0][1] + attacksConfusionMatrix[0][2] +
+                     attacksConfusionMatrix[1][0] + attacksConfusionMatrix[1][2] +
+                     attacksConfusionMatrix[2][0] + attacksConfusionMatrix[2][1];
+    }
+
+    //console.log(errors);
+    //console.log(errorsAttack);
+    impact = errors !== 0 ? (errorsAttack - errors) / errors : 0;
+  }
+  return impact;
+}
+
+const isACApp = (app) => app === 'ac';
+
+const isRunningApp = (app, retrainACStatus, retrainStatus) => {
+  return isACApp(app) ? retrainACStatus.isRunning : retrainStatus.isRunning;
+}
+
+const updateConfusionMatrix = (app, predictions, cutoffProb) => {
+  let highCutoff = cutoffProb;
+  let lowCutoff = 0.33; 
+
+  const classificationLabels = isACApp(app) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
+  const numClasses = classificationLabels.length; 
+  let confusionMatrix = Array.from({ length: numClasses }, () => Array(numClasses).fill(0));
+  let stats = [];
+
+  predictions.forEach((d) => {
+    if (isNaN(d.prediction) || isNaN(d.trueLabel)) return; 
+    let predictedClass;
+    if (isACApp(app)) {
+      predictedClass = Math.round(d.prediction) - 1;
+    } else {
+      predictedClass = d.prediction >= cutoffProb ? 1 : 0;
+    }
+    //confusionMatrix[d.trueLabel - 1][predictedClass]++;
+    if (confusionMatrix[d.trueLabel - 1] && 
+      (confusionMatrix[d.trueLabel - 1][predictedClass] !== undefined)) {
+      confusionMatrix[d.trueLabel - 1][predictedClass]++;
+    } else {
+      console.warn(`Unexpected index encountered: ${d.trueLabel - 1}, ${predictedClass}`);
+    }
+  });
+
+  for (let i = 0; i < numClasses; i++) {
+    const TP = confusionMatrix[i][i];
+    const FP = confusionMatrix.map(row => row[i]).reduce((a, b) => a + b) - TP;
+    const FN = confusionMatrix[i].reduce((a, b) => a + b) - TP;
+    stats.push(calculateMetrics(TP, FP, FN));
+  }
+
+  const classificationData = classificationLabels.map((label, index) => {
+    return {
+      "cutoffProb": "Below cutoff",
+      "class": label,
+      "value": confusionMatrix[index][index] 
+    }
+  }).concat(classificationLabels.map((label, index) => {
+    return {
+      "cutoffProb": "Above cutoff",
+      "class": label,
+      "value": confusionMatrix.reduce((acc, row) => acc + row[index], 0) - confusionMatrix[index][index] 
+    }
+  }));
+
+  return {
+    confusionMatrix,
+    stats,
+    classificationData
+  };
+}
+
 export {
   getQuery,
   isDataGenerator,
@@ -334,4 +505,10 @@ export {
   transformConfigStrToTableData,
   removeCsvPath,
   convertBuildConfigStrToJson,
+  getConfigConfusionMatrix,
+  calculateImpactMetric,
+  getTablePerformanceStats,
+  isACApp,
+  isRunningApp,
+  updateConfusionMatrix,
 };

@@ -129,8 +129,8 @@ export const requestModel = async (modelId) => {
     }
   });
   const data = await response.json();
-  console.log(`Model information returned from server for ${modelId}`);
-  console.log(data);
+  //console.log(`Model information returned from server for ${modelId}`);
+  //console.log(data);
   return data;
 };
 
@@ -481,4 +481,19 @@ export const requestPredict = async (modelId, reportId, reportFileName) => {
   const data = await response.json();
   console.log(`Prediction on server with config ${predictConfig}`);
   return data;
+};
+
+export const requestPredictionsModel = async (modelId) => {
+  const url = `${SERVER_URL}/api/models/${modelId}/predictions`;
+  const response = await fetch(url, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    }
+  });
+  const data = await response.json();
+  if (data.error) {
+    throw data.error;
+  }
+  return data.predictions;
 };
