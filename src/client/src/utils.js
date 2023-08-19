@@ -1,6 +1,7 @@
 import {
   AC_FEATURES_DESCRIPTIONS, AD_FEATURES_DESCRIPTIONS,
   AC_OUTPUT_LABELS, AD_OUTPUT_LABELS,
+  AC_COLUMNS_PERF_STATS, AD_COLUMNS_PERF_STATS,
   HEADER_ACCURACY_STATS,
 } from "./constants";
 
@@ -10,7 +11,7 @@ import {
  * @param {String} path Path to be updated
  * @param {Value} value the new value to be updated
  */
-const updateObjectByPath = (obj, path, value) => {
+export const updateObjectByPath = (obj, path, value) => {
   let stack = path.split(".");
   while (stack.length > 1) {
     // Not at the end of the path
@@ -82,14 +83,14 @@ const updateObjectByPath = (obj, path, value) => {
   }
 };
 
-const deepCloneObject = (obj) => JSON.parse(JSON.stringify(obj));
+export const deepCloneObject = (obj) => JSON.parse(JSON.stringify(obj));
 
 /**
  * Add new element into array
  * @param {Array} array The array to be added
  * @param {Object} newElement New element to be updated or added
  */
-const addNewElementToArray = (array, newElement) => {
+export const addNewElementToArray = (array, newElement) => {
   let found = false;
   for (let index = 0; index < array.length; index++) {
     const element = array[index];
@@ -108,7 +109,7 @@ const addNewElementToArray = (array, newElement) => {
   return array;
 };
 
-const removeElementFromArray = (array, elmId) => {
+export const removeElementFromArray = (array, elmId) => {
   let isDeleted = false;
   for (let index = 0; index < array.length; index++) {
     const element = array[index];
@@ -125,22 +126,22 @@ const removeElementFromArray = (array, elmId) => {
   return array;
 };
 
-const getCreatedTimeFromFileName = (fileName) => {
+export const getCreatedTimeFromFileName = (fileName) => {
   const array = fileName.split("_");
   let timeString = array[array.length - 1].replace(".log", "");
   return new Date(Number(timeString));
 };
 
-const getLastURLPath = (url) => {
+export const getLastURLPath = (url) => {
   const array = url.split("/");
   return array[array.length - 1];
 };
 
-const isDataGenerator = () => {
+export const isDataGenerator = () => {
   return window.location.pathname.indexOf("data-generator") === 1;
 };
 
-const getQuery = (qname) => {
+export const getQuery = (qname) => {
   const query = new URLSearchParams(window.location.search);
   return query.get(qname);
 };
@@ -148,7 +149,7 @@ const getQuery = (qname) => {
 /**
  * Get the last path in the URL /this-is-the-last-path?not-this-part
  */
-const getLastPath = () => {
+export const getLastPath = () => {
   const array = window.location.pathname.split('/');
   let lastPath = array[array.length - 1];
   if (lastPath) {
@@ -158,23 +159,19 @@ const getLastPath = () => {
 }
 
 // last-path (id = 1), right-before-last-path (id = 2)
- const getBeforeLastPath = (id) => {
+export const getBeforeLastPath = (id) => {
   const array = window.location.pathname.split('/');
   return array[array.length - id];
 }
 
-const getFilteredModels = (app, models = []) => {
-  let filteredModels = [];
-  if (app === 'ac') {
-    filteredModels = models.filter(model => model.modelId.startsWith('ac-'));
-  } else if (app === 'ad') {
-    filteredModels = models.filter(model => !model.modelId.startsWith('ac-'));
-  }
-  return filteredModels;
+export const getFilteredModels = (app, models = []) => {
+  return isACApp(app) ? 
+            models.filter(model => model.modelId.startsWith('ac-')) : 
+            models.filter(model => !model.modelId.startsWith('ac-'));
 }
 
 // TODO: Filter models based on selected applications
-const getFilteredModelsOptions = (app, models = []) => {
+export const getFilteredModelsOptions = (app, models = []) => {
   const filteredModels = getFilteredModels(app, models); 
   
   return filteredModels.map(model => ({
@@ -183,42 +180,31 @@ const getFilteredModelsOptions = (app, models = []) => {
   }));
 }
 
-const getFilteredFeatures = (app) => {
-  if (app === 'ac') {
-    return AC_FEATURES_DESCRIPTIONS;
-  } else if (app === 'ad') {
-    return AD_FEATURES_DESCRIPTIONS;
-  } else {
-    return {};
-  }
+export const getColumnsPerfStats = (app) => {
+  return isACApp(app) ? AC_COLUMNS_PERF_STATS : AD_COLUMNS_PERF_STATS;
+}
+
+export const getFilteredFeatures = (app) => {
+  return isACApp(app) ? AC_FEATURES_DESCRIPTIONS : AD_FEATURES_DESCRIPTIONS;
 }
 
 // TODO: remove the first two keys and the last one
-const getFilteredFeaturesOptions = (app) => {
-  let features = [];
-  if (app === 'ac') {
-    features = Object.keys(AC_FEATURES_DESCRIPTIONS).sort();
-  } else if (app === 'ad') {
-    features = Object.keys(AD_FEATURES_DESCRIPTIONS).sort();
-  }
-  
+export const getFilteredFeaturesOptions = (app) => {
+  const features =  isACApp(app) ? 
+            Object.keys(AC_FEATURES_DESCRIPTIONS).sort() : 
+            Object.keys(AD_FEATURES_DESCRIPTIONS).sort();
   return features.map((label, index) => ({
     value: label, label,
   }));  
 }
 
-const getNumberFeatures = (app) => {
-  let numberFeatures = 0;
-  if (app === 'ac') {
-    numberFeatures = Object.keys(AC_FEATURES_DESCRIPTIONS).length - 1; // 21
-  } else if (app === 'ad') {
-    numberFeatures = Object.keys(AD_FEATURES_DESCRIPTIONS).length - 3; // 59
-  }
-  
-  return numberFeatures;
+export const getNumberFeatures = (app) => {
+  return isACApp(app) ? 
+            Object.keys(AC_FEATURES_DESCRIPTIONS).length - 1 : // 21
+            Object.keys(AD_FEATURES_DESCRIPTIONS).length - 3; // 59
 }
 
-const getLabelAndColorScatterPlot = (app, data) => {
+export const getLabelAndColorScatterPlot = (app, data) => {
   let dataLabel;
   if (app === 'ad') {
     dataLabel = data.malware;
@@ -248,19 +234,19 @@ const getLabelAndColorScatterPlot = (app, data) => {
   }
 };
 
-const isACModel = modelId => modelId && modelId.startsWith('ac-');
+export const isACModel = modelId => modelId && modelId.startsWith('ac-');
 
-const getLabelsOptions = (modelId) => {
+export const getLabelsOptions = (modelId) => {
   return isACModel(modelId) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
 }
 
-const computeAccuracy = (confusionMatrix) => {
+export const computeAccuracy = (confusionMatrix) => {
   const correctPredictions = confusionMatrix.reduce((sum, row, i) => sum + row[i], 0);
   const totalPredictions = confusionMatrix.reduce((sum, row) => sum + row.reduce((a, b) => a + b, 0), 0);
   return (correctPredictions / totalPredictions).toFixed(6);
 }
 
-const calculateMetrics = (TP, FP, FN) => {
+export const calculateMetrics = (TP, FP, FN) => {
   const precision = Number((TP / (TP + FP)).toFixed(6));
   const recall = Number((TP / (TP + FN)).toFixed(6));
   const f1Score = Number((2 * precision * recall / (precision + recall)).toFixed(6));
@@ -268,7 +254,7 @@ const calculateMetrics = (TP, FP, FN) => {
   return [precision, recall, f1Score, support];
 }
 
-const transformConfigStrToTableData = (configStr) => {
+export const transformConfigStrToTableData = (configStr) => {
   let config;
   
   try {
@@ -285,7 +271,7 @@ const transformConfigStrToTableData = (configStr) => {
 }
 
 // Remove dataset's path of the buildConfig for AD models
-const removeCsvPath = (buildConfig) => {
+export const removeCsvPath = (buildConfig) => {
   const updatedDatasets = buildConfig.datasets.map((dataset) => {
     const parts = dataset.csvPath.split('/');
     const newCsvPath = parts.slice(parts.indexOf('outputs') + 1).join('/');
@@ -304,14 +290,14 @@ const removeCsvPath = (buildConfig) => {
   };
 }
 
-const convertBuildConfigStrToJson = (app, buildConfig) => {
+export const convertBuildConfigStrToJson = (app, buildConfig) => {
   if (app === "ac") {
     return JSON.stringify(buildConfig, null, 2);
   }
   return JSON.stringify(removeCsvPath(buildConfig), null, 2);
 };
 
-const getConfigConfusionMatrix = (modelId, confusionMatrix) => {
+export const getConfigConfusionMatrix = (modelId, confusionMatrix) => {
   const classificationLabels = isACModel(modelId) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
   const cmStr = confusionMatrix.map((row, i) => `${i},${row.join(',')}`).join('\n');
   const rows = cmStr.trim().split('\n');
@@ -356,7 +342,7 @@ const getConfigConfusionMatrix = (modelId, confusionMatrix) => {
   return configCM;
 }
 
-const getTablePerformanceStats = (modelId, stats, confusionMatrix) => {
+export const getTablePerformanceStats = (modelId, stats, confusionMatrix) => {
   let dataStats = [];
 
   // Determine the number of classes based on model type
@@ -395,7 +381,7 @@ const getTablePerformanceStats = (modelId, stats, confusionMatrix) => {
   return dataStats;
 }
 
-const calculateImpactMetric = (app, confusionMatrix, attacksConfusionMatrix) => {
+export const calculateImpactMetric = (app, confusionMatrix, attacksConfusionMatrix) => {
   let impact = 0;
   if (confusionMatrix && attacksConfusionMatrix) {
     let errors = 0;
@@ -421,15 +407,16 @@ const calculateImpactMetric = (app, confusionMatrix, attacksConfusionMatrix) => 
   return impact;
 }
 
-const isACApp = (app) => app === 'ac';
+export const isACApp = (app) => app === 'ac';
 
-const isRunningApp = (app, retrainACStatus, retrainStatus) => {
+export const isRunningApp = (app, retrainACStatus, retrainStatus) => {
   return isACApp(app) ? retrainACStatus.isRunning : retrainStatus.isRunning;
 }
 
-const updateConfusionMatrix = (app, predictions, cutoffProb) => {
-  let highCutoff = cutoffProb;
-  let lowCutoff = 0.33; 
+export const updateConfusionMatrix = (app, predictions, cutoffProb) => {
+  // TODO: use highCutoff and lowCutoff
+  // let highCutoff = cutoffProb;
+  // let lowCutoff = 0.33; 
 
   const classificationLabels = isACApp(app) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
   const numClasses = classificationLabels.length; 
@@ -480,35 +467,3 @@ const updateConfusionMatrix = (app, predictions, cutoffProb) => {
     classificationData
   };
 }
-
-export {
-  getQuery,
-  isDataGenerator,
-  getLastURLPath,
-  updateObjectByPath,
-  addNewElementToArray,
-  removeElementFromArray,
-  getCreatedTimeFromFileName,
-  deepCloneObject,
-  getLastPath,
-  getBeforeLastPath,
-  getFilteredModels,
-  getFilteredModelsOptions,
-  getFilteredFeatures,
-  getFilteredFeaturesOptions,
-  getNumberFeatures,
-  getLabelAndColorScatterPlot,
-  getLabelsOptions,
-  isACModel,
-  computeAccuracy,
-  calculateMetrics,
-  transformConfigStrToTableData,
-  removeCsvPath,
-  convertBuildConfigStrToJson,
-  getConfigConfusionMatrix,
-  calculateImpactMetric,
-  getTablePerformanceStats,
-  isACApp,
-  isRunningApp,
-  updateConfusionMatrix,
-};

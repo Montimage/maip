@@ -8,18 +8,21 @@ import {
   requestAllModels,
 } from "../actions";
 import {
-  isACModel,
-  computeAccuracy,
-  calculateMetrics,
   transformConfigStrToTableData,
   removeCsvPath,
+  updateConfusionMatrix,
+  getTablePerformanceStats,
+  getConfigConfusionMatrix,
+  getFilteredModels,
+  getColumnsPerfStats 
 } from "../utils";
+import {
+  requestBuildConfigModel,
+  requestPredictionsModel,
+} from "../api";
 const {
   BOX_STYLE,
-  SERVER_URL,
-  CRITERIA_LIST, TABLE_BUILD_CONFIGS, AC_COLUMNS_PERF_STATS, AD_COLUMNS_PERF_STATS,
-  HEADER_ACCURACY_STATS,
-  AC_OUTPUT_LABELS, AD_OUTPUT_LABELS,
+  CRITERIA_LIST, TABLE_BUILD_CONFIGS, 
 } = require('../constants');
 const { Option } = Select;
 
@@ -48,7 +51,7 @@ class ModelListPage extends Component {
     this.props.fetchAllModels();
   }
 
-  componentDidUpdate(prevProps, prevState) {
+  componentDidUpdate(prevProps) {
     const { app } = this.props;
     if (prevProps.app !== app) {
       this.setState({
@@ -60,15 +63,13 @@ class ModelListPage extends Component {
   }
 
   async loadPredictions(modelId, isLeft) {
-    const buildConfigResponse = await fetch(`${SERVER_URL}/api/models/${modelId}/build-config`, {
-      method: 'GET',
-    });
-    const buildConfig = await buildConfigResponse.json();
-    const buildConfigStr = buildConfig.buildConfig;
-    //console.log(buildConfigStr);
+    const { cutoffProb } = this.state;
+    const buildConfig = await requestBuildConfigModel(modelId);
+    console.log(buildConfig);
+
     let dataBuildConfig;
     if (this.props.app === 'ad') {
-      const transformedBuildConfig = removeCsvPath(JSON.parse(buildConfigStr));
+      const transformedBuildConfig = removeCsvPath(JSON.parse(buildConfig));
       //console.log(transformedBuildConfig);
 
       const { datasets, training_ratio, training_parameters } = transformedBuildConfig;
@@ -84,179 +85,46 @@ class ModelListPage extends Component {
           value: value,
         })),
       ];
-      console.log(dataBuildConfig);
     } else {
-      dataBuildConfig = transformConfigStrToTableData(buildConfigStr); 
+      dataBuildConfig = transformConfigStrToTableData(buildConfig); 
     }
     console.log(dataBuildConfig);
 
-    const predictionsResponse = await fetch(`${SERVER_URL}/api/models/${modelId}/predictions`, {
-      method: 'GET',
-    });
-    const predictionsData = await predictionsResponse.json();
-    const predictionsValues = predictionsData.predictions;
-    console.log(predictionsData);
+    const predictionsValues = await requestPredictionsModel(modelId);
+    //console.log(predictionsValues);
     const predictions = predictionsValues.split('\n').map((d) => ({
       prediction: parseFloat(d.split(',')[0]),
       trueLabel: parseInt(d.split(',')[1]),
     }));
-    console.log(predictions);
-  //  this.setState({ predictions }, this.updateConfusionMatrix(predictions, isLeft));
-  //}
 
-  //updateConfusionMatrix(predictions, isLeft) {
-    const { cutoffProb } = this.state;
-
-    // TODO: add another cutoff Slider
-    let highCutoff = cutoffProb;
-    let lowCutoff = 0.33; 
-
-    // Initialize confusion matrix
-    const classificationLabels = isACModel(modelId) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
-    const numClasses = classificationLabels.length; 
-    let confusionMatrix = Array.from({ length: numClasses }, () => Array(numClasses).fill(0));
-    let stats = [];
-
-    if (!predictions) {
-      console.warn('Predictions are null or undefined');
-      return;
-    }
-
-    predictions.forEach((d) => {
-      if (isNaN(d.prediction) || isNaN(d.trueLabel)) return; // Skip NaN values
-      let predictedClass;
-      if (isACModel(modelId)) {
-        predictedClass = Math.round(d.prediction) - 1;
-      } else {
-        predictedClass = d.prediction >= cutoffProb ? 1 : 0;
-      }
-      //confusionMatrix[d.trueLabel - 1][predictedClass]++;
-      if (confusionMatrix[d.trueLabel - 1] && 
-          (confusionMatrix[d.trueLabel - 1][predictedClass] !== undefined)) {
-        confusionMatrix[d.trueLabel - 1][predictedClass]++;
-      } else {
-          console.warn(`Unexpected index encountered: ${d.trueLabel - 1}, ${predictedClass}`);
-      }
+    const cm = updateConfusionMatrix(this.props.app, predictions, cutoffProb);
+    const confusionMatrix = cm.confusionMatrix; 
+    const stats = cm.stats;
+    this.setState({ 
+      predictions,
+      stats, 
+      confusionMatrix,
+      classificationData: cm.classificationData
     });
-
-    for (let i = 0; i < numClasses; i++) {
-      const TP = confusionMatrix[i][i];
-      const FP = confusionMatrix.map(row => row[i]).reduce((a, b) => a + b) - TP;
-      const FN = confusionMatrix[i].reduce((a, b) => a + b) - TP;
-      stats.push(calculateMetrics(TP, FP, FN));
-    }
-    console.log(confusionMatrix);
-
-    this.setState({ stats, confusionMatrix });
-
-    const classificationData = classificationLabels.map((label, index) => {
-      return {
-        "cutoffProb": "Below cutoff",
-        "class": label,
-        "value": confusionMatrix[index][index] // Diagonal of confusion matrix gives correct predictions
-      }
-    }).concat(classificationLabels.map((label, index) => {
-      return {
-        "cutoffProb": "Above cutoff",
-        "class": label,
-        "value": confusionMatrix.reduce((acc, row) => acc + row[index], 0) - confusionMatrix[index][index]  // Sum of column minus correct prediction
-      }
-    }));
-
-    this.setState({ stats, classificationData });
-
-    const statsStr = stats.map((row, i) => `${i},${row.join(',')}`).join('\n');
-    const rowsStats = statsStr.split('\n').map(row => row.split(','));
-    let dataStats = [];
-    const accuracy = computeAccuracy(confusionMatrix);
-
-    // Loop over the rows in rowsStats excluding the accuracy row
-    for (let rowIndex = 0; rowIndex < numClasses; rowIndex++) {
-      const row = rowsStats[rowIndex];
-      HEADER_ACCURACY_STATS.forEach((metric, metricIndex) => {
-        if (!dataStats[metricIndex]) {
-          dataStats[metricIndex] = {
-            key: metricIndex.toString(),
-            metric,
-          };
-        }
-        if (row && row[metricIndex + 1]) {
-          dataStats[metricIndex]['class' + rowIndex] = +row[metricIndex + 1];
-        }
-      });
-    }
-
-    // Append the accuracy metric to the stats
-    const accuracyRow = {
-      key: dataStats.length.toString(),
-      metric: 'accuracy',
-    };
-    for (let i = 0; i < numClasses; i++) {
-      accuracyRow['class' + i] = accuracy;
-    }
-    dataStats.push(accuracyRow);
-    console.log(dataStats);
-    if (isLeft) {
-      this.setState({ dataStatsLeft: dataStats }); 
-    } else {
-      this.setState({ dataStatsRight: dataStats });
-    }
-
-    const cmStr = confusionMatrix.map((row, i) => `${i},${row.join(',')}`).join('\n');
-    const rows = cmStr.trim().split('\n');
-    const data = rows.flatMap((row, i) => {
-      const cols = row.split(',');
-      const rowTotal = cols.slice(1).reduce((acc, val) => acc + Number(val), 0);
-      return cols.slice(1).map((val, j) => ({
-        actual: classificationLabels[i],
-        predicted: classificationLabels[j],
-        count: Number(val),
-        percentage: `${((Number(val) / rowTotal) * 100).toFixed(2)}%`,
-      }));
-    });
-
-    const config = {
-      data: data,
-      forceFit: true,
-      xField: 'predicted',
-      yField: 'actual',
-      colorField: 'count',
-      shape: 'square',
-      tooltip: false,
-      xAxis: { title: { style: { fontSize: 20 }, text: 'Predicted', } },
-      yAxis: { title: { style: { fontSize: 20 }, text: 'Observed', } },
-      label: {
-        visible: true,
-        position: 'middle',
-        style: {
-          fontSize: '18',
-        },
-        formatter: (datum) => {
-          return `${datum.count}\n(${datum.percentage})`;
-        },
-      },
-      heatmapStyle: {
-        padding: 0,  
-        stroke: '#fff',
-        lineWidth: 1,
-      },
-    };
-
+    
+    const dataStats = getTablePerformanceStats(modelId, stats, confusionMatrix); 
+    const configCM = confusionMatrix && getConfigConfusionMatrix(modelId, confusionMatrix);
+    
     if (isLeft) {
       this.setState({
         selectedModelLeft: modelId,
         dataBuildConfigLeft: dataBuildConfig,
         dataStatsLeft: dataStats,
-        cmConfigLeft: config,
+        cmConfigLeft: configCM,
       });
     } else {
       this.setState({
         selectedModelRight: modelId,
         dataBuildConfigRight: dataBuildConfig,
         dataStatsRight: dataStats,
-        cmConfigRight: config,
+        cmConfigRight: configCM,
       });
-    }
+    }    
   }
 
   render() {
@@ -281,20 +149,10 @@ class ModelListPage extends Component {
       console.error("No models")
       return null;
     }
-
-    let filteredModels, columnsPerfStats;
-    // Suppose models of the activity classification app start with "ac-"
-    if (app === 'ac') {
-      filteredModels = models.filter(model => model.modelId.startsWith('ac-'));
-      columnsPerfStats = AC_COLUMNS_PERF_STATS;
-    } else if (app === 'ad') {
-      filteredModels = models.filter(model => !model.modelId.startsWith('ac-'));
-      columnsPerfStats = AD_COLUMNS_PERF_STATS;
-    } else {
-      filteredModels = [];
-    }
+    
+    const filteredModels = getFilteredModels(app, models);
+    const columnsPerfStats = getColumnsPerfStats(app);
     const modelIds = filteredModels.map((model) => model.modelId);
-    //console.log(modelIds);
 
     return (
       <LayoutPage pageTitle="Models Comparison" pageSubTitle="Comparing models based on performance metrics">

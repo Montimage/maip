@@ -19,7 +19,6 @@ import {
 } from "../api";
 import {
   BOX_STYLE,
-  SERVER_URL,
   ATTACK_OPTIONS, RES_METRICS_MENU_ITEMS,
 } from "../constants";
 import {
@@ -86,7 +85,7 @@ class ResilienceMetricsPage extends Component {
     if (modelId && modelId !== prevState.modelId) {
       this.props.fetchModel(modelId);
       this.loadPredictions();
-      const buildConfig = requestBuildConfigModel(modelId);
+      const buildConfig = await requestBuildConfigModel(modelId);
       this.setState({ buildConfig });
       console.log(buildConfig);
     }
