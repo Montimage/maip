@@ -320,7 +320,7 @@ const AC_FEATURES_DESCRIPTIONS = {
   },
   'min_dl_volume': { 
     description: 'Minimum of downlink data volume', 
-    type: '', 
+    type: 'numerical',
   },
   'avg_dl_volume': { 
     description: 'Average of downlink data volume', 

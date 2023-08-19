@@ -23,8 +23,6 @@ import {
   getTablePerformanceStats,
   getConfigClassification,
   computeCutoff,
-  getDataPrecision,
-  getConfigPrecisionPlot,
 } from "../utils";
 import {
   requestBuildConfigModel,
@@ -45,6 +43,9 @@ class AccountabilityMetricsPage extends Component {
       classificationData: [],
       cutoffProb: 0.5,
       cutoffPercentile: 0.5,
+      fprs: [], 
+      tprs: [], 
+      auc: 0,
       dataPrecision: null,
     }
   }
@@ -70,6 +71,9 @@ class AccountabilityMetricsPage extends Component {
         classificationData: [],
         cutoffProb: 0.5,
         cutoffPercentile: 0.5,
+        fprs: [], 
+        tprs: [], 
+        auc: 0,
         dataPrecision: null,
       });
     }
@@ -90,6 +94,9 @@ class AccountabilityMetricsPage extends Component {
           classificationData: [],
           cutoffProb: 0.5,
           cutoffPercentile: 0.5,
+          fprs: [], 
+          tprs: [], 
+          auc: 0,
           dataPrecision: null,
         });
       }
@@ -105,6 +112,7 @@ class AccountabilityMetricsPage extends Component {
     }));
 
     this.setState({ predictions }, this.updateConfusionMatrix);
+    this.updateROCAUC();
     this.updatePrecisionPlot();
   }
 
@@ -121,17 +129,180 @@ class AccountabilityMetricsPage extends Component {
     });
   }
 
+  // TODO: recheck this function, it works but looks weird, probably due to the given data
+  updateROCAUC() {
+    /*const { predictions, cutoffProb } = this.state;
+    // Calculate true positive rate (TPR) and false positive rate (FPR) for different cutoff probabilities
+    const tprs = [];
+    const fprs = [];
+    const stepSize = 0.01;
+    for (let cutoffProb = 0; cutoffProb <= 1; cutoffProb += stepSize) {
+      const TP = predictions.filter((d) => d.trueLabel === 1 && d.prediction >= cutoffProb).length;
+      const FP = predictions.filter((d) => d.trueLabel === 0 && d.prediction >= cutoffProb).length;
+      const TN = predictions.filter((d) => d.trueLabel === 0 && d.prediction < cutoffProb).length;
+      const FN = predictions.filter((d) => d.trueLabel === 1 && d.prediction < cutoffProb).length;
+
+      const TPR = TP / (TP + FN);
+      const FPR = FP / (FP + TN);
+      tprs.push(TPR);
+      fprs.push(FPR);
+    }
+
+    // Compute AUC by numerical integration of the ROC curve using trapezoidal rule
+    let auc = 0;
+    for (let i = 0; i < tprs.length - 1; i++) {
+      auc += (fprs[i + 1] - fprs[i]) * (tprs[i + 1] + tprs[i]) / 2;
+    }
+
+    this.setState({ fprs, tprs, auc });*/
+
+    const { predictions, cutoffProb } = this.state;
+    /*console.log(predictions);
+    console.log(cutoffProb);
+    const rocData = [];
+
+    const tprs = [];
+    const fprs = [];
+    const stepSize = 0.01;
+    for (let cutoffProb = 0; cutoffProb <= 1; cutoffProb += stepSize) {
+      const TP = predictions.filter((d) => d.trueLabel === 1 && d.prediction >= cutoffProb).length;
+      const FP = predictions.filter((d) => d.trueLabel === 0 && d.prediction >= cutoffProb).length;
+      const TN = predictions.filter((d) => d.trueLabel === 0 && d.prediction < cutoffProb).length;
+      const FN = predictions.filter((d) => d.trueLabel === 1 && d.prediction < cutoffProb).length;
+
+      const tpr = TP / (TP + FN);
+      const fpr = FP / (FP + TN);
+      tprs.push(tpr);
+      fprs.push(fpr);
+      rocData.push({ fpr, tpr });
+    }*/
+
+    const tprArray = []; // Array to store True Positive Rate (TPR)
+    const fprArray = []; // Array to store False Positive Rate (FPR)
+
+    for (let cutoffProb = 0; cutoffProb <= 1; cutoffProb += 0.01) {
+      let tp = 0; // True Positives
+      let fp = 0; // False Positives
+      let tn = 0; // True Negatives
+      let fn = 0; // False Negatives
+
+      for (const { prediction, trueLabel } of predictions) {
+        if (prediction >= cutoffProb) {
+          if (trueLabel === 1) {
+            tp++;
+          } else {
+            fp++;
+          }
+        } else {
+          if (trueLabel === 1) {
+            fn++;
+          } else {
+            tn++;
+          }
+        }
+      }
+
+      // Calculate True Positive Rate (TPR) and False Positive Rate (FPR)
+      const tpr = tp / (tp + fn);
+      const fpr = fp / (fp + tn);
+
+      // Add TPR and FPR to arrays
+      tprArray.push(tpr);
+      fprArray.push(fpr);
+    }
+
+    // Prepare data for the Line chart
+    const rocData = tprArray.map((tpr, index) => ({
+      fpr: fprArray[index],
+      tpr,
+    }));
+
+    this.setState({ rocData });
+    //console.log(rocData);
+  }
+
+  // updatePrecisionPlot() {
+  //   const { predictions, cutoffProb } = this.state;
+  //   const binSize = 0.1; // Size of each bin
+  //   const binThresholds = []; // Array to store the bin thresholds
+  //   const precisionArray = []; // Array to store the precision values
+
+  //   for (let binStart = 0; binStart <= 1; binStart += binSize) {
+  //     const binEnd = binStart + binSize;
+
+  //     let tp = 0;
+  //     let fp = 0;
+
+  //     for (const { prediction, trueLabel } of predictions) {
+  //       if (prediction >= binStart && prediction < binEnd) {
+  //         if (trueLabel === 1) {
+  //           tp++;
+  //         } else {
+  //           fp++;
+  //         }
+  //       }
+  //     }
+
+  //     // Calculate Precision only if the cutoffProb is within the bin range
+  //     const precision = (cutoffProb >= binStart && cutoffProb < binEnd) ? tp / (tp + fp) : NaN;
+
+  //     // Add bin threshold and precision to arrays
+  //     binThresholds.push(binStart);
+  //     precisionArray.push(precision);
+  //   }
+
+  //   // Prepare data for the Line chart
+  //   const dataPrecision = binThresholds.map((threshold, index) => ({
+  //     threshold: threshold.toFixed(1),
+  //     precision: isNaN(precisionArray[index],) ? 0 : precisionArray[index],
+  //   }));
+
+  //   //console.log(dataPrecision);
+  //   this.setState({ dataPrecision: dataPrecision });
+  // }
+
   // TODO: recheck the precision plot
   updatePrecisionPlot() {
     const { predictions } = this.state;
-    const dataPrecision = getDataPrecision(predictions);
+
+    let labelCounts = {};
+    let correctCounts = {};
+
+    for (let i = 1; i <= 3; i++) {
+      labelCounts[i] = 0;
+      correctCounts[i] = 0;
+    }
+
+    for (const predObj of Object.values(predictions)) {
+      const { prediction, trueLabel } = predObj;
+
+      labelCounts[prediction]++;
+      if (prediction === trueLabel) {
+          correctCounts[prediction]++;
+      }
+    }
+
+    const precisionArray = [];
+    for (let i = 1; i <= 3; i++) {
+      const precision = (labelCounts[i] === 0) 
+          ? 0 
+          : correctCounts[i] / labelCounts[i];
+      precisionArray.push(precision);
+    }
+
+    const dataPrecision = precisionArray.map((precision, index) => ({
+      label: (index + 1).toString(),
+      precision: precision
+    }));
+
     console.log(dataPrecision);
-    this.setState({ dataPrecision });
+    this.setState({ dataPrecision: dataPrecision });
   }
 
   handleCutoffProbChange(value) {
     this.setState({ cutoffProb: value }, () => {
       this.updateConfusionMatrix();
+      this.updateROCAUC();
       this.updatePrecisionPlot();
     });
   }
@@ -150,9 +321,11 @@ class AccountabilityMetricsPage extends Component {
       modelId, 
       cutoffProb,
       cutoffPercentile,
+      predictions,
       confusionMatrix,
       stats,
       classificationData,
+      fprs, tprs, auc, rocData,
       dataPrecision,
     } = this.state;
 
@@ -161,7 +334,100 @@ class AccountabilityMetricsPage extends Component {
     const dataStats = getTablePerformanceStats(modelId, stats, confusionMatrix); 
     const configCM = getConfigConfusionMatrix(modelId, confusionMatrix);
     const configClassification = getConfigClassification(classificationData);
-    const configPrecision = getConfigPrecisionPlot(dataPrecision);
+
+    const dataROC = [
+        { fpr: 0, tpr: 0 },
+        ...fprs.map((fpr, i) => ({ fpr, tpr: tprs[i] })),
+        { fpr: 1, tpr: 1 },
+      ];
+    //console.log(dataROC);
+
+
+    /*const configROCAUC = {
+      data: dataROC,
+      xField: 'fpr',
+      yField: 'tpr',
+      //seriesField: 'index',
+    };
+
+    const configROCAUC1 = {
+      data: rocData,
+      xField: 'fpr',
+      yField: 'tpr',
+      xAxis: {
+        min: 0,
+        max: 1,
+      },
+      yAxis: {
+        min: 0,
+        max: 1,
+      },
+      seriesField: [],
+      smooth: true,
+      lineStyle: {
+        lineWidth: 2,
+      },
+      point: {
+        shape: 'circle',
+        size: 3,
+        style: {
+          fill: '#ffffff',
+          stroke: '#1890ff',
+          lineWidth: 2,
+        },
+      },
+    };*/
+
+    // Create the ROC AUC plot configuration object
+    /*const configROCAUC = {
+      data: dataROC,
+      xField: 'fpr',
+      yField: 'tpr',
+      label: {
+        formatter: (datum) => `cutoff = ${(datum.data.fpr * 100).toFixed(2)}%`,
+      },
+      xAxis: {
+        title: 'False Positive Rate (FPR)',
+      },
+      yAxis: {
+        title: 'True Positive Rate (TPR)',
+      },
+      annotations: [
+        {
+          type: 'text',
+          position: ['min', 'max'],
+          offsetY: 10,
+          style: { textBaseline: 'top' },
+          content: `AUC = ${auc.toFixed(2)}`,
+        },
+      ],
+    };*/
+
+    //console.log(fprs);
+    //console.log(tprs);
+    //console.log(auc);
+
+    const configPrecision = dataPrecision
+    ? {
+        data: dataPrecision,
+        //xField: 'threshold',
+        xField: 'label',
+        yField: 'precision',
+        smooth: true,
+        lineStyle: {
+          lineWidth: 2,
+        },
+        point: {
+          size: 3,
+          shape: 'circle',
+          style: {
+            fill: '#ffffff',
+            stroke: '#1890ff',
+            lineWidth: 2,
+          },
+        },
+      }
+    : null;
 
     const dataCurrentnessMetric = metrics.map((item) => {
       const [method, score] = item.split(': ');

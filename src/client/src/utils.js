@@ -1,3 +1,4 @@
+import { G2 } from '@ant-design/plots';
 import {
   AC_FEATURES_DESCRIPTIONS, AD_FEATURES_DESCRIPTIONS,
   AC_OUTPUT_LABELS, AD_OUTPUT_LABELS,
@@ -466,4 +467,128 @@ export const updateConfusionMatrix = (app, predictions, cutoffProb) => {
     stats,
     classificationData
   };
+}
+
+export const getConfigClassification = (classificationData) => {
+  G2.registerInteraction('element-link', {
+    start: [
+      {
+        trigger: 'interval:mouseenter',
+        action: 'element-link-by-color:link',
+      },
+    ],
+    end: [
+      {
+        trigger: 'interval:mouseleave',
+        action: 'element-link-by-color:unlink',
+      },
+    ],
+  });
+
+  const configClassification = {
+    data: classificationData,
+    xField: 'cutoffProb',
+    yField: 'value',
+    seriesField: 'class',
+    isPercent: true,
+    isStack: true,
+    meta: {
+      value: {
+        min: 0,
+        max: 1,
+      },
+    },
+    label: {
+      position: 'middle',
+      content: (item) => {
+        return `${(item.value * 100).toFixed(2)}%`;
+      },
+      style: {
+        fill: '#fff',
+      },
+    },
+    tooltip: false,
+    interactions: [
+      {
+        type: 'element-highlight-by-color',
+      },
+      {
+        type: 'element-link',
+      },
+    ],
+  };
+
+  return configClassification;
+}
+
+export const computeCutoff = (predictions, cutoffPercentile) => {
+  // Sort the predictions array based on the prediction values in ascending order
+  predictions.sort((a, b) => a.prediction - b.prediction);
+
+  // Determine the index corresponding to the cutoff percentile
+  const cutoffIndex = Math.floor(predictions.length * cutoffPercentile);
+
+  // Retrieve the prediction value at the cutoff index
+  const cutoffProb = predictions[cutoffIndex].prediction;
+
+  //console.log('Cutoff Percentile of samples:', cutoffPercentile);
+  //console.log('Cutoff Prediction Probability:', cutoffProb);
+
+  return cutoffProb;
+}
+
+export const getDataPrecision = (predictions) => {
+  let labelCounts = {}, correctCounts = {}, precisionArray = [];
+
+  for (let i = 1; i <= 3; i++) {
+    labelCounts[i] = 0;
+    correctCounts[i] = 0;
+  }
+
+  for (const predObj of Object.values(predictions)) {
+    const { prediction, trueLabel } = predObj;
+    labelCounts[prediction]++;
+    if (prediction === trueLabel) {
+      correctCounts[prediction]++;
+    }
+  }
+
+  for (let i = 1; i <= 3; i++) {
+    const precision = (labelCounts[i] === 0) 
+                        ? 0 
+                        : correctCounts[i] / labelCounts[i];
+    precisionArray.push(precision);
+  }
+
+  const dataPrecision = precisionArray.map((precision, index) => ({
+    label: (index + 1).toString(),
+    precision: precision
+  }));
+
+  return dataPrecision;
+}
+
+export const getConfigPrecisionPlot = (dataPrecision) => {
+  const configPrecision = dataPrecision ? 
+    {
+      data: dataPrecision,
+      xField: 'label',
+      yField: 'precision',
+      smooth: true,
+      lineStyle: {
+        lineWidth: 2,
+      },
+      point: {
+        size: 3,
+        shape: 'circle',
+        style: {
+          fill: '#ffffff',
+          stroke: '#1890ff',
+          lineWidth: 2,
+        },
+      },
+    }
+  : null;
+
+  return configPrecision;
 }
