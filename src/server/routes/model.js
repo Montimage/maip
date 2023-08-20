@@ -282,7 +282,7 @@ router.put('/:modelId', async (req, res, next) => {
 
     // Loop through the directories and rename the model folder inside each
     for (let dir of OUTPUT_DIRS) {
-      const modelDirPath = `${dir}/${modelId}`;
+      const modelDirPath = `${dir}/${modelId.replace('.h5', '')}`;
       const newModelDirPath = `${dir}/${newModelId}`;
 
       if (fsex.existsSync(modelDirPath)) {
