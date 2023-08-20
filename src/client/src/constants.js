@@ -703,6 +703,28 @@ const COLUMNS_ALL_FEATURES = [
   },
 ];
 
+const LABEL_COLORS_AC = {
+  "Web": '#0693e3',
+  "Interactive": '#EB144C',
+  "Video": '#ffd700'
+};
+
+const LABEL_MAPPING_AC = {
+  "1": { label: "Web" },
+  "2": { label: "Interactive" },
+  "3": { label: "Video" }
+};
+
+const LABEL_COLORS_AD = {
+  "Normal traffic": '#0693e3',
+  "Malware traffic": '#EB144C', 
+}
+
+const LABEL_MAPPING_AD = {
+  "0": { label: "Normal traffic" },
+  "1": { label: "Malware traffic" }
+};
+
 module.exports = {
   MENU_OPTIONS,
   FORM_LAYOUT, BOX_STYLE,
@@ -720,4 +742,5 @@ module.exports = {
   LIME_URL, COLUMNS_TABLE_PROBS,
   ATTACKS_SLIDER_MARKS, AD_CLASS_MAPPING, AC_CLASS_MAPPING,
   COLUMNS_ALL_FEATURES,
+  LABEL_COLORS_AC, LABEL_COLORS_AD, LABEL_MAPPING_AC, LABEL_MAPPING_AD
 };

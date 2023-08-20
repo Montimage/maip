@@ -122,10 +122,9 @@ class DatasetPage extends Component {
       yScatterFeature,
       barFeature,
     } = this.state;
-    const { app } = this.props;
 
-    const numberFeatures = getNumberFeatures(app);
-    featuresDescriptions = getFilteredFeatures(app);
+    const numberFeatures = getNumberFeatures(this.props.app);
+    featuresDescriptions = getFilteredFeatures(this.props.app);
     
     const allFeatures = Object.keys(featuresDescriptions).map((feature, index) => {
       return {

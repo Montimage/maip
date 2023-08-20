@@ -3,7 +3,8 @@ import {
   AC_FEATURES_DESCRIPTIONS, AD_FEATURES_DESCRIPTIONS,
   AC_OUTPUT_LABELS, AD_OUTPUT_LABELS,
   AC_COLUMNS_PERF_STATS, AD_COLUMNS_PERF_STATS,
-  HEADER_ACCURACY_STATS,
+  HEADER_ACCURACY_STATS, LABEL_COLORS_AC, LABEL_COLORS_AD,
+  LABEL_MAPPING_AC, LABEL_MAPPING_AD
 } from "./constants";
 
 /**
@@ -211,16 +212,9 @@ export const getNumberFeatures = (app) => {
             Object.keys(AD_FEATURES_DESCRIPTIONS).length - 3; // 59
 }
 
-const getLabelScatterPlot = (app, data) => {
+export const getLabelScatterPlot = (app, data) => {
   const dataLabel = isACApp(app) ? data.output : data.malware;
-  const labelMapping = {
-    "1": { label: "Web" },
-    "2": { label: "Interactive" },
-    "3": { label: "Video" }
-  };
-  return isACApp(app) ? 
-            labelMapping[dataLabel] : 
-            { label: dataLabel === "0" ? "Normal traffic" : "Malware traffic" };
+  return isACApp(app) ? LABEL_MAPPING_AC[dataLabel] : LABEL_MAPPING_AD[dataLabel];
 };
 
 export const getConfigScatterPlot = (app, csvData, xScatterFeature, yScatterFeature) => {
@@ -239,12 +233,7 @@ export const getConfigScatterPlot = (app, csvData, xScatterFeature, yScatterFeat
     colorField: 'label',
     // Specify points' color based on label
     color: ({ label }) => {
-      const labelColors = {
-        "Web": '#0693e3',
-        "Interactive": '#EB144C',
-        "Video": '#ffd700'
-      };
-      return labelColors[label];
+      return isACApp(app) ? LABEL_COLORS_AC[label] : LABEL_COLORS_AD[label];
     },
     size: 4,
     yAxis: {
