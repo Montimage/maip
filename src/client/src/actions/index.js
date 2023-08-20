@@ -23,6 +23,7 @@ export const setRetrainStatus = createAction('SET_RETRAIN_STATUS');
 
 // All models
 export const requestAllModels = createAction('REQUEST_ALL_MODELS');
+export const requestDeleteAllModels = createAction('REQUEST_DELETE_ALL_MODELS');
 export const setAllModels = createAction('SET_ALL_MODELS');
 
 // Get model's details

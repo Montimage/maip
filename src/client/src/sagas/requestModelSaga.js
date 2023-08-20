@@ -8,6 +8,7 @@ import {
 import {
   requestAllModels,
   requestModel,
+  requestDeleteAllModels,
   requestDeleteModel,
   requestUpdateModel,
   requestBuildConfigModel,
@@ -28,6 +29,18 @@ import {
 function* handleRequestAllModels() {
   try {
     const allModels = yield call(() => requestAllModels());
+    yield put(setAllModels(allModels));
+    // dispatch data
+  } catch (error) {
+    // dispatch error
+    yield put(setNotification({type: 'error', message: error}));
+  }
+}
+
+function* handleRequestDeleteAllModels(action) {
+  try {
+    const app = action.payload;
+    const allModels = yield call(() => requestDeleteAllModels(app));
     yield put(setAllModels(allModels));
     // dispatch data
   } catch (error) {
@@ -150,6 +163,7 @@ function* handleRequestConfusionMatrixModel(action) {
 function* watchDatasets() {
   yield takeEvery('REQUEST_ALL_MODELS', handleRequestAllModels);
   yield takeEvery('REQUEST_MODEL', handleRequestModel);
+  yield takeEvery('REQUEST_DELETE_ALL_MODELS', handleRequestDeleteAllModels);
   yield takeEvery('REQUEST_DELETE_MODEL', handleRequestDeleteModel);
   yield takeEvery('REQUEST_UPDATE_MODEL', handleRequestUpdateModel);
   yield takeEvery('REQUEST_STATS_MODEL', handleRequestStatsModel);

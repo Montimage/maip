@@ -166,15 +166,21 @@ export const getBeforeLastPath = (id) => {
 }
 
 export const getFilteredModels = (app, models = []) => {
+  if (!Array.isArray(models)) {
+    return [];
+ }
   return isACApp(app) ? 
             models.filter(model => model.modelId.startsWith('ac-')) : 
             models.filter(model => !model.modelId.startsWith('ac-'));
 }
 
-// TODO: Filter models based on selected applications
 export const getFilteredModelsOptions = (app, models = []) => {
   const filteredModels = getFilteredModels(app, models); 
-  
+ 
+  if (!filteredModels.length) {
+    return [];
+  }
+
   return filteredModels.map(model => ({
     value: model.modelId,
     label: model.modelId,

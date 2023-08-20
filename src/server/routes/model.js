@@ -48,6 +48,51 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+router.delete('/', async (req, res, next) => {
+  const { app } = req.body;
+
+  try {
+    // For 'models' directory
+    const filesInModelDir = await fsex.readdir(MODEL_PATH);
+    let filesToDelete = [];
+    if (app === "ac") {
+      filesToDelete = filesInModelDir.filter(name => name.startsWith('ac-'));
+    } else if (app === "ad") {
+      filesToDelete = filesInModelDir.filter(name => !name.startsWith('ac-'));
+    }
+    
+    for (let file of filesToDelete) {
+      await fsex.unlink(`${MODEL_PATH}/${file}`);
+      //console.log(`Model file ${file} has been deleted from ${filesInModelDir}`);
+    }
+    
+    for (let dir of OUTPUT_DIRS) {
+      const filesAndDirsInCurrentDir = await fsex.readdir(dir);
+      // For other directories, remove all folders
+      let dirsToDelete = [];
+      if (app === "ac") {
+        dirsToDelete = filesAndDirsInCurrentDir.filter(name => name.startsWith('ac-'));
+      } else if (app === "ad") {
+        dirsToDelete = filesAndDirsInCurrentDir.filter(name => !name.startsWith('ac-'));
+      }
+
+      for (let folder of dirsToDelete) {
+        await fsex.remove(`${dir}/${folder}`);
+        //console.log(`Model directory ${folder} has been deleted from ${dir}`);
+      }
+    }
+
+    res.send({
+      result: `Deletion of all ${app} models successful`
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({
+      error: `Error deleting all ${app} models`,
+    });
+  }
+});
+
 /** Download a model file */
 router.get('/:modelId/download', (req, res, next) => {
   const { modelId } = req.params;

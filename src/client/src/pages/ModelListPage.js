@@ -3,13 +3,14 @@ import { connect } from "react-redux";
 import { Tooltip, Typography, Table, Space, Button, Select, notification } from "antd";
 import LayoutPage from "./LayoutPage";
 import { 
-  FolderViewOutlined, DownloadOutlined,
+  FolderViewOutlined, DownloadOutlined, DeleteOutlined,
   LineChartOutlined, SolutionOutlined, BugOutlined, ExperimentOutlined,
   HourglassOutlined, RestOutlined, CopyOutlined, HighlightOutlined
 } from '@ant-design/icons';
 import {
   requestApp,
   requestAllModels,
+  requestDeleteAllModels,
   requestDeleteModel,
   requestUpdateModel,
   requestDownloadModel,
@@ -74,12 +75,19 @@ class ModelListPage extends Component {
     };
 
     const filteredModels = getFilteredModels(app, models);
-    const dataSource = filteredModels.map((model, index) => ({ ...model, key: index }));
+    const dataSource = filteredModels.length ? 
+                    filteredModels.map((model, index) => ({ ...model, key: index })) :
+                    [];
     const columns = [
       {
         title: "Model Id",
         key: "data",
         width: '30%',
+        sorter: (a, b) => {
+          if(a.modelId < b.modelId) return -1;
+          if(a.modelId > b.modelId) return 1;
+          return 0;
+        },
         render: (model) => (
           <Text
             copyable={{
@@ -327,7 +335,20 @@ class ModelListPage extends Component {
                 </pre>
               </p>,
           }}
+          locale={{
+            emptyText: <h3>No models found! Let's build a new one!</h3>,
+          }}
         />
+        
+        <Space wrap>
+          <Button type="primary" icon={<DeleteOutlined />} 
+            onClick={() => this.props.deleteAllModels(this.props.app)}
+            style={{ marginTop: '10px', marginBottom: '16px' }}
+            disabled={dataSource.length === 0}
+          >  
+            Delete all models
+          </Button>
+        </Space>
       </LayoutPage>
     );
   }
@@ -340,6 +361,7 @@ const mapPropsToStates = ({ models, app }) => ({
 const mapDispatchToProps = (dispatch) => ({
   fetchApp: () => dispatch(requestApp()),
   fetchAllModels: () => dispatch(requestAllModels()),
+  deleteAllModels: (app) => dispatch(requestDeleteAllModels(app)), 
   downloadModel: (modelId) => dispatch(requestDownloadModel(modelId)),
   downloadDatasets: (modelId, datasetType) => {
     dispatch(requestDownloadDatasets({modelId, datasetType}))

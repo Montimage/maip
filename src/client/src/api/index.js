@@ -134,6 +134,23 @@ export const requestModel = async (modelId) => {
   return data;
 };
 
+export const requestDeleteAllModels = async (app) => {
+  const url = `${SERVER_URL}/api/models`;
+  const response = await fetch(url, {
+    method: "DELETE",
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ app }),
+  });
+  const data = await response.json();
+  if (data.error) {
+    throw data.error;
+  }
+  console.log(`Delete all ${app} models on server`);
+  return data.result;
+};
+
 export const requestDeleteModel = async (modelId) => {
   const url = `${SERVER_URL}/api/models/${modelId}`;
   const response = await fetch(url, {
