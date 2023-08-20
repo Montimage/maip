@@ -8,13 +8,14 @@ import {
   requestAttacksStatus,
 } from "../actions";
 import { 
+  isACModel,
   getLastPath,
   getFilteredModelsOptions,
   getLabelsOptions,
-  isACModel,
+  getConfigLabelsColumn,
 } from "../utils";
 import Papa from "papaparse";
-import { Column, G2} from '@ant-design/plots';
+import { Column } from '@ant-design/plots';
 import { message, Col, Row, Divider, Slider, Form, Button, Checkbox, Select, Tooltip } from 'antd';
 import { QuestionOutlined } from "@ant-design/icons";
 import {
@@ -53,20 +54,21 @@ class AttacksPage extends Component {
   }
 
   handleTargetClass = (checkedValues) => {
+    const { modelId } = this.state;
     let targetClass = null;
     if (checkedValues.length > 1) {
       message.error('You can only select one option');
       this.setState({ targetClass: null, checkboxValues: [] });
     } else {
       if (checkedValues.length === 1) {
-        const labelMapping = isACModel ? AC_CLASS_MAPPING : AD_CLASS_MAPPING;
+        const labelMapping = isACModel(modelId) ? AC_CLASS_MAPPING : AD_CLASS_MAPPING;
         const targetClasses = Object.keys(labelMapping).filter(
                                 key => labelMapping[key] === checkedValues[0]);
         
         if (targetClasses.length > 0) {
             targetClass = parseInt(targetClasses[0]);
         } else {
-            message.error(`Invalid option for ${isACModel ? 'AC' : 'AD'} model`);
+            message.error(`Invalid option for ${isACModel(modelId) ? 'AC' : 'AD'} model`);
         }
       }
       this.setState({ targetClass, checkboxValues: checkedValues });
@@ -103,7 +105,7 @@ class AttacksPage extends Component {
     if (prevProps.attacksStatus.isRunning !== this.props.attacksStatus.isRunning) {
       console.log('State isRunning has been changed');
       this.setState({ isRunning: this.props.attacksStatus.isRunning });
-      if (!this.props.attacksStatus.isRunning) {
+      if (!this.props.attacksStatus.isRunning && selectedAttack) {
         console.log('isRunning changed from True to False');
         this.displayPoisonedDataset(modelId, selectedAttack, poisoningRate, targetClass);
       }
@@ -161,8 +163,10 @@ class AttacksPage extends Component {
     const CLASS_LABELS = isACModel(modelId) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
     const CLASS_MAPPING = isACModel(modelId) ? AC_CLASS_MAPPING : AD_CLASS_MAPPING;
 
-    const labelsDataOriginal = csvDataOriginal.map((row) => CLASS_MAPPING[row.output]);
-    const labelsDataPoisoned = csvDataPoisoned.map((row) => CLASS_MAPPING[parseInt(row.output)]);
+    const labelsDataOriginal = csvDataOriginal.map((row) => 
+      isACModel(modelId) ? CLASS_MAPPING[row.output] : CLASS_MAPPING[row.malware]);
+    const labelsDataPoisoned = csvDataPoisoned.map((row) => 
+      isACModel(modelId) ? CLASS_MAPPING[parseInt(row.output)] : CLASS_MAPPING[parseInt(row.malware)]);
     console.log(labelsDataOriginal);
     console.log(labelsDataPoisoned);
 
@@ -214,60 +218,11 @@ class AttacksPage extends Component {
       models,
       attacksStatus, 
     } = this.props;
-    console.log(models);
-    console.log(`Attacks isRunning: ${attacksStatus.isRunning}`);
     
     const modelsOptions = getFilteredModelsOptions(app, models);
     const targetOptions = getLabelsOptions(modelId);
     const dataLabelsColumn = this.updateData(modelId, csvDataOriginal, csvDataPoisoned);
-
-    G2.registerInteraction('element-link', {
-      start: [
-        {
-          trigger: 'interval:mouseenter',
-          action: 'element-link-by-color:link',
-        },
-      ],
-      end: [
-        {
-          trigger: 'interval:mouseleave',
-          action: 'element-link-by-color:unlink',
-        },
-      ],
-    });
-    const configLabelsColumn = {
-      data: dataLabelsColumn,
-      xField: 'datasetType',
-      yField: 'value',
-      seriesField: 'class',
-      isPercent: true,
-      isStack: true,
-      meta: {
-        value: {
-          min: 0,
-          max: 1,
-        },
-      },
-      label: {
-        position: 'middle',
-        content: (item) => {
-          return `${item.count} (${(item.value * 100).toFixed(2)}%)`;
-        },
-        style: {
-          fill: '#fff',
-          fontSize: 16,
-        },
-      },
-      tooltip: false,
-      interactions: [
-        {
-          type: 'element-highlight-by-color',
-        },
-        {
-          type: 'element-link',
-        },
-      ],
-    };
+    const configLabelsColumn = getConfigLabelsColumn(dataLabelsColumn); 
 
     const subTitle = isModelIdPresent ? 
       `Adversarial attacks against model ${modelId}` : 
@@ -292,6 +247,7 @@ class AttacksPage extends Component {
                 allowClear showSearch
                 value={this.state.modelId}
                 disabled={isModelIdPresent}
+                onClear={() => this.setState({ csvDataOriginal: [], csvDataPoisoned: [] })}
                 onChange={(value) => {
                   this.setState({ modelId: value });
                   console.log(`Select model ${value}`);
@@ -328,7 +284,7 @@ class AttacksPage extends Component {
                 allowClear
                 placeholder="Select an attack ..."
                 onChange={this.handleChangeSelectedAttack}
-                onClear={() => this.setState({ csvDataPoisoned: [] })}
+                onClear={() => this.setState({ csvDataOriginal: [], csvDataPoisoned: [] })}
                 optionLabelProp="label"
                 options={ATTACK_OPTIONS}
               />

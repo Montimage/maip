@@ -7,6 +7,21 @@ import {
   LABEL_MAPPING_AC, LABEL_MAPPING_AD
 } from "./constants";
 
+G2.registerInteraction('element-link', {
+  start: [
+    {
+      trigger: 'interval:mouseenter',
+      action: 'element-link-by-color:link',
+    },
+  ],
+  end: [
+    {
+      trigger: 'interval:mouseleave',
+      action: 'element-link-by-color:unlink',
+    },
+  ],
+});
+
 /**
  *
  * @param {Object} obj Object to be updated
@@ -514,21 +529,6 @@ export const updateConfusionMatrix = (app, predictions, cutoffProb) => {
 }
 
 export const getConfigClassification = (classificationData) => {
-  G2.registerInteraction('element-link', {
-    start: [
-      {
-        trigger: 'interval:mouseenter',
-        action: 'element-link-by-color:link',
-      },
-    ],
-    end: [
-      {
-        trigger: 'interval:mouseleave',
-        action: 'element-link-by-color:unlink',
-      },
-    ],
-  });
-
   const configClassification = {
     data: classificationData,
     xField: 'cutoffProb',
@@ -849,4 +849,42 @@ export const getConfigHistogram = (csvData, selectedFeature, binWidthChoice) => 
   };
 
   return configHistogram;
+}
+
+export const getConfigLabelsColumn = (dataLabelsColumn) => {
+  const configLabelsColumn = {
+    data: dataLabelsColumn,
+    xField: 'datasetType',
+    yField: 'value',
+    seriesField: 'class',
+    isPercent: true,
+    isStack: true,
+    meta: {
+      value: {
+        min: 0,
+        max: 1,
+      },
+    },
+    label: {
+      position: 'middle',
+      content: (item) => {
+        return `${item.count} (${(item.value * 100).toFixed(2)}%)`;
+      },
+      style: {
+        fill: '#fff',
+        fontSize: 16,
+      },
+    },
+    tooltip: false,
+    interactions: [
+      {
+        type: 'element-highlight-by-color',
+      },
+      {
+        type: 'element-link',
+      },
+    ],
+  };
+
+  return configLabelsColumn;
 }
