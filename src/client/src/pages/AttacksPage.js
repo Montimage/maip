@@ -206,7 +206,7 @@ class AttacksPage extends Component {
       csvDataOriginal,
       csvDataPoisoned,
       poisoningRate, 
-      selectedAttack, 
+      selectedAttack,
       targetClass,
     } = this.state;
     const {
@@ -328,6 +328,7 @@ class AttacksPage extends Component {
                 allowClear
                 placeholder="Select an attack ..."
                 onChange={this.handleChangeSelectedAttack}
+                onClear={() => this.setState({ csvDataPoisoned: [] })}
                 optionLabelProp="label"
                 options={ATTACK_OPTIONS}
               />

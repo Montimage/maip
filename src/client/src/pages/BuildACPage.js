@@ -100,7 +100,7 @@ class BuildACPage extends Component {
       <LayoutPage pageTitle="Build Models" pageSubTitle="Build a new AI model for activity classification">
         <Row>
         <Col span={12}>
-        <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 600 }}>
+        <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 600, marginBottom: 10 }}>
           <Form.Item label="Model Type" name="modelType"
             rules={[
               {
@@ -163,7 +163,7 @@ class BuildACPage extends Component {
           <div style={{ textAlign: 'center' }}>
             <Button
               type="primary"
-              style={{ marginTop: '10px' }}
+              // style={{ marginTop: '10px' }}
               disabled={ isRunning || !this.state.modelType || !this.state.dataset }
               onClick={this.handleButtonBuild}
             >
