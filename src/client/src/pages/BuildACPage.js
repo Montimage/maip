@@ -1,7 +1,6 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
-import { getLastPath, getQuery } from "../utils";
-import { Row, Col, Tooltip, message, notification, Upload, Spin, Button, InputNumber, Space, Form, Input, Select, Checkbox } from 'antd';
+import { Row, Col, Tooltip, notification, Spin, Button, InputNumber, Form, Select } from 'antd';
 import {
   requestApp,
   requestDatasetsAC,
@@ -53,8 +52,8 @@ class BuildACPage extends Component {
     }
   }
 
-  componentDidUpdate(prevProps, prevState) {
-    const { isRunning, modelType, dataset } = this.state;
+  componentDidUpdate(prevProps) {
+    const { isRunning } = this.state;
     const { buildACStatus } = this.props;
     console.log(`buildACStatus: ${buildACStatus.isRunning}`);
     console.log(`build isRunning: ${isRunning}`);
@@ -80,7 +79,7 @@ class BuildACPage extends Component {
   }
 
   render() {
-    const { buildACStatus, datasets } = this.props;
+    const { datasets } = this.props;
     console.log(datasets);
     const { isRunning } = this.state;
     const modelTypesOptions = AI_MODEL_TYPES ? AI_MODEL_TYPES.map(feature => ({

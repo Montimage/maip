@@ -226,6 +226,16 @@ export const requestDownloadModel = async (modelId) => {
   }
 };
 
+export const requestViewModelDatasets = async (modelId, datasetType) => {
+  const url = `${SERVER_URL}/api/models/${modelId}/datasets/${datasetType}/view`;
+  const response = await fetch(url);
+  const data = await response.text();  
+  if (data.error) {
+    throw data.error;
+  }
+  return data;
+};
+
 export const requestDownloadDatasets = async (modelId, datasetType) => {
   try {
     const res = await fetch(`${SERVER_URL}/api/models/${modelId}/datasets/${datasetType}/download`);

@@ -9,7 +9,12 @@ import {
   getFilteredFeatures,
   getConfigScatterPlot,
   getConfigBarPlot,
+  getConfigHistogram,
+  getTableDatasetsStats,
 } from "../utils";
+import {
+  requestViewModelDatasets,
+} from "../api";
 import {
   requestApp,
 } from "../actions";
@@ -19,7 +24,6 @@ import { Bar, Scatter, Histogram } from '@ant-design/plots';
 
 const {
   BOX_STYLE,
-  SERVER_URL,
   BIN_CHOICES, DATASET_TABLE_STATS, DATASET_MENU_ITEMS,
   COLUMNS_ALL_FEATURES,
 } = require('../constants');
@@ -28,67 +32,6 @@ const { Option } = Select;
 let featuresDescriptions = {};
 
 // TODO: scatter plot is a straight line if features on the x-axis and y-axis are similar ???
-
-function median(data) {
-  const sortedData = data.slice().sort((a, b) => a - b);
-  const mid = Math.floor(sortedData.length / 2);
-  return sortedData.length % 2 === 0 ? (sortedData[mid - 1] + sortedData[mid]) / 2 : sortedData[mid];
-}
-
-function quartiles(data) {
-  const sortedData = data.slice().sort((a, b) => a - b);
-  const mid = Math.floor(data.length / 2);
-  const q1 = median(sortedData.slice(0, mid));
-  const q3 = median(sortedData.slice(mid + (data.length % 2 === 0 ? 0 : 1)));
-  return [q1, q3];
-}
-
-function selectBinWidth(data, option) {
-  const n = data.length;
-  let binWidth;
-
-  switch (option) {
-    case 'square-root':
-      binWidth = Math.ceil(Math.sqrt(n));
-      break;
-    case 'sturges':
-      binWidth = Math.ceil(1 + Math.log2(n));
-      break;
-    case 'scott':
-      const sum = data.reduce((acc, d) => acc + d, 0);
-      const mean = sum / n;
-      const s = Math.sqrt(data.reduce((acc, d) => acc + (d - mean) ** 2, 0) / n);
-      binWidth = Math.ceil(3.5 * s / Math.pow(n, 1/3));
-      break;
-    case 'freedman-diaconis':
-      const [q1, q3] = quartiles(data);
-      const iqr = q3 - q1;
-      binWidth = Math.ceil(2 * iqr / Math.pow(n, 1/3));
-      break;
-    default:
-      throw new Error(`Invalid option: ${option}`);
-  }
-
-  return binWidth;
-}
-
-function computeFeatureStatistics(values) {
-  const n = values.length;
-  const nonMissingValues = values.filter((value) => !isNaN(value));
-  const numMissingValues = n - nonMissingValues.length;
-  const mean = nonMissingValues.reduce((sum, value) => sum + value, 0) / nonMissingValues.length;
-  const variance = nonMissingValues.reduce((sum, value) => sum + (value - mean) ** 2, 0) / n;
-  const stdDev = Math.sqrt(variance);
-  const medianValue = median(nonMissingValues);
-  const min = Math.min(...nonMissingValues);
-  const max = Math.max(...nonMissingValues);
-  const uniqueValues = new Set(values.filter((value) => !isNaN(value)));
-  const numUniqueValues = uniqueValues.size;
-
-  return {
-    numUniqueValues, numMissingValues, mean, stdDev, medianValue, min, max,
-  };
-}
 
 class DatasetPage extends Component {
   constructor(props) {
@@ -104,28 +47,30 @@ class DatasetPage extends Component {
     };
   }
 
-  fetchCSVData(modelId, datasetType) {
-    fetch(`${SERVER_URL}/api/models/${modelId}/datasets/${datasetType}/view`)
-      .then(response => response.text())
-      .then(data => {
-        Papa.parse(data, {
-          header: true,
-          skipEmptyLines: true,
-          delimiter: ';',
-          complete: (results) => {
-            const csvData = results.data;
-            const headers = Object.keys(featuresDescriptions);
-            console.log(headers);
-            this.setState({
-              csvData: csvData,
-              headers: headers,
-            });
-          },
-          error: () => {
-            console.log('Error parsing CSV file');
-          },
-        });
+  async fetchCSVData(modelId, datasetType) {
+    try {
+      const csvDataString = await requestViewModelDatasets(modelId, datasetType);
+  
+      Papa.parse(csvDataString, {
+        header: true,
+        skipEmptyLines: true,
+        delimiter: ';',
+        complete: (results) => {
+          const csvData = results.data;
+          const headers = Object.keys(featuresDescriptions);
+          console.log(headers);
+          this.setState({
+            csvData: csvData,
+            headers: headers,
+          });
+        },
+        error: () => {
+          console.log('Error parsing CSV file');
+        },
       });
+    } catch (error) {
+      console.error("Failed to fetch model dataset:", error);
+    }
   }
 
   componentDidMount() {
@@ -178,9 +123,6 @@ class DatasetPage extends Component {
       barFeature,
     } = this.state;
     const { app } = this.props;
-    //console.log({selectedFeature, binWidthChoice});
-    //const displayedCsvData = csvData.slice(0, 100);
-    //console.log(JSON.stringify(csvData));
 
     const numberFeatures = getNumberFeatures(app);
     featuresDescriptions = getFilteredFeatures(app);
@@ -211,109 +153,15 @@ class DatasetPage extends Component {
         }
       },
     })) : [];
-    //console.log(columns);
-
-    const featureValues = csvData.map((d) => d[selectedFeature]);
-    const featureValuesFloat = featureValues.map((value) => parseFloat(value));
-    const histogramData = featureValues.map((value) => ({ value: parseFloat(value) }));
-    //console.log(histogramData);
-    const data = histogramData.map((d) => ({ value: d.value }));
-    const binWidth = selectBinWidth(histogramData, binWidthChoice);
-
-    // WIP: compute average values of histogram bins    
-    const minValue = histogramData.reduce((min, d) => d.value < min ? d.value : min, Number.MAX_VALUE);
-    const maxValue = histogramData.reduce((max, d) => d.value > max ? d.value : max, Number.MIN_VALUE);
-    const numBins = Math.ceil((maxValue - minValue) / binWidth);
-    // Create bins
-    const bins = [];
-    for (let i = 0; i < numBins; i++) {
-      const bin = {
-        values: [],
-        average: 0,
-      };
-      bin.start = minValue + i * binWidth;
-      bin.end = bin.start + binWidth;
-      bins.push(bin);
-    }
-
-    // Assign data points to bins
-    histogramData.forEach((d) => {
-      const value = d.value;
-      for (let i = 0; i < numBins; i++) {
-        const bin = bins[i];
-        if (value >= bin.start && value < bin.end) {
-          bin.values.push(value);
-          break;
-        }
-      }
-    });
-
-    // Compute average value of each bin
-    bins.forEach((bin) => {
-      const sum = bin.values.reduce((a, b) => a + b, 0);
-      bin.average = sum / bin.values.length;
-      
-    });
-    const binAverages = bins.map((bin) => bin.average);
-    console.log(binAverages);
-
-    const config = {
-      data,
-      binField: 'value',
-      binWidth,
-      xAxis: {
-        title: {
-          text: `histogram bins`,
-          style: { fontSize: 16 }
-        },
-      },
-      yAxis: {
-        title: {
-          text: 'count',
-          style: { fontSize: 16 }
-        },
-      },
-      interactions: [
-        {
-          type: 'element-highlight',
-        },
-      ],
-      // TODO: how to display average of bins on the plot ?
-      // TODO: update color of bars width small values to make them visible ?
-    };
 
     const binWidthOptions = BIN_CHOICES.map(choice => ({
       value: choice,
       label: choice,
     }));
 
-    //console.log(computeFeatureStatistics(featureValuesFloat));
-
-    const {
-      numUniqueValues,
-      numMissingValues,
-      mean,
-      stdDev,
-      medianValue,
-      min,
-      max,
-    } = computeFeatureStatistics(featureValuesFloat);
-    
-    const dataStats = [
-      {
-        feature: selectedFeature,
-        unique: numUniqueValues,
-        missing: numMissingValues,
-        mean: mean.toFixed(2),
-        stdDev: stdDev.toFixed(2),
-        median: parseFloat(medianValue).toFixed(2),
-        min: min.toFixed(2),
-        max: max.toFixed(2),
-      },
-    ];
-    
+    const dataDatasetsStats = getTableDatasetsStats(csvData, selectedFeature);
+    const configHistogram = getConfigHistogram(csvData, selectedFeature, binWidthChoice);
     const configScatter = getConfigScatterPlot(this.props.app, csvData, xScatterFeature, yScatterFeature);
-
     const configBar = getConfigBarPlot(csvData, barFeature);
 
     return (
@@ -415,12 +263,12 @@ class DatasetPage extends Component {
                   </Tooltip>
                 </div>
                 {selectedFeature && (
-                  <Table columns={DATASET_TABLE_STATS} dataSource={dataStats} pagination={false}
+                  <Table columns={DATASET_TABLE_STATS} dataSource={dataDatasetsStats} pagination={false}
                     style={{marginTop: '10px'}}
                   />
                 )}
                 {selectedFeature && binWidthChoice && (
-                  <Histogram {...config} style={{ margin: '20px' }}/>
+                  <Histogram {...configHistogram} style={{ margin: '20px' }}/>
                 )}
               </div>
             )}
