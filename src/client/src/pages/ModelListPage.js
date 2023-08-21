@@ -1,6 +1,6 @@
 import React, { Component } from "react";
 import { connect } from "react-redux";
-import { Tooltip, Typography, Table, Space, Button, Select, notification } from "antd";
+import { Modal, Tooltip, Typography, Table, Space, Button, Select, notification } from "antd";
 import LayoutPage from "./LayoutPage";
 import { 
   FolderViewOutlined, DownloadOutlined, DeleteOutlined,
@@ -46,6 +46,21 @@ class ModelListPage extends Component {
     this.props.fetchApp();
     this.props.fetchAllModels();
   }
+
+  showDeleteAllModelsConfirm = () => {
+    Modal.confirm({
+      title: 'Are you sure to delete all models?',
+      okText: 'Yes',
+      okType: 'danger',
+      cancelText: 'No',
+      onOk: () => {
+        this.props.deleteAllModels(this.props.app);
+      },
+      onCancel: () => {
+        console.log('Cancelled');
+      },
+    });
+  };
 
   render() {
     const { 
@@ -342,7 +357,7 @@ class ModelListPage extends Component {
         
         <Space wrap>
           <Button type="primary" danger icon={<DeleteOutlined />} 
-            onClick={() => this.props.deleteAllModels(this.props.app)}
+            onClick={this.showDeleteAllModelsConfirm}
             style={{ marginTop: '10px', marginBottom: '16px' }}
             disabled={dataSource.length === 0}
           >  
@@ -368,7 +383,6 @@ const mapDispatchToProps = (dispatch) => ({
   },
   deleteModel: (modelId) => dispatch(requestDeleteModel(modelId)),
   updateModel: (modelId, newModelId) => {
-    // should dispatch with both modelId and newModelId as the payload
     dispatch(requestUpdateModel({modelId, newModelId}))
   },
 });
