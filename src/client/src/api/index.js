@@ -456,6 +456,16 @@ export const requestAttacksStatus = async () => {
   return data.attacksStatus;
 };
 
+export const requestViewPoisonedDatasets = async (modelId, selectedAttack) => {
+  const url = `${SERVER_URL}/api/attacks/poisoning/${selectedAttack}/${modelId}/view`;
+  const response = await fetch(url);
+  const data = await response.text();  
+  if (data.error) {
+    throw data.error;
+  }
+  return data;
+};
+
 export const requestPerformAttack = async (modelId, selectedAttack, poisoningRate, targetClass) => {
   let url = null;
   let response = null;

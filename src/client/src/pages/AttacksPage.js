@@ -14,13 +14,16 @@ import {
   getLabelsOptions,
   getConfigLabelsColumn,
 } from "../utils";
+import {
+  requestViewModelDatasets,
+  requestViewPoisonedDatasets,
+} from "../api";
 import Papa from "papaparse";
 import { Column } from '@ant-design/plots';
 import { message, Col, Row, Divider, Slider, Form, Button, Checkbox, Select, Tooltip } from 'antd';
 import { QuestionOutlined } from "@ant-design/icons";
 import {
   FORM_LAYOUT, BOX_STYLE,
-  SERVER_URL,
   ATTACK_OPTIONS, ATTACKS_SLIDER_MARKS, 
   AC_OUTPUT_LABELS, AD_OUTPUT_LABELS,
   AC_CLASS_MAPPING, AD_CLASS_MAPPING,
@@ -39,7 +42,7 @@ class AttacksPage extends Component {
       selectedAttack: null,
       targetClass: null,
       checkboxValues: [],
-      isRunning: props.attacksStatus.isRunning,
+      isRunning: false,
     };
     this.handleTargetClass = this.handleTargetClass.bind(this);
   }
@@ -51,6 +54,10 @@ class AttacksPage extends Component {
     }
     this.props.fetchApp();
     this.props.fetchAllModels();
+  }
+
+  componentWillUnmount() {
+    clearInterval(this.intervalId);
   }
 
   handleTargetClass = (checkedValues) => {
@@ -75,63 +82,59 @@ class AttacksPage extends Component {
     }
   }
 
-  displayPoisonedDataset(modelId, selectedAttack, poisoningRate, targetClass) {
-    fetch(`${SERVER_URL}/api/attacks/poisoning/${selectedAttack}/${modelId}/view`)
-      .then(response => response.text())
-      .then(data => {
-        Papa.parse(data, {
+  async fetchCSVPoisonedDataset(modelId, selectedAttack) {
+    try {
+      const csvDataPoisonedString = await requestViewPoisonedDatasets(modelId, selectedAttack);
+  
+      Papa.parse(csvDataPoisonedString, {
+        header: true,
+        skipEmptyLines: true,
+        delimiter: ';',
+        complete: (results) => {
+          const csvDataPoisoned = results.data;
+          this.setState({ csvDataPoisoned });
+        },
+        error: () => {
+          console.log('Error parsing CSV file');
+        },
+      });
+    } catch (error) {
+      console.error("Failed to fetch model dataset:", error);
+    }
+  }
+
+  async componentDidUpdate(prevProps, prevState) {
+    const { modelId, selectedAttack } = this.state;
+    const { attacksStatus } = this.props;
+    const datasetType = "train";
+    
+    if (prevProps.attacksStatus.isRunning === true && attacksStatus.isRunning === false) {
+      console.log('State isRunning has been changed from true to false');
+      this.setState({ isRunning: false });
+      if (selectedAttack) {
+        this.fetchCSVPoisonedDataset(modelId, selectedAttack);
+      }
+    }
+
+    if (prevState.modelId !== this.state.modelId) {
+      try {
+        const csvDataString = await requestViewModelDatasets(modelId, datasetType);
+    
+        Papa.parse(csvDataString, {
           header: true,
           skipEmptyLines: true,
           delimiter: ';',
           complete: (results) => {
-            const csvDataPoisoned = results.data;
-            const headers = Object.keys(csvDataPoisoned[0]);
-            this.setState({
-              csvDataPoisoned: csvDataPoisoned,
-              headers: headers,
-            });
+            const csvDataOriginal = results.data;
+            this.setState({ csvDataOriginal });
           },
           error: () => {
             console.log('Error parsing CSV file');
           },
         });
-      });
-  }
-
-  async componentDidUpdate(prevProps, prevState) {
-    const { modelId, selectedAttack, poisoningRate, targetClass } = this.state;
-    const datasetType = "train";
-    
-    if (prevProps.attacksStatus.isRunning !== this.props.attacksStatus.isRunning) {
-      console.log('State isRunning has been changed');
-      this.setState({ isRunning: this.props.attacksStatus.isRunning });
-      if (!this.props.attacksStatus.isRunning && selectedAttack) {
-        console.log('isRunning changed from True to False');
-        this.displayPoisonedDataset(modelId, selectedAttack, poisoningRate, targetClass);
+      } catch (error) {
+        console.error("Failed to fetch model dataset:", error);
       }
-    }
-
-    if (prevState.modelId !== this.state.modelId) {
-      fetch(`${SERVER_URL}/api/models/${modelId}/datasets/${datasetType}/view`)
-      .then(response => response.text())
-        .then(data => {
-          Papa.parse(data, {
-            header: true,
-            skipEmptyLines: true,
-            delimiter: ';',
-            complete: (results) => {
-              const csvDataOriginal = results.data;
-              const headers = Object.keys(csvDataOriginal[0]);
-              this.setState({
-                csvDataOriginal: csvDataOriginal,
-                headers: headers,
-              });
-            },
-            error: () => {
-              console.log('Error parsing CSV file');
-            },
-          });
-        });
     }
 
     // Check if csvDataPoisoned state is updated and clear the interval if it is
@@ -143,7 +146,6 @@ class AttacksPage extends Component {
   async handlePerformAttackClick(modelId, selectedAttack, poisoningRate, targetClass) {
     const { isRunning } = this.state;
     if (!isRunning) {
-      console.log("handlePerformAttackClick update isRunning state!");
       this.setState({ isRunning: true });        
       this.props.fetchPerformAttack(modelId, selectedAttack, poisoningRate, targetClass);
       this.intervalId = setInterval(() => { // start interval when button is clicked
@@ -152,9 +154,9 @@ class AttacksPage extends Component {
     }
   }
 
-  handleChangeSelectedAttack = value => {
-    this.setState({ selectedAttack: value });
-    if (value !== 'tlf') {
+  handleChangeSelectedAttack = selectedAttack => {
+    this.setState({ selectedAttack, csvDataPoisoned: [] });
+    if (selectedAttack !== 'tlf') {
       this.setState({ checkboxValues: [] });
     }
   }
@@ -216,7 +218,6 @@ class AttacksPage extends Component {
     const {
       app,
       models,
-      attacksStatus, 
     } = this.props;
     
     const modelsOptions = getFilteredModelsOptions(app, models);
@@ -284,7 +285,7 @@ class AttacksPage extends Component {
                 allowClear
                 placeholder="Select an attack ..."
                 onChange={this.handleChangeSelectedAttack}
-                onClear={() => this.setState({ csvDataOriginal: [], csvDataPoisoned: [] })}
+                onClear={() => this.setState({ csvDataPoisoned: [] })}
                 optionLabelProp="label"
                 options={ATTACK_OPTIONS}
               />
