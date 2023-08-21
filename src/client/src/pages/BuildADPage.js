@@ -400,7 +400,7 @@ class BuildADPage extends Component {
               }
               onClick={this.handleButtonBuild}
             >
-              Build model
+              Build Model
               {isRunning && 
                 <Spin size="large" style={{ marginBottom: '8px' }}>
                   <div className="content" />

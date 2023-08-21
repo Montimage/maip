@@ -38,7 +38,6 @@ class DatasetPage extends Component {
     super(props);
     this.state = {
       csvData: [],
-      headers: [],
       selectedFeature: null,
       binWidthChoice: 'square-root',
       xScatterFeature: null,
@@ -57,12 +56,7 @@ class DatasetPage extends Component {
         delimiter: ';',
         complete: (results) => {
           const csvData = results.data;
-          const headers = Object.keys(featuresDescriptions);
-          console.log(headers);
-          this.setState({
-            csvData: csvData,
-            headers: headers,
-          });
+          this.setState({ csvData });
         },
         error: () => {
           console.log('Error parsing CSV file');
@@ -90,7 +84,6 @@ class DatasetPage extends Component {
 
     if (this.props.app !== prevProps.app) {
       const commonStateUpdate = {
-        headers: Object.keys(featuresDescriptions),
         selectedFeature: null,
         xScatterFeature: null,
         yScatterFeature: null,
@@ -115,7 +108,6 @@ class DatasetPage extends Component {
     const datasetType = getLastPath();
     const { 
       csvData, 
-      headers, 
       selectedFeature, 
       binWidthChoice,
       xScatterFeature,
@@ -125,8 +117,9 @@ class DatasetPage extends Component {
 
     const numberFeatures = getNumberFeatures(this.props.app);
     featuresDescriptions = getFilteredFeatures(this.props.app);
+    const features = Object.keys(featuresDescriptions); 
     
-    const allFeatures = Object.keys(featuresDescriptions).map((feature, index) => {
+    const allFeatures = features.map((feature, index) => {
       return {
         key: index + 1,
         name: feature,
@@ -214,7 +207,7 @@ class DatasetPage extends Component {
 
         <Row gutter={24} style={{ marginTop: '20px' }} id="histogram_plot">
           <Col className="gutter-row" span={24}>
-            {headers.length > 0 && (
+            {features.length > 0 && (
               <div style={{ ...BOX_STYLE, marginTop: '100px' }}>
                 <h2>&nbsp;&nbsp;&nbsp;Histogram Plot</h2>
                 <div style={{ marginBottom: '30px', marginTop: '10px' }}>
@@ -234,7 +227,7 @@ class DatasetPage extends Component {
                       filterOption={(input, option) => (option?.value ?? '').includes(input)}
                       style={{ width: 300, marginTop: '10px' }}
                     >
-                      {headers.map((header) => (
+                      {features.map((header) => (
                         <Option key={header} value={header}>
                           {header}
                         </Option>
@@ -253,7 +246,7 @@ class DatasetPage extends Component {
                       filterOption={(input, option) => (option?.value ?? '').includes(input)}
                       style={{ width: 250 }}
                     >
-                      {headers.map((header) => (
+                      {features.map((header) => (
                         <Option key={header} value={header}>
                           {header}
                         </Option>
@@ -295,7 +288,7 @@ class DatasetPage extends Component {
                     filterOption={(input, option) => (option?.value ?? '').includes(input)}
                     style={{ width: 300, marginTop: '10px' }}
                   >
-                    {headers.map((header) => (
+                    {features.map((header) => (
                       <Option key={header} value={header}>
                         {header}
                       </Option>
@@ -313,7 +306,7 @@ class DatasetPage extends Component {
                     filterOption={(input, option) => (option?.value ?? '').includes(input)}
                     style={{ width: 300, marginTop: '10px' }}
                   >
-                    {headers.map((header) => (
+                    {features.map((header) => (
                       <Option key={header} value={header}>
                         {header}
                       </Option>
