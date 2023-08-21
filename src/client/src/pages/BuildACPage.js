@@ -55,26 +55,23 @@ class BuildACPage extends Component {
   componentDidUpdate(prevProps) {
     const { isRunning } = this.state;
     const { buildACStatus } = this.props;
-    console.log(`buildACStatus: ${buildACStatus.isRunning}`);
-    console.log(`build isRunning: ${isRunning}`);
-    if (prevProps.buildACStatus.isRunning !== this.props.buildACStatus.isRunning) {
-      console.log('isRunning has been changed');
-      this.setState({ isRunning: this.props.buildACStatus.isRunning });
-      if (!this.props.buildACStatus.isRunning) {
-        let builtModelId = this.props.buildACStatus.lastBuildId;
-        builtModelId = `ac-${builtModelId}`;
-        console.log('isRunning changed from True to False');  
-        clearInterval(this.intervalId);
-        notification.success({
-          message: 'Success',
-          description: `The model ${builtModelId} was built successfully!`,
-          placement: 'topRight',
-        });
-        this.setState({
-          modelType: null, 
-          dataset: null,
-        });
-      }
+
+    if (prevProps.buildACStatus.isRunning === true && buildACStatus.isRunning === false) {
+      console.log('isRunning has been changed from true to false');
+      this.setState({ isRunning: false });
+      let builtModelId = buildACStatus.lastBuildId;
+      builtModelId = `ac-${builtModelId}`;
+      console.log('isRunning changed from True to False');  
+      clearInterval(this.intervalId);
+      notification.success({
+        message: 'Success',
+        description: `The model ${builtModelId} was built successfully!`,
+        placement: 'topRight',
+      });
+      this.setState({
+        modelType: null, 
+        dataset: null,
+      });
     }
   }
 
@@ -166,7 +163,7 @@ class BuildACPage extends Component {
               disabled={ isRunning || !this.state.modelType || !this.state.dataset }
               onClick={this.handleButtonBuild}
             >
-              Build model
+              Build Model
               {isRunning && 
                 <Spin size="large" style={{ marginBottom: '8px' }}>
                   <div className="content" />

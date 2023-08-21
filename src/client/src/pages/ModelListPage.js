@@ -341,12 +341,12 @@ class ModelListPage extends Component {
         />
         
         <Space wrap>
-          <Button type="primary" icon={<DeleteOutlined />} 
+          <Button type="primary" danger icon={<DeleteOutlined />} 
             onClick={() => this.props.deleteAllModels(this.props.app)}
             style={{ marginTop: '10px', marginBottom: '16px' }}
             disabled={dataSource.length === 0}
           >  
-            Delete all models
+            Delete All Models
           </Button>
         </Space>
       </LayoutPage>
