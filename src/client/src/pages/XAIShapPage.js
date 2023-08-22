@@ -122,6 +122,7 @@ class XAIShapPage extends Component {
 
   async handleShapClick() {
     const { modelId, numberSamples, maxDisplay, isRunning } = this.state;
+    this.setState({ shapValues: [] });
     const shapConfig = {
       "modelId": modelId,
       "numberSamples": numberSamples,
@@ -379,11 +380,11 @@ class XAIShapPage extends Component {
               />
             </div>
           </Col>
-          <Col span={12} style={{ marginTop: "24px" }}>
+          {/* <Col span={12} style={{ marginTop: "24px" }}>
             <div style={BOX_STYLE}>
               <h2>&nbsp;&nbsp;&nbsp;Feature Dependence</h2>
             </div>
-          </Col>
+          </Col> */}
         </Row>
       </LayoutPage>
     );

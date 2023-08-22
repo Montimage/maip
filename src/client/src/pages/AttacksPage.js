@@ -20,7 +20,7 @@ import {
 } from "../api";
 import Papa from "papaparse";
 import { Column } from '@ant-design/plots';
-import { message, Col, Row, Divider, Slider, Form, Button, Checkbox, Select, Tooltip } from 'antd';
+import { Spin, message, Col, Row, Divider, Slider, Form, Button, Checkbox, Select, Tooltip } from 'antd';
 import { QuestionOutlined } from "@ant-design/icons";
 import {
   FORM_LAYOUT, BOX_STYLE,
@@ -214,6 +214,7 @@ class AttacksPage extends Component {
       poisoningRate, 
       selectedAttack,
       targetClass,
+      isRunning,
     } = this.state;
     const {
       app,
@@ -308,9 +309,15 @@ class AttacksPage extends Component {
                 console.log({ modelId, selectedAttack, poisoningRate, targetClass });
                 this.handlePerformAttackClick(modelId, selectedAttack, poisoningRate, targetClass);
               }}
-              disabled={ !this.state.modelId || !this.state.selectedAttack || 
+              disabled={ isRunning || !this.state.modelId || !this.state.selectedAttack || 
                 (this.state.selectedAttack === 'tlf' && this.state.targetClass === null) }
-              >Perform Attack
+              >
+                Perform Attack
+                {isRunning && 
+                <Spin size="large" style={{ marginBottom: '8px' }}>
+                  <div className="content" />
+                </Spin>
+              }
             </Button>
           </div>
         </Form>

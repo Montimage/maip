@@ -447,20 +447,25 @@ const AC_COLUMNS_PERF_STATS = [
 ];
 
 const ATTACK_OPTIONS = 
-  [
-    {
-      value: 'gan',
-      label: 'GAN-driven data poisoning',
-    },
-    {
-      value: 'rsl',
-      label: 'Random swapping labels',
-    },
-    {
-      value: 'tlf',
-      label: 'Target labels flipping',
-    },
-  ];
+[
+  {
+    value: 'gan',
+    label: 'GAN-driven data poisoning',
+  },
+  {
+    value: 'rsl',
+    label: 'Random swapping labels',
+  },
+  {
+    value: 'tlf',
+    label: 'Target labels flipping',
+  },
+];
+
+const ATTACK_DATASETS_MAPPING = {
+  'rsl_poisoned_dataset.csv': 'Random swapping labels',
+  'tlf_poisoned_dataset.csv': 'Target labels flipping'
+};
 
 // Build.js
 const FEATURES_OPTIONS = [
@@ -733,7 +738,7 @@ module.exports = {
   AD_FEATURES_DESCRIPTIONS, FEATURES_OPTIONS,
   AC_FEATURES_DESCRIPTIONS,
   CRITERIA_LIST, TABLE_BUILD_CONFIGS, AC_COLUMNS_PERF_STATS, AD_COLUMNS_PERF_STATS,  
-  ATTACK_OPTIONS,
+  ATTACK_OPTIONS, ATTACK_DATASETS_MAPPING,
   BIN_CHOICES, DATASET_TABLE_STATS, DATASET_MENU_ITEMS,
   COLUMNS_CURRENTNESS_METRICS, ACC_METRICS_MENU_ITEMS,
   RES_METRICS_MENU_ITEMS, HEADER_ACCURACY_STATS,

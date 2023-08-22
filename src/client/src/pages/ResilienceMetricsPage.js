@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
-import { Menu, Select, Col, Row, Button, Tooltip, Form } from 'antd';
+import { Spin, Menu, Select, Col, Row, Button, Tooltip, Form } from 'antd';
 import { QuestionOutlined } from "@ant-design/icons";
 import { Heatmap } from '@ant-design/plots';
 import {
@@ -16,10 +16,12 @@ import {
 import {
   requestBuildConfigModel,
   requestPredictionsModel,
+  requestAttacksDatasets,
 } from "../api";
 import {
   BOX_STYLE,
-  ATTACK_OPTIONS, RES_METRICS_MENU_ITEMS,
+  RES_METRICS_MENU_ITEMS,
+  ATTACK_DATASETS_MAPPING,
 } from "../constants";
 import {
   getFilteredModelsOptions,
@@ -46,27 +48,32 @@ class ResilienceMetricsPage extends Component {
       cutoffProb: 0.5,
       selectedAttack: null,
       buildConfig: null,
+      attacksDatasets: [],
       attacksPredictions: [],
       attacksConfusionMatrix: null,
-      isRunning: isRunningApp(this.props.app, this.props.retrainACStatus, this.props.retrainStatus),
+      //isRunning: isRunningApp(this.props.app, this.props.retrainACStatus, this.props.retrainStatus),
+      isRunning: false,
     }
   }
 
-  componentDidMount() {
+  async componentDidMount() {
     let modelId = getLastPath();
     if (isModelIdPresent) {
       this.setState({ modelId });
       this.props.fetchModel(modelId);
       this.loadPredictions();
       const buildConfig = requestBuildConfigModel(modelId);
-      this.setState({ buildConfig });
       console.log(buildConfig);
+      const attacksDatasets = await requestAttacksDatasets(modelId);
+      console.log(attacksDatasets);
+      this.setState({ buildConfig, attacksDatasets });
     }
     this.props.fetchAllModels();
   }
 
   async componentDidUpdate(prevProps, prevState) {
-    const { modelId } = this.state;  
+    const { modelId, isRunning } = this.state;  
+    const { app, retrainStatus, retrainACStatus  } = this.props;
     if (this.props.app !== prevProps.app && !isModelIdPresent) {
       this.setState({ 
         modelId: null,
@@ -91,20 +98,16 @@ class ResilienceMetricsPage extends Component {
     }
 
     // Check the retrainStatus or retrainACStatus based on the app type
-    const currentIsRunning = isRunningApp(this.props.app, this.props.retrainACStatus, this.props.retrainStatus);
+    const currentIsRunning = isRunningApp(app, retrainACStatus, retrainStatus);
     const prevIsRunning = isRunningApp(prevProps.app, prevProps.retrainACStatus, prevProps.retrainStatus);
     
-    if (prevIsRunning && prevIsRunning !== currentIsRunning) {
-      console.log('isRunning has been changed');
+    if (prevIsRunning === true && currentIsRunning === false) {
+      console.log('isRunning has been changed from true to false');
       this.setState({ isRunning: currentIsRunning });
-      
-      if (!currentIsRunning) {
-        clearInterval(this.intervalId);
-        console.log('isRunning changed from True to False');
-        const retrainId = isACApp(this.props.app) ? 
-                          this.props.retrainACStatus.lastRetrainId : this.props.retrainStatus.lastRetrainId;
-        await this.loadAttacksPredictions(retrainId);  
-      }
+      clearInterval(this.intervalId);
+      const retrainId = isACApp(app) ? 
+                          retrainACStatus.lastRetrainId : retrainStatus.lastRetrainId;
+      await this.loadAttacksPredictions(retrainId);  
     }
   }
 
@@ -154,23 +157,19 @@ class ResilienceMetricsPage extends Component {
     }
   }
 
-  handleSelectedAttack(selectedAttack) {
-    this.setState({ 
-      selectedAttack: selectedAttack,
-      attacksConfusionMatrix: null,
-    });
-    
-    const { modelId, buildConfig } = this.state;
+  async handleButtonComputeMetric(selectedAttack) {
+    const { modelId, buildConfig, isRunning } = this.state;
+    const { app, retrainACStatus, retrainStatus} = this.props;
     const testingDataset = "Test_samples.csv";
-    // TODO: check testingDataset exists, better only show existing poisoned testingDataset
-    const trainingDataset = `${selectedAttack}_poisoned_dataset.csv`;
-    const currentIsRunning = isRunningApp(this.props.app, this.props.retrainACStatus, this.props.retrainStatus);
+    const trainingDataset = `${selectedAttack}`;
+    const currentIsRunning = isRunningApp(app, retrainACStatus, retrainStatus);
+    console.log(currentIsRunning);
 
     if (this.intervalId) {
       clearInterval(this.intervalId);
     }
 
-    if (!currentIsRunning) {
+    if (!isRunning) {
       this.setState({ isRunning: true });
       console.log("update isRunning state!");
 
@@ -188,7 +187,7 @@ class ResilienceMetricsPage extends Component {
       }
 
       this.intervalId = setInterval(() => {
-        isACApp(this.props.app) ? this.props.fetchRetrainStatusAC() : this.props.fetchRetrainStatus();
+        isACApp(app) ? this.props.fetchRetrainStatusAC() : this.props.fetchRetrainStatus();
       }, 3000);
     }
   }
@@ -196,14 +195,20 @@ class ResilienceMetricsPage extends Component {
   render() {
     const { app, models } = this.props;
     const {
+      isRunning,
       modelId,
       confusionMatrix,
+      attacksDatasets,
       attacksConfusionMatrix,
     } = this.state;
 
     let configAttacksCM = null, impact = null;
 
     const modelsOptions = getFilteredModelsOptions(app, models);
+    const attacksDatasetsOptions = attacksDatasets ? attacksDatasets.map(dataset => ({
+      value: dataset,
+      label: ATTACK_DATASETS_MAPPING[dataset] || dataset,
+    })) : [];
     const configCM = confusionMatrix && getConfigConfusionMatrix(modelId, confusionMatrix);
     
     if (attacksConfusionMatrix) {
@@ -245,9 +250,22 @@ class ResilienceMetricsPage extends Component {
                     value={this.state.modelId}
                     disabled={isModelIdPresent}
                     onChange={(value) => {
-                      this.setState({ modelId: value });
+                      this.setState({ modelId: value }, async () => {
+                        try {
+                          if (value) {
+                            const attacksDatasets = await requestAttacksDatasets(value);
+                            this.setState({ attacksDatasets });
+                          }
+                        } catch (error) {
+                          console.error("Error loading attacks datasets:", error);
+                        }
+                      });
                     }}
-                    //optionLabelProp="label"
+                    onClear={() => this.setState({ 
+                                    selectedAttack: null, 
+                                    attacksConfusionMatrix: null,
+                                    attacksDatasets: null
+                                  })} 
                     options={modelsOptions}
                   />
                 </Tooltip>
@@ -274,24 +292,43 @@ class ResilienceMetricsPage extends Component {
                     },
                   ]}
                 > 
-                  <Tooltip title="Select an adversarial attack to measure resilience metrics.">
-                    <Select
-                      style={{ width: '250px' }}
-                      allowClear
-                      placeholder="Select an attack ..."
-                      onChange={value => {
-                        if (!value) {
-                          this.setState({ attacksConfusionMatrix: null });
-                        } else {
-                          this.handleSelectedAttack(value);
+                  <Row gutter={8}>
+                    <Col>
+                      <Tooltip title="Select an adversarial attack to measure resilience metrics.">
+                        <Select style={{ width: '250px' }}
+                          value={this.state.selectedAttack}
+                          allowClear showSearch
+                          placeholder="Select an attack ..."
+                          onChange={value => {
+                            if (value) {
+                              this.setState({ selectedAttack: value });
+                            } 
+                            this.setState({ attacksConfusionMatrix: null });
+                          }}
+                          onClear={() => this.setState({ selectedAttack: null, attacksConfusionMatrix: null })}
+                          options={attacksDatasetsOptions}
+                        />
+                      </Tooltip>
+                    </Col>
+
+                    <Col>
+                      <Button
+                        type="primary"
+                        disabled={ isRunning || !this.state.modelId || !this.state.selectedAttack }
+                        onClick={() => this.handleButtonComputeMetric(this.state.selectedAttack)}
+                      >
+                        Compute Impact Metric
+                        {isRunning && 
+                          <Spin size="large" style={{ marginBottom: '8px' }}>
+                            <div className="content" />
+                          </Spin>
                         }
-                      }}
-                      onClear={ this.setState() }
-                      options={ATTACK_OPTIONS}
-                    />
-                  </Tooltip>
+                      </Button>
+                    </Col>
+                  </Row>
                 </Form.Item>
               </Form>
+
               { attacksConfusionMatrix &&
                 <h3>&nbsp;&nbsp;&nbsp;Score: {impact}</h3>
               }

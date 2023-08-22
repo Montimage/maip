@@ -130,7 +130,7 @@ class XAILimePage extends Component {
       "numberFeature": maxDisplay,
     };
     console.log("update isRunning state!");
-    this.setState({ isRunning: true });     
+    this.setState({ isRunning: true, limeValues: [], pieData: [], dataTableProbs: [] });
 
     // reset Bar chart to avoid confusion
     if (limeValues) {
@@ -300,10 +300,14 @@ class XAILimePage extends Component {
       yField: 'feature',
       //seriesField: "value",
       label: false,
+      // color: (d) => {
+      //   return d.value > 0 ? "#0693e3" : "#EB144C";
+      // },
       barStyle: (d) => {
         //console.log(d)
         return {
           /* https://casesandberg.github.io/react-color/ */
+          //color: d.value > 0 ? "#0693e3" : "#EB144C",
           fill: d.value > 0 ? "#0693e3" : "#EB144C"
         };
       },
@@ -337,7 +341,7 @@ class XAILimePage extends Component {
                 value={this.state.modelId}
                 disabled={isModelIdPresent}
                 onChange={(value) => {
-                  this.setState({ modelId: value });
+                  this.setState({ modelId: value, limeValues: [], pieData: [], dataTableProbs: [] });
                   console.log(`Select model ${value}`);
                 }}
                 //optionLabelProp="label"
