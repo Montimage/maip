@@ -12,22 +12,17 @@ import ErrorBoundary from "antd/lib/alert/ErrorBoundary";
 import MAIPHeader from "./components/MAIPHeader";
 import MAIPFooter from "./components/MAIPFooter";
 import ModelListPage from "./pages/ModelListPage";
-import ModelPage from "./pages/ModelPage";
 import ModelsComparisonPage from "./pages/ModelsComparisonPage";
-import DatasetListPage from "./pages/DatasetListPage";
+//import DatasetListPage from "./pages/DatasetListPage";
 import DatasetPage from "./pages/DatasetPage";
 import BuildADPage from "./pages/BuildADPage";
 import BuildACPage from "./pages/BuildACPage";
 import RetrainPage from "./pages/RetrainPage";
 import AttacksPage from "./pages/AttacksPage";
-//import DummyPage from "./pages/DummyPage";
-import PredictPage from "./pages/PredictPage";
+//import PredictPage from "./pages/PredictPage";
 import PredictModelPage from "./pages/PredictModelPage";
 import PredictOnlinePage from "./pages/PredictOnlinePage";
 import PredictOfflinePage from "./pages/PredictOfflinePage";
-import XAIPage from "./pages/XAIPage";
-import XAIModelPage from "./pages/XAIModelPage";
-import XAITestPage from "./pages/XAITestPage";
 import XAILimePage from "./pages/XAILimePage";
 import XAIShapPage from "./pages/XAIShapPage";
 import MetricsPage from "./pages/MetricsPage";
@@ -49,14 +44,12 @@ function App() {
               element={<Navigate to="/models/all" replace />}
             />     
             <Route path="/models/all" element={<ModelListPage />}/>
-            <Route path="/models/:modelId" element={<ModelPage />}/> 
             <Route path="/models/comparison" element={<ModelsComparisonPage />}/>
             <Route path="/models/retrain" element={<RetrainPage />}/>
             <Route path="/models/retrain/:modelId" element={<RetrainPage />}/>
             <Route path="/build/ad" element={<BuildADPage app="ad" />} />
             <Route path="/build/ac" element={<BuildACPage app="ac" />} />
             <Route path="/models/datasets/:modelId/:datasetType" element={<DatasetPage />}/>
-            <Route path="/xai/test/:modelId" element={<XAITestPage />}/>
             <Route path="/xai/shap" element={<XAIShapPage />}/>
             <Route path="/xai/shap/:modelId" element={<XAIShapPage />}/>
             <Route path="/xai/lime" element={<XAILimePage />}/>

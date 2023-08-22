@@ -53,7 +53,6 @@ class BuildACPage extends Component {
   }
 
   componentDidUpdate(prevProps) {
-    const { isRunning } = this.state;
     const { buildACStatus } = this.props;
 
     if (prevProps.buildACStatus.isRunning === true && buildACStatus.isRunning === false) {
@@ -159,7 +158,6 @@ class BuildACPage extends Component {
           <div style={{ textAlign: 'center' }}>
             <Button
               type="primary"
-              // style={{ marginTop: '10px' }}
               disabled={ isRunning || !this.state.modelType || !this.state.dataset }
               onClick={this.handleButtonBuild}
             >
