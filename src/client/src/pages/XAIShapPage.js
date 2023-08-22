@@ -16,11 +16,11 @@ import {
   getLastPath,
   getFilteredFeaturesOptions,
   getNumberFeatures,
-  getLabelsOptions,
+  getLabelsList,
+  getLabelsListApp,
 } from "../utils";
 import {
   FORM_LAYOUT, BOX_STYLE,
-  FEATURES_DESCRIPTIONS,
   SHAP_URL, COLUMNS_TOP_FEATURES, XAI_SLIDER_MARKS,
   AC_OUTPUT_LABELS, AD_OUTPUT_LABELS,
 } from "../constants";
@@ -35,7 +35,7 @@ class XAIShapPage extends Component {
     super(props);
     this.state = {
       modelId: null,
-      label: "Web",
+      label: getLabelsListApp(this.props.app)[0],
       numberSamples: 10,
       maxDisplay: 10,
       positiveChecked: true,
@@ -43,6 +43,7 @@ class XAIShapPage extends Component {
       maskedFeatures: [],
       isRunning: props.xaiStatus.isRunning,
       shapValues: [],
+      isLabelEnabled: false,
     };
     this.handleContributionsChange = this.handleContributionsChange.bind(this);
     this.handleShapClick = this.handleShapClick.bind(this);
@@ -55,7 +56,6 @@ class XAIShapPage extends Component {
     }
     this.props.fetchApp();
     this.props.fetchAllModels(); 
-    //await this.fetchNewValues(this.state.modelId, this.state.label);
   }
 
   handleContributionsChange(checkedValues) {
@@ -64,65 +64,71 @@ class XAIShapPage extends Component {
     this.setState({ positiveChecked, negativeChecked });
   };
 
-  // Pay attention to re-render
-  shouldComponentUpdate(nextProps, nextState) {
-    return (
-      this.props.app !== nextProps.app ||
-      this.props.models !== nextProps.models ||
-      this.state.modelId !== nextState.modelId ||
-      this.state.label !== nextState.label ||
-      this.state.shapValues !== nextState.shapValues ||
-      this.props.xaiStatus.isRunning !== nextProps.xaiStatus.isRunning ||
-      (this.state.limeValues === nextState.limeValues &&
-        (this.state.positiveChecked !== nextState.positiveChecked ||
-          this.state.negativeChecked !== nextState.negativeChecked ||
-          this.state.maxDisplay !== nextState.maxDisplay ||
-          this.state.maskedFeatures !== nextState.maskedFeatures))
-    );
-  }
-
   async componentDidUpdate(prevProps, prevState) {
-    const { modelId, label } = this.state;
+    const { modelId, label, shapValues, isRunning } = this.state;
+    const { app, xaiStatus } = this.props;
 
-    if (this.props.app !== prevProps.app && !isModelIdPresent) {
-      // TODO: how to reset the current state when changing app
+    if (app !== prevProps.app && !isModelIdPresent) {
       this.setState({
         modelId: null,
-        label: "Web",
+        label: getLabelsListApp(app)[0],
         numberSamples: 10,
         maxDisplay: 10,
         positiveChecked: true,
         negativeChecked: true,
         maskedFeatures: [], 
+        isLabelEnabled: false,
       });
     }
 
-    if (prevState.modelId !== this.state.modelId) {
+    if (prevState.modelId !== modelId) {
       this.setState({ shapValues: [] }); 
     }
 
-    if (prevState.label !== this.state.label) {
+    if (prevState.label !== label && !isRunning) {
       await this.fetchNewValues(modelId, label);
     }
 
-    if (prevProps.xaiStatus.isRunning !== this.props.xaiStatus.isRunning) {
-      console.log('isRunning has been changed');
-      this.setState({ isRunning: this.props.xaiStatus.isRunning });
-      if (!this.props.xaiStatus.isRunning) {
-        console.log('isRunning changed from True to False');
-        await this.fetchNewValues(modelId, label);  
-      }
+    if (prevProps.xaiStatus.isRunning === true && xaiStatus.isRunning === false) {
+      console.log('isRunning has been changed from true to false');
+      this.setState({ isRunning: false, isLabelEnabled: true });
+      await this.fetchNewValues(modelId, label);
     }
 
     // Check if shapValues state is updated and clear the interval if it is
-    if (prevState.shapValues !== this.state.shapValues && this.state.shapValues.length > 0) {
+    if (prevState.shapValues !== shapValues && shapValues.length > 0) {
+      this.setState({ isLabelEnabled: true });
       clearInterval(this.intervalId);
     }
   }
 
+  // Pay attention to re-render
+  shouldComponentUpdate(nextProps, nextState) {
+    const { app, models, xaiStatus } = this.props;
+    const { modelId, label, shapValues, positiveChecked, negativeChecked, maxDisplay, maskedFeatures} = this.state;
+
+    return (
+      app !== nextProps.app ||
+      models !== nextProps.models ||
+      modelId !== nextState.modelId ||
+      label !== nextState.label ||
+      shapValues !== nextState.shapValues ||
+      xaiStatus.isRunning !== nextProps.xaiStatus.isRunning ||
+      (shapValues === nextState.shapValues &&
+        (positiveChecked !== nextState.positiveChecked ||
+          negativeChecked !== nextState.negativeChecked ||
+          maxDisplay !== nextState.maxDisplay ||
+          maskedFeatures !== nextState.maskedFeatures))
+    );
+  }
+
   async handleShapClick() {
     const { modelId, numberSamples, maxDisplay, isRunning } = this.state;
-    this.setState({ shapValues: [] });
+    this.setState({ 
+      isRunning: true, 
+      shapValues: [], 
+      isLabelEnabled: false 
+    });
     const shapConfig = {
       "modelId": modelId,
       "numberSamples": numberSamples,
@@ -149,8 +155,8 @@ class XAIShapPage extends Component {
   }
 
   async fetchNewValues(modelId, label) {
-    const labelsOptions = modelId.includes('ac-') ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
-    const labelIndex = labelsOptions.indexOf(label);
+    const labelsList = getLabelsListApp(this.props.app);
+    const labelIndex = labelsList.indexOf(label);
 
     if (labelIndex === -1) {
       console.error(`Invalid label: ${label}`);
@@ -169,7 +175,6 @@ class XAIShapPage extends Component {
   render() {
     const { 
       modelId,
-      label,
       maxDisplay, 
       positiveChecked,
       negativeChecked,
@@ -184,7 +189,11 @@ class XAIShapPage extends Component {
     const features = getFilteredFeatures(app);
     const selectFeaturesOptions = getFilteredFeaturesOptions(app);
     const numberFeatures = getNumberFeatures(app);
-    const labelsOptions = getLabelsOptions(modelId);
+    const labelsList = getLabelsList(modelId);
+    const labelsOptions = labelsList.map(label => ({
+      value: label,
+      label: label,
+    })); 
     
     const filteredValuesShap = shapValues.filter((d) => {
       if (d.importance_value > 0 && positiveChecked) return true;
@@ -245,7 +254,12 @@ class XAIShapPage extends Component {
                   value={this.state.modelId}
                   disabled={isModelIdPresent}
                   onChange={(value) => {
-                    this.setState({ modelId: value });
+                    this.setState({ 
+                      label: getLabelsListApp(this.props.app)[0],
+                      modelId: value, 
+                      shapValues: [],
+                      isLabelEnabled: false 
+                    });
                     console.log(`Select model ${value}`);
                   }}
                   //optionLabelProp="label"
@@ -343,9 +357,10 @@ class XAIShapPage extends Component {
                   value={this.state.label}
                   placeholder="Select a label ..."
                   onChange={v => this.setState({ label: v })}
-                  optionFilterProp="children"
+                  disabled={!this.state.modelId || !this.state.isLabelEnabled}
                   filterOption={(input, option) => (option?.value ?? '').includes(input)}
                   style={{ width: 200, marginTop: '10px', marginBottom: '10px' }}
+                  options={labelsOptions}
                 >
                   {labelsOptions.map((header) => (
                     <Option key={header} value={header}>

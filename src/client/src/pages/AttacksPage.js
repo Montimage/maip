@@ -11,7 +11,7 @@ import {
   isACModel,
   getLastPath,
   getFilteredModelsOptions,
-  getLabelsOptions,
+  getLabelsList,
   getConfigLabelsColumn,
 } from "../utils";
 import {
@@ -222,7 +222,7 @@ class AttacksPage extends Component {
     } = this.props;
     
     const modelsOptions = getFilteredModelsOptions(app, models);
-    const targetOptions = getLabelsOptions(modelId);
+    const targetOptions = getLabelsList(modelId);
     const dataLabelsColumn = this.updateData(modelId, csvDataOriginal, csvDataPoisoned);
     const configLabelsColumn = getConfigLabelsColumn(dataLabelsColumn); 
 

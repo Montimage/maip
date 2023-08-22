@@ -15,11 +15,11 @@ import {
   getFilteredFeaturesOptions,
   getFilteredModelsOptions,
   getLastPath,
-  getLabelsOptions,
+  getLabelsList,
+  getLabelsListApp,
 } from "../utils";
 import {
   FORM_LAYOUT, BOX_STYLE,
-  AC_FEATURES_DESCRIPTIONS, AD_FEATURES_DESCRIPTIONS,
   AC_OUTPUT_LABELS, AD_OUTPUT_LABELS,
   SERVER_URL,
   LIME_URL, XAI_SLIDER_MARKS, COLUMNS_TABLE_PROBS,
@@ -30,14 +30,12 @@ let barLime;
 let isModelIdPresent = getLastPath() !== "lime";
 const downloadLimeImage = () => { barLime?.downloadImage(); };
 
-let defaultLabel;
-
 class XAILimePage extends Component {
   constructor(props) {
     super(props);
     this.state = {
       modelId: null,
-      label: "Web", // TODO: fix hardcode
+      label: getLabelsListApp(this.props.app)[0],
       sampleId: 5,
       numberSamples: 10,
       maxDisplay: 15,
@@ -48,6 +46,7 @@ class XAILimePage extends Component {
       dataTableProbs: [],
       isRunning: props.xaiStatus.isRunning,
       limeValues: [],
+      isLabelEnabled: false,
     };
     this.handleContributionsChange = this.handleContributionsChange.bind(this);
     this.handleLimeClick = this.handleLimeClick.bind(this);
@@ -58,10 +57,8 @@ class XAILimePage extends Component {
     if (isModelIdPresent) {
       this.setState({ modelId });
     }
-    this.props.fetchAllModels(); 
     this.props.fetchApp();
-    //defaultLabel = modelId.startsWith('ac-') ? AC_FEATURES_DESCRIPTIONS[0] : AD_FEATURES_DESCRIPTIONS[0];
-    //console.log(defaultLabel);
+    this.props.fetchAllModels(); 
   }
 
   handleContributionsChange(checkedValues){
@@ -71,54 +68,55 @@ class XAILimePage extends Component {
   };
 
   async componentDidUpdate(prevProps, prevState) {
-    const { modelId, label } = this.state;
+    const { modelId, label, limeValues } = this.state;
+    const { app, xaiStatus } = this.props;
 
-    if (this.props.app !== prevProps.app && !isModelIdPresent) {
-      // TODO: how to reset the current state when changing app
+    if (app !== prevProps.app && !isModelIdPresent) {
       this.setState({
         modelId: null,
-        label: "Web",
+        label: getLabelsListApp(app)[0],
         sampleId: 5,
         maxDisplay: 15,
         positiveChecked: true,
         negativeChecked: true,
         maskedFeatures: [], 
+        isLabelEnabled: false,
       });
     }
 
-    if (prevState.label !== this.state.label) {
+    if (prevState.label !== label) {
       await this.fetchNewValues(modelId, label);
     }
 
-    if (prevProps.xaiStatus.isRunning !== this.props.xaiStatus.isRunning) {
-      console.log('isRunning has been changed');
-      this.setState({ isRunning: this.props.xaiStatus.isRunning });
-      if (!this.props.xaiStatus.isRunning) {
-        console.log('isRunning changed from True to False');
-        await this.fetchNewValues(modelId, label);  
-      }
+    if (prevProps.xaiStatus.isRunning === true && xaiStatus.isRunning === false) {
+      console.log('isRunning has been changed from true to false');
+      this.setState({ isRunning: false, isLabelEnabled: true });
+      await this.fetchNewValues(modelId, label);
     }
 
     // Check if limeValues state is updated and clear the interval if it is
-    if (prevState.limeValues !== this.state.limeValues && this.state.limeValues.length > 0) {
+    if (prevState.limeValues !== limeValues && limeValues.length > 0) {
+      this.setState({ isLabelEnabled: true });
       clearInterval(this.intervalId);
     }
   }
 
   // Pay attention to re-render
   shouldComponentUpdate(nextProps, nextState) {
+    const { app, models, xaiStatus } = this.props;
+    const { modelId, label, limeValues, positiveChecked, negativeChecked, maxDisplay, maskedFeatures} = this.state;
     return (
-      this.props.app !== nextProps.app ||
-      this.props.models !== nextProps.models ||
-      this.state.modelId !== nextState.modelId ||
-      this.state.label !== nextState.label ||
-      this.state.limeValues !== nextState.limeValues ||
-      this.props.xaiStatus.isRunning !== nextProps.xaiStatus.isRunning ||
-      (this.state.limeValues === nextState.limeValues &&
-        (this.state.positiveChecked !== nextState.positiveChecked ||
-          this.state.negativeChecked !== nextState.negativeChecked ||
-          this.state.maxDisplay !== nextState.maxDisplay ||
-          this.state.maskedFeatures !== nextState.maskedFeatures))
+      app !== nextProps.app ||
+      models !== nextProps.models ||
+      modelId !== nextState.modelId ||
+      label !== nextState.label ||
+      limeValues !== nextState.limeValues ||
+      xaiStatus.isRunning !== nextProps.xaiStatus.isRunning ||
+      (limeValues === nextState.limeValues &&
+        (positiveChecked !== nextState.positiveChecked ||
+          negativeChecked !== nextState.negativeChecked ||
+          maxDisplay !== nextState.maxDisplay ||
+          maskedFeatures !== nextState.maskedFeatures))
     );
   }
 
@@ -130,12 +128,16 @@ class XAILimePage extends Component {
       "numberFeature": maxDisplay,
     };
     console.log("update isRunning state!");
-    this.setState({ isRunning: true, limeValues: [], pieData: [], dataTableProbs: [] });
+    this.setState({ 
+      isRunning: true, 
+      limeValues: [], 
+      pieData: [], 
+      dataTableProbs: [], 
+      isLabelEnabled: false 
+    });
 
     // reset Bar chart to avoid confusion
-    if (limeValues) {
-      this.setState({ limeValues: [] });           
-    }
+    this.setState({ limeValues: [] });
 
     const response = await fetch(LIME_URL, {
       method: 'POST',
@@ -221,8 +223,8 @@ class XAILimePage extends Component {
   }
 
   async fetchNewValues(modelId, label) {
-    const labelsOptions = modelId.startsWith('ac-') ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
-    const labelIndex = labelsOptions.indexOf(label);
+    const labelsList = getLabelsListApp(this.props.app);
+    const labelIndex = labelsList.indexOf(label);
 
     if (labelIndex === -1) {
       console.error(`Invalid label: ${label}`);
@@ -243,7 +245,6 @@ class XAILimePage extends Component {
   render() {
     const { 
       modelId,
-      label,
       sampleId,
       maxDisplay, 
       positiveChecked,
@@ -259,7 +260,11 @@ class XAILimePage extends Component {
 
     const modelsOptions = getFilteredModelsOptions(app, models);
     const selectFeaturesOptions = getFilteredFeaturesOptions(app);
-    const labelsOptions = getLabelsOptions(modelId);
+    const labelsList = getLabelsList(modelId);
+    const labelsOptions = labelsList.map(label => ({
+      value: label,
+      label: label,
+    })); 
 
     const pieConfig = {
       appendPadding: 10,
@@ -341,10 +346,16 @@ class XAILimePage extends Component {
                 value={this.state.modelId}
                 disabled={isModelIdPresent}
                 onChange={(value) => {
-                  this.setState({ modelId: value, limeValues: [], pieData: [], dataTableProbs: [] });
+                  this.setState({ 
+                    label: getLabelsListApp(this.props.app)[0],
+                    modelId: value, 
+                    limeValues: [], 
+                    pieData: [], 
+                    dataTableProbs: [],
+                    isLabelEnabled: false 
+                  });
                   console.log(`Select model ${value}`);
                 }}
-                //optionLabelProp="label"
                 options={modelsOptions}
               />
             </Tooltip>
@@ -430,11 +441,12 @@ class XAILimePage extends Component {
                   value={this.state.label}
                   placeholder="Select a label ..."
                   onChange={v => this.setState({ label: v })}
-                  optionFilterProp="children"
+                  disabled={!this.state.modelId || !this.state.isLabelEnabled}
                   filterOption={(input, option) => (option?.value ?? '').includes(input)}
                   style={{ width: 200, marginTop: '10px', marginBottom: '10px' }}
+                  options={labelsOptions}
                 >
-                  {labelsOptions.map((header) => (
+                  {labelsList.map((header) => (
                     <Option key={header} value={header}>
                       {header}
                     </Option>

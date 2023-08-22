@@ -296,8 +296,12 @@ export const getConfigScatterPlot = (app, csvData, xScatterFeature, yScatterFeat
 
 export const isACModel = modelId => modelId && modelId.startsWith('ac-');
 
-export const getLabelsOptions = (modelId) => {
+export const getLabelsList = (modelId) => {
   return isACModel(modelId) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
+}
+
+export const getLabelsListApp = (app) => {
+  return isACApp(app) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
 }
 
 export const computeAccuracy = (confusionMatrix) => {
