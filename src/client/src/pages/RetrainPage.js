@@ -117,19 +117,20 @@ class RetrainPage extends Component {
   render() {
     const { modelId, modelDatasets, attacksDatasets } = this.state;
     const { app, models } = this.props;
-    let allDatasets = [];
+
     let trainingDatasetsOptions = [], testingDatasetsOptions = []; 
-    if (modelDatasets.length && attacksDatasets.length) {
+    let allDatasets = [...modelDatasets];
+    if (attacksDatasets.length) {
       allDatasets = [...modelDatasets, ...attacksDatasets];
-      trainingDatasetsOptions = allDatasets ? allDatasets.map(dataset => ({
-        value: dataset,
-        label: dataset,
-      })) : [];
-      testingDatasetsOptions = modelDatasets ? modelDatasets.map(dataset => ({
-        value: dataset,
-        label: dataset,
-      })) : [];
     }
+    trainingDatasetsOptions = allDatasets ? allDatasets.map(dataset => ({
+      value: dataset,
+      label: dataset,
+    })) : [];
+    testingDatasetsOptions = modelDatasets ? modelDatasets.map(dataset => ({
+      value: dataset,
+      label: dataset,
+    })) : [];
 
     const featureOptions = FEATURES_OPTIONS ? FEATURES_OPTIONS.map(feature => ({
       value: feature,
