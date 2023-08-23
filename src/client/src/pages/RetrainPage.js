@@ -99,7 +99,8 @@ class RetrainPage extends Component {
                             this.props.retrainStatus.isRunning;
     
     if (prevProps.retrainStatus.isRunning !== isRunningProp || 
-        prevProps.retrainACStatus.isRunning !== isRunningProp) {
+        prevProps.retrainACStatus.isRunning !== isRunningProp &&
+        this.state.isRunning !== isRunningProp) {
       this.setState({ isRunning: isRunningProp });
       if (!isRunningProp) {
         clearInterval(this.intervalId);
@@ -161,15 +162,19 @@ class RetrainPage extends Component {
                 allowClear showSearch
                 value={this.state.modelId}
                 disabled={isModelIdPresent}
+                onClear={() => this.setState({ 
+                  modelDatasets: [], attacksDatasets: [],
+                  trainingDataset: null, testingDataset: null  
+                })}
                 onChange={async (value) => {
                   this.setState({ modelId: value }, async () => {
                     try {
-                      const modelDatasets = await requestModelDatasets(value);
-                      const attacksDatasets = await requestAttacksDatasets(value);
-                      this.setState({
-                        modelDatasets,
-                        attacksDatasets
-                      });
+                      if (value) {
+                        const modelDatasets = await requestModelDatasets(value);
+                        // TODO: get errors if there is no attack dataset?
+                        const attacksDatasets = await requestAttacksDatasets(value);
+                        this.setState({ modelDatasets, attacksDatasets });
+                      } 
                     } catch (error) {
                       console.error("Error loading datasets:", error);
                     }
