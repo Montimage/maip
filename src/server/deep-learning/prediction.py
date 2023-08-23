@@ -36,14 +36,14 @@ def predict(csv_path, model_path, result_path):
         os.makedirs(result_path)
     dataFrame = pd.DataFrame(res)
     # print("Total flows: "+ str(len(dataFrame.index)))
-    last_column_index = len(constants.FEATURES_OUTPUT)-1
-    dataFrame.to_csv(f"{result_path}/predictions.csv", index=False, header=constants.FEATURES_OUTPUT)
+    last_column_index = len(constants.AD_FEATURES_OUTPUT)-1
+    dataFrame.to_csv(f"{result_path}/predictions.csv", index=False, header=constants.AD_FEATURES_OUTPUT)
     attackDF = dataFrame[dataFrame[last_column_index] > 0]
     # print("Number of attacks: " + str(len(attackDF.index)))
-    attackDF.to_csv(f"{result_path}/attacks.csv", index=False, header=constants.FEATURES_OUTPUT)
+    attackDF.to_csv(f"{result_path}/attacks.csv", index=False, header=constants.AD_FEATURES_OUTPUT)
     normalDF = dataFrame[dataFrame[last_column_index] == 0]
     # print("Number of normals: " + str(len(normalDF.index)))
-    normalDF.to_csv(f"{result_path}/normals.csv", index=False, header=constants.FEATURES_OUTPUT)
+    normalDF.to_csv(f"{result_path}/normals.csv", index=False, header=constants.AD_FEATURES_OUTPUT)
     statsArray =np.array([[len(dataFrame.index),len(attackDF.index),len(normalDF.index)]])
     pd.DataFrame(statsArray).to_csv(f"{result_path}/stats.csv", index=False)
 

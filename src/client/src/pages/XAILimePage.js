@@ -127,13 +127,12 @@ class XAILimePage extends Component {
   }
 
   async handleLimeClick() {
-    const { modelId, sampleId, maxDisplay, limeValues } = this.state;
+    const { modelId, sampleId, maxDisplay } = this.state;
     const limeConfig = {
       "modelId": modelId,
       "sampleId": sampleId,
       "numberFeature": maxDisplay,
     };
-    console.log("update isRunning state!");
     this.setState({ 
       isRunning: true, 
       limeValues: [], 
@@ -141,9 +140,6 @@ class XAILimePage extends Component {
       dataTableProbs: [], 
       isLabelEnabled: false 
     });
-
-    // reset Bar chart to avoid confusion
-    this.setState({ limeValues: [] });
 
     const response = await fetch(LIME_URL, {
       method: 'POST',
@@ -261,7 +257,6 @@ class XAILimePage extends Component {
       pieData,
       dataTableProbs,
     } = this.state;
-    console.log(`XAI isRunning: ${isRunning}`);
     const { app, models, } = this.props;
     console.log(app);
 
@@ -375,16 +370,18 @@ class XAILimePage extends Component {
           <Form.Item label="Sample ID" style={{ marginBottom: 10 }}>
             <div style={{ display: 'inline-flex' }}>
               <Form.Item label="id" name="id" noStyle>
-                <InputNumber min={1} defaultValue={sampleId}
-                  value={this.state.sampleId}
-                  onChange={v => this.setState({ 
-                    sampleId: v,
-                    limeValues: [], 
-                    pieData: [], 
-                    dataTableProbs: [],
-                    isLabelEnabled: false 
-                  })}
-                />
+                <Tooltip title="Select a sample to be explained.">
+                  <InputNumber min={1} defaultValue={sampleId}
+                    value={this.state.sampleId}
+                    onChange={v => this.setState({ 
+                      sampleId: v,
+                      limeValues: [], 
+                      pieData: [], 
+                      dataTableProbs: [],
+                      isLabelEnabled: false 
+                    })}
+                  />
+                </Tooltip>
               </Form.Item>
             </div>  
           </Form.Item>
@@ -422,7 +419,8 @@ class XAILimePage extends Component {
           </Form.Item>
           <div style={{ textAlign: 'center' }}>
             <Button type="primary" //>icon={<UserOutlined />}
-              onClick={this.handleLimeClick} disabled={isRunning || !this.state.modelId}
+              onClick={this.handleLimeClick}
+              disabled={isRunning || !this.state.modelId}
               >LIME Explain
               {isRunning && 
                 <Spin size="large" style={{ marginBottom: '8px' }}>

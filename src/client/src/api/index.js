@@ -317,11 +317,12 @@ export const requestXAIStatus = async () => {
   return data.xaiStatus;
 };
 
-export const requestRunShap = async (modelId, numberSamples, maxDisplay) => {
+export const requestRunShap = async (modelId, numberBackgroundSamples, numberExplainedSamples, maxDisplay) => {
   const url = `${SERVER_URL}/api/xai/shap`;
   const shapConfig = {
     "modelId": modelId,
-    "numberSamples": numberSamples,
+    "numberBackgroundSamples": numberBackgroundSamples,
+    "numberExplainedSamples": numberExplainedSamples,
     "maxDisplay": maxDisplay,
   };
   const response = await fetch(url, {
@@ -336,11 +337,12 @@ export const requestRunShap = async (modelId, numberSamples, maxDisplay) => {
   return data;
 };
 
-export const requestShapValues = async (modelId, label) => {
-  const url = `${SERVER_URL}/api/xai/shap/importance-values/${modelId}/${label}`;
+export const requestShapValues = async (modelId, labelId) => {
+  const labelsList = getLabelsListXAI(modelId);
+  const url = `${SERVER_URL}/api/xai/shap/importance-values/${modelId}/${labelId}`;
   const response = await fetch(url);
   const shapValues = await response.json();
-  console.log(`Get SHAP values of the model ${modelId} for the label ${label} from server`);
+  console.log(`Get SHAP values of the model ${modelId} for the label ${labelsList[labelId]} from server`);
   console.log(JSON.stringify(shapValues));
   return shapValues;
 };

@@ -42,7 +42,8 @@ const getModelType = async (modelId) => {
 const runSHAP = async (shapConfig, callback) => {
   const {
     modelId,
-    numberSamples,
+    numberBackgroundSamples,
+    numberExplainedSamples,
     maxDisplay,
   } = shapConfig;
   console.log(xaiStatus);
@@ -68,12 +69,18 @@ const runSHAP = async (shapConfig, callback) => {
   const modelType = await getModelType(modelId);
   if (modelId.startsWith("ac-")) {
     scriptPath = `${AC_PATH}/ac_xai_shap.py`;
-  }
-
-  spawnCommand(PYTHON_CMD, [scriptPath, modelId, numberSamples, maxDisplay, modelType], logFile, () => {
+    spawnCommand(PYTHON_CMD, [scriptPath, modelId, numberBackgroundSamples, numberExplainedSamples, maxDisplay, modelType], logFile, () => {
       xaiStatus.isRunning = false;
       console.log('Finish producing SHAP feature importance explanations');
-  });
+    });
+  } else {
+    spawnCommand(PYTHON_CMD, [scriptPath, modelId, numberBackgroundSamples, numberExplainedSamples, maxDisplay], logFile, () => {
+      xaiStatus.isRunning = false;
+      console.log('Finish producing LIME explanations for a particular instance');
+    });
+  }
+
+  
   
   return callback(xaiStatus);
 };

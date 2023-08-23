@@ -2,7 +2,7 @@ AD_STR_FEATURES = "ip.session_id,meta.direction,ip.pkts_per_flow,duration,ip.hea
 
 AC_STR_FEATURES = "session_time,%tcp_protocol,%udp_protocol,ul_data_volume,max_ul_volume,min_ul_volume,avg_ul_volume,std_ul_volume,%ul_volume,dl_data_volume,max_dl_volume,min_dl_volume,avg_dl_volume,std_dl_volume,%dl_volume,nb_uplink_packet,nb_downlink_packet,ul_packet,dl_packet,kB/s,nb_packet/s,output\n"
 
-FEATURES = ['ip.session_id', 'meta.direction', 'ip', 'ip.pkts_per_flow', 'duration', 'ip.header_len',
+AD_FEATURES = ['ip.session_id', 'meta.direction', 'ip', 'ip.pkts_per_flow', 'duration', 'ip.header_len',
             'ip.payload_len', 'ip.avg_bytes_tot_len', 'time_between_pkts_sum',
             'time_between_pkts_avg', 'time_between_pkts_max',
             'time_between_pkts_min', 'time_between_pkts_std', '(-0.001, 50.0]',
@@ -19,7 +19,7 @@ FEATURES = ['ip.session_id', 'meta.direction', 'ip', 'ip.pkts_per_flow', 'durati
             'max_tcp_pkts', 'entropy_tcp_pkts', 'mean_tcp_len', 'std_tcp_len',
             'min_tcp_len', 'max_tcp_len', 'entropy_tcp_len', 'ssl.tls_version']
 
-FEATURES_OUTPUT = FEATURES.append('malware')
+AD_FEATURES_OUTPUT = AD_FEATURES.append('malware')
 
 DISCRETE_FEATURES = [
   'ip.pkts_per_flow', 'ip.header_len', 'ip.payload_len',

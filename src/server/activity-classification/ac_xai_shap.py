@@ -59,15 +59,19 @@ def get_model(modelType, X_train, y_train, y_train_orig):
     print("ERROR: Model type is not valid")
   return model
 
-def running_shap(model, numberExplainedSamples, maxDisplay, modelType):
+def running_shap(model, numberBackgroundSamples, numberExplainedSamples, maxDisplay, modelType):
   classes = ['Web', 'Interactive', 'Video']
 
-  #background_data = shap.sample(X_test, int(numberBackgroundSamples))
+  background_data = shap.sample(X_train, int(numberBackgroundSamples))
   
+  #background = X_train[np.random.choice(X_train.shape[0], int(numberBackgroundSamples), replace=False)]
+
   if modelType == "LightGBM":
+    # set background to TreeExplainer ?
     explainer = shap.TreeExplainer(model)
   else:
-    explainer = shap.KernelExplainer(model.predict, X_test)
+    # maximum of background is X_train
+    explainer = shap.KernelExplainer(model.predict, background)
 
   with warnings.catch_warnings():
     warnings.filterwarnings("ignore")
@@ -94,6 +98,23 @@ def running_shap(model, numberExplainedSamples, maxDisplay, modelType):
       json.dump(features_to_display, outfile)
       print("SHAP values dumped to " + jsonfile)
 
+  for i, label in enumerate(classes):
+    print(f"Generating SHAP summary plot for {label}")
+    shap.summary_plot(shap_values[i], X_test_sample)
+    #plt.savefig(os.path.join(explanations_path, f'{label}_summary_plot.png'))
+    #plt.clf()  # Clear the current figure after saving
+
+  shap_dict = {}
+  for idx, label in enumerate(classes):
+    shap_df = pd.DataFrame(shap_values[idx], columns=constants.AC_FEATURES)
+    shap_dict[label] = shap_df.to_dict(orient="list")
+
+  jsonfile = os.path.join(explanations_path, f'{label}_summary_values.json')
+  with open(jsonfile, "w") as outfile:
+    json.dump(shap_dict, outfile)
+    #json.dump(shap_dict, file, indent=2, ensure_ascii=False)
+    print("SHAP summary values dumped to " + jsonfile)
+
   # # Convert SHAP values into a dictionary with class labels as keys
   # shap_dict = {}
   # for idx, label in enumerate(classes):
@@ -108,17 +129,18 @@ def running_shap(model, numberExplainedSamples, maxDisplay, modelType):
   # print(json.dump(shap_dict, file, indent=2, ensure_ascii=False))
 
 if __name__ == "__main__":
-  if len(sys.argv) < 4 or len(sys.argv) > 5:
+  if len(sys.argv) < 5 or len(sys.argv) > 6:
     print('Invalid inputs')
-    print('Usage: python ac_xai_shap.py modelId numberExplainedSamples maxDisplay [modelType]')
+    print('Usage: python ac_xai_shap.py modelId numberBackgroundSamples numberExplainedSamples maxDisplay [modelType]')
   else:
     modelId = sys.argv[1]
-    numberExplainedSamples = sys.argv[2]
-    maxDisplay = sys.argv[3]
+    numberBackgroundSamples = sys.argv[2]
+    numberExplainedSamples = sys.argv[3]
+    maxDisplay = sys.argv[4]
 
     modelType = None
-    if len(sys.argv) == 5:
-      modelType = sys.argv[4]
+    if len(sys.argv) == 6:
+      modelType = sys.argv[5]
 
     output_path = deepLearningPath + '/trainings/' + modelId
     output_datasets_path = output_path + '/datasets/'
@@ -138,7 +160,7 @@ if __name__ == "__main__":
 
     # Compute time for producing explanations and save it to file 
     generation_iters = 1
-    time_taken = timeit.timeit(lambda: running_shap(model, numberExplainedSamples, maxDisplay, modelType), number=generation_iters)
+    time_taken = timeit.timeit(lambda: running_shap(model, numberBackgroundSamples, numberExplainedSamples, maxDisplay, modelType), number=generation_iters)
     print("Time taken for SHAP in seconds: ", time_taken)
     xai_path = deepLearningPath + '/xai/' + modelId
     statsfile = os.path.join(xai_path, 'time_stats_shap.txt')

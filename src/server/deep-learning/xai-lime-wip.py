@@ -22,6 +22,11 @@ import constants
 deepLearningPath = str(Path.cwd()) + '/src/server/deep-learning/'
 features = constants.AD_FEATURES[3:-1]
 
+def predict_fn_for_both_classes(x):
+  prob_for_malware = model.predict(x.reshape(1, -1))
+  prob_for_normal = 1 - prob_for_malware
+  return np.hstack([prob_for_normal, prob_for_malware])
+
 def running_lime(sampleId, numberFeatures):
 
   """
@@ -31,14 +36,16 @@ def running_lime(sampleId, numberFeatures):
     :param numberFeatures: maximum number of features in explanation
     :return:
   """
-
   classes=['Normal', 'Malware']
   idx = int(sampleId)
-  print("Prediction : ", model.predict(x_test[idx].reshape(1,-1)))
-  print("Actual :     ", y_test[idx])
-  print(features)
+  #print("Local interpretation of sample " + str(idx))
+  #print("Prediction : ", model.predict(x_test[idx].reshape(1,-1)))
+  #print("Actual :     ", y_test[idx])
 
-  predict_fn_nn= lambda x: model.predict(x.reshape(1,-1))
+  
+  #predict_fn_nn= lambda x: model.predict(x.reshape(1,-1))
+  predict_fn_nn = predict_fn_for_both_classes
+  print(predict_fn_nn(x_test[idx]))
   explainer = LimeTabularExplainer(x_train, 
                                   training_labels=y_train, 
                                   mode="classification", 
@@ -47,36 +54,68 @@ def running_lime(sampleId, numberFeatures):
                                   feature_names=features, 
                                   kernel_width=None, 
                                   discretize_continuous=True)
-  explanation = explainer.explain_instance(x_test[idx], model.predict, labels=(0,), num_features=int(numberFeatures))
-  full_explanation = explainer.explain_instance(x_test[idx], model.predict, labels=(0,), num_features=len(features))
-  full_lime_exps = full_explanation.as_list(label=0)
-  print(full_lime_exps)
-  full_lime_values = full_explanation.as_map()
-  print(full_lime_values[0])
+  #explanation = explainer.explain_instance(x_test[idx], model.predict, labels=(0,), num_features=int(numberFeatures))
+  #full_explanation = explainer.explain_instance(x_test[idx], model.predict, labels=(0,), num_features=len(features))
+  
+  # full_lime_exps = full_explanation.as_list(label=0)
+  # print(full_lime_exps)
+  # full_lime_values = full_explanation.as_map()
+  # print(full_lime_values[0])
+
+  #plt.tight_layout()
+  #plt.figure(figsize=(15,10))
+  #explanation.show_in_notebook()
 
   columns = ['feature','value'] 
+  #feature_importance = pd.DataFrame(list(zip(features,sum(vals))),columns=['feature','importance_value'])
+  #feature_importance.sort_values(by=['importance_value'],ascending=False,inplace=True)  
+  #feature_importance.head()
 
-  exps_to_display = [dict(zip(columns, row)) for row in full_lime_exps]
-  print(json.dumps(exps_to_display, indent=2, ensure_ascii=False))
-  values_to_display = [{"feature": features[x], "value": y} for x, y in full_lime_values[0]]
-  print(json.dumps(values_to_display, indent=2, ensure_ascii=False))
+  #sorted_feature_vals = sorted(list(zip(features,sum(vals))), key = lambda x: x[1], reverse=True)
+  #features_to_display = [dict(zip(columns, row)) for row in sorted_feature_vals][:int(maxDisplay)]
+  # dump full values and process maxDisplay later ?
+  
+  
+  # exps_to_display = [dict(zip(columns, row)) for row in full_lime_exps]
+  # print(json.dumps(exps_to_display, indent=2, ensure_ascii=False))
+  # values_to_display = [{"feature": features[x], "value": y} for x, y in full_lime_values[0]]
+  # print(json.dumps(values_to_display, indent=2, ensure_ascii=False))
 
   explanations_path = deepLearningPath + '/xai/' + model_name
   if not os.path.exists(explanations_path):
     os.makedirs(explanations_path) 
 
-  # the current model only returns the probability for the positive class (Malware)
-  # thus, we only obtain LIME explanations for this class
-  label = classes[1]
-  exps_file = os.path.join(explanations_path, f'{label}_lime_explanations.json')
-  print(exps_file)
-  with open(exps_file, "w") as outfile:
-    json.dump(exps_to_display, outfile)
+  full_explanation = explainer.explain_instance(x_test[idx], model.predict, num_features=len(features), top_labels=2)
+  print(full_explanation.as_map())
+  for label in classes:
+    label_idx = classes.index(label)
+    print(label)
+    print(label_idx)
+    label_explanations = full_explanation.as_list(label=label_idx)
+    values_to_display = [{"feature": item[0], "value": item[1]} for item in label_explanations]
+    #print(values_to_display)
+    jsonfile = os.path.join(explanations_path, f'{label}_lime_explanations.json')
+    with open(jsonfile, "w") as outfile:
+      json.dump(values_to_display, outfile)
+      print(f"LIME explanations for {label} dumped to " + jsonfile)
+
+  # exps_file = os.path.join(explanations_path, 'lime_explanations.json')
+  # print(exps_file)
+  # with open(exps_file, "w") as outfile:
+  #   json.dump(exps_to_display, outfile)
   
-  values_file = os.path.join(explanations_path, f'{label}_lime_values.json')
-  print(values_file)
-  with open(values_file, "w") as outfile:
-    json.dump(values_to_display, outfile)
+  # values_file = os.path.join(explanations_path, 'lime_values.json')
+  # print(values_file)
+  # with open(values_file, "w") as outfile:
+  #   json.dump(values_to_display, outfile)
+
+  # explanations_path = deepLearningPath + '/xai/' + model_name
+  # if not os.path.exists(explanations_path):
+  #   os.makedirs(explanations_path)
+
+  #fig = explanation.as_pyplot_figure(label=0)
+  #fig.savefig(os.path.join(explanations_path, 'lime.png'), dpi=300, bbox_inches='tight')
+  #explanation.save_to_file(os.path.join(explanations_path, 'lime_report.html'))
 
 
 if __name__ == "__main__":

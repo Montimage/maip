@@ -306,7 +306,7 @@ def calculateFeatures(ip_traffic, tcp_traffic, tls_traffic):
 
     #Features should have always same columns (as predefined), hence in case some features were not calculated due to
     # the lack of data (e.g. no TCP packets) the columns should be added anyway filled with 0 values
-    features = features.reindex(features.columns.union(constants.FEATURES[3:], sort=False), axis=1, fill_value=0)
+    features = features.reindex(features.columns.union(constants.AD_FEATURES[3:], sort=False), axis=1, fill_value=0)
 
     # ips = features['ip.session_id', 'meta.direction']
     # features.drop(columns=['ip.session_id', 'meta.direction'], inplace=True)

@@ -108,11 +108,16 @@ router.get('/explanations/:modelId', (req, res, next) => {
  */
 router.get('/shap/explanations/:modelId/:labelId', (req, res, next) => {
   const { modelId, labelId } = req.params;
-  let label;
-  if (modelId.startsWith('ac-')) {
-    label = AC_OUTPUT_LABELS[parseInt(labelId)];
+  let label = null;
+
+  const labelsList = getLabelsListXAI(modelId);
+
+  // Check if labelId is within bounds of labelsList
+  if (labelId < 0 || labelId >= labelsList.length) {
+    console.error(`Invalid labelId ${labelId}. It should be between 0 and ${labelsList.length - 1}`);
+    return { error: "Invalid labelId provided" };
   } else {
-    label = AD_OUTPUT_LABELS[parseInt(labelId)];
+    label = labelsList[labelId]; 
   }
 
   if (!label) {

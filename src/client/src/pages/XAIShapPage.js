@@ -18,6 +18,9 @@ import {
   getNumberFeatures,
   getLabelsList,
   getLabelsListApp,
+  getLabelsListXAI,
+  getLabelsListAppXAI,
+  getFilteredFeaturesModel,
 } from "../utils";
 import {
   FORM_LAYOUT, BOX_STYLE,
@@ -35,8 +38,9 @@ class XAIShapPage extends Component {
     super(props);
     this.state = {
       modelId: null,
-      label: getLabelsListApp(this.props.app)[0],
-      numberSamples: 10,
+      label: getLabelsListAppXAI(this.props.app)[0],
+      numberBackgroundSamples: 20,
+      numberExplainedSamples: 10,
       maxDisplay: 10,
       positiveChecked: true,
       negativeChecked: true,
@@ -52,7 +56,7 @@ class XAIShapPage extends Component {
   componentDidMount() {
     const modelId = getLastPath();
     if (isModelIdPresent) {
-      this.setState({ modelId });
+      this.setState({ modelId, label: getLabelsListXAI(modelId)[0] });
     }
     this.props.fetchApp();
     this.props.fetchAllModels(); 
@@ -69,23 +73,23 @@ class XAIShapPage extends Component {
     const { app, xaiStatus } = this.props;
 
     if (app !== prevProps.app && !isModelIdPresent) {
+      const defaultLabel = isModelIdPresent ? 
+                            getLabelsListXAI(modelId)[0] : getLabelsListAppXAI(app)[0];
       this.setState({
         modelId: null,
-        label: getLabelsListApp(app)[0],
-        numberSamples: 10,
+        label: defaultLabel,
+        numberBackgroundSamples: 20,
+        numberExplainedSamples: 10,
         maxDisplay: 10,
         positiveChecked: true,
         negativeChecked: true,
         maskedFeatures: [], 
+        isRunning: false,
         isLabelEnabled: false,
       });
     }
 
-    if (prevState.modelId !== modelId) {
-      this.setState({ shapValues: [] }); 
-    }
-
-    if (prevState.label !== label && !isRunning) {
+    if (prevState.label !== label && prevState.modelId === modelId) {
       await this.fetchNewValues(modelId, label);
     }
 
@@ -123,39 +127,37 @@ class XAIShapPage extends Component {
   }
 
   async handleShapClick() {
-    const { modelId, numberSamples, maxDisplay, isRunning } = this.state;
+    const { modelId, numberBackgroundSamples, numberExplainedSamples, maxDisplay } = this.state;
+    const shapConfig = {
+      "modelId": modelId,
+      "numberBackgroundSamples": numberBackgroundSamples,
+      "numberExplainedSamples": numberExplainedSamples,
+      "maxDisplay": maxDisplay,
+    };
     this.setState({ 
       isRunning: true, 
       shapValues: [], 
       isLabelEnabled: false 
     });
-    const shapConfig = {
-      "modelId": modelId,
-      "numberSamples": numberSamples,
-      "maxDisplay": maxDisplay,
-    };
-    if (!isRunning) {
-      console.log("update isRunning state!");
-      this.setState({ isRunning: true });        
-      const response = await fetch(SHAP_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ shapConfig }),
-      });
-      const data = await response.json();
 
-      console.log(`Building SHAP values of the model ${modelId}`);
-      //console.log(JSON.stringify(data));
-      this.intervalId = setInterval(() => { // start interval when button is clicked
-        this.props.fetchXAIStatus();
-      }, 1000);
-    }
+    const response = await fetch(SHAP_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ shapConfig }),
+    });
+    const data = await response.json();
+
+    console.log(`Building SHAP values of the model ${modelId}`);
+    //console.log(JSON.stringify(data));
+    this.intervalId = setInterval(() => { // start interval when button is clicked
+      this.props.fetchXAIStatus();
+    }, 1000);
   }
 
   async fetchNewValues(modelId, label) {
-    const labelsList = getLabelsListApp(this.props.app);
+    const labelsList = getLabelsListXAI(this.state.modelId);
     const labelIndex = labelsList.indexOf(label);
 
     if (labelIndex === -1) {
@@ -182,18 +184,20 @@ class XAIShapPage extends Component {
       isRunning,
       shapValues,
     } = this.state;
-    console.log(`XAI isRunning: ${isRunning}`);
     const { app, models } = this.props;
 
     const modelsOptions = getFilteredModelsOptions(app, models);
-    const features = getFilteredFeatures(app);
+    const features = isModelIdPresent ? 
+                      getFilteredFeaturesModel(modelId) : getFilteredFeatures(app);
+    getFilteredFeatures(app);
     const selectFeaturesOptions = getFilteredFeaturesOptions(app);
     const numberFeatures = getNumberFeatures(app);
-    const labelsList = getLabelsList(modelId);
+    const labelsList = isModelIdPresent ? 
+                        getLabelsListXAI(modelId) : getLabelsListAppXAI(app);
     const labelsOptions = labelsList.map(label => ({
       value: label,
       label: label,
-    })); 
+    }));
     
     const filteredValuesShap = shapValues.filter((d) => {
       if (d.importance_value > 0 && positiveChecked) return true;
@@ -247,33 +251,58 @@ class XAIShapPage extends Component {
                 },
               ]}
             > 
-              <Tooltip title="Select a model to perform attacks.">
+              <Tooltip title="Select a model to perform SHAP method.">
                 <Select placeholder="Select a model ..."
                   style={{ width: '100%' }}
                   allowClear showSearch
                   value={this.state.modelId}
                   disabled={isModelIdPresent}
                   onChange={(value) => {
+                    if (value) {
+                      this.setState({ label: getLabelsListXAI(value)[0] });
+                    } else {
+                      this.setState({ label: getLabelsListAppXAI(this.props.app)[0] });
+                    }
                     this.setState({ 
-                      label: getLabelsListApp(this.props.app)[0],
                       modelId: value, 
                       shapValues: [],
                       isLabelEnabled: false 
                     });
                     console.log(`Select model ${value}`);
                   }}
-                  //optionLabelProp="label"
                   options={modelsOptions}
                 />
               </Tooltip>
             </Form.Item>
-          <Form.Item label="Explained samples" style={{ marginBottom: 10 }} > 
+          <Form.Item label="Background samples" style={{ marginBottom: 10 }} > 
             <div style={{ display: 'inline-flex' }}>
               <Form.Item label="bg" name="bg" noStyle>
-                <InputNumber min={1} defaultValue={10} 
-                  value={this.state.numberSamples}
-                  onChange={v => this.setState({ numberSamples: v })}
-                />
+                <Tooltip title="Select number of samples used for producing explanations (maximum is the length of the training dataset).">
+                  <InputNumber min={1} defaultValue={20} 
+                    value={this.state.numberBackgroundSamples}
+                    onChange={v => this.setState({ 
+                      numberBackgroundSamples: v,
+                      shapValues: [], 
+                      isLabelEnabled: false 
+                    })}
+                  />
+                </Tooltip>
+              </Form.Item>
+            </div>
+          </Form.Item>
+          <Form.Item label="Explained samples" style={{ marginBottom: 10 }} > 
+            <div style={{ display: 'inline-flex' }}>
+              <Form.Item label="ex" name="ex" noStyle>
+                <Tooltip title="Select number of samples to be explained (maximum is the length of the testing dataset).">
+                  <InputNumber min={1} defaultValue={10} 
+                    value={this.state.numberExplainedSamples}
+                    onChange={v => this.setState({ 
+                      numberExplainedSamples: v,
+                      shapValues: [], 
+                      isLabelEnabled: false 
+                    })}
+                  />
+                </Tooltip>
               </Form.Item>
             </div>
           </Form.Item>
@@ -315,8 +344,9 @@ class XAIShapPage extends Component {
             />
           </Form.Item>
           <div style={{ textAlign: 'center' }}>
-            <Button type="primary" //>icon={<UserOutlined />}
-              onClick={this.handleShapClick} disabled={isRunning || !this.state.modelId}
+            <Button type="primary"
+              onClick={this.handleShapClick}
+              disabled={isRunning || !this.state.modelId}
               >SHAP Explain
               {isRunning && 
                 <Spin size="large" style={{ marginBottom: '8px' }}>
@@ -414,8 +444,8 @@ const mapDispatchToProps = (dispatch) => ({
   fetchApp: () => dispatch(requestApp()),
   fetchAllModels: () => dispatch(requestAllModels()),
   fetchXAIStatus: () => dispatch(requestXAIStatus()),
-  fetchRunShap: (modelId, numberSamples, maxDisplay) =>
-    dispatch(requestRunShap({ modelId, numberSamples, maxDisplay })),
+  fetchRunShap: (modelId, numberBackgroundSamples, numberExplainedSamples, maxDisplay) =>
+    dispatch(requestRunShap({ modelId, numberBackgroundSamples, numberExplainedSamples, maxDisplay })),
 });
 
 export default connect(mapPropsToStates, mapDispatchToProps)(XAIShapPage);

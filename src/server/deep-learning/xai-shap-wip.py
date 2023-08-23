@@ -32,7 +32,10 @@ def running_shap(numberBackgroundSamples, numberExplainedSamples, maxDisplay):
     :param maxDisplay: maximum number of features in explanations
     :return:
   """
-  classes=['Normal', 'Malware']
+
+  explanations_path = deepLearningPath + '/xai/' + model_name
+  if not os.path.exists(explanations_path):
+    os.makedirs(explanations_path) 
 
   x_train_df = pd.DataFrame(x_train, columns=features)
   x_test_df = pd.DataFrame(x_test, columns=features)
@@ -46,26 +49,53 @@ def running_shap(numberBackgroundSamples, numberExplainedSamples, maxDisplay):
     warnings.filterwarnings("ignore")
     x_samples = shap.sample(x_test_df, int(numberExplainedSamples))
     shap_values = explainer.shap_values(x_samples)
+
     print(shap_values[0])
+
+    # Compute the permutation importance of each feature
+    #perm_importance = shap.permutation_importance(explainer, x_test)
+    #print(perm_importance.importances_mean)
     shap_df = pd.DataFrame(shap_values[0], columns=features)
+    #shap_df = shap_df.reset_index(drop=True)
+    #shap.plots.heatmap(shap_df, max_display=int(maxDisplay))
+    #shap.plots.heatmap(shap_values, max_display=int(maxDisplay))
+
+    #plt.figure(figsize=(15,10))
+    #shap.dependence_plot(1, shap_values[0], x_samples)
+    #plt.savefig(os.path.join(explanations_path, 'dependence_plot.png')) 
+
+    # Compute the interaction values between features
+    #interaction_values = explainer.shap_interaction_values(x_samples)
+    #print(interaction_values)
+
+  #shap_dict = dict(zip(features, shap_values[0][0]))
+  #shap.plots.bar(shap_dict, max_display=10)
+  #plt.savefig(os.path.join(explanations_path, 'shap_instance.png'))
 
   columns = ['feature','importance_value'] 
   vals= np.abs(shap_values).mean(0)
+  #feature_importance = pd.DataFrame(list(zip(features,sum(vals))),columns=['feature','importance_value'])
+  #feature_importance.sort_values(by=['importance_value'],ascending=False,inplace=True)  
+  #feature_importance.head()
+
   sorted_feature_vals = sorted(list(zip(features,sum(vals))), key = lambda x: x[1], reverse=True)
+  #features_to_display = [dict(zip(columns, row)) for row in sorted_feature_vals][:int(maxDisplay)]
+  # dump full values and process maxDisplay later ?
   features_to_display = [dict(zip(columns, row)) for row in sorted_feature_vals]
   print(json.dumps(features_to_display, indent=2, ensure_ascii=False))
 
-  explanations_path = deepLearningPath + '/xai/' + model_name
-  if not os.path.exists(explanations_path):
-    os.makedirs(explanations_path) 
-
-  # the current model only returns the probability for the positive class (Malware)
-  # thus, we only obtain LIME explanations for this class
-  label = classes[1]
-  jsonfile = os.path.join(explanations_path, f'{label}_importance_values.json')
+  
+  jsonfile = os.path.join(explanations_path, 'importance_values.json')
   print(jsonfile)
   with open(jsonfile, "w") as outfile:
     json.dump(features_to_display, outfile)
+
+  classes = ['Botnet']
+  #plt.figure(figsize=(15,10))
+  #plt.grid(b=None)
+  #shap.summary_plot(shap_values, x_test, color_bar_label='Feature value for all', 
+  #  feature_names=features, max_display=int(maxDisplay), class_names=classes, plot_size=None)
+  #plt.savefig(os.path.join(explanations_path, 'shap.png'))
 
 
 if __name__ == "__main__":
@@ -97,6 +127,13 @@ if __name__ == "__main__":
     d = datetime.now()
     x_train_norm, x_train_mal, x_test_norm, x_test_mal, x_train, y_train, x_test, y_test, scaler = dataScale_cnn(output_path,
       train_data, test_data, datetime=d)
+
+    # cnn = trainSAE_CNN(result_path=result_path, x_train_norm=x_train_norm, x_train_mal=x_train_mal,
+    #                    x_train=x_train, y_train=y_train,
+    #                    nb_epoch_cnn=nb_epoch_cnn, nb_epoch_sae=nb_epoch_sae,
+    #                    batch_size_cnn=batch_size_cnn, batch_size_sae=batch_size_sae, datenow=d)
+
+    #running_shap(numberBackgroundSamples, maxDisplay)
 
     # Compute time for producing explanations and save it to file 
     generation_iters = 1
