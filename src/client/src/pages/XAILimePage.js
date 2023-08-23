@@ -15,8 +15,8 @@ import {
   getFilteredFeaturesOptions,
   getFilteredModelsOptions,
   getLastPath,
-  getLabelsList,
-  getLabelsListApp,
+  getLabelsListXAI,
+  getLabelsListAppXAI,
 } from "../utils";
 import {
   FORM_LAYOUT, BOX_STYLE,
@@ -35,7 +35,7 @@ class XAILimePage extends Component {
     super(props);
     this.state = {
       modelId: null,
-      label: getLabelsListApp(this.props.app)[0],
+      label: getLabelsListAppXAI(this.props.app)[0],
       sampleId: 5,
       numberSamples: 10,
       maxDisplay: 15,
@@ -55,7 +55,7 @@ class XAILimePage extends Component {
   componentDidMount() {
     const modelId = getLastPath();
     if (isModelIdPresent) {
-      this.setState({ modelId });
+      this.setState({ modelId, label: getLabelsListXAI(modelId)[0] });
     }
     this.props.fetchApp();
     this.props.fetchAllModels(); 
@@ -72,19 +72,25 @@ class XAILimePage extends Component {
     const { app, xaiStatus } = this.props;
 
     if (app !== prevProps.app && !isModelIdPresent) {
+      const defaultLabel = isModelIdPresent ? 
+                            getLabelsListXAI(modelId)[0] : getLabelsListAppXAI(app)[0]; 
       this.setState({
         modelId: null,
-        label: getLabelsListApp(app)[0],
+        label: defaultLabel,
         sampleId: 5,
         maxDisplay: 15,
         positiveChecked: true,
         negativeChecked: true,
         maskedFeatures: [], 
+        pieData: [],
+        dataTableProbs: [],
+        limeValues: [],
+        isRunning: false,
         isLabelEnabled: false,
       });
     }
 
-    if (prevState.label !== label) {
+    if (prevState.label !== label && prevState.modelId === modelId) {
       await this.fetchNewValues(modelId, label);
     }
 
@@ -223,7 +229,7 @@ class XAILimePage extends Component {
   }
 
   async fetchNewValues(modelId, label) {
-    const labelsList = getLabelsListApp(this.props.app);
+    const labelsList = getLabelsListXAI(this.state.modelId);
     const labelIndex = labelsList.indexOf(label);
 
     if (labelIndex === -1) {
@@ -257,14 +263,16 @@ class XAILimePage extends Component {
     } = this.state;
     console.log(`XAI isRunning: ${isRunning}`);
     const { app, models, } = this.props;
+    console.log(app);
 
     const modelsOptions = getFilteredModelsOptions(app, models);
     const selectFeaturesOptions = getFilteredFeaturesOptions(app);
-    const labelsList = getLabelsList(modelId);
+    const labelsList = isModelIdPresent ? 
+                        getLabelsListXAI(modelId) : getLabelsListAppXAI(app);
     const labelsOptions = labelsList.map(label => ({
       value: label,
       label: label,
-    })); 
+    }));
 
     const pieConfig = {
       appendPadding: 10,
@@ -346,8 +354,12 @@ class XAILimePage extends Component {
                 value={this.state.modelId}
                 disabled={isModelIdPresent}
                 onChange={(value) => {
-                  this.setState({ 
-                    label: getLabelsListApp(this.props.app)[0],
+                  if (value) {
+                    this.setState({ label: getLabelsListXAI(value)[0] });
+                  } else {
+                    this.setState({ label: getLabelsListAppXAI(this.props.app)[0] });
+                  }
+                  this.setState({
                     modelId: value, 
                     limeValues: [], 
                     pieData: [], 
@@ -364,7 +376,14 @@ class XAILimePage extends Component {
             <div style={{ display: 'inline-flex' }}>
               <Form.Item label="id" name="id" noStyle>
                 <InputNumber min={1} defaultValue={sampleId}
-                  onChange={v => this.setState({ sampleId: v })}
+                  value={this.state.sampleId}
+                  onChange={v => this.setState({ 
+                    sampleId: v,
+                    limeValues: [], 
+                    pieData: [], 
+                    dataTableProbs: [],
+                    isLabelEnabled: false 
+                  })}
                 />
               </Form.Item>
             </div>  

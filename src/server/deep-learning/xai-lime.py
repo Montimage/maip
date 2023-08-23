@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import timeit
 
 from lime import lime_tabular
+from lime.lime_tabular import LimeTabularExplainer
 from pathlib import Path
 from trafficToFeature import trafficToFeatures
 from createDatasetMMT import createTrainTestSet
@@ -16,6 +17,7 @@ from tensorflow.keras.models import load_model
 from pydoc import classname
 from datetime import datetime
 from tools import dataScale_cnn
+import constants
 
 deepLearningPath = str(Path.cwd()) + '/src/server/deep-learning/'
 
@@ -29,15 +31,20 @@ def running_lime(sampleId, numberFeatures):
     :return:
   """
 
+  classes=['Normal', 'Malware']
   idx = int(sampleId)
-  #print("Local interpretation of sample " + str(idx))
-  #print("Prediction : ", model.predict(x_test[idx].reshape(1,-1)))
-  #print("Actual :     ", y_test[idx])
+  print("Prediction : ", model.predict(x_test[idx].reshape(1,-1)))
+  print("Actual :     ", y_test[idx])
 
-  classes=['Botnet']
   predict_fn_nn= lambda x: model.predict(x.reshape(1,-1))
-  explainer = lime_tabular.LimeTabularExplainer(x_test, mode="classification", feature_selection= 'auto', class_names=classes,
-                                                  feature_names=constants.FEATURES[3:], kernel_width=None, discretize_continuous=True)
+  explainer = LimeTabularExplainer(x_train, 
+                                  training_labels=y_train, 
+                                  mode="classification", 
+                                  feature_selection= 'auto', 
+                                  class_names=classes,
+                                  feature_names=constants.FEATURES[3:], 
+                                  kernel_width=None, 
+                                  discretize_continuous=True)
   explanation = explainer.explain_instance(x_test[idx], model.predict, labels=(0,), num_features=int(numberFeatures))
   full_explanation = explainer.explain_instance(x_test[idx], model.predict, labels=(0,), num_features=len(constants.FEATURES[3:]))
   full_lime_exps = full_explanation.as_list(label=0)
@@ -45,18 +52,8 @@ def running_lime(sampleId, numberFeatures):
   full_lime_values = full_explanation.as_map()
   print(full_lime_values[0])
 
-  #plt.tight_layout()
-  #plt.figure(figsize=(15,10))
-  #explanation.show_in_notebook()
-
   columns = ['feature','value'] 
-  #feature_importance = pd.DataFrame(list(zip(constants.FEATURES[3:],sum(vals))),columns=['feature','importance_value'])
-  #feature_importance.sort_values(by=['importance_value'],ascending=False,inplace=True)  
-  #feature_importance.head()
 
-  #sorted_feature_vals = sorted(list(zip(constants.FEATURES[3:],sum(vals))), key = lambda x: x[1], reverse=True)
-  #features_to_display = [dict(zip(columns, row)) for row in sorted_feature_vals][:int(maxDisplay)]
-  # dump full values and process maxDisplay later ?
   exps_to_display = [dict(zip(columns, row)) for row in full_lime_exps]
   print(json.dumps(exps_to_display, indent=2, ensure_ascii=False))
   values_to_display = [{"feature": constants.FEATURES[3:][x], "value": y} for x, y in full_lime_values[0]]
@@ -66,23 +63,18 @@ def running_lime(sampleId, numberFeatures):
   if not os.path.exists(explanations_path):
     os.makedirs(explanations_path) 
 
-  exps_file = os.path.join(explanations_path, 'lime_explanations.json')
+  # the current model only returns the probability for the positive class (Malware)
+  # thus, we only obtain LIME explanations for this class
+  label = classes[1]
+  exps_file = os.path.join(explanations_path, f'{label}_lime_explanations.json')
   print(exps_file)
   with open(exps_file, "w") as outfile:
     json.dump(exps_to_display, outfile)
   
-  values_file = os.path.join(explanations_path, 'lime_values.json')
+  values_file = os.path.join(explanations_path, f'{label}_lime_values.json')
   print(values_file)
   with open(values_file, "w") as outfile:
     json.dump(values_to_display, outfile)
-
-  explanations_path = deepLearningPath + '/xai/' + model_name
-  if not os.path.exists(explanations_path):
-    os.makedirs(explanations_path)
-
-  #fig = explanation.as_pyplot_figure(label=0)
-  #fig.savefig(os.path.join(explanations_path, 'lime.png'), dpi=300, bbox_inches='tight')
-  #explanation.save_to_file(os.path.join(explanations_path, 'lime_report.html'))
 
 
 if __name__ == "__main__":

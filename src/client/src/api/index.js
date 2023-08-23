@@ -1,7 +1,11 @@
-// read and pass the environment variables into reactjs application
+import {
+  getLabelsListXAI,
+} from "../utils";
+
 const {
   SERVER_URL,
 } = require('../constants');
+
 
 export const getSelectedApp = state => state.app;
 
@@ -360,11 +364,12 @@ export const requestRunLime = async (modelId, sampleId, numberFeature) => {
   return data;
 };
 
-export const requestLimeValues = async (modelId, label) => {
-  const url = `${SERVER_URL}/api/xai/lime/explanations/${modelId}/${label}`;
+export const requestLimeValues = async (modelId, labelId) => {
+  const labelsList = getLabelsListXAI(modelId);
+  const url = `${SERVER_URL}/api/xai/lime/explanations/${modelId}/${labelId}`;
   const response = await fetch(url);
   const limeValues = await response.json();
-  console.log(`Get LIME values of the model ${modelId} for the label ${label} from server`);
+  console.log(`Get LIME values of the model ${modelId} for the label ${labelsList[labelId]} from server`);
   console.log(JSON.stringify(limeValues));
   return limeValues;
 };

@@ -11,13 +11,19 @@ const {
   listFiles,
   isFileExist,
 } = require('../utils/file-utils');
+
 const {
   XAI_PATH,
 } = require('../constants');
 const { 
-  AD_OUTPUT_LABELS, AC_OUTPUT_LABELS,
+  AD_OUTPUT_LABELS, AC_OUTPUT_LABELS, AD_OUTPUT_LABELS_XAI,
 } = require('../../client/src/constants');
 
+const isACModel = modelId => modelId && modelId.startsWith('ac-');
+
+const getLabelsListXAI = (modelId) => {
+  return isACModel(modelId) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS_XAI;
+}
 
 router.get('/', (_, res) => {
   res.send({
@@ -131,11 +137,16 @@ router.get('/shap/explanations/:modelId/:labelId', (req, res, next) => {
  */
  router.get('/lime/explanations/:modelId/:labelId', (req, res, next) => {
   const { modelId, labelId } = req.params;
-  let label;
-  if (modelId.startsWith('ac-')) {
-    label = AC_OUTPUT_LABELS[parseInt(labelId)];
+  let label = null;
+
+  const labelsList = getLabelsListXAI(modelId);
+
+  // Check if labelId is within bounds of labelsList
+  if (labelId < 0 || labelId >= labelsList.length) {
+    console.error(`Invalid labelId ${labelId}. It should be between 0 and ${labelsList.length - 1}`);
+    return { error: "Invalid labelId provided" };
   } else {
-    label = AD_OUTPUT_LABELS[parseInt(labelId)];
+    label = labelsList[labelId]; 
   }
 
   if (!label) {
@@ -160,11 +171,16 @@ router.get('/shap/explanations/:modelId/:labelId', (req, res, next) => {
  */
  router.get('/lime/importance-values/:modelId/:labelId', (req, res, next) => {
   const { modelId, labelId } = req.params;
-  let label;
-  if (modelId.startsWith('ac-')) {
-    label = AC_OUTPUT_LABELS[parseInt(labelId)];
+  let label = null;
+
+  const labelsList = getLabelsListXAI(modelId);
+
+  // Check if labelId is within bounds of labelsList
+  if (labelId < 0 || labelId >= labelsList.length) {
+    console.error(`Invalid labelId ${labelId}. It should be between 0 and ${labelsList.length - 1}`);
+    return { error: "Invalid labelId provided" };
   } else {
-    label = AD_OUTPUT_LABELS[parseInt(labelId)];
+    label = labelsList[labelId]; 
   }
 
   if (!label) {

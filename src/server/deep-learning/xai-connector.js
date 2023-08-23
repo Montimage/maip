@@ -105,13 +105,20 @@ const runLIME = async (limeConfig, callback) => {
   const logFile = `${LOG_PATH}xai_${modelId}.log`;
   let scriptPath = `${DEEP_LEARNING_PATH}/xai-lime.py`;  // default path
   const modelType = await getModelType(modelId);
+  
   if (modelId.startsWith("ac-")) {
     scriptPath = `${AC_PATH}/ac_xai_lime.py`;
+    spawnCommand(PYTHON_CMD, [scriptPath, modelId, sampleId, numberFeature, modelType], logFile, () => {
+      xaiStatus.isRunning = false;
+      console.log('Finish producing LIME explanations for a particular instance');
+    });
+  } else {
+    spawnCommand(PYTHON_CMD, [scriptPath, modelId, sampleId, numberFeature], logFile, () => {
+      xaiStatus.isRunning = false;
+      console.log('Finish producing LIME explanations for a particular instance');
+    });
   }
-  spawnCommand(PYTHON_CMD, [scriptPath, modelId, sampleId, numberFeature, modelType], logFile, () => {
-    xaiStatus.isRunning = false;
-    console.log('Finish producing LIME explanations for a particular instance');
-  });
+  
   
   return callback(xaiStatus);
 };

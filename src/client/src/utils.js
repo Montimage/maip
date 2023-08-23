@@ -4,7 +4,8 @@ import {
   AC_OUTPUT_LABELS, AD_OUTPUT_LABELS,
   AC_COLUMNS_PERF_STATS, AD_COLUMNS_PERF_STATS,
   HEADER_ACCURACY_STATS, LABEL_COLORS_AC, LABEL_COLORS_AD,
-  LABEL_MAPPING_AC, LABEL_MAPPING_AD
+  LABEL_MAPPING_AC, LABEL_MAPPING_AD,
+  AD_OUTPUT_LABELS_XAI
 } from "./constants";
 
 G2.registerInteraction('element-link', {
@@ -312,6 +313,14 @@ export const getLabelsList = (modelId) => {
 
 export const getLabelsListApp = (app) => {
   return isACApp(app) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
+}
+
+export const getLabelsListXAI = (modelId) => {
+  return isACModel(modelId) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS_XAI;
+}
+
+export const getLabelsListAppXAI = (app) => {
+  return isACApp(app) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS_XAI;
 }
 
 export const computeAccuracy = (confusionMatrix) => {
