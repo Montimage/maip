@@ -12,11 +12,15 @@ import {
   requestXAIStatus,
 } from "../actions";
 import {
+  requestPredictionsModel,
+} from "../api";
+import {
   getFilteredFeaturesOptions,
   getFilteredModelsOptions,
   getLastPath,
   getLabelsListXAI,
   getLabelsListAppXAI,
+  getTrueLabel
 } from "../utils";
 import {
   FORM_LAYOUT, BOX_STYLE,
@@ -47,15 +51,18 @@ class XAILimePage extends Component {
       isRunning: props.xaiStatus.isRunning,
       limeValues: [],
       isLabelEnabled: false,
+      predictions: null,
     };
     this.handleContributionsChange = this.handleContributionsChange.bind(this);
     this.handleLimeClick = this.handleLimeClick.bind(this);
   }
 
-  componentDidMount() {
+  async componentDidMount() {
     const modelId = getLastPath();
     if (isModelIdPresent) {
       this.setState({ modelId, label: getLabelsListXAI(modelId)[0] });
+      const predictions = await requestPredictionsModel(modelId);
+      this.setState({ predictions });
     }
     this.props.fetchApp();
     this.props.fetchAllModels(); 
@@ -68,7 +75,7 @@ class XAILimePage extends Component {
   };
 
   async componentDidUpdate(prevProps, prevState) {
-    const { modelId, label, limeValues } = this.state;
+    const { modelId, label, limeValues, sampleId } = this.state;
     const { app, xaiStatus } = this.props;
 
     if (app !== prevProps.app && !isModelIdPresent) {
@@ -87,6 +94,7 @@ class XAILimePage extends Component {
         limeValues: [],
         isRunning: false,
         isLabelEnabled: false,
+        predictions: null,
       });
     }
 
@@ -104,6 +112,15 @@ class XAILimePage extends Component {
     if (prevState.limeValues !== limeValues && limeValues.length > 0) {
       this.setState({ isLabelEnabled: true });
       clearInterval(this.intervalId);
+    }
+
+    if (prevState.sampleId !== sampleId || prevState.modelId !== modelId) {
+      if (modelId) {
+        const predictions = await requestPredictionsModel(modelId);
+        this.setState({ predictions }); 
+      } else {
+        this.setState({ predictions: null });   
+      }
     }
   }
 
@@ -133,12 +150,16 @@ class XAILimePage extends Component {
       "sampleId": sampleId,
       "numberFeature": maxDisplay,
     };
+
+    const predictions = await requestPredictionsModel(modelId);
+
     this.setState({ 
       isRunning: true, 
       limeValues: [], 
       pieData: [], 
       dataTableProbs: [], 
-      isLabelEnabled: false 
+      isLabelEnabled: false,
+      predictions
     });
 
     const response = await fetch(LIME_URL, {
@@ -256,6 +277,7 @@ class XAILimePage extends Component {
       limeValues,
       pieData,
       dataTableProbs,
+      predictions,
     } = this.state;
     const { app, models, } = this.props;
     console.log(app);
@@ -268,6 +290,11 @@ class XAILimePage extends Component {
       value: label,
       label: label,
     }));
+
+    let sampleTrueLabel = "";
+    if (predictions) {
+      sampleTrueLabel = getTrueLabel(modelId, predictions, sampleId);
+    }
 
     const pieConfig = {
       appendPadding: 10,
@@ -359,7 +386,8 @@ class XAILimePage extends Component {
                     limeValues: [], 
                     pieData: [], 
                     dataTableProbs: [],
-                    isLabelEnabled: false 
+                    isLabelEnabled: false,
+                    predictions: null
                   });
                   console.log(`Select model ${value}`);
                 }}
@@ -371,7 +399,8 @@ class XAILimePage extends Component {
             <div style={{ display: 'inline-flex' }}>
               <Form.Item label="id" name="id" noStyle>
                 <Tooltip title="Select a sample to be explained.">
-                  <InputNumber min={1} defaultValue={sampleId}
+                  {/* TODO: get errors if remove the number on form */}
+                  <InputNumber min={1} defaultValue={5}
                     value={this.state.sampleId}
                     onChange={v => this.setState({ 
                       sampleId: v,
@@ -477,7 +506,7 @@ class XAILimePage extends Component {
           </Col>
           <Col className="gutter-row" span={12}>
             <div style={BOX_STYLE}>
-              <h2>&nbsp;&nbsp;&nbsp;Prediction - Sample ID {sampleId}</h2>
+              <h2>&nbsp;&nbsp;&nbsp;Prediction - Sample ID {sampleId} ({sampleTrueLabel})</h2>
               <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                 {pieConfig && (
                   <>
@@ -516,7 +545,7 @@ const mapDispatchToProps = (dispatch) => ({
   fetchModel: (modelId) => dispatch(requestModel(modelId)),
   fetchXAIStatus: () => dispatch(requestXAIStatus()),
   fetchRunLime: (modelId, sampleId, numberFeatures) =>
-    dispatch(requestRunLime({ modelId, sampleId, numberFeatures })),
+    dispatch(requestRunLime({ modelId, sampleId, numberFeatures })), 
 });
 
 export default connect(mapPropsToStates, mapDispatchToProps)(XAILimePage);

@@ -5,7 +5,8 @@ import {
   AC_COLUMNS_PERF_STATS, AD_COLUMNS_PERF_STATS,
   HEADER_ACCURACY_STATS, LABEL_COLORS_AC, LABEL_COLORS_AD,
   LABEL_MAPPING_AC, LABEL_MAPPING_AD,
-  AD_OUTPUT_LABELS_XAI
+  AD_OUTPUT_LABELS_XAI,
+  AC_CLASS_MAPPING, AD_CLASS_MAPPING
 } from "./constants";
 
 G2.registerInteraction('element-link', {
@@ -910,4 +911,12 @@ export const getConfigLabelsColumn = (dataLabelsColumn) => {
   };
 
   return configLabelsColumn;
+}
+
+export const getTrueLabel = (modelId, predictions, index) => {
+  const labelMapping = isACModel(modelId) ? AC_CLASS_MAPPING : AD_CLASS_MAPPING;
+  const lines = predictions.split('\n');
+  const line = lines[index];
+  const [_, trueLabel] = line.split(',');
+  return labelMapping[parseInt(trueLabel)];
 }
