@@ -203,12 +203,18 @@ export const getFilteredModelsOptions = (app, models = []) => {
   }));
 }
 
+export const isACModel = modelId => modelId && modelId.startsWith('ac-');
+
 export const getColumnsPerfStats = (app) => {
   return isACApp(app) ? AC_COLUMNS_PERF_STATS : AD_COLUMNS_PERF_STATS;
 }
 
 export const getFilteredFeatures = (app) => {
   return isACApp(app) ? AC_FEATURES_DESCRIPTIONS : AD_FEATURES_DESCRIPTIONS;
+}
+
+export const getFilteredFeaturesModel = (modelId) => {
+  return isACModel(modelId) ? AC_FEATURES_DESCRIPTIONS : AD_FEATURES_DESCRIPTIONS;
 }
 
 // TODO: remove the first two keys and the last one
@@ -227,14 +233,20 @@ export const getNumberFeatures = (app) => {
             Object.keys(AD_FEATURES_DESCRIPTIONS).length - 3; // 59
 }
 
-export const getLabelScatterPlot = (app, data) => {
-  const dataLabel = isACApp(app) ? data.output : data.malware;
-  return isACApp(app) ? LABEL_MAPPING_AC[dataLabel] : LABEL_MAPPING_AD[dataLabel];
+export const getNumberFeaturesModel = (modelId) => {
+  return isACModel(modelId) ? 
+            Object.keys(AC_FEATURES_DESCRIPTIONS).length - 1 : // 21
+            Object.keys(AD_FEATURES_DESCRIPTIONS).length - 3; // 59
+}
+
+export const getLabelScatterPlot = (modelId, data) => {
+  const dataLabel = isACModel(modelId) ? data.output : data.malware;
+  return isACModel(modelId) ? LABEL_MAPPING_AC[dataLabel] : LABEL_MAPPING_AD[dataLabel];
 };
 
-export const getConfigScatterPlot = (app, csvData, xScatterFeature, yScatterFeature) => {
+export const getConfigScatterPlot = (modelId, csvData, xScatterFeature, yScatterFeature) => {
   const labelCsvData = csvData.map((data) => {
-    const { label } = getLabelScatterPlot(app, data);
+    const { label } = getLabelScatterPlot(modelId, data);
     return { ...data, label };
   });
   //console.log(labelCsvData);
@@ -248,7 +260,7 @@ export const getConfigScatterPlot = (app, csvData, xScatterFeature, yScatterFeat
     colorField: 'label',
     // Specify points' color based on label
     color: ({ label }) => {
-      return isACApp(app) ? LABEL_COLORS_AC[label] : LABEL_COLORS_AD[label];
+      return isACModel(modelId) ? LABEL_COLORS_AC[label] : LABEL_COLORS_AD[label];
     },
     size: 4,
     yAxis: {
@@ -293,8 +305,6 @@ export const getConfigScatterPlot = (app, csvData, xScatterFeature, yScatterFeat
 
   return configScatter; 
 }
-
-export const isACModel = modelId => modelId && modelId.startsWith('ac-');
 
 export const getLabelsList = (modelId) => {
   return isACModel(modelId) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;

@@ -470,8 +470,8 @@ const ATTACK_DATASETS_MAPPING = {
 // Build.js
 const FEATURES_OPTIONS = [
   "Raw Features",
-  "Top 10 Important Features",
-  "Top 20 Important Features"
+  // "Top 10 Important Features",
+  // "Top 20 Important Features"
 ];
 
 // DatasetPage.js
@@ -546,11 +546,11 @@ const DATASET_MENU_ITEMS = [
     key: 'bar_plot',
     link: "#bar_plot",
   },
-  {
-    label: 'Heatmap Plot',
-    key: 'heatmap_plot',
-    link: "#heatmap_plot",
-  },
+  // {
+  //   label: 'Heatmap Plot',
+  //   key: 'heatmap_plot',
+  //   link: "#heatmap_plot",
+  // },
 ];
 
 // AccountabilityMetricsPage.js

@@ -5,12 +5,13 @@ import { QuestionOutlined } from "@ant-design/icons";
 import { 
   getBeforeLastPath,
   getLastPath,
-  getNumberFeatures,
-  getFilteredFeatures,
+  getNumberFeaturesModel,
+  getFilteredFeaturesModel,
   getConfigScatterPlot,
   getConfigBarPlot,
   getConfigHistogram,
   getTableDatasetsStats,
+  isACModel,
 } from "../utils";
 import {
   requestViewModelDatasets,
@@ -30,8 +31,6 @@ const {
 const { Option } = Select;
 
 let featuresDescriptions = {};
-
-// TODO: scatter plot is a straight line if features on the x-axis and y-axis are similar ???
 
 class DatasetPage extends Component {
   constructor(props) {
@@ -105,6 +104,7 @@ class DatasetPage extends Component {
 
   render() {
     const modelId = getBeforeLastPath(2);
+    console.log(isACModel(modelId));
     const datasetType = getLastPath();
     const { 
       csvData, 
@@ -115,8 +115,8 @@ class DatasetPage extends Component {
       barFeature,
     } = this.state;
 
-    const numberFeatures = getNumberFeatures(this.props.app);
-    featuresDescriptions = getFilteredFeatures(this.props.app);
+    const numberFeatures = getNumberFeaturesModel(modelId);
+    featuresDescriptions = getFilteredFeaturesModel(modelId);
     const features = Object.keys(featuresDescriptions); 
     
     const allFeatures = features.map((feature, index) => {
@@ -153,7 +153,7 @@ class DatasetPage extends Component {
 
     const dataDatasetsStats = getTableDatasetsStats(csvData, selectedFeature);
     const configHistogram = getConfigHistogram(csvData, selectedFeature, binWidthChoice);
-    const configScatter = getConfigScatterPlot(this.props.app, csvData, xScatterFeature, yScatterFeature);
+    const configScatter = getConfigScatterPlot(modelId, csvData, xScatterFeature, yScatterFeature);
     const configBar = getConfigBarPlot(csvData, barFeature);
 
     return (
@@ -354,11 +354,11 @@ class DatasetPage extends Component {
             </div>
           </Col>
 
-          <Col className="gutter-row" span={12} id="heatmap_plot">
+          {/* <Col className="gutter-row" span={12} id="heatmap_plot">
             <div style={{ ...BOX_STYLE, marginTop: '100px' }}>
               <h2>&nbsp;&nbsp;&nbsp;Heatmap Plot</h2>
             </div>
-          </Col>
+          </Col> */}
         </Row>
         
       </LayoutPage>
