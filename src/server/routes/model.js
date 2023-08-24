@@ -48,8 +48,8 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-router.delete('/', async (req, res, next) => {
-  const { app } = req.body;
+router.delete('/:app', async (req, res, next) => {
+  const { app } = req.params;
 
   try {
     // For 'models' directory
