@@ -17,12 +17,16 @@
     "description" : "Find out more about Montimage open-source projects",
     "url" : "https://github.com/montimage"
   },
-  "servers" : [ {
-    "description" : "SwaggerHub API Auto Mocking",
-    "url" : "https://virtserver.swaggerhub.com/strongcourage/MAIP/v1"
-  }, {
-    "url" : "/api/"
-  } ],
+  "servers": [
+    {
+      "description": "Localhost Server",
+      "url": "http://localhost:31057/api/"
+    },
+    {
+      "description": "SwaggerHub API Auto Mocking",
+      "url": "https://virtserver.swaggerhub.com/strongcourage/MAIP/v1"
+    }
+  ],
   "tags" : [ {
     "name" : "mmt",
     "description" : "Everything relates to manipulating the MMT Tool",
