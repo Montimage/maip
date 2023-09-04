@@ -2445,11 +2445,11 @@
                 "enum" : [ "Neural Network", "XGBoost", "LightGBM" ],
                 "example" : "LightGBM"
               },
-              "datasets" : {
+              "dataset" : {
                 "type" : "string",
                 "example" : "output_full.csv"
               },
-              "training_ratio" : {
+              "trainingRatio" : {
                 "type" : "number",
                 "example" : 0.7
               }
