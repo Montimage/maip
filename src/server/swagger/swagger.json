@@ -998,7 +998,7 @@
         }
       }
     },
-    "/models/{app}" : {
+    "/models/app/{app}" : {
       "delete" : {
         "tags" : [ "models" ],
         "summary" : "Delete existing models",

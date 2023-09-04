@@ -48,7 +48,7 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-router.delete('/:app', async (req, res, next) => {
+router.delete('/app/:app', async (req, res, next) => {
   const { app } = req.params;
 
   try {
@@ -305,6 +305,7 @@ router.put('/:modelId', async (req, res, next) => {
 router.delete('/:modelId', async (req, res, next) => {
   const { modelId } = req.params;
   const modelFilePath = `${MODEL_PATH}${modelId}`;
+  console.log(modelFilePath);
 
   try {
     // Delete the main model file

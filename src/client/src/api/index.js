@@ -139,7 +139,7 @@ export const requestModel = async (modelId) => {
 };
 
 export const requestDeleteAllModels = async (app) => {
-  const url = `${SERVER_URL}/api/models/${app}`;
+  const url = `${SERVER_URL}/api/models/app/${app}`;
   const response = await fetch(url, {
     method: "DELETE",
     headers: {
