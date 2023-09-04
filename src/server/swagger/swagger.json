@@ -1010,7 +1010,9 @@
           "description" : "Application",
           "required" : true,
           "schema" : {
-            "$ref" : "#/components/schemas/app"
+            "type" : "string",
+            "enum" : [ "ac", "ad", "rca" ],
+            "example" : "ac"
           }
         } ],
         "responses" : {
@@ -2273,16 +2275,6 @@
   },
   "components" : {
     "schemas" : {
-      "app" : {
-        "type" : "object",
-        "properties" : {
-          "app" : {
-            "type" : "string",
-            "enum" : [ "ac", "ad", "rca" ],
-            "example" : "ac"
-          }
-        }
-      },
       "mmtStatus" : {
         "type" : "object",
         "properties" : {

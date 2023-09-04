@@ -138,7 +138,7 @@ const startRetrainModelAC = (retrainConfig, callback) => {
 
 const getBuildingStatusAC = () => buildingStatus;
 
-const startBuildingModelAC = (buildConfig, callback) => {
+const startBuildingModelAC = (buildACConfig, callback) => {
   console.log('Start building the AC model');
   const buildId = getUniqueId();
   const modelId = `ac-${buildId}`;
@@ -147,12 +147,12 @@ const startBuildingModelAC = (buildConfig, callback) => {
   console.log(buildPath);
 
   buildingStatus.isRunning = true;
-  buildingStatus.config = buildConfig;
+  buildingStatus.config = buildACConfig;
   buildingStatus.lastBuildAt = Date.now();
   buildingStatus.lastBuildId = buildId;
 
   const buildConfigPath = `${buildPath}build-config.json`;
-  writeTextFile(buildConfigPath, JSON.stringify(buildConfig), (error) => {
+  writeTextFile(buildConfigPath, JSON.stringify(buildACConfig), (error) => {
     if (error) {
       console.log('Failed to create buildConfig file');
       return callback({
@@ -161,16 +161,16 @@ const startBuildingModelAC = (buildConfig, callback) => {
     }
   });
 
-  // AC model is actually buildConfig :D
-  const modelFilePath = `${MODEL_PATH}${modelId}`;
-  writeTextFile(modelFilePath, JSON.stringify(buildConfig), (error) => {
-    if (error) {
-      console.log('Failed to create model file');
-      return callback({
-        error: 'Failed to create model file',
-      });
-    }
-  });
+  // AC model is actually buildACConfig :D
+  // const modelFilePath = `${MODEL_PATH}${modelId}`;
+  // writeTextFile(modelFilePath, JSON.stringify(buildACConfig), (error) => {
+  //   if (error) {
+  //     console.log('Failed to create model file');
+  //     return callback({
+  //       error: 'Failed to create model file',
+  //     });
+  //   }
+  // });
 
   const logFilePath = `${LOG_PATH}training_${modelId}.log`;
   const resultsPath = `${TRAINING_PATH}${modelId}/results`;

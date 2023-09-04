@@ -45,9 +45,9 @@ router.get('/build', (req, res) => {
 
 router.post('/build', async (req, res, next) => {
   const {
-    buildConfig,
+    buildACConfig,
   } = req.body;
-  if (!buildConfig) {
+  if (!buildACConfig) {
     res.status(401).send({
       error: 'Missing building configuration. Please read the docs',
     });
@@ -58,7 +58,7 @@ router.post('/build', async (req, res, next) => {
         error: 'A building process is running. Only one process is allowed at the time. Please try again later',
       });
     } else {
-      startBuildingModelAC(buildConfig, (buildStatus) => {
+      startBuildingModelAC(buildACConfig, (buildStatus) => {
         if (buildStatus.error) {
           res.status(401).send({
             error: buildStatus.error,
