@@ -122,7 +122,7 @@ router.get('/:modelId/build-config', (req, res, next) => {
 
 router.get('/:modelId/confusion-matrix', (req, res, next) => {
   const { modelId } = req.params;
-  readTextFile(`${TRAINING_PATH}${modelId.replace('.h5', '')}/results/conf_matrix_sae_test-cnn.csv`, (err, matrix) => {
+  readTextFile(`${TRAINING_PATH}${modelId.replace('.h5', '')}/results/confusion_matrix.csv`, (err, matrix) => {
     if (err) {
       res.status(401).send({ error: 'Something went wrong!' });
     } else {

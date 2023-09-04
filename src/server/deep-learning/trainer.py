@@ -56,8 +56,8 @@ def train_model(train_data_path, test_data_path, result_path, nb_epoch_cnn, nb_e
 
     print(classification_report(y_test, y_pred))
     saveConfMatrix(y_true=y_test, y_pred=y_pred,
-                   filepath_csv=f'{result_path}/conf_matrix_sae_test-cnn.csv',
-                   filepath_png=f'{result_path}/conf_matrix_sae-cnn.jpg')
+                   filepath_csv=f'{result_path}/confusion_matrix.csv',
+                   filepath_png=f'{result_path}/confusion_matrix.jpg')
     saveScores(y_true=y_test, y_pred=y_pred,
                filepath=f'{result_path}/stats.csv')
 
