@@ -268,7 +268,7 @@ const AD_FEATURES_DESCRIPTIONS = {
     type: 'categorical', 
   },
   'malware': { 
-    description: 'Label (0 means normal traffic and 1 means malware traffic)', // output's label
+    description: 'Label (0 means Normal traffic and 1 means Malware traffic)', // output's label
     type: 'categorical', 
   },
 };
@@ -359,7 +359,7 @@ const AC_FEATURES_DESCRIPTIONS = {
     type: 'numerical', 
   },
   'output': { 
-    description: 'Label (0 means Web, 1 means Interaction and 2 means Video)', // output's label
+    description: 'Label (1 means Web, 2 means Interaction and 3 means Video)', // output's label
     type: 'categorical', 
   },
 };

@@ -56,9 +56,9 @@ function* handleRequestBuildStatusAC() {
 
 function* handleRequestBuildModelAC(action) {
   try {
-    const { modelType, dataset, featuresList ,trainingRatio } = action.payload;
+    const { modelType, dataset, featuresList, trainingRatio } = action.payload;
     const buildStatus = yield call(() => 
-      requestBuildModelAC(modelType, dataset, featuresList ,trainingRatio));
+      requestBuildModelAC(modelType, dataset, featuresList, trainingRatio));
     console.log(buildStatus);
     //yield put(setNotification({type: 'success', message: `Build a model!`}));
     // dispatch data

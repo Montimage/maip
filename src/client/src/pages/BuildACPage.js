@@ -34,12 +34,12 @@ class BuildACPage extends Component {
 
   async handleButtonBuild() {
     const { modelType, dataset, featureList, trainingRatio, isRunning } = this.state;
-    const buildConfig = {
-      buildConfig: {
+    const buildACConfig = {
+      buildACConfig: {
         modelType, dataset, featureList, trainingRatio
       }
     };
-    console.log(buildConfig);
+    console.log(buildACConfig);
 
     if (!isRunning) {
       console.log("update isRunning state!");
@@ -185,8 +185,8 @@ const mapDispatchToProps = (dispatch) => ({
   fetchApp: () => dispatch(requestApp()),
   fetchBuildStatusAC: () => dispatch(requestBuildStatusAC()),
   fetchDatasetsAC: () => dispatch(requestDatasetsAC()),
-  fetchBuildModelAC: (modelType, dataset, featuresList ,trainingRatio) =>
-    dispatch(requestBuildModelAC({ modelType, dataset, featuresList ,trainingRatio })),
+  fetchBuildModelAC: (modelType, dataset, featuresList, trainingRatio) =>
+    dispatch(requestBuildModelAC({ modelType, dataset, featuresList, trainingRatio })),
 });
 
 export default connect(mapPropsToStates, mapDispatchToProps)(BuildACPage);

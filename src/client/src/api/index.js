@@ -25,19 +25,20 @@ export const requestDatasetsAC = async () => {
   return data.datasets;
 };
 
-export const requestBuildModelAC = async (modelType, dataset, featuresList ,trainingRatio) => {
+export const requestBuildModelAC = async (modelType, dataset, featuresList, trainingRatio) => {
   const url = `${SERVER_URL}/api/ac/build`;
-  const buildConfig = { modelType, dataset, featuresList ,trainingRatio };
+  const buildACConfig = { modelType, dataset, featuresList, trainingRatio };
+  console.log(buildACConfig);
   const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ buildConfig }),
+    body: JSON.stringify({ buildACConfig }),
   });
-  console.log(buildConfig);
+  console.log(buildACConfig);
   const data = await response.json();
-  console.log(`Build an AC model on server with config ${buildConfig}`);
+  console.log(`Build an AC model on server with config ${buildACConfig}`);
   return data;
 };
 
