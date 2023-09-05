@@ -62,7 +62,7 @@ def get_model(modelType, X_train, y_train, y_train_orig):
 def running_shap(model, numberBackgroundSamples, numberExplainedSamples, maxDisplay, modelType):
   classes = ['Web', 'Interactive', 'Video']
 
-  background_data = shap.sample(X_train, int(numberBackgroundSamples))
+  background = shap.sample(X_train, int(numberBackgroundSamples))
   
   #background = X_train[np.random.choice(X_train.shape[0], int(numberBackgroundSamples), replace=False)]
 

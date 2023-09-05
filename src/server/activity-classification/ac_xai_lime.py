@@ -89,10 +89,10 @@ def running_lime(model, sampleId, numberFeatures, modelType, X_train, y_train, y
     label_explanations = explanation.as_list(label=label_idx)
     values_to_display = [{"feature": item[0], "value": item[1]} for item in label_explanations]
     #print(values_to_display)
-    jsonfile = os.path.join(explanations_path, f'{label}_lime_explanations.json')
-    with open(jsonfile, "w") as outfile:
+    exps_file = os.path.join(explanations_path, f'{label}_lime_explanations.json')
+    with open(exps_file, "w") as outfile:
       json.dump(values_to_display, outfile)
-      print(f"LIME explanations for {label} dumped to " + jsonfile)
+      print(f"LIME explanations for {label} dumped to " + exps_file)
 
 if __name__ == "__main__":
   if len(sys.argv) < 4 or len(sys.argv) > 5:

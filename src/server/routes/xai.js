@@ -96,7 +96,7 @@ router.get('/explanations/:modelId', (req, res, next) => {
   const { modelId } = req.params;
   const xaiFilePath = `${XAI_PATH}${modelId.replace('.h5', '')}`;
 
-  listFiles(xaiFilePath, '*', (files) => {
+  listFiles(xaiFilePath, '.json', (files) => {
     res.send({
       explanations: files,
     });

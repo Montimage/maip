@@ -1796,7 +1796,7 @@
           "required" : true,
           "schema" : {
             "type" : "string",
-            "example" : "Malware"
+            "example" : "1"
           }
         } ],
         "responses" : {
@@ -1874,7 +1874,7 @@
           "required" : true,
           "schema" : {
             "type" : "string",
-            "example" : "Malware"
+            "example" : "1"
           }
         } ],
         "responses" : {
@@ -1886,51 +1886,6 @@
                   "type" : "object",
                   "properties" : {
                     "explanations" : {
-                      "type" : "string",
-                      "example" : ""
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/xai/lime/importance-values/{modelId}/{labelId}" : {
-      "get" : {
-        "tags" : [ "xai" ],
-        "summary" : "Get importance values for a label using LIME",
-        "description" : "Request producing importance values for a label using LIME",
-        "operationId" : "importanceValuesLIME",
-        "parameters" : [ {
-          "name" : "modelId",
-          "in" : "path",
-          "description" : "Name of the model",
-          "required" : true,
-          "schema" : {
-            "type" : "string",
-            "example" : "e0a0588e-96c4-4fdf-9237-a8e94a6f5ffe.h5"
-          }
-        }, {
-          "name" : "labelId",
-          "in" : "path",
-          "description" : "Name of the label",
-          "required" : true,
-          "schema" : {
-            "type" : "string",
-            "example" : "Malware"
-          }
-        } ],
-        "responses" : {
-          "200" : {
-            "description" : "Successful operation",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "type" : "object",
-                  "properties" : {
-                    "limeValues" : {
                       "type" : "string",
                       "example" : ""
                     }
