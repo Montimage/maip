@@ -90,10 +90,10 @@ router.get('/retrain', (req, res) => {
 
 router.post('/retrain', async (req, res, next) => {
   const {
-    retrainConfig,
+    retrainACConfig,
   } = req.body;
-  console.log(retrainConfig);
-  if (!retrainConfig) {
+  console.log(retrainACConfig);
+  if (!retrainACConfig) {
     res.status(401).send({
       error: 'Missing retrain configuration. Please read the docs',
     });
@@ -104,7 +104,7 @@ router.post('/retrain', async (req, res, next) => {
         error: 'A retrain process is running. Only one process is allowed at the time. Please try again later',
       });
     } else {
-      startRetrainModelAC(retrainConfig, (retrainStatus) => {
+      startRetrainModelAC(retrainACConfig, (retrainStatus) => {
         if (retrainStatus.error) {
           res.status(401).send({
             error: retrainStatus.error,
@@ -121,10 +121,10 @@ router.post('/retrain', async (req, res, next) => {
 router.post('/retrain/:modelId', (req, res) => {
   const { modelId } = req.params;
   const {
-    retrainConfig,
+    datasetsConfig,
   } = req.body;
-  console.log(retrainConfig);
-  if (!retrainConfig) {
+  console.log(datasetsConfig);
+  if (!datasetsConfig) {
     res.status(401).send({
       error: 'Missing retrain configuration. Please read the docs',
     });
@@ -135,9 +135,12 @@ router.post('/retrain/:modelId', (req, res) => {
         error: 'A retrain process is running. Only one process is allowed at the time. Please try again later',
       });
     } else {
-      //const retrainConfig = { "modelId": modelId, ...retrainConfig1 };
-      //console.log(retrainConfig);
-      startRetrainModelAC(retrainConfig, (retrainStatus) => {
+      const retrainACConfig = { 
+        "modelId": modelId, 
+        "datasetsConfig": datasetsConfig 
+      };
+      console.log(retrainACConfig);
+      startRetrainModelAC(retrainACConfig, (retrainStatus) => {
         if (retrainStatus.error) {
           res.status(401).send({
             error: retrainStatus.error,

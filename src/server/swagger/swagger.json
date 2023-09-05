@@ -945,7 +945,12 @@
           "content" : {
             "application/json" : {
               "schema" : {
-                "$ref" : "#/components/schemas/retrainConfig1"
+                "type": "object",
+                "properties": {
+                  "datasetsConfig": {
+                    "$ref" : "#/components/schemas/datasetsConfig"
+                  }
+                }
               }
             }
           },
@@ -2396,19 +2401,16 @@
           }
         }
       },
-      "datasetConfig" : {
-        "type" : "object",
-        "properties" : {
-          "trainingDataset" : {
-            "type" : "string",
-            "example" : "/tmp/Botnet_Train.csv"
+      "datasetsConfig": {
+        "type": "object",
+        "properties": {
+          "trainingDataset": {
+            "type": "string",
+            "example": "Train_samples.csv"
           },
-          "testingDataset" : {
-            "type" : "string",
-            "example" : "/tmp/Botnet_Test.csv"
-          },
-          "training_parameters" : {
-            "$ref" : "#/components/schemas/trainingParameters"
+          "testingDataset": {
+            "type": "string",
+            "example": "Test_samples.csv"
           }
         }
       },
@@ -2537,7 +2539,7 @@
         "type" : "object",
         "properties" : {
           "retrainConfig1" : {
-            "$ref" : "#/components/schemas/datasetConfig"
+            "$ref" : "#/components/schemas/datasetsConfig"
           }
         }
       },
@@ -2561,23 +2563,18 @@
           }
         }
       },
-      "retrainACConfig" : {
+      "retrainACConfig": {
         "type" : "object",
         "properties" : {
           "retrainACConfig" : {
-            "type" : "object",
-            "properties" : {
-              "modelId" : {
-                "type" : "string",
-                "example" : "ac-lightgbm"
+            "type": "object",
+            "properties": {
+              "modelId": {
+                "type": "string",
+                "example": "ac-lightgbm"
               },
-              "trainingDataset" : {
-                "type" : "string",
-                "example" : "Train_samples.csv"
-              },
-              "testingDataset" : {
-                "type" : "string",
-                "example" : "Test_samples.csv"
+              "datasetsConfig": {
+                "$ref": "#/components/schemas/datasetsConfig"
               }
             }
           }

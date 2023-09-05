@@ -40,13 +40,16 @@ const buildingStatus = {
 
 const getRetrainStatusAC = () => retrainStatus;
 
-const startRetrainModelAC = (retrainConfig, callback) => {
+const startRetrainModelAC = (retrainACConfig, callback) => {
   const {
     modelId,
+    datasetsConfig,
+  } = retrainACConfig;
+  const {
     trainingDataset,
     testingDataset,
-  } = retrainConfig;
-  console.log(retrainConfig);
+  } = datasetsConfig;
+  console.log(retrainACConfig);
   
   if (retrainStatus.isRunning) {
     console.warn('An retrain process is on going. Only one process can be run at a time');
@@ -59,12 +62,12 @@ const startRetrainModelAC = (retrainConfig, callback) => {
   const retrainPath = `${TRAINING_PATH}${retrainId}/`;
   createFolderSync(retrainPath);
   console.log(retrainPath);
-  const retrainConfigPath = `${retrainPath}retrain-config.json`;
-  writeTextFile(retrainConfigPath, JSON.stringify(retrainConfig), (error) => {
+  const retrainACConfigPath = `${retrainPath}retrain-config.json`;
+  writeTextFile(retrainACConfigPath, JSON.stringify(retrainACConfig), (error) => {
     if (error) {
-      console.log('Failed to create retrainConfig file');
+      console.log('Failed to create retrainACConfig file');
       return callback({
-        error: 'Failed to create retrainConfig file',
+        error: 'Failed to create retrainACConfig file',
       });
     }
   });
@@ -117,7 +120,7 @@ const startRetrainModelAC = (retrainConfig, callback) => {
   }
 
   retrainStatus.isRunning = true;
-  retrainStatus.config = retrainConfig;
+  retrainStatus.config = retrainACConfig;
   retrainStatus.lastRetrainId = retrainId;
   retrainStatus.lastRetrainAt = Date.now();
 
@@ -130,7 +133,7 @@ const startRetrainModelAC = (retrainConfig, callback) => {
   });
   
   return callback({
-    retrainConfig: retrainConfigPath,
+    retrainACConfig: retrainACConfigPath,
     retrainId,
   });
 

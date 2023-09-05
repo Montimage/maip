@@ -26,6 +26,15 @@ deepLearningPath = str(Path.cwd()) + '/src/server/deep-learning/'
 #acPath = "/home/strongcourage/maip/src/server/activity-classification/"
 #deepLearningPath = "/home/strongcourage/maip/src/server/deep-learning/"
 
+def determine_delimiter(file_path):
+  with open(file_path, 'r') as file:
+    first_line = file.readline()
+    return ',' if first_line.count(',') > first_line.count(';') else ';'
+
+def read_csv(file_path):
+  delimiter = determine_delimiter(file_path)
+  return pd.read_csv(file_path, delimiter=delimiter)
+
 def saveStats(y_true, y_pred, filepath):
   report = classification_report(y_true, y_pred, output_dict=True)
   stats = pd.DataFrame(report).transpose()
@@ -198,8 +207,8 @@ def retrain_model(modelType, modelId, trainDataPath, testDataPath, resultPath):
   modelFilePath = os.path.join(deepLearningPath, 'models', modelId)
 
   # Read the CSV files using pandas
-  train_df = pd.read_csv(trainDataPath, delimiter=',')
-  test_df = pd.read_csv(testDataPath, delimiter=';')
+  train_df = read_csv(trainDataPath)
+  test_df = read_csv(testDataPath) 
   
   X_train = train_df.drop(columns=['output'])
   y_train = train_df['output']
