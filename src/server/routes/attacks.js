@@ -30,7 +30,10 @@ router.get('/', (_, res) => {
 router.get('/:modelId/datasets/', async (req, res, next) => {
   const { modelId } = req.params;
   try {
-    const datasetsPath = path.join(ATTACKS_PATH, modelId.replace('.h5', ''))
+    const datasetsPath = path.join(ATTACKS_PATH, modelId.replace('.h5', ''));
+    if (!fs.existsSync(datasetsPath)) {
+      return res.send({ datasets: [] });
+    }
     const files = await readdirAsync(datasetsPath);
     const allDatasets = files.filter(file => {
       const fileName = path.basename(file, '.csv');

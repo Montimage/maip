@@ -66,21 +66,23 @@ export const requestRetrainStatusAC = async () => {
 
 export const requestRetrainModelAC = async (modelId, trainingDataset, testingDataset) => {
   const url = `${SERVER_URL}/api/ac/retrain`;
-  const retrainConfig = {
+  const retrainACConfig = {
     "modelId": modelId,
-    "trainingDataset": trainingDataset,
-    "testingDataset": testingDataset,
+    "datasetsConfig": {
+      "trainingDataset": trainingDataset,
+      "testingDataset": testingDataset,
+    }
   };
   const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ retrainConfig }),
+    body: JSON.stringify({ retrainACConfig }),
   });
-  console.log(retrainConfig);
+  console.log(retrainACConfig);
   const data = await response.json();
-  console.log(`Retrain an AC model on server with config ${retrainConfig}`);
+  console.log(`Retrain an AC model on server with config ${retrainACConfig}`);
   return data;
 };
 

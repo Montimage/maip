@@ -74,18 +74,22 @@ class RetrainPage extends Component {
   handleButtonRetrain() {
     const { modelId, trainingDataset, testingDataset, trainingParameters, isRunning } = this.state;
     
+    console.log(isRunning);
+    console.log(this.props.app);
+
     if (!isRunning) {
       const fetchModelId = isModelIdPresent ? getLastPath() : modelId;
       
-      this.setState({ isRunning: true });        
+      this.setState({ isRunning: true });     
+      // TODO: after changing the app, fetch status is not called even retraining model works   
       this.intervalId = setInterval(() => { 
         isACApp(this.props.app) ? this.props.fetchRetrainStatusAC() : this.props.fetchRetrainStatus();
-      }, 2000);
+      }, 1000);
       
-      const retrainConfig = isACApp(this.props.app) ? 
-        { retrainConfig: { modelId: fetchModelId, trainingDataset, testingDataset } } :
-        { retrainConfig: { modelId: fetchModelId, trainingDataset, testingDataset, training_parameters: trainingParameters } };
-      console.log(retrainConfig);
+      // const retrainConfig = isACApp(this.props.app) ? 
+      //   { retrainConfig: { modelId: fetchModelId, datasetsConfig: { trainingDataset, testingDataset } } } :
+      //   { retrainConfig: { modelId: fetchModelId, trainingDataset, testingDataset, training_parameters: trainingParameters } };
+      // console.log(retrainConfig);
       
       isACApp(this.props.app) ? 
         this.props.fetchRetrainModelAC(modelId, trainingDataset, testingDataset) :
@@ -98,13 +102,25 @@ class RetrainPage extends Component {
                             this.props.retrainACStatus.isRunning : 
                             this.props.retrainStatus.isRunning;
     
-    if (prevProps.retrainStatus.isRunning !== isRunningProp || 
-        prevProps.retrainACStatus.isRunning !== isRunningProp &&
+    if ((prevProps.retrainStatus.isRunning !== isRunningProp || 
+        prevProps.retrainACStatus.isRunning !== isRunningProp) &&
         this.state.isRunning !== isRunningProp) {
       this.setState({ isRunning: isRunningProp });
       if (!isRunningProp) {
         clearInterval(this.intervalId);
       }
+    }
+
+    if (prevProps.app !== this.props.app) {
+      clearInterval(this.intervalId);
+      this.setState({ 
+        modelId: null,
+        modelDatasets: [],
+        attacksDatasets: [],
+        trainingDataset: null,
+        testingDataset: null, 
+        isRunning: false,
+      });
     }
   }
 
@@ -171,7 +187,6 @@ class RetrainPage extends Component {
                     try {
                       if (value) {
                         const modelDatasets = await requestModelDatasets(value);
-                        // TODO: get errors if there is no attack dataset?
                         const attacksDatasets = await requestAttacksDatasets(value);
                         this.setState({ modelDatasets, attacksDatasets });
                       } 
@@ -226,8 +241,6 @@ class RetrainPage extends Component {
           <Form.Item label="Feature List" name="featureList">
             <Tooltip title="Select feature lists used to build models.">
               <Select
-                //showSearch allowClear
-                //placeholder="Select features ..."
                 value={this.state.featureList}
                 onChange={value => this.setState({ featureList: value })}
                 options={featureOptions}
