@@ -1057,6 +1057,45 @@
           }
         }
       },
+      "put": {
+        "tags": ["models"],
+        "summary": "Update existing model ID",
+        "description": "Renames the model with the given ID to a new ID",
+        "operationId": "updateModelId",
+        "parameters": [
+          {
+            "name": "modelId",
+            "in": "path",
+            "description": "ID of the model to be updated",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "New model ID",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "newModelId": {
+                    "type": "string",
+                    "description": "New ID for the model"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful update name of a model"
+          }
+        }
+      },
       "delete" : {
         "tags" : [ "models" ],
         "summary" : "Delete a model",

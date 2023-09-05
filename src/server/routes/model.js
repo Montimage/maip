@@ -322,7 +322,7 @@ router.delete('/:modelId', async (req, res, next) => {
     }
 
     res.send({
-      result: "Deletion successful"
+      result: `Model ${modelId} has been deleted successfully`,
     });
   } catch (err) {
     console.error(err);
