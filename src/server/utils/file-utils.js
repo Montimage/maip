@@ -1,5 +1,6 @@
 /* eslint-disable no-console */
 const fs = require('fs');
+const fsp = require('fs').promises;
 const path = require('path');
 
 // TODO: error handling this function when files is empty
@@ -174,6 +175,15 @@ const listDirectories = (directoryPath, callback) => {
   });
 };
 
+const safeReadFile = async (filePath) => {
+  try {
+    const data = await fsp.readFile(filePath, 'utf8');
+    return parseFloat(data);
+  } catch (err) {
+    return 0;
+  }
+};
+
 module.exports = {
   listFiles,
   listFilesAsync,
@@ -186,4 +196,5 @@ module.exports = {
   readTextFile,
   writeTextFile,
   listDirectories,
+  safeReadFile,
 };

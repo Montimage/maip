@@ -49,6 +49,7 @@ def running_poisoning_attacks(modelId, typePoisoningAttacks, poisoningRate, targ
   if not os.path.exists(attacks_path):
     os.makedirs(attacks_path)
 
+  # TODO: improve prefix of poisoned training dataset's name
   prefix = typePoisoningAttacks
   if typePoisoningAttacks == 'ctgan':
     print("attack ctgan")
@@ -73,7 +74,7 @@ def running_poisoning_attacks(modelId, typePoisoningAttacks, poisoningRate, targ
 
   elif typePoisoningAttacks == 'rsl':
     print("attack rsl")
-    prefix = prefix + "_" + str(poisoningRate)
+    #prefix = prefix + "_" + str(poisoningRate)
     flip_amount = int(len(X_poisoned_train) * int(poisoningRate) * 0.01)
     original_count = len(train_data) - flip_amount
     poison_count = flip_amount
@@ -96,7 +97,7 @@ def running_poisoning_attacks(modelId, typePoisoningAttacks, poisoningRate, targ
 
   elif typePoisoningAttacks == 'tlf':
     print(str(targetClass))
-    prefix = prefix + "_" + str(poisoningRate) + "_" + str(targetClass)
+    #prefix = prefix + "_" + str(poisoningRate) + "_" + str(targetClass)
     flip_amount = int(len(X_poisoned_train) * int(poisoningRate) * 0.01)
     original_count = len(train_data) - flip_amount
     poison_count = flip_amount
