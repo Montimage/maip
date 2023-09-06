@@ -19,42 +19,43 @@ const {
 const fs = require('fs');
 const path = require('path');
 
-//router.get('/', (_, res) => {
-//  res.send({
-//    metricsStatus: getMetricsStatus(),
-//  });
-//});
-
-//function extractAccuracy(modelId, callback) {
 function extractAccuracy(modelId) {
-  fs.readFile(`${TRAINING_PATH}${modelId}/results/stats.csv`, (err, stats) => {
-    if (err) {
-      //callback(null);
-      return err;
-    } else {
-      console.log(modelId);
-      console.log(stats);
-      var rows = stats.split('\n');
-      var accuracy_columns = rows[3].split(',');
-      //callback(accuracy_columns[1]);
-      return accuracy_columns[1];
-    }
+  return new Promise((resolve, reject) => {
+    fs.readFile(`${TRAINING_PATH}${modelId}/results/stats.csv`, 'utf8', (err, stats) => {
+      if (err) {
+        reject(err);
+      } else {
+        const rows = stats.split('\n');
+        let accuracy = null;
+
+        for (let row of rows) {
+          const columns = row.split(',');
+          if (columns[0] === 'accuracy') {
+            accuracy = columns[1];
+            break;
+          }
+        }
+
+        if (accuracy) {
+          resolve(accuracy);
+        } else {
+          reject(new Error('Accuracy not found'));
+        }
+      }
+    });
   });
 }
 
-router.get('/:modelId/accuracy', (req, res, next) => {
+router.get('/:modelId/accuracy', async (req, res, next) => {
   const { modelId } = req.params;
-  readTextFile(`${TRAINING_PATH}${modelId.replace('.h5', '')}/results/stats.csv`, (err, stats) => {
-    if (err) {
-      res.status(401).send({ error: 'Something went wrong!' });
-    } else {
-      var rows = stats.split('\n');
-      var accuracy_columns = rows[3].split(',');
-      const accuracy = accuracy_columns[1];
-      console.log('Accuracy: ', accuracy);
-      res.send({ accuracy });
-    }
-  });
+  try {
+    const accuracy = await extractAccuracy(modelId);
+    console.log('Accuracy: ', accuracy);
+    res.send({ accuracy });
+  } catch (err) {
+    console.error(err);
+    res.status(400).send({ error: err.message });
+  }
 });
 
 router.get('/:modelId/currentness', (req, res, next) => {
