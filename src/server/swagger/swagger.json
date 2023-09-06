@@ -401,6 +401,18 @@
             }
           }
         }
+      },
+      "delete" : {
+        "tags" : [ "logs" ],
+        "summary" : "Delete all logs",
+        "description" : "Delete all logs",
+        "operationId" : "deleteLogs",
+        "parameters" : [ ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful delete all logs"
+          }
+        }
       }
     },
     "/logs/{fileName}/download" : {
