@@ -21,10 +21,6 @@
     {
       "description": "Localhost Server",
       "url": "http://localhost:31057/api/"
-    },
-    {
-      "description": "SwaggerHub API Auto Mocking",
-      "url": "https://virtserver.swaggerhub.com/strongcourage/MAIP/v1"
     }
   ],
   "tags" : [ {
@@ -699,8 +695,8 @@
     "/ac/datasets/" : {
       "get" : {
         "tags" : [ "models" ],
-        "summary" : "The building model process status",
-        "description" : "Get the datasets for building AC model",
+        "summary" : "Get datasets for building AC models",
+        "description" : "Get datasets for building AC models",
         "operationId" : "requestDatasetsAC",
         "parameters" : [ ],
         "responses" : {
@@ -729,8 +725,8 @@
     "/ac/build/" : {
       "get" : {
         "tags" : [ "models" ],
-        "summary" : "The building model process status",
-        "description" : "Get the status of AC model process",
+        "summary" : "The building AC model process status",
+        "description" : "Get the status of building AC model process",
         "operationId" : "getBuildingACStatus",
         "parameters" : [ ],
         "responses" : {
@@ -800,8 +796,8 @@
       },
       "post" : {
         "tags" : [ "models" ],
-        "summary" : "Retraining a model using different training datasets",
-        "description" : "Request retraining a model",
+        "summary" : "Retraining models using different training datasets",
+        "description" : "Retraining models using different training datasets",
         "operationId" : "requestRetrainModel",
         "requestBody" : {
           "content" : {
@@ -833,8 +829,8 @@
     "/retrain/{modelId}" : {
       "post" : {
         "tags" : [ "models" ],
-        "summary" : "Retraining a model using different training datasets",
-        "description" : "Request retraining a model",
+        "summary" : "Retraining a specific model using different training datasets",
+        "description" : "Retraining a specific model using different training datasets",
         "operationId" : "requestRetrainAModel",
         "parameters" : [ {
           "name" : "modelId",
@@ -895,8 +891,8 @@
       },
       "post" : {
         "tags" : [ "models" ],
-        "summary" : "Retraining an AC model using different training datasets",
-        "description" : "Request retraining a AC model",
+        "summary" : "Retraining AC models using different training datasets",
+        "description" : "Retraining AC models using different training datasets",
         "operationId" : "requestRetrainModelAC",
         "requestBody" : {
           "content" : {
@@ -928,8 +924,8 @@
     "/ac/retrain/{modelId}" : {
       "post" : {
         "tags" : [ "models" ],
-        "summary" : "Retraining an AC model using different training datasets",
-        "description" : "Request retraining an AC model",
+        "summary" : "Retraining a specific AC model using different training datasets",
+        "description" : "Retraining a specific AC model using different training datasets",
         "operationId" : "requestRetrainACModel",
         "parameters" : [ {
           "name" : "modelId",
@@ -1030,8 +1026,8 @@
     "/models/{modelId}" : {
       "get" : {
         "tags" : [ "models" ],
-        "summary" : "Get the stats of the building model process",
-        "description" : "Get the statistic of the building model process",
+        "summary" : "Get the details of a model",
+        "description" : "Get the details of a model",
         "operationId" : "getModelStats",
         "parameters" : [ {
           "name" : "modelId",
@@ -1194,8 +1190,8 @@
     "/models/{modelId}/datasets/{datasetType}/download" : {
       "get" : {
         "tags" : [ "models" ],
-        "summary" : "Download training dataset",
-        "description" : "Download training dataset in .csv format",
+        "summary" : "Download a dataset",
+        "description" : "Download a dataset in .csv format",
         "operationId" : "downloadModelDatasets",
         "parameters" : [ {
           "name" : "modelId",
@@ -1238,8 +1234,8 @@
     "/models/{modelId}/datasets/{datasetType}/view" : {
       "get" : {
         "tags" : [ "models" ],
-        "summary" : "View datasets",
-        "description" : "View datasets in .csv format",
+        "summary" : "View a dataset",
+        "description" : "View a dataset in .csv format",
         "operationId" : "viewModelDatasets",
         "parameters" : [ {
           "name" : "modelId",
@@ -1689,8 +1685,8 @@
     "/predictions/{predictionId}/normal" : {
       "get" : {
         "tags" : [ "predictions" ],
-        "summary" : "Download full report of normal traffic",
-        "description" : "Download full report of normal traffic",
+        "summary" : "Download full report of normal traffics",
+        "description" : "Download full report of normal traffics",
         "operationId" : "downloadPredictionNormal",
         "parameters" : [ {
           "name" : "predictionId",
@@ -1900,8 +1896,8 @@
     "/xai/explanations/{modelId}" : {
       "get" : {
         "tags" : [ "xai" ],
-        "summary" : "Get the explanations produced by XAI methods",
-        "description" : "Get the explanations produced by XAI methods",
+        "summary" : "Get the explanations produced of a model by XAI methods",
+        "description" : "Get the explanations produced of a model by XAI methods",
         "operationId" : "getXAIExplanations",
         "parameters" : [ {
           "name" : "modelId",
