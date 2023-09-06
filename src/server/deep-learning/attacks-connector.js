@@ -79,7 +79,7 @@ const performPoisoningCTGAN = (poisoningAttacksConfig, callback) => {
   attacksStatus.config = poisoningAttacksConfig;
   attacksStatus.lastRunAt = Date.now();
 
-  const logFile = `${LOG_PATH}attacks_ctgan_${modelId}.log`;
+  const logFile = `${LOG_PATH}attacks_ctgan_${modelId}_${poisoningRate}.log`;
   spawnCommand(PYTHON_CMD, [`${DEEP_LEARNING_PATH}/attacks.py`, modelId, 'ctgan', poisoningRate, ''], logFile, () => {
     attacksStatus.isRunning = false;
     console.log('Finish performing poisoning attack using CTGAN');
@@ -88,7 +88,8 @@ const performPoisoningCTGAN = (poisoningAttacksConfig, callback) => {
   return callback(attacksStatus);
 };
 
-const performPoisoningRSL = (poisoningAttacksConfig, callback) => {
+const performPoisoningRSL = (randomSwappingLabelsConfig, callback) => {
+  const { poisoningAttacksConfig } = randomSwappingLabelsConfig;
   const {
     modelId,
     poisoningRate
@@ -111,7 +112,7 @@ const performPoisoningRSL = (poisoningAttacksConfig, callback) => {
   attacksStatus.config = poisoningAttacksConfig;
   attacksStatus.lastRunAt = Date.now();
 
-  const logFile = `${LOG_PATH}attacks_rsl_${modelId}.log`;
+  const logFile = `${LOG_PATH}attacks_rsl_${modelId}_${poisoningRate}.log`;
   spawnCommand(PYTHON_CMD, [`${DEEP_LEARNING_PATH}/attacks.py`, modelId, 'rsl', poisoningRate, ''], logFile, () => {
     attacksStatus.isRunning = false;
     console.log('Finish performing poisoning random swapping labels attack');
@@ -129,7 +130,7 @@ const performPoisoningTLF = (targetLabelFlippingConfig, callback) => {
     modelId,
     poisoningRate,
   } = poisoningAttacksConfig;
-  console.log(attacksStatus);
+
   if (attacksStatus.isRunning) {
     console.warn('An attack injection process is on going. Only one process can be run at a time');
     return callback({
@@ -147,7 +148,7 @@ const performPoisoningTLF = (targetLabelFlippingConfig, callback) => {
   attacksStatus.config = targetLabelFlippingConfig;
   attacksStatus.lastRunAt = Date.now();
 
-  const logFile = `${LOG_PATH}attacks_rsl_${modelId}.log`;
+  const logFile = `${LOG_PATH}attacks_tlf_${modelId}_${poisoningRate}_${targetClass}.log`;
   spawnCommand(PYTHON_CMD, [`${DEEP_LEARNING_PATH}/attacks.py`, modelId, 'tlf', poisoningRate, targetClass], logFile, () => {
     attacksStatus.isRunning = false;
     console.log('Finish performing poisoning target label flipping attack');

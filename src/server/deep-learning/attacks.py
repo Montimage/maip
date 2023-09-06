@@ -49,6 +49,7 @@ def running_poisoning_attacks(modelId, typePoisoningAttacks, poisoningRate, targ
   if not os.path.exists(attacks_path):
     os.makedirs(attacks_path)
 
+  prefix = typePoisoningAttacks
   if typePoisoningAttacks == 'ctgan':
     print("attack ctgan")
     ctgan_file = os.path.join(attacks_path, 'ctgan_samples.csv')
@@ -72,6 +73,7 @@ def running_poisoning_attacks(modelId, typePoisoningAttacks, poisoningRate, targ
 
   elif typePoisoningAttacks == 'rsl':
     print("attack rsl")
+    prefix = prefix + "_" + str(poisoningRate)
     flip_amount = int(len(X_poisoned_train) * int(poisoningRate) * 0.01)
     original_count = len(train_data) - flip_amount
     poison_count = flip_amount
@@ -94,6 +96,7 @@ def running_poisoning_attacks(modelId, typePoisoningAttacks, poisoningRate, targ
 
   elif typePoisoningAttacks == 'tlf':
     print(str(targetClass))
+    prefix = prefix + "_" + str(poisoningRate) + "_" + str(targetClass)
     flip_amount = int(len(X_poisoned_train) * int(poisoningRate) * 0.01)
     original_count = len(train_data) - flip_amount
     poison_count = flip_amount
@@ -120,7 +123,7 @@ def running_poisoning_attacks(modelId, typePoisoningAttacks, poisoningRate, targ
   for label, count in poisoned_label_counts.items():
       print(f"Label {label}: {count}")
 
-  poisoned_dataset_file = os.path.join(attacks_path, typePoisoningAttacks + '_poisoned_dataset.csv')
+  poisoned_dataset_file = os.path.join(attacks_path, prefix + '_poisoned_dataset.csv')
   print(poisoned_dataset_file)
 
   # add a new axis to y_poisoned so that it can be concatenated with X_poisoned

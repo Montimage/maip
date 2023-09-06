@@ -1260,16 +1260,24 @@
           "200" : {
             "description" : "Successful operation",
             "content" : {
-              "multipart/form-data" : {
+              "application/json" : {
                 "schema" : {
-                  "type" : "string",
-                  "format" : "binary"
+                  "type" : "object",
+                  "properties" : {
+                    "datasets" : {
+                      "type" : "array",
+                      "items" : {
+                        "type" : "string",
+                        "example" : "rsl_50_poisoned_dataset.csv"
+                      }
+                    }
+                  }
                 }
               }
             }
           },
           "401" : {
-            "description" : "Datasets do not exist"
+            "description" : "Model does not exist"
           }
         }
       }
@@ -1314,50 +1322,6 @@
           },
           "401" : {
             "description" : "Dataset file does not exist"
-          }
-        }
-      }
-    },
-    "/models/{modelId}/datasets/{datasetType}/view" : {
-      "get" : {
-        "tags" : [ "models" ],
-        "summary" : "View a dataset",
-        "description" : "View a dataset in .csv format",
-        "operationId" : "viewModelDatasets",
-        "parameters" : [ {
-          "name" : "modelId",
-          "in" : "path",
-          "description" : "Name of the model file to return",
-          "required" : true,
-          "schema" : {
-            "type" : "string",
-            "example" : "3c6e4cb4-9b74-40c8-8f4a-132c9d5e4ace.h5"
-          }
-        }, {
-          "name" : "datasetType",
-          "in" : "path",
-          "description" : "Type of the dataset",
-          "required" : true,
-          "schema" : {
-            "type" : "string",
-            "enum" : [ "train", "test" ],
-            "example" : "train"
-          }
-        } ],
-        "responses" : {
-          "200" : {
-            "description" : "Successful operation",
-            "content" : {
-              "multipart/form-data" : {
-                "schema" : {
-                  "type" : "string",
-                  "format" : "binary"
-                }
-              }
-            }
-          },
-          "401" : {
-            "description" : "Can't not view datasets"
           }
         }
       }
@@ -2075,7 +2039,7 @@
           "content" : {
             "application/json" : {
               "schema" : {
-                "$ref" : "#/components/schemas/poisoningAttacksConfig"
+                "$ref" : "#/components/schemas/randomSwappingLabelsConfig"
               }
             }
           },
@@ -2125,6 +2089,61 @@
         }
       }
     },
+    "/attacks/{modelId}/datasets" : {
+      "get" : {
+        "tags" : [ "attacks" ],
+        "summary" : "Get all poisoned training datasets of a model",
+        "description" : "Get all poisoned training datasets of a model",
+        "operationId" : "getModelPoisonedDatasets",
+        "parameters" : [ {
+          "name" : "modelId",
+          "in" : "path",
+          "description" : "Name of the model file",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "e0a0588e-96c4-4fdf-9237-a8e94a6f5ffe.h5"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation",
+            "content" : {
+              "multipart/form-data" : {
+                "schema" : {
+                  "type" : "string",
+                  "example" : "rsl_poisoned_dataset.csv"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "The poisoned training dataset does not exist"
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "attacks" ],
+        "summary" : "Delete all poisoned training datasets of a model",
+        "description" : "Delete all poisoned training datasets of a model",
+        "operationId" : "deleteModelPoisonedDatasets",
+        "parameters" : [ {
+          "name" : "modelId",
+          "in" : "path",
+          "description" : "Name of the model file",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "e0a0588e-96c4-4fdf-9237-a8e94a6f5ffe.h5"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful delete all poisoned training datasets of a model"
+          }
+        }
+      }
+    },
     "/attacks/poisoning/{typeAttack}/{modelId}/download" : {
       "get" : {
         "tags" : [ "attacks" ],
@@ -2134,10 +2153,11 @@
         "parameters" : [ {
           "name" : "typeAttack",
           "in" : "path",
-          "description" : "Type of poisoning attacks (ctgan, rsl, tlf)",
+          "description" : "Type of poisoning attacks",
           "required" : true,
           "schema" : {
             "type" : "string",
+            "enum" : [ "ctgan", "rsl", "tlf" ],
             "example" : "ctgan"
           }
         }, {
@@ -2675,55 +2695,72 @@
           }
         }
       },
-      "poisoningAttacksConfig" : {
-        "type" : "object",
-        "properties" : {
-          "poisoningAttacksConfig" : {
+      "poisoningAttacksConfig": {
+        "type": "object",
+        "properties": {
+          "modelId": {
+            "type": "string",
+            "example": "e0a0588e-96c4-4fdf-9237-a8e94a6f5ffe.h5"
+          },
+          "poisoningRate": {
+            "type": "number",
+            "example": "50"
+          }
+        }
+      },
+      "randomSwappingLabelsConfig": {
+        "type": "object",
+        "properties": {
+          "randomSwappingLabelsConfig" : {
             "type" : "object",
             "properties" : {
-              "modelId" : {
-                "type" : "string",
-                "example" : "e0a0588e-96c4-4fdf-9237-a8e94a6f5ffe.h5"
-              },
-              "poisoningRate" : {
-                "type" : "number",
-                "example" : "50"
+              "poisoningAttacksConfig": {
+                "$ref": "#/components/schemas/poisoningAttacksConfig"
               }
             }
           }
         }
       },
-      "targetLabelFlippingConfig" : {
-        "type" : "object",
-        "properties" : {
+      "targetLabelFlippingConfig": {
+        "type": "object",
+        "properties": {
           "targetLabelFlippingConfig" : {
-            "$ref" : "#/components/schemas/poisoningAttacksConfig"
-          },
-          "targetClass" : {
-            "type" : "number",
-            "example" : "1"
+            "type" : "object",
+            "properties" : {
+              "poisoningAttacksConfig": {
+                "$ref": "#/components/schemas/poisoningAttacksConfig"
+              },
+              "targetClass": {
+                "type": "number",
+                "example": "1"
+              }
+            }
           }
         }
       },
-      "attacksStatus" : {
-        "type" : "object",
-        "properties" : {
-          "isRunning" : {
-            "type" : "boolean",
-            "example" : true
+      "attacksStatus": {
+        "type": "object",
+        "properties": {
+          "isRunning": {
+            "type": "boolean",
+            "example": true
           },
-          "config" : {
-            "oneOf" : [ {
-              "$ref" : "#/components/schemas/ctganConfig"
-            }, {
-              "$ref" : "#/components/schemas/poisoningAttacksConfig"
-            }, {
-              "$ref" : "#/components/schemas/targetLabelFlippingConfig"
-            } ]
+          "config": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ctganConfig"
+              },
+              {
+                "$ref": "#/components/schemas/randomSwappingLabelsConfig"
+              },
+              {
+                "$ref": "#/components/schemas/targetLabelFlippingConfig"
+              }
+            ]
           },
-          "lastRunAt" : {
-            "type" : "string",
-            "example" : "123243534534"
+          "lastRunAt": {
+            "type": "string",
+            "example": "123243534534"
           }
         }
       }

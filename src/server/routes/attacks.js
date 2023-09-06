@@ -16,6 +16,7 @@ const {
 } = require('../constants');
 const {
   isFileExist,
+  listFiles,
 } = require('../utils/file-utils');
 const {
   replaceDelimiterInCsv
@@ -27,7 +28,7 @@ router.get('/', (_, res) => {
   });
 });
 
-router.get('/:modelId/datasets/', async (req, res, next) => {
+router.get('/:modelId/datasets', async (req, res, next) => {
   const { modelId } = req.params;
   try {
     const datasetsPath = path.join(ATTACKS_PATH, modelId.replace('.h5', ''));
@@ -40,6 +41,26 @@ router.get('/:modelId/datasets/', async (req, res, next) => {
       return path.extname(file) === '.csv' && !fileName.includes('_view');
     });
     res.send({ datasets: allDatasets });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error');
+  }
+});
+
+router.delete('/:modelId/datasets', async (req, res, next) => {
+  const { modelId } = req.params;
+  const poisonedDatasetsPath = path.join(ATTACKS_PATH, modelId.replace('.h5', ''));
+  try {
+    listFiles(poisonedDatasetsPath, '.csv', (files) => {
+      files.forEach(file => {
+        const filePath = path.join(poisonedDatasetsPath, file);
+        fs.unlinkSync(filePath);
+      });
+
+      res.send({
+        message: 'All poisoned training datasets deleted successfully'
+      });
+    });
   } catch (err) {
     console.error(err);
     res.status(500).send('Server Error');
@@ -118,9 +139,9 @@ router.post('/poisoning/ctgan', (req, res) => {
 
 router.post('/poisoning/random-swapping-labels', (req, res) => {
   const {
-    poisoningAttacksConfig,
+    randomSwappingLabelsConfig,
   } = req.body;
-  if (!poisoningAttacksConfig) {
+  if (!randomSwappingLabelsConfig) {
     res.status(401).send({
       error: 'Missing poisoning RSL attack configuration. Please read the docs',
     });
@@ -131,7 +152,7 @@ router.post('/poisoning/random-swapping-labels', (req, res) => {
         error: 'An attack injection process is running. Only one process is allowed at the time. Please try again later',
       });
     } else {
-      performPoisoningRSL(poisoningAttacksConfig, (attacksStatus) => {
+      performPoisoningRSL(randomSwappingLabelsConfig, (attacksStatus) => {
         if (attacksStatus.error) {
           res.status(401).send({
             error: attacksStatus.error,
@@ -149,6 +170,7 @@ router.post('/poisoning/target-label-flipping', (req, res) => {
   const {
     targetLabelFlippingConfig,
   } = req.body;
+  console.log(targetLabelFlippingConfig);
   if (!targetLabelFlippingConfig) {
     res.status(401).send({
       error: 'Missing poisoning TLF attack configuration. Please read the docs',
