@@ -80,7 +80,7 @@ class PredictModelPage extends Component {
     formData.append('pcapFile', file);
 
     try {
-      const response = await fetch(`${SERVER_URL}/api/upload`, {
+      const response = await fetch(`${SERVER_URL}/api/pcaps`, {
         method: 'POST',
         body: formData,
       });
@@ -142,7 +142,7 @@ class PredictModelPage extends Component {
             </Tooltip>
             <Upload
               beforeUpload={this.beforeUploadPcap}
-              action={`${SERVER_URL}/api/upload`}
+              action={`${SERVER_URL}/api/pcaps`}
               onChange={(info) => this.handleUploadPcap(info)} 
               customRequest={this.processUploadPcap}
               onRemove={() => {

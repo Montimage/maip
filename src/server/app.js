@@ -24,7 +24,6 @@ const predictRouter = require('./routes/predict');
 const xaiRouter = require('./routes/xai');
 const attacksRouter = require('./routes/attacks');
 const metricsRouter = require('./routes/metrics');
-const uploadRouter = require('./routes/upload');
 
 const app = express();
 var compression = require('compression');
@@ -88,7 +87,6 @@ app.use('/api/predict', predictRouter);
 app.use('/api/xai', xaiRouter);
 app.use('/api/attacks', attacksRouter);
 app.use('/api/metrics', metricsRouter);
-app.use('/api/upload', uploadRouter);
 
 if (process.env.MODE === 'SERVER') {
   app.use(express.static(path.join(__dirname, '../public')));

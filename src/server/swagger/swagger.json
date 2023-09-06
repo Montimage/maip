@@ -564,7 +564,7 @@
             }
           },
           "500" : {
-            "description" : "Failed to create save pcap file"
+            "description" : "Failed to upload pcap files"
           }
         }
       },
@@ -1486,75 +1486,6 @@
                 }
               }
             }
-          }
-        }
-      }
-    },
-    "/upload/" : {
-      "get" : {
-        "tags" : [ "upload" ],
-        "parameters" : [ ],
-        "responses" : {
-          "200" : {
-            "description" : "Successful operation",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "type" : "object",
-                  "properties" : {
-                    "message" : {
-                      "type" : "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "post" : {
-        "tags" : [ "upload" ],
-        "summary" : "Upload a PCAP file",
-        "requestBody" : {
-          "content" : {
-            "multipart/form-data" : {
-              "schema" : {
-                "type" : "object",
-                "properties" : {
-                  "pcapFile" : {
-                    "type" : "string",
-                    "format" : "binary"
-                  }
-                },
-                "required" : [ "pcapFile" ]
-              }
-            }
-          }
-        },
-        "responses" : {
-          "200" : {
-            "description" : "Successful operation",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "type" : "object",
-                  "properties" : {
-                    "pcapFile" : {
-                      "type" : "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400" : {
-            "description" : "No files were uploaded"
-          },
-          "422" : {
-            "description" : "Invalid format"
-          },
-          "500" : {
-            "description" : "Server error while processing the upload"
           }
         }
       }
