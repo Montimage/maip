@@ -1,4 +1,5 @@
 const express = require('express');
+const fs = require('fs');
 const path = require('path');
 const {
   PCAP_PATH,
@@ -7,12 +8,14 @@ const {
 } = require('../constants');
 const {
   listFiles,
+  listDirectories,
   createFolder,
 } = require('../utils/file-utils');
 const { spawnCommand } = require('../utils/utils');
 
 const router = express.Router();
 
+// TODO: retest
 router.post('/:datasetName', (req, res) => {
   const {
     datasetName,
@@ -68,7 +71,7 @@ router.post('/:datasetName', (req, res) => {
   });
 });
 
-router.get('/:datasetName', (req, res) => {
+router.get('/dataset/:datasetName', (req, res) => {
   const {
     datasetName,
   } = req.params;
@@ -80,11 +83,38 @@ router.get('/:datasetName', (req, res) => {
   });
 });
 
-/* GET all pcap files */
+router.delete('/dataset/:datasetName', (req, res, next) => {
+  const { datasetName } = req.params;
+  const datasetPath = `${PCAP_PATH}${datasetName}`;
+  try {
+    if (fs.existsSync(datasetPath)) {
+      fs.rmSync(datasetPath, { recursive: true });
+      res.send({
+        message: 'The dataset folder and its pcap files have been deleted successfully'
+      });
+    } else {
+      res.status(404).send({
+        message: 'Dataset not found'
+      });
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error');
+  }
+});
+
 router.get('/', (req, res) => {
   listFiles(PCAP_PATH, allowExtensions, (files) => {
     res.send({
       pcaps: files,
+    });
+  });
+});
+
+router.get('/datasets', (req, res) => {
+  listDirectories(PCAP_PATH, (dirs) => {
+    res.send({
+      datasets: dirs,
     });
   });
 });
@@ -109,6 +139,24 @@ router.post('/', (req, res) => {
       pcapFile: file.name,
     });
   });
+});
+
+router.delete('/', (req, res, next) => {
+  try {
+    listFiles(PCAP_PATH, '.pcap', (files) => {
+      files.forEach(file => {
+        const filePath = path.join(PCAP_PATH, file);
+        fs.unlinkSync(filePath);
+      });
+
+      res.send({
+        message: 'All pcaps files deleted successfully'
+      });
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error');
+  }
 });
 
 module.exports = router;

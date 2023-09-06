@@ -1,5 +1,6 @@
 /* eslint-disable no-console */
 const fs = require('fs');
+const path = require('path');
 
 // TODO: error handling this function when files is empty
 const listFiles = (path, filters, callback) => {
@@ -156,6 +157,23 @@ const writeTextFile = (dataPath, content, callback) => {
   }
 };
 
+const listDirectories = (directoryPath, callback) => {
+  fs.readdir(directoryPath, (err, files) => {
+    if (err) {
+      return console.error('Unable to scan directory: ' + err);
+    }
+
+    let directories = [];
+    files.forEach((file) => {
+      if (fs.statSync(path.join(directoryPath, file)).isDirectory()) {
+        directories.push(file);
+      }
+    });
+
+    callback(directories);
+  });
+};
+
 module.exports = {
   listFiles,
   listFilesAsync,
@@ -167,4 +185,5 @@ module.exports = {
   createFolderSync,
   readTextFile,
   writeTextFile,
+  listDirectories,
 };

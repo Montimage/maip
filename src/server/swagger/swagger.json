@@ -244,6 +244,18 @@
             }
           }
         }
+      },
+      "delete" : {
+        "tags" : [ "reports" ],
+        "summary" : "Delete all reports",
+        "description" : "Delete all reports",
+        "operationId" : "deleteReports",
+        "parameters" : [ ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful delete all reports"
+          }
+        }
       }
     },
     "/reports/{reportId}" : {
@@ -555,9 +567,51 @@
             "description" : "Failed to create save pcap file"
           }
         }
+      },
+      "delete" : {
+        "tags" : [ "pcaps" ],
+        "summary" : "Delete all pcaps",
+        "description" : "Delete all pcaps",
+        "operationId" : "deletePcaps",
+        "parameters" : [ ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful delete all uploaded pcaps"
+          }
+        }
       }
     },
-    "/pcaps/{datasetName}" : {
+    "/pcaps/datasets" : {
+      "get" : {
+        "tags" : [ "pcaps" ],
+        "summary" : "Get all datasets containing pcap files",
+        "description" : "Get all datasets containing pcap files",
+        "operationId" : "getPcapAllDatasets",
+        "parameters" : [ ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "properties" : {
+                    "datasets" : {
+                      "type" : "array",
+                      "items" : {
+                        "type" : "string",
+                        "example" : "bot-test"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pcaps/dataset/{datasetName}" : {
       "get" : {
         "tags" : [ "pcaps" ],
         "summary" : "Get the list of all pcap files of a given dataset",
@@ -648,6 +702,27 @@
           },
           "500" : {
             "description" : "Failed to create dataset location"
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "pcaps" ],
+        "summary" : "Delete the dataset and its pcap files",
+        "description" : "Delete the dataset and its pcap files",
+        "operationId" : "deleteDatasetPcaps",
+        "parameters" : [ {
+          "name" : "datasetName",
+          "in" : "path",
+          "description" : "Name of the dataset",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "my_dataset"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful delete the dataset and its pcap files"
           }
         }
       }

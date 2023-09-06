@@ -1,20 +1,41 @@
 const express = require('express');
-
+const fs = require('fs');
+const path = require('path');
 const router = express.Router();
 const {
   REPORT_PATH,
 } = require('../constants');
 const {
   listFiles,
+  listDirectories,
   readTextFile,
   isFileExist,
 } = require('../utils/file-utils');
-/* GET all pcap files */
+
 router.get('/', (req, res) => {
   listFiles(REPORT_PATH, 'report-', (files) => {
     res.send({
       reports: files,
     });
+  });
+});
+
+router.delete('/', (req, res, next) => {
+  listDirectories(REPORT_PATH, (directories) => {
+    try {
+      directories.forEach(dir => {
+        const dirPath = path.join(REPORT_PATH, dir);
+        fs.rmSync(dirPath, { recursive: true });
+      });
+      
+      res.send({
+        message: 'All report folders and their contents have been deleted successfully'
+      });
+      
+    } catch (err) {
+      console.error(err);
+      res.status(500).send('Server Error');
+    }
   });
 });
 
