@@ -485,14 +485,17 @@ export const requestPerformAttack = async (modelId, selectedAttack, poisoningRat
   };
   if (selectedAttack === "rsl") {
     url = `${SERVER_URL}/api/attacks/poisoning/random-swapping-labels`;
+    const randomSwappingLabelsConfig = {
+      "poisoningAttacksConfig": poisoningAttacksConfig,
+    };
     response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ poisoningAttacksConfig }),
+      body: JSON.stringify({ randomSwappingLabelsConfig }),
     });
-    console.log(poisoningAttacksConfig);
+    console.log(randomSwappingLabelsConfig);
   } else if (selectedAttack === "tlf") {
     url = `${SERVER_URL}/api/attacks/poisoning/target-label-flipping`;
     const targetLabelFlippingConfig = {

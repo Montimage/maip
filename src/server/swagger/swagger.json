@@ -1268,7 +1268,7 @@
                       "type" : "array",
                       "items" : {
                         "type" : "string",
-                        "example" : "rsl_50_poisoned_dataset.csv"
+                        "example" : "rsl_poisoned_dataset.csv"
                       }
                     }
                   }
@@ -2269,10 +2269,11 @@
         "parameters" : [ {
           "name" : "typePoisoningAttack",
           "in" : "path",
-          "description" : "Type of poisoning attacks (ctgan, rsl, tlf)",
+          "description" : "Type of poisoning attacks",
           "required" : true,
           "schema" : {
             "type" : "string",
+            "enum" : [ "ctgan", "rsl", "tlf" ],
             "example" : "rsl"
           }
         }, {
