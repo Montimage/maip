@@ -2318,7 +2318,7 @@
           },
           "sessionId" : {
             "type" : "string",
-            "example" : "fadfafewfwefwe"
+            "example" : "bot-traffic.pcap-e312259a-8792-4ad6-a10d-9814c45b159d"
           },
           "isOnlineMode" : {
             "type" : "boolean",
@@ -2326,7 +2326,7 @@
           },
           "startedAt" : {
             "type" : "string",
-            "example" : "123243534534"
+            "example" : "1694699293624"
           }
         }
       },
@@ -2339,14 +2339,14 @@
           },
           "lastBuildId" : {
             "type" : "string",
-            "example" : "fadfafewfwefwe"
+            "example" : "5f4ffd91-69ba-4f1c-985d-c3a7f238e8b5"
           },
           "config" : {
             "$ref" : "#/components/schemas/buildConfig"
           },
           "lastBuildAt" : {
             "type" : "string",
-            "example" : "123243534534"
+            "example" : "1694705577544"
           }
         }
       },
@@ -2359,14 +2359,14 @@
           },
           "lastPredictedId" : {
             "type" : "string",
-            "example" : "fadfafewfwefwe"
+            "example" : "5f4ffd91-69ba-4f1c-985d-c3a7f238e8b5"
           },
           "config" : {
             "$ref" : "#/components/schemas/predictConfig"
           },
           "lastPredictedAt" : {
             "type" : "string",
-            "example" : "123243534534"
+            "example" : "1694705577544"
           }
         }
       },
@@ -2375,19 +2375,19 @@
         "properties" : {
           "nb_epoch_cnn" : {
             "type" : "number",
-            "example" : 2
+            "example" : 5
           },
           "nb_epoch_sae" : {
             "type" : "number",
-            "example" : 5
+            "example" : 3
           },
           "batch_size_cnn" : {
             "type" : "number",
-            "example" : 32
+            "example" : 16
           },
           "batch_size_sae" : {
             "type" : "number",
-            "example" : 16
+            "example" : 32
           }
         }
       },
@@ -2417,7 +2417,7 @@
                   "properties" : {
                     "datasetId" : {
                       "type" : "string",
-                      "example" : "my-dataset-01"
+                      "example" : "report-bot-test-9bf49bb1-055f-45e6-bd05-dbfeb39f93bd"
                     },
                     "isAttack" : {
                       "type" : "boolean",
@@ -2446,14 +2446,14 @@
           },
           "lastBuildId" : {
             "type" : "string",
-            "example" : "fadfafewfwefwe"
+            "example" : "f5c48e82-f8f1-4bc3-823b-5c4524c0bbb3"
           },
           "config" : {
             "$ref" : "#/components/schemas/buildACConfig"
           },
           "lastBuildAt" : {
             "type" : "string",
-            "example" : "123243534534"
+            "example" : "1694699830518"
           }
         }
       },
@@ -2492,11 +2492,11 @@
           },
           "lastRetrainId" : {
             "type" : "string",
-            "example" : "fadfafewfwefwe"
+            "example" : "422e5a74-6b14-4ced-a630-b777fbfbb50c"
           },
           "lastRetrainAt" : {
             "type" : "string",
-            "example" : "123243534534"
+            "example" : "1694699830518"
           }
         }
       },
@@ -2545,11 +2545,11 @@
           },
           "lastRetrainId" : {
             "type" : "string",
-            "example" : "fadfafewfwefwe"
+            "example" : "422e5a74-6b14-4ced-a630-b777fbfbb50c"
           },
           "lastRetrainAt" : {
             "type" : "string",
-            "example" : "123243534534"
+            "example" : "1694699830518"
           }
         }
       },
@@ -2622,7 +2622,7 @@
           },
           "lastRunAt" : {
             "type" : "string",
-            "example" : "123243534534"
+            "example" : "1694699830518"
           }
         }
       },
@@ -2761,7 +2761,7 @@
           },
           "lastRunAt": {
             "type": "string",
-            "example": "123243534534"
+            "example": "1694699830518"
           }
         }
       }
