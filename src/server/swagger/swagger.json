@@ -1570,7 +1570,7 @@
           "required" : true,
           "schema" : {
             "type" : "string",
-            "example" : "3c6e4cb4-9b74-40c8-8f4a-132c9d5e4ace.h5"
+            "example" : "4bbfaa76-9e39-49b8-baa7-c4a7cdc9fed8"
           }
         } ],
         "responses" : {

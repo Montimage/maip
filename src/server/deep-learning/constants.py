@@ -19,19 +19,19 @@ AD_FEATURES = ['ip.session_id', 'meta.direction', 'ip', 'ip.pkts_per_flow', 'dur
             'max_tcp_pkts', 'entropy_tcp_pkts', 'mean_tcp_len', 'std_tcp_len',
             'min_tcp_len', 'max_tcp_len', 'entropy_tcp_len', 'ssl.tls_version']
 
-AD_FEATURES_OUTPUT = AD_FEATURES.append('malware')
+AD_FEATURES_OUTPUT = AD_FEATURES + ['malware']
 
 DISCRETE_FEATURES = [
   'ip.pkts_per_flow', 'ip.header_len', 'ip.payload_len',
   '(-0.001, 50.0]', '(50.0, 100.0]', '(100.0, 150.0]', '(150.0, 200.0]',
-  '(200.0, 250.0]', '(250.0, 300.0]', '(300.0, 350.0]', '(350.0, 400.0]', 
+  '(200.0, 250.0]', '(250.0, 300.0]', '(300.0, 350.0]', '(350.0, 400.0]',
   '(400.0, 450.0]', '(450.0, 500.0]', '(500.0, 550.0]',
-  'tcp_pkts_per_flow', 'tcp_bytes_per_flow', 
+  'tcp_pkts_per_flow', 'tcp_bytes_per_flow',
   '(-0.001, 150.0]', '(150.0, 300.0]', '(300.0, 450.0]', '(450.0, 600.0]',
   '(600.0, 750.0]', '(750.0, 900.0]', '(900.0, 1050.0]', '(1050.0, 1200.0]',
-  '(1200.0, 1350.0]', '(1350.0, 1500.0]', '(1500.0, 10000.0]', 
-  'tcp.fin', 'tcp.syn', 'tcp.rst', 'tcp.psh', 'tcp.ack', 'tcp.urg', 'sport_g', 
-  'sport_le', 'dport_g', 'dport_le', 'mean_tcp_pkts', 'std_tcp_pkts', 
+  '(1200.0, 1350.0]', '(1350.0, 1500.0]', '(1500.0, 10000.0]',
+  'tcp.fin', 'tcp.syn', 'tcp.rst', 'tcp.psh', 'tcp.ack', 'tcp.urg', 'sport_g',
+  'sport_le', 'dport_g', 'dport_le', 'mean_tcp_pkts', 'std_tcp_pkts',
   'min_tcp_pkts', 'max_tcp_pkts', 'entropy_tcp_pkts',
   'min_tcp_len', 'max_tcp_len', 'ssl.tls_version', 'entropy_tcp_len',
   'malware'

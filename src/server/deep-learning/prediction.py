@@ -20,30 +20,30 @@ def predict(csv_path, model_path, result_path):
     features.drop(columns=['ip.session_id', 'meta.direction'], inplace=True)
 
     print("Going to test the prediction")
-    #
     model = load_model(model_path)
     print("Model has been loaded from")
     y_pred = model.predict(features)
     y_pred = np.transpose(np.round(y_pred)).reshape(y_pred.shape[0], )
     preds = np.array([y_pred]).T
-    # nb_attacks = np.count_nonzero(preds!=0)
-    # print("Number of attacks: " + str(nb_attacks))
+    nb_attacks = np.count_nonzero(preds != 0)
     res = np.append(features, preds, axis=1)
     res = np.append(ips, res, axis=1)
 
-    # print(res)
     if not os.path.exists(result_path):
         os.makedirs(result_path)
     dataFrame = pd.DataFrame(res)
-    # print("Total flows: "+ str(len(dataFrame.index)))
+    print("Total flows: "+ str(len(dataFrame.index)))
     last_column_index = len(constants.AD_FEATURES_OUTPUT)-1
     dataFrame.to_csv(f"{result_path}/predictions.csv", index=False, header=constants.AD_FEATURES_OUTPUT)
+
     attackDF = dataFrame[dataFrame[last_column_index] > 0]
-    # print("Number of attacks: " + str(len(attackDF.index)))
+    print("Number of attacks: " + str(len(attackDF.index)))
     attackDF.to_csv(f"{result_path}/attacks.csv", index=False, header=constants.AD_FEATURES_OUTPUT)
+
     normalDF = dataFrame[dataFrame[last_column_index] == 0]
-    # print("Number of normals: " + str(len(normalDF.index)))
+    print("Number of normals: " + str(len(normalDF.index)))
     normalDF.to_csv(f"{result_path}/normals.csv", index=False, header=constants.AD_FEATURES_OUTPUT)
+
     statsArray =np.array([[len(dataFrame.index),len(attackDF.index),len(normalDF.index)]])
     pd.DataFrame(statsArray).to_csv(f"{result_path}/stats.csv", index=False)
 
@@ -55,8 +55,4 @@ if __name__ == "__main__":
         csv_path = sys.argv[1]
         model_path = sys.argv[2]
         result_path = sys.argv[3]
-        # nb_epoch_cnn = sys.argv[3]?
-        # nb_epoch_sae = sys.argv[4]
-        # batch_size_cnn = sys.argv[5]
-        # batch_size_sae = sys.argv[6]
         predict(csv_path, model_path, result_path)
