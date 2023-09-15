@@ -16,13 +16,13 @@ const {
   XAI_PATH,
 } = require('../constants');
 const {
-  AC_OUTPUT_LABELS, AD_OUTPUT_LABELS_XAI,
+  AC_OUTPUT_LABELS, AD_OUTPUT_LABELS_SHORT,
 } = require('../../client/src/constants');
 
 const isACModel = modelId => modelId && modelId.startsWith('ac-');
 
 const getLabelsListXAI = (modelId) => {
-  return isACModel(modelId) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS_XAI;
+  return isACModel(modelId) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS_SHORT;
 }
 
 router.get('/', (_, res) => {

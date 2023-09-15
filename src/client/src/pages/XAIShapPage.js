@@ -38,7 +38,7 @@ class XAIShapPage extends Component {
     super(props);
     this.state = {
       modelId: null,
-      label: getLabelsListAppXAI(this.props.app)[0],
+      label: getLabelsListAppXAI(this.props.app)[1],
       numberBackgroundSamples: 20,
       numberExplainedSamples: 10,
       maxDisplay: 10,
@@ -56,10 +56,10 @@ class XAIShapPage extends Component {
   componentDidMount() {
     const modelId = getLastPath();
     if (isModelIdPresent) {
-      this.setState({ modelId, label: getLabelsListXAI(modelId)[0] });
+      this.setState({ modelId, label: getLabelsListXAI(modelId)[1] });
     }
     this.props.fetchApp();
-    this.props.fetchAllModels(); 
+    this.props.fetchAllModels();
   }
 
   handleContributionsChange(checkedValues) {
@@ -73,8 +73,8 @@ class XAIShapPage extends Component {
     const { app, xaiStatus } = this.props;
 
     if (app !== prevProps.app && !isModelIdPresent) {
-      const defaultLabel = isModelIdPresent ? 
-                            getLabelsListXAI(modelId)[0] : getLabelsListAppXAI(app)[0];
+      const defaultLabel = isModelIdPresent ?
+                            getLabelsListXAI(modelId)[1] : getLabelsListAppXAI(app)[1];
       this.setState({
         modelId: null,
         label: defaultLabel,
@@ -83,7 +83,7 @@ class XAIShapPage extends Component {
         maxDisplay: 10,
         positiveChecked: true,
         negativeChecked: true,
-        maskedFeatures: [], 
+        maskedFeatures: [],
         isRunning: false,
         isLabelEnabled: false,
       });
@@ -134,10 +134,10 @@ class XAIShapPage extends Component {
       "numberExplainedSamples": numberExplainedSamples,
       "maxDisplay": maxDisplay,
     };
-    this.setState({ 
-      isRunning: true, 
-      shapValues: [], 
-      isLabelEnabled: false 
+    this.setState({
+      isRunning: true,
+      shapValues: [],
+      isLabelEnabled: false
     });
 
     const response = await fetch(SHAP_URL, {
@@ -164,7 +164,7 @@ class XAIShapPage extends Component {
       console.error(`Invalid label: ${label}`);
       return;
     }
-    
+
     const shapValuesUrl = `${SHAP_URL}/explanations/${modelId}/${labelIndex}`;
     const shapValues = await fetch(shapValuesUrl).then(res => res.json());
     console.log(`Get new SHAP values of the model ${modelId} for label ${label} (index ${labelIndex}) from server`);
@@ -175,9 +175,9 @@ class XAIShapPage extends Component {
   }
 
   render() {
-    const { 
+    const {
       modelId,
-      maxDisplay, 
+      maxDisplay,
       positiveChecked,
       negativeChecked,
       maskedFeatures,
@@ -187,28 +187,30 @@ class XAIShapPage extends Component {
     const { app, models } = this.props;
 
     const modelsOptions = getFilteredModelsOptions(app, models);
-    const features = isModelIdPresent ? 
+    const features = isModelIdPresent ?
                       getFilteredFeaturesModel(modelId) : getFilteredFeatures(app);
     getFilteredFeatures(app);
     const selectFeaturesOptions = getFilteredFeaturesOptions(app);
     const numberFeatures = getNumberFeatures(app);
-    const labelsList = isModelIdPresent ? 
+    const labelsList = isModelIdPresent ?
                         getLabelsListXAI(modelId) : getLabelsListAppXAI(app);
-    const labelsOptions = labelsList.map(label => ({
-      value: label,
-      label: label,
-    }));
-    
+    const labelsOptions = labelsList
+      .filter(label => label.trim() !== "")  // filter out empty or whitespace-only labels
+      .map(label => ({
+        value: label,
+        label: label,
+      }));
+
     const filteredValuesShap = shapValues.filter((d) => {
       if (d.importance_value > 0 && positiveChecked) return true;
       if (d.importance_value < 0 && negativeChecked) return true;
       return false;
     });
 
-    const filteredMaskedShap = filteredValuesShap.filter(obj => 
+    const filteredMaskedShap = filteredValuesShap.filter(obj =>
       !maskedFeatures.some(feature => obj.feature.includes(feature)));
     //console.log(filteredMaskedShap);
-    const toDisplayShap = filteredMaskedShap.slice(0, maxDisplay); 
+    const toDisplayShap = filteredMaskedShap.slice(0, maxDisplay);
 
     const shapValuesBarConfig = {
       data: toDisplayShap,
@@ -230,10 +232,10 @@ class XAIShapPage extends Component {
         key: index + 1,
         name: item.feature,
         description: features[item.feature]?.description || 'N/A',
-    })); 
+    }));
 
-    const subTitle = isModelIdPresent ? 
-      `SHAP explanations of the model ${modelId}` : 
+    const subTitle = isModelIdPresent ?
+      `SHAP explanations of the model ${modelId}` :
       'SHAP explanations of models';
 
     return (
@@ -242,7 +244,7 @@ class XAIShapPage extends Component {
           <h1 style={{ fontSize: '24px' }}>SHAP Parameters</h1>
         </Divider>
         <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 600 }}>
-          <Form.Item name="model" label="Model" 
+          <Form.Item name="model" label="Model"
               style={{ flex: 'none', marginBottom: 10 }}
               rules={[
                 {
@@ -250,7 +252,7 @@ class XAIShapPage extends Component {
                   message: 'Please select a model!',
                 },
               ]}
-            > 
+            >
               <Tooltip title="Select a model to perform SHAP method.">
                 <Select placeholder="Select a model ..."
                   style={{ width: '100%' }}
@@ -259,14 +261,14 @@ class XAIShapPage extends Component {
                   disabled={isModelIdPresent}
                   onChange={(value) => {
                     if (value) {
-                      this.setState({ label: getLabelsListXAI(value)[0] });
+                      this.setState({ label: getLabelsListXAI(value)[1] });
                     } else {
-                      this.setState({ label: getLabelsListAppXAI(this.props.app)[0] });
+                      this.setState({ label: getLabelsListAppXAI(this.props.app)[1] });
                     }
-                    this.setState({ 
-                      modelId: value, 
+                    this.setState({
+                      modelId: value,
                       shapValues: [],
-                      isLabelEnabled: false 
+                      isLabelEnabled: false
                     });
                     console.log(`Select model ${value}`);
                   }}
@@ -274,32 +276,32 @@ class XAIShapPage extends Component {
                 />
               </Tooltip>
             </Form.Item>
-          <Form.Item label="Background samples" style={{ marginBottom: 10 }} > 
+          <Form.Item label="Background samples" style={{ marginBottom: 10 }} >
             <div style={{ display: 'inline-flex' }}>
               <Form.Item label="bg" name="bg" noStyle>
                 <Tooltip title="Select number of samples used for producing explanations (maximum is the length of the training dataset).">
-                  <InputNumber min={1} defaultValue={20} 
+                  <InputNumber min={1} defaultValue={20}
                     value={this.state.numberBackgroundSamples}
-                    onChange={v => this.setState({ 
+                    onChange={v => this.setState({
                       numberBackgroundSamples: v,
-                      shapValues: [], 
-                      isLabelEnabled: false 
+                      shapValues: [],
+                      isLabelEnabled: false
                     })}
                   />
                 </Tooltip>
               </Form.Item>
             </div>
           </Form.Item>
-          <Form.Item label="Explained samples" style={{ marginBottom: 10 }} > 
+          <Form.Item label="Explained samples" style={{ marginBottom: 10 }} >
             <div style={{ display: 'inline-flex' }}>
               <Form.Item label="ex" name="ex" noStyle>
                 <Tooltip title="Select number of samples to be explained (maximum is the length of the testing dataset).">
-                  <InputNumber min={1} defaultValue={10} 
+                  <InputNumber min={1} defaultValue={10}
                     value={this.state.numberExplainedSamples}
-                    onChange={v => this.setState({ 
+                    onChange={v => this.setState({
                       numberExplainedSamples: v,
-                      shapValues: [], 
-                      isLabelEnabled: false 
+                      shapValues: [],
+                      isLabelEnabled: false
                     })}
                   />
                 </Tooltip>
@@ -316,20 +318,20 @@ class XAIShapPage extends Component {
               onChange={v => this.setState({ maxDisplay: v })}
             />
           </Form.Item>
-          <Form.Item name="checkbox" label="Contributions to display" 
+          <Form.Item name="checkbox" label="Contributions to display"
             valuePropName="checked"
             style={{ flex: 'none', marginBottom: 10 }}
           >
-            <Checkbox.Group 
+            <Checkbox.Group
               options={['Positive', 'Negative']}
               defaultValue={['Positive', 'Negative']}
-              
-              onChange={this.handleContributionsChange} 
+
+              onChange={this.handleContributionsChange}
             />
           </Form.Item>
-          <Form.Item name="select" label="Feature(s) to mask" 
+          <Form.Item name="select" label="Feature(s) to mask"
             style={{ flex: 'none', marginBottom: 10 }}
-          > 
+          >
             <Select
               mode="multiple"
               style={{
@@ -348,7 +350,7 @@ class XAIShapPage extends Component {
               onClick={this.handleShapClick}
               disabled={isRunning || !this.state.modelId}
               >SHAP Explain
-              {isRunning && 
+              {isRunning &&
                 <Spin size="large" style={{ marginBottom: '8px' }}>
                   <div className="content" />
                 </Spin>
@@ -420,7 +422,7 @@ class XAIShapPage extends Component {
                   <Button type="link" icon={<QuestionOutlined />} />
                 </Tooltip>
               </div>
-              <Table dataSource={topFeatures} columns={COLUMNS_TOP_FEATURES} 
+              <Table dataSource={topFeatures} columns={COLUMNS_TOP_FEATURES}
                 size="small" style={{ marginTop: '20px', marginBottom: 0 }}
               />
             </div>

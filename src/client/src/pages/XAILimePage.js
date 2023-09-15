@@ -39,7 +39,7 @@ class XAILimePage extends Component {
     super(props);
     this.state = {
       modelId: null,
-      label: getLabelsListAppXAI(this.props.app)[0],
+      label: getLabelsListAppXAI(this.props.app)[1],
       sampleId: 5,
       numberSamples: 10,
       maxDisplay: 15,
@@ -60,12 +60,12 @@ class XAILimePage extends Component {
   async componentDidMount() {
     const modelId = getLastPath();
     if (isModelIdPresent) {
-      this.setState({ modelId, label: getLabelsListXAI(modelId)[0] });
+      this.setState({ modelId, label: getLabelsListXAI(modelId)[1] });
       const predictions = await requestPredictionsModel(modelId);
       this.setState({ predictions });
     }
     this.props.fetchApp();
-    this.props.fetchAllModels(); 
+    this.props.fetchAllModels();
   }
 
   handleContributionsChange(checkedValues){
@@ -79,8 +79,8 @@ class XAILimePage extends Component {
     const { app, xaiStatus } = this.props;
 
     if (app !== prevProps.app && !isModelIdPresent) {
-      const defaultLabel = isModelIdPresent ? 
-                            getLabelsListXAI(modelId)[0] : getLabelsListAppXAI(app)[0]; 
+      const defaultLabel = isModelIdPresent ?
+                            getLabelsListXAI(modelId)[1] : getLabelsListAppXAI(app)[1];
       this.setState({
         modelId: null,
         label: defaultLabel,
@@ -88,7 +88,7 @@ class XAILimePage extends Component {
         maxDisplay: 15,
         positiveChecked: true,
         negativeChecked: true,
-        maskedFeatures: [], 
+        maskedFeatures: [],
         pieData: [],
         dataTableProbs: [],
         limeValues: [],
@@ -117,9 +117,9 @@ class XAILimePage extends Component {
     if (prevState.sampleId !== sampleId || prevState.modelId !== modelId) {
       if (modelId) {
         const predictions = await requestPredictionsModel(modelId);
-        this.setState({ predictions }); 
+        this.setState({ predictions });
       } else {
-        this.setState({ predictions: null });   
+        this.setState({ predictions: null });
       }
     }
   }
@@ -153,11 +153,11 @@ class XAILimePage extends Component {
 
     const predictions = await requestPredictionsModel(modelId);
 
-    this.setState({ 
-      isRunning: true, 
-      limeValues: [], 
-      pieData: [], 
-      dataTableProbs: [], 
+    this.setState({
+      isRunning: true,
+      limeValues: [],
+      pieData: [],
+      dataTableProbs: [],
       isLabelEnabled: false,
       predictions
     });
@@ -186,7 +186,7 @@ class XAILimePage extends Component {
     const linesProbs = predictedProbs.split('\n');
     const dataProbs = linesProbs.slice(1).map(line => line.split(','));
     const yProbs = dataProbs.map(row => row.map(val => parseFloat(val)));
-    
+
     let dataTableProbs = [];
     let pieData = [];
     if (modelId.startsWith('ac-')) {
@@ -238,11 +238,11 @@ class XAILimePage extends Component {
       }) : [];
     }
 
-    this.setState({ 
+    this.setState({
       pieData: pieData,
       dataTableProbs: dataTableProbs,
     });
-    
+
   }
 
   async fetchNewValues(modelId, label) {
@@ -266,10 +266,10 @@ class XAILimePage extends Component {
   }
 
   render() {
-    const { 
+    const {
       modelId,
       sampleId,
-      maxDisplay, 
+      maxDisplay,
       positiveChecked,
       negativeChecked,
       maskedFeatures,
@@ -284,12 +284,14 @@ class XAILimePage extends Component {
 
     const modelsOptions = getFilteredModelsOptions(app, models);
     const selectFeaturesOptions = getFilteredFeaturesOptions(app);
-    const labelsList = isModelIdPresent ? 
+    const labelsList = isModelIdPresent ?
                         getLabelsListXAI(modelId) : getLabelsListAppXAI(app);
-    const labelsOptions = labelsList.map(label => ({
-      value: label,
-      label: label,
-    }));
+    const labelsOptions = labelsList
+      .filter(label => label.trim() !== "")  // filter out empty or whitespace-only labels
+      .map(label => ({
+        value: label,
+        label: label,
+      }));
 
     let sampleTrueLabel = "";
     if (predictions) {
@@ -324,7 +326,7 @@ class XAILimePage extends Component {
       return false;
     });
 
-    const filteredMaskedValuesLime = filteredValuesLime.filter(obj => 
+    const filteredMaskedValuesLime = filteredValuesLime.filter(obj =>
       !maskedFeatures.some(feature => obj.feature.includes(feature)));
     //console.log(filteredMaskedValuesLime);
 
@@ -349,18 +351,18 @@ class XAILimePage extends Component {
       interactions: [{ type: 'element-active' }],
     };
 
-    const subTitle = isModelIdPresent ? 
-      `LIME explanations of the model ${modelId}` : 
+    const subTitle = isModelIdPresent ?
+      `LIME explanations of the model ${modelId}` :
       'LIME explanations of models';
 
     return (
-      <LayoutPage pageTitle="Explainable AI with Local Interpretable Model-Agnostic Explanations (LIME)" 
+      <LayoutPage pageTitle="Explainable AI with Local Interpretable Model-Agnostic Explanations (LIME)"
         pageSubTitle={subTitle}>
         <Divider orientation="left">
           <h1 style={{ fontSize: '24px' }}>LIME Parameters</h1>
         </Divider>
         <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 600 }}>
-          <Form.Item name="model" label="Model" 
+          <Form.Item name="model" label="Model"
             style={{ flex: 'none', marginBottom: 10 }}
             rules={[
               {
@@ -368,7 +370,7 @@ class XAILimePage extends Component {
                 message: 'Please select a model!',
               },
             ]}
-          > 
+          >
             <Tooltip title="Select a model to perform LIME method.">
               <Select placeholder="Select a model ..."
                 style={{ width: '100%' }}
@@ -382,9 +384,9 @@ class XAILimePage extends Component {
                     this.setState({ label: getLabelsListAppXAI(this.props.app)[0] });
                   }
                   this.setState({
-                    modelId: value, 
-                    limeValues: [], 
-                    pieData: [], 
+                    modelId: value,
+                    limeValues: [],
+                    pieData: [],
                     dataTableProbs: [],
                     isLabelEnabled: false,
                     predictions: null
@@ -402,19 +404,19 @@ class XAILimePage extends Component {
                   {/* TODO: get errors if remove the number on form */}
                   <InputNumber min={1} defaultValue={5}
                     value={this.state.sampleId}
-                    onChange={v => this.setState({ 
+                    onChange={v => this.setState({
                       sampleId: v,
-                      limeValues: [], 
-                      pieData: [], 
+                      limeValues: [],
+                      pieData: [],
                       dataTableProbs: [],
-                      isLabelEnabled: false 
+                      isLabelEnabled: false
                     })}
                   />
                 </Tooltip>
               </Form.Item>
-            </div>  
+            </div>
           </Form.Item>
-          <Form.Item name="slider" label="Features to display" 
+          <Form.Item name="slider" label="Features to display"
             style={{ marginBottom: -5 }}>
             <Slider
               marks={XAI_SLIDER_MARKS}
@@ -423,16 +425,16 @@ class XAILimePage extends Component {
               onChange={v => this.setState({ maxDisplay: v })}
             />
           </Form.Item>
-          <Form.Item name="checkbox" label="Contributions to display" 
+          <Form.Item name="checkbox" label="Contributions to display"
             valuePropName="checked"
             style={{ flex: 'none', marginBottom: 10 }}>
-            <Checkbox.Group 
+            <Checkbox.Group
               options={['Positive', 'Negative']}
               defaultValue={['Positive', 'Negative']}
-              onChange={this.handleContributionsChange} 
+              onChange={this.handleContributionsChange}
             />
           </Form.Item>
-          <Form.Item name="select" label="Feature(s) to mask" 
+          <Form.Item name="select" label="Feature(s) to mask"
             style={{ flex: 'none', marginBottom: 10 }}>
             <Select
               mode="multiple"
@@ -451,7 +453,7 @@ class XAILimePage extends Component {
               onClick={this.handleLimeClick}
               disabled={isRunning || !this.state.modelId}
               >LIME Explain
-              {isRunning && 
+              {isRunning &&
                 <Spin size="large" style={{ marginBottom: '8px' }}>
                   <div className="content" />
                 </Spin>
@@ -532,7 +534,7 @@ class XAILimePage extends Component {
         </Row>
       </LayoutPage>
     );
-  } 
+  }
 }
 
 const mapPropsToStates = ({ app, models, model, xaiStatus }) => ({
@@ -545,7 +547,7 @@ const mapDispatchToProps = (dispatch) => ({
   fetchModel: (modelId) => dispatch(requestModel(modelId)),
   fetchXAIStatus: () => dispatch(requestXAIStatus()),
   fetchRunLime: (modelId, sampleId, numberFeatures) =>
-    dispatch(requestRunLime({ modelId, sampleId, numberFeatures })), 
+    dispatch(requestRunLime({ modelId, sampleId, numberFeatures })),
 });
 
 export default connect(mapPropsToStates, mapDispatchToProps)(XAILimePage);

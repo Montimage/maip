@@ -639,7 +639,8 @@ const XAI_SLIDER_MARKS = {
 };
 
 const AD_OUTPUT_LABELS = ["Normal traffic", "Malware traffic"];
-const AD_OUTPUT_LABELS_XAI = ["Normal", "Malware"];
+const AD_OUTPUT_LABELS_SHORT = ["Normal", "Malware"];
+const AD_OUTPUT_LABELS_XAI = ["", "Malware"];
 const AC_OUTPUT_LABELS = ["Web", "Interactive", "Video"];
 
 // XAILimePage.js
@@ -749,5 +750,5 @@ module.exports = {
   ATTACKS_SLIDER_MARKS, AD_CLASS_MAPPING, AC_CLASS_MAPPING,
   COLUMNS_ALL_FEATURES,
   LABEL_COLORS_AC, LABEL_COLORS_AD, LABEL_MAPPING_AC, LABEL_MAPPING_AD,
-  AD_OUTPUT_LABELS_XAI
+  AD_OUTPUT_LABELS_XAI, AD_OUTPUT_LABELS_SHORT
 };
