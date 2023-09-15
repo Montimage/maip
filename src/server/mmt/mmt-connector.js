@@ -5,7 +5,7 @@ const {
   REPORT_PATH,
   LOG_PATH,
   MMT_PROBE_CONFIG_PATH,
-  allowExtensions,
+  PCAP_EXTENSIONS,
 } = require('../constants');
 const {
   createFolder,
@@ -106,7 +106,7 @@ const startMMTForDataset = (datasetName, callback) => {
   const outputDir = `${REPORT_PATH}report-${sessionId}/`;
   const logFilePath = `${LOG_PATH}${sessionId}.log`;
 
-  return listFiles(datasetPath, allowExtensions, (pcapFiles) => {
+  return listFiles(datasetPath, PCAP_EXTENSIONS, (pcapFiles) => {
     if (pcapFiles.length === 0) {
       return callback({
         error: `The dataset ${datasetName} is empty`,

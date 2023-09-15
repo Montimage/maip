@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const {
   PCAP_PATH,
-  allowExtensions,
+  PCAP_EXTENSIONS,
   DEFAULT_LOG_PATH,
 } = require('../constants');
 const {
@@ -39,7 +39,7 @@ router.post('/:datasetName', (req, res) => {
       for (let index2 = 0; index2 < files.length; index2++) {
         const uploadFile = files[index2];
         console.log(uploadFile);
-        if (allowExtensions.includes(path.extname(uploadFile.name))) {
+        if (PCAP_EXTENSIONS.includes(path.extname(uploadFile.name))) {
           pcapFiles.push(uploadFile);
         }
       }
@@ -76,7 +76,7 @@ router.get('/dataset/:datasetName', (req, res) => {
     datasetName,
   } = req.params;
   const datasetPath = `${PCAP_PATH}${datasetName}`;
-  listFiles(datasetPath, allowExtensions, (files) => {
+  listFiles(datasetPath, PCAP_EXTENSIONS, (files) => {
     res.send({
       pcaps: files,
     });
@@ -104,7 +104,7 @@ router.delete('/dataset/:datasetName', (req, res, next) => {
 });
 
 router.get('/', (req, res) => {
-  listFiles(PCAP_PATH, allowExtensions, (files) => {
+  listFiles(PCAP_PATH, PCAP_EXTENSIONS, (files) => {
     res.send({
       pcaps: files,
     });
@@ -126,7 +126,7 @@ router.post('/', (req, res) => {
 
   const file = req.files.pcapFile;
   const extensionName = path.extname(file.name);
-  if (!allowExtensions.includes(extensionName)) {
+  if (!PCAP_EXTENSIONS.includes(extensionName)) {
     return res.status(422).send('Invalid format');
   }
 

@@ -23,344 +23,344 @@ const MENU_OPTIONS = [
 ];
 
 const AD_FEATURES_DESCRIPTIONS = {
-  'ip.session_id': { 
-    description: 'Session ID', 
-    type: 'numerical', 
+  'ip.session_id': {
+    description: 'Session ID',
+    type: 'numerical',
   }, // don't use
-  'meta.direction': { 
-    description: 'Flow direction (0 means uplink and 1 means downlink)', 
-    type: 'categorical', 
+  'meta.direction': {
+    description: 'Flow direction (0 means uplink and 1 means downlink)',
+    type: 'categorical',
   }, // don't use
-  'ip.pkts_per_flow': { 
+  'ip.pkts_per_flow': {
     description: 'Total number of IP packets',
-    type: 'numerical', 
+    type: 'numerical',
   },
-  'duration': { 
+  'duration': {
     description: 'Flow duration',
-    type: 'numerical', 
+    type: 'numerical',
   },
-  'ip.header_len': { 
+  'ip.header_len': {
     description: 'Total length of IP header',
-    type: 'numerical', 
+    type: 'numerical',
   },
-  'ip.payload_len': { 
-    description: 'Total length of IP payload', 
-    type: 'numerical', 
+  'ip.payload_len': {
+    description: 'Total length of IP payload',
+    type: 'numerical',
   },
-  'ip.avg_bytes_tot_len': { 
-    description: 'Average of total length of IP header', 
-    type: 'numerical', 
+  'ip.avg_bytes_tot_len': {
+    description: 'Average of total length of IP header',
+    type: 'numerical',
   },
-  'time_between_pkts_sum': { 
+  'time_between_pkts_sum': {
     description: 'Sum time between two flows',
-    type: 'numerical', 
+    type: 'numerical',
   },
-  'time_between_pkts_avg': { 
-    description: 'Average time between two flows', 
-    type: 'numerical', 
+  'time_between_pkts_avg': {
+    description: 'Average time between two flows',
+    type: 'numerical',
   },
-  'time_between_pkts_max': { 
+  'time_between_pkts_max': {
     description: 'Maximum time between two flows',
-    type: 'numerical', 
+    type: 'numerical',
   },
-  'time_between_pkts_min': { 
-    description: 'Minimum time between two flows', 
-    type: 'numerical', 
+  'time_between_pkts_min': {
+    description: 'Minimum time between two flows',
+    type: 'numerical',
   },
-  'time_between_pkts_std': { 
-    description: 'Standard deviation time two flows', 
-    type: 'numerical', 
+  'time_between_pkts_std': {
+    description: 'Standard deviation time two flows',
+    type: 'numerical',
   },
-  '(-0.001, 50.0]': { 
+  '(-0.001, 50.0]': {
     description: 'Sequence of Packet Time (STP) of bin 1',
-    type: 'categorical', 
+    type: 'categorical',
   },
-  '(50.0, 100.0]': { 
-    description: 'Sequence of Packet Time (STP) of bin 2', 
-    type: 'categorical', 
+  '(50.0, 100.0]': {
+    description: 'Sequence of Packet Time (STP) of bin 2',
+    type: 'categorical',
   },
-  '(100.0, 150.0]': { 
-    description: 'Sequence of Packet Time (STP) of bin 3', 
-    type: 'categorical', 
+  '(100.0, 150.0]': {
+    description: 'Sequence of Packet Time (STP) of bin 3',
+    type: 'categorical',
   },
-  '(150.0, 200.0]': { 
-    description: 'Sequence of Packet Time (STP) of bin 4', 
-    type: 'categorical', 
+  '(150.0, 200.0]': {
+    description: 'Sequence of Packet Time (STP) of bin 4',
+    type: 'categorical',
   },
-  '(200.0, 250.0]': { 
+  '(200.0, 250.0]': {
     description: 'Sequence of Packet Time (STP) of bin 5',
-    type: 'categorical', 
+    type: 'categorical',
   },
-  '(250.0, 300.0]': { 
-    description: 'Sequence of Packet Time (STP) of bin 6', 
-    type: 'categorical', 
+  '(250.0, 300.0]': {
+    description: 'Sequence of Packet Time (STP) of bin 6',
+    type: 'categorical',
   },
-  '(300.0, 350.0]': { 
-    description: 'Sequence of Packet Time (STP) of bin 7', 
-    type: 'categorical', 
+  '(300.0, 350.0]': {
+    description: 'Sequence of Packet Time (STP) of bin 7',
+    type: 'categorical',
   },
-  '(350.0, 400.0]': { 
-    description: 'Sequence of Packet Time (STP) of bin 8', 
-    type: 'categorical', 
+  '(350.0, 400.0]': {
+    description: 'Sequence of Packet Time (STP) of bin 8',
+    type: 'categorical',
   },
-  '(400.0, 450.0]': { 
+  '(400.0, 450.0]': {
     description: 'Sequence of Packet Time (STP) of bin 9',
-    type: 'categorical', 
+    type: 'categorical',
   },
-  '(450.0, 500.0]': { 
-    description: 'Sequence of Packet Time (STP) of bin 10', 
-    type: 'categorical', 
+  '(450.0, 500.0]': {
+    description: 'Sequence of Packet Time (STP) of bin 10',
+    type: 'categorical',
   },
-  '(500.0, 550.0]': { 
-    description: 'Sequence of Packet Time (STP) of bin 11', 
-    type: 'categorical', 
+  '(500.0, 550.0]': {
+    description: 'Sequence of Packet Time (STP) of bin 11',
+    type: 'categorical',
   },
-  'tcp_pkts_per_flow': { 
-    description: 'Total number of TCP packets', 
-    type: 'numerical', 
+  'tcp_pkts_per_flow': {
+    description: 'Total number of TCP packets',
+    type: 'numerical',
   },
-  'pkts_rate': { 
+  'pkts_rate': {
     description: 'Number of packets per second',
-    type: 'numerical', 
+    type: 'numerical',
   },
-  'tcp_bytes_per_flow': { 
-    description: 'Total number of bytes of TCP packets', 
-    type: 'numerical', 
+  'tcp_bytes_per_flow': {
+    description: 'Total number of bytes of TCP packets',
+    type: 'numerical',
   },
-  'byte_rate': { 
-    description: 'Number of bytes per second', 
-    type: 'numerical', 
+  'byte_rate': {
+    description: 'Number of bytes per second',
+    type: 'numerical',
   },
-  'tcp.tcp_session_payload_up_len': { 
+  'tcp.tcp_session_payload_up_len': {
     description: 'Upload ratio',
-    type: 'categorical', 
+    type: 'categorical',
   },
-  'tcp.tcp_session_payload_down_len': { 
-    description: 'Download ratio', 
-    type: 'categorical', 
+  'tcp.tcp_session_payload_down_len': {
+    description: 'Download ratio',
+    type: 'categorical',
   },
-  '(-0.001, 150.0]': { 
+  '(-0.001, 150.0]': {
     description: 'Sequence of Packet Length (STL) of bin 1',
-    type: 'categorical', 
+    type: 'categorical',
   },
-  '(150.0, 300.0]': { 
-    description: 'Sequence of Packet Length (STL) of bin 2', 
-    type: 'categorical', 
+  '(150.0, 300.0]': {
+    description: 'Sequence of Packet Length (STL) of bin 2',
+    type: 'categorical',
   },
-  '(300.0, 450.0]': { 
-    description: 'Sequence of Packet Length (STL) of bin 3', 
-    type: 'categorical', 
+  '(300.0, 450.0]': {
+    description: 'Sequence of Packet Length (STL) of bin 3',
+    type: 'categorical',
   },
-  '(450.0, 600.0]': { 
-    description: 'Sequence of Packet Length (STL) of bin 4', 
-    type: 'categorical', 
+  '(450.0, 600.0]': {
+    description: 'Sequence of Packet Length (STL) of bin 4',
+    type: 'categorical',
   },
-  '(600.0, 750.0]': { 
+  '(600.0, 750.0]': {
     description: 'Sequence of Packet Length (STL) of bin 5',
-    type: 'categorical', 
+    type: 'categorical',
   },
-  '(750.0, 900.0]': { 
-    description: 'Sequence of Packet Length (STL) of bin 6', 
-    type: 'categorical', 
+  '(750.0, 900.0]': {
+    description: 'Sequence of Packet Length (STL) of bin 6',
+    type: 'categorical',
   },
-  '(900.0, 1050.0]': { 
-    description: 'Sequence of Packet Length (STL) of bin 7', 
-    type: 'categorical', 
+  '(900.0, 1050.0]': {
+    description: 'Sequence of Packet Length (STL) of bin 7',
+    type: 'categorical',
   },
-  '(1050.0, 1200.0]': { 
+  '(1050.0, 1200.0]': {
     description: 'Sequence of Packet Length (STL) of bin 8',
-    type: 'categorical', 
+    type: 'categorical',
   },
-  '(1200.0, 1350.0]': { 
-    description: 'Sequence of Packet Length (STL) of bin 9', 
-    type: 'categorical', 
+  '(1200.0, 1350.0]': {
+    description: 'Sequence of Packet Length (STL) of bin 9',
+    type: 'categorical',
   },
-  '(1350.0, 1500.0]': { 
-    description: 'Sequence of Packet Length (STL) of bin 10', 
-    type: 'categorical', 
+  '(1350.0, 1500.0]': {
+    description: 'Sequence of Packet Length (STL) of bin 10',
+    type: 'categorical',
   },
-  '(1500.0, 10000.0]': { 
-    description: 'Sequence of Packet Length (STL) of bin 11', 
-    type: 'categorical', 
+  '(1500.0, 10000.0]': {
+    description: 'Sequence of Packet Length (STL) of bin 11',
+    type: 'categorical',
   },
-  'tcp.fin': { 
+  'tcp.fin': {
     description: 'Number of packets with flag FIN',
-    type: 'categorical', 
+    type: 'categorical',
   },
-  'tcp.syn': { 
-    description: 'Number of packets with flag SYN', 
-    type: 'categorical', 
+  'tcp.syn': {
+    description: 'Number of packets with flag SYN',
+    type: 'categorical',
   },
-  'tcp.rst': { 
-    description: 'Number of packets with flag RST', 
-    type: 'categorical', 
+  'tcp.rst': {
+    description: 'Number of packets with flag RST',
+    type: 'categorical',
   },
-  'tcp.psh': { 
-    description: 'Number of packets with flag PSH', 
-    type: 'categorical', 
+  'tcp.psh': {
+    description: 'Number of packets with flag PSH',
+    type: 'categorical',
   },
-  'tcp.ack': { 
-    description: 'Number of packets with flag ACK', 
-    type: 'categorical', 
+  'tcp.ack': {
+    description: 'Number of packets with flag ACK',
+    type: 'categorical',
   },
-  'tcp.urg': { 
-    description: 'Number of packets with flag URG', 
-    type: 'categorical', 
+  'tcp.urg': {
+    description: 'Number of packets with flag URG',
+    type: 'categorical',
   },
-  'sport_g': { 
-    description: 'Sum of ephemeral source ports (port number > 1024)', 
-    type: 'categorical', 
+  'sport_g': {
+    description: 'Sum of ephemeral source ports (port number > 1024)',
+    type: 'categorical',
   },
-  'sport_le': { 
-    description: 'Sum of non-ephemeral source ports (port number <= 1024)', 
-    type: 'categorical', 
+  'sport_le': {
+    description: 'Sum of non-ephemeral source ports (port number <= 1024)',
+    type: 'categorical',
   },
-  'dport_g': { 
+  'dport_g': {
     description: 'Sum of ephemeral destination ports (port number > 1024)',
-    type: 'categorical', 
+    type: 'categorical',
   },
-  'dport_le': { 
-    description: 'Sum of non-ephemeral destination ports (port number with <= 1024)', 
-    type: 'categorical', 
+  'dport_le': {
+    description: 'Sum of non-ephemeral destination ports (port number with <= 1024)',
+    type: 'categorical',
   },
-  'mean_tcp_pkts': { 
-    description: 'Average number of TCP packets', 
-    type: 'numerical', 
+  'mean_tcp_pkts': {
+    description: 'Average number of TCP packets',
+    type: 'numerical',
   },
-  'std_tcp_pkts': { 
-    description: 'Standard deviation of number of TCP packets', 
-    type: 'numerical', 
+  'std_tcp_pkts': {
+    description: 'Standard deviation of number of TCP packets',
+    type: 'numerical',
   },
-  'min_tcp_pkts': { 
+  'min_tcp_pkts': {
     description: 'Minimum number of TCP packets',
-    type: 'numerical', 
+    type: 'numerical',
   },
-  'max_tcp_pkts': { 
-    description: 'Maximum number of TCP packets', 
-    type: 'numerical', 
+  'max_tcp_pkts': {
+    description: 'Maximum number of TCP packets',
+    type: 'numerical',
   },
-  'entropy_tcp_pkts': { 
-    description: 'Entropy of number of TCP packets', 
-    type: 'numerical', 
+  'entropy_tcp_pkts': {
+    description: 'Entropy of number of TCP packets',
+    type: 'numerical',
   },
-  'mean_tcp_len': { 
-    description: 'Average length of TCP packets', 
-    type: 'numerical', 
+  'mean_tcp_len': {
+    description: 'Average length of TCP packets',
+    type: 'numerical',
   },
-  'std_tcp_len': { 
+  'std_tcp_len': {
     description: 'Standard deviation of length of TCP packets',
-    type: 'numerical', 
+    type: 'numerical',
   },
-  'min_tcp_len': { 
-    description: 'Minimum length of TCP packets', 
-    type: 'numerical', 
+  'min_tcp_len': {
+    description: 'Minimum length of TCP packets',
+    type: 'numerical',
   },
-  'max_tcp_len': { 
-    description: 'Maximum length of TCP packets', 
-    type: 'numerical', 
+  'max_tcp_len': {
+    description: 'Maximum length of TCP packets',
+    type: 'numerical',
   },
-  'entropy_tcp_len': { 
-    description: 'Entropy of length of TCP packets', 
-    type: 'numerical', 
+  'entropy_tcp_len': {
+    description: 'Entropy of length of TCP packets',
+    type: 'numerical',
   },
-  'ssl.tls_version': { 
+  'ssl.tls_version': {
     description: 'TLS version',
-    type: 'categorical', 
+    type: 'categorical',
   },
-  'malware': { 
+  'malware': {
     description: 'Label (0 means Normal traffic and 1 means Malware traffic)', // output's label
-    type: 'categorical', 
+    type: 'categorical',
   },
 };
 
 const AC_FEATURES_DESCRIPTIONS = {
-  'session_time': { 
-    description: 'Total time wherein a user interacts with apps', 
-    type: 'numerical', 
-  },
-  '%tcp_protocol': { 
-    description: 'Percentage of TCP traffic', 
-    type: 'numerical', 
-  },
-  '%udp_protocol': { 
-    description: 'Percentage of UDP traffic', 
-    type: 'numerical', 
-  },
-  'ul_data_volume': { 
-    description: 'Uplink data volume in bytes', 
-    type: 'numerical', 
-  },
-  'max_ul_volume': { 
-    description: 'Maximum of uplink data volume', 
-    type: 'numerical', 
-  },
-  'min_ul_volume': { 
-    description: 'Minimum of uplink data volume', 
-    type: 'numerical', 
-  },
-  'avg_ul_volume': { 
-    description: 'Average of uplink data volume', 
-    type: 'numerical', 
-  },
-  'std_ul_volume': { 
-    description: 'Standard deviation of uplink data volume', 
-    type: 'numerical', 
-  },
-  '%ul_volume': { 
-    description: 'Percentage of uplink data volume', 
-    type: 'numerical', 
-  },
-  'dl_data_volume': { 
-    description: 'Downlink data volume in bytes', 
-    type: 'numerical', 
-  },
-  'max_dl_volume': { 
-    description: 'Maximum of downlink data volume', 
-    type: 'numerical', 
-  },
-  'min_dl_volume': { 
-    description: 'Minimum of downlink data volume', 
+  'session_time': {
+    description: 'Total time wherein a user interacts with apps',
     type: 'numerical',
   },
-  'avg_dl_volume': { 
-    description: 'Average of downlink data volume', 
-    type: 'numerical', 
+  '%tcp_protocol': {
+    description: 'Percentage of TCP traffic',
+    type: 'numerical',
   },
-  'std_dl_volume': { 
-    description: 'Standard deviation of downlink data volume', 
-    type: 'numerical', 
+  '%udp_protocol': {
+    description: 'Percentage of UDP traffic',
+    type: 'numerical',
   },
-  '%dl_volume': { 
-    description: 'Percentage of downlink data volume', 
-    type: 'numerical', 
+  'ul_data_volume': {
+    description: 'Uplink data volume in bytes',
+    type: 'numerical',
   },
-  'nb_uplink_packet': { 
-    description: 'Number of uplink packets', 
-    type: 'numerical', 
+  'max_ul_volume': {
+    description: 'Maximum of uplink data volume',
+    type: 'numerical',
   },
-  'nb_downlink_packet': { 
-    description: 'Number of downlink packets', 
-    type: 'numerical', 
+  'min_ul_volume': {
+    description: 'Minimum of uplink data volume',
+    type: 'numerical',
   },
-  'ul_packet': { 
-    description: 'Percentage of uplink packets', 
-    type: 'numerical', 
+  'avg_ul_volume': {
+    description: 'Average of uplink data volume',
+    type: 'numerical',
   },
-  'dl_packet': { 
-    description: 'Percentage of downlink packets', 
-    type: 'numerical', 
+  'std_ul_volume': {
+    description: 'Standard deviation of uplink data volume',
+    type: 'numerical',
   },
-  'kB/s': { 
-    description: 'Number of kB per second', 
-    type: 'numerical', 
+  '%ul_volume': {
+    description: 'Percentage of uplink data volume',
+    type: 'numerical',
   },
-  'nb_packet/s': { 
-    description: 'Number of packets per second', 
-    type: 'numerical', 
+  'dl_data_volume': {
+    description: 'Downlink data volume in bytes',
+    type: 'numerical',
   },
-  'output': { 
+  'max_dl_volume': {
+    description: 'Maximum of downlink data volume',
+    type: 'numerical',
+  },
+  'min_dl_volume': {
+    description: 'Minimum of downlink data volume',
+    type: 'numerical',
+  },
+  'avg_dl_volume': {
+    description: 'Average of downlink data volume',
+    type: 'numerical',
+  },
+  'std_dl_volume': {
+    description: 'Standard deviation of downlink data volume',
+    type: 'numerical',
+  },
+  '%dl_volume': {
+    description: 'Percentage of downlink data volume',
+    type: 'numerical',
+  },
+  'nb_uplink_packet': {
+    description: 'Number of uplink packets',
+    type: 'numerical',
+  },
+  'nb_downlink_packet': {
+    description: 'Number of downlink packets',
+    type: 'numerical',
+  },
+  'ul_packet': {
+    description: 'Percentage of uplink packets',
+    type: 'numerical',
+  },
+  'dl_packet': {
+    description: 'Percentage of downlink packets',
+    type: 'numerical',
+  },
+  'kB/s': {
+    description: 'Number of kB per second',
+    type: 'numerical',
+  },
+  'nb_packet/s': {
+    description: 'Number of packets per second',
+    type: 'numerical',
+  },
+  'output': {
     description: 'Label (1 means Web, 2 means Interaction and 3 means Video)', // output's label
-    type: 'categorical', 
+    type: 'categorical',
   },
 };
 
@@ -446,7 +446,7 @@ const AC_COLUMNS_PERF_STATS = [
   },
 ];
 
-const ATTACK_OPTIONS = 
+const ATTACK_OPTIONS =
 [
   {
     value: 'gan',
@@ -475,7 +475,7 @@ const FEATURES_OPTIONS = [
 ];
 
 // DatasetPage.js
-const BIN_CHOICES = ['square-root', 'sturges', 'scott', 'freedman-diaconis']; 
+const BIN_CHOICES = ['square-root', 'sturges', 'scott', 'freedman-diaconis'];
 
 const DATASET_TABLE_STATS = [
   {
@@ -520,7 +520,7 @@ const DATASET_TABLE_STATS = [
   },
 ];
 
-const DATASET_MENU_ITEMS = [ 
+const DATASET_MENU_ITEMS = [
   {
     label: 'Data',
     key: 'data',
@@ -596,7 +596,7 @@ const ACC_METRICS_MENU_ITEMS = [
 ];
 
 // ResilienceMetricsPage.js
-const RES_METRICS_MENU_ITEMS = [ 
+const RES_METRICS_MENU_ITEMS = [
   {
     label: 'Impact Metric',
     key: 'impact',
@@ -606,7 +606,7 @@ const RES_METRICS_MENU_ITEMS = [
 
 const HEADER_ACCURACY_STATS = ["precision", "recall", "f1score", "support"];
 
-// XAIShapPage.js 
+// XAIShapPage.js
 const SHAP_URL = `${SERVER_URL}/api/xai/shap`;
 
 const COLUMNS_TOP_FEATURES = [
@@ -639,10 +639,10 @@ const XAI_SLIDER_MARKS = {
 };
 
 const AD_OUTPUT_LABELS = ["Normal traffic", "Malware traffic"];
-const AD_OUTPUT_LABELS_XAI = ["Malware"];
+const AD_OUTPUT_LABELS_XAI = ["Normal", "Malware"];
 const AC_OUTPUT_LABELS = ["Web", "Interactive", "Video"];
 
-// XAILimePage.js 
+// XAILimePage.js
 const LIME_URL = `${SERVER_URL}/api/xai/lime`;
 
 const COLUMNS_TABLE_PROBS = [
@@ -723,7 +723,7 @@ const LABEL_MAPPING_AC = {
 
 const LABEL_COLORS_AD = {
   "Normal traffic": '#0693e3',
-  "Malware traffic": '#EB144C', 
+  "Malware traffic": '#EB144C',
 }
 
 const LABEL_MAPPING_AD = {
@@ -738,7 +738,7 @@ module.exports = {
   SERVER_HOST, SERVER_PORT, SERVER_URL,
   AD_FEATURES_DESCRIPTIONS, FEATURES_OPTIONS,
   AC_FEATURES_DESCRIPTIONS,
-  CRITERIA_LIST, TABLE_BUILD_CONFIGS, AC_COLUMNS_PERF_STATS, AD_COLUMNS_PERF_STATS,  
+  CRITERIA_LIST, TABLE_BUILD_CONFIGS, AC_COLUMNS_PERF_STATS, AD_COLUMNS_PERF_STATS,
   ATTACK_OPTIONS, ATTACK_DATASETS_MAPPING,
   BIN_CHOICES, DATASET_TABLE_STATS, DATASET_MENU_ITEMS,
   COLUMNS_CURRENTNESS_METRICS, ACC_METRICS_MENU_ITEMS,
