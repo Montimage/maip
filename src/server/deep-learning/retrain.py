@@ -55,18 +55,11 @@ def retrain_model(train_data_path, test_data_path, result_path, nb_epoch_cnn, nb
     generation_iters = 1
     time_taken = timeit.timeit(lambda: cnn.predict(x_test), number=generation_iters)
     print("Time taken for predictions in seconds: ", time_taken)
-    statsfile = os.path.join(result_path, 'time_stats.txt') 
+    statsfile = os.path.join(result_path, 'time_stats.txt')
     print(statsfile)
     with open(statsfile, "w") as f:
       f.write(str(time_taken))
       f.close()
-
-# train_data_path = './data/BotTrain_31704_samples.csv'
-# test_data_path = './data/BotTest_13586_samples.csv'
-# nb_epoch_sae = 5  # 30#10000
-# batch_size_sae = 16  # 128
-# nb_epoch_cnn = 2
-# batch_size_cnn = 32
 
 if __name__ == "__main__":
     import sys

@@ -918,7 +918,7 @@
         "tags" : [ "models" ],
         "summary" : "Retraining a specific model using different training datasets",
         "description" : "Retraining a specific model using different training datasets",
-        "operationId" : "requestRetrainAModel",
+        "operationId" : "requestRetrainADModel",
         "parameters" : [ {
           "name" : "modelId",
           "in" : "path",
@@ -933,7 +933,7 @@
           "content" : {
             "application/json" : {
               "schema" : {
-                "$ref" : "#/components/schemas/retrainConfig1"
+                "$ref" : "#/components/schemas/retrainADConfig"
               }
             }
           },
@@ -2500,6 +2500,27 @@
           }
         }
       },
+      "retrainADConfig": {
+        "type": "object",
+        "properties": {
+          "retrainADConfig" : {
+            "type" : "object",
+            "properties" : {
+              "trainingDataset": {
+                "type": "string",
+                "example": "Train_samples.csv"
+              },
+              "testingDataset": {
+                "type": "string",
+                "example": "Test_samples.csv"
+              },
+              "training_parameters": {
+                "$ref": "#/components/schemas/trainingParameters"
+              }
+            }
+          }
+        }
+      },
       "retrainConfig" : {
         "type" : "object",
         "properties" : {
@@ -2522,14 +2543,6 @@
                 "$ref" : "#/components/schemas/trainingParameters"
               }
             }
-          }
-        }
-      },
-      "retrainConfig1" : {
-        "type" : "object",
-        "properties" : {
-          "retrainConfig1" : {
-            "$ref" : "#/components/schemas/datasetsConfig"
           }
         }
       },

@@ -45,11 +45,11 @@ router.post('/', (req, res) => {
 router.post('/:modelId', (req, res) => {
   const { modelId } = req.params;
   const {
-    retrainConfig1,
+    retrainADConfig,
   } = req.body;
   console.log(modelId);
-  console.log(retrainConfig1);
-  if (!retrainConfig1) {
+  console.log(retrainADConfig);
+  if (!retrainADConfig) {
     res.status(401).send({
       error: 'Missing retrain configuration. Please read the docs',
     });
@@ -60,7 +60,7 @@ router.post('/:modelId', (req, res) => {
         error: 'A building process is running. Only one process is allowed at the time. Please try again later',
       });
     } else {
-      const retrainConfig = { "modelId": modelId, ...retrainConfig1 };
+      const retrainConfig = { "modelId": modelId, ...retrainADConfig };
       console.log(retrainConfig);
       retrainModel(retrainConfig, (retrainStatus) => {
         if (retrainStatus.error) {

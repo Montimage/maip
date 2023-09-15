@@ -187,7 +187,7 @@ const retrainModel = (retrainConfig, callback) => {
     batch_size_cnn,
     batch_size_sae,
   } = training_parameters;
-  
+
   if (retrainStatus.isRunning) {
     console.warn('An building process is on going. Only one process can be run at a time');
     return callback({
@@ -214,7 +214,7 @@ const retrainModel = (retrainConfig, callback) => {
 
   let trainingDatasetFile = null;
   let testingDatasetFile = null;
-  
+
   if (isFileExistSync(path.join(attacksPath, trainingDataset))) {
     trainingDatasetFile = path.join(attacksPath, trainingDataset);
   } else if (isFileExistSync(path.join(trainingPath, trainingDataset))) {
@@ -268,7 +268,7 @@ const retrainModel = (retrainConfig, callback) => {
     retrainStatus.isRunning = false;
     console.log('Finish retraining the model');
   });
-  
+
   return callback({
     retrainConfig: retrainConfigPath,
     retrainId,
