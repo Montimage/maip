@@ -20,7 +20,7 @@ from tools import dataScale_cnn
 import constants
 
 deepLearningPath = str(Path.cwd()) + '/src/server/deep-learning/'
-features = constants.AD_FEATURES[3:-1]
+features = constants.AD_FEATURES[3:]
 
 def running_lime(sampleId, numberFeatures):
 
@@ -39,13 +39,13 @@ def running_lime(sampleId, numberFeatures):
   print(features)
 
   predict_fn_nn= lambda x: model.predict(x.reshape(1,-1))
-  explainer = LimeTabularExplainer(x_train, 
-                                  training_labels=y_train, 
-                                  mode="classification", 
-                                  feature_selection= 'auto', 
+  explainer = LimeTabularExplainer(x_train,
+                                  training_labels=y_train,
+                                  mode="classification",
+                                  feature_selection= 'auto',
                                   class_names=classes,
-                                  feature_names=features, 
-                                  kernel_width=None, 
+                                  feature_names=features,
+                                  kernel_width=None,
                                   discretize_continuous=True)
   explanation = explainer.explain_instance(x_test[idx], model.predict, labels=(0,), num_features=int(numberFeatures))
   full_explanation = explainer.explain_instance(x_test[idx], model.predict, labels=(0,), num_features=len(features))
@@ -54,7 +54,7 @@ def running_lime(sampleId, numberFeatures):
   full_lime_values = full_explanation.as_map()
   print(full_lime_values[0])
 
-  columns = ['feature','value'] 
+  columns = ['feature','value']
 
   exps_to_display = [dict(zip(columns, row)) for row in full_lime_exps]
   print(json.dumps(exps_to_display, indent=2, ensure_ascii=False))
@@ -63,7 +63,7 @@ def running_lime(sampleId, numberFeatures):
 
   explanations_path = deepLearningPath + '/xai/' + model_name
   if not os.path.exists(explanations_path):
-    os.makedirs(explanations_path) 
+    os.makedirs(explanations_path)
 
   # the current model only returns the probability for the positive class (Malware)
   # thus, we only obtain LIME explanations for this class
@@ -72,7 +72,7 @@ def running_lime(sampleId, numberFeatures):
   print(exps_file)
   with open(exps_file, "w") as outfile:
     json.dump(exps_to_display, outfile)
-  
+
   values_file = os.path.join(explanations_path, f'{label}_lime_values.json')
   print(values_file)
   with open(values_file, "w") as outfile:
@@ -98,7 +98,7 @@ if __name__ == "__main__":
     output_datasets_path = output_path + '/datasets/'
     train_data_path = os.path.join(output_datasets_path,'Train_samples.csv')
     test_data_path = os.path.join(output_datasets_path,'Test_samples.csv')
-    
+
     train_data = pd.read_csv(train_data_path, delimiter=",")
     train_data.drop(columns=['ip.session_id', 'meta.direction'], inplace=True)
     test_data = pd.read_csv(test_data_path, delimiter=",")
@@ -115,7 +115,7 @@ if __name__ == "__main__":
     time_taken =  timeit.timeit(lambda: running_lime(sampleId, numberFeatures), number=generation_iters)
     print("Time taken for LIME in seconds: ", time_taken)
     xai_path = deepLearningPath + '/xai/' + model_name
-    statsfile = os.path.join(xai_path, 'time_stats_lime.txt') 
+    statsfile = os.path.join(xai_path, 'time_stats_lime.txt')
     print(statsfile)
     with open(statsfile, "w") as f:
       f.write(str(time_taken))

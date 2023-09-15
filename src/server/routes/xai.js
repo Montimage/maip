@@ -15,8 +15,8 @@ const {
 const {
   XAI_PATH,
 } = require('../constants');
-const { 
-  AD_OUTPUT_LABELS, AC_OUTPUT_LABELS, AD_OUTPUT_LABELS_XAI,
+const {
+  AC_OUTPUT_LABELS, AD_OUTPUT_LABELS_XAI,
 } = require('../../client/src/constants');
 
 const isACModel = modelId => modelId && modelId.startsWith('ac-');
@@ -115,9 +115,10 @@ router.get('/shap/explanations/:modelId/:labelId', (req, res, next) => {
   // Check if labelId is within bounds of labelsList
   if (labelId < 0 || labelId >= labelsList.length) {
     console.error(`Invalid labelId ${labelId}. It should be between 0 and ${labelsList.length - 1}`);
+    res.status(400).send(`Invalid labelId ${labelId}. It should be between 0 and ${labelsList.length - 1}`);
     return { error: "Invalid labelId provided" };
   } else {
-    label = labelsList[labelId]; 
+    label = labelsList[labelId];
   }
 
   if (!label) {
@@ -149,9 +150,10 @@ router.get('/shap/explanations/:modelId/:labelId', (req, res, next) => {
   // Check if labelId is within bounds of labelsList
   if (labelId < 0 || labelId >= labelsList.length) {
     console.error(`Invalid labelId ${labelId}. It should be between 0 and ${labelsList.length - 1}`);
+    res.status(400).send(`Invalid labelId ${labelId}. It should be between 0 and ${labelsList.length - 1}`);
     return { error: "Invalid labelId provided" };
   } else {
-    label = labelsList[labelId]; 
+    label = labelsList[labelId];
   }
 
   if (!label) {
@@ -159,7 +161,7 @@ router.get('/shap/explanations/:modelId/:labelId', (req, res, next) => {
   }
 
   const xaiFilePath = `${XAI_PATH}${modelId.replace('.h5', '')}`;
-  const limeExpsFile = `${xaiFilePath}/${label}_lime_explanations.json`; 
+  const limeExpsFile = `${xaiFilePath}/${label}_lime_explanations.json`;
   console.log(limeExpsFile);
 
   isFileExist(limeExpsFile, (ret) => {
@@ -183,9 +185,10 @@ router.get('/shap/explanations/:modelId/:labelId', (req, res, next) => {
   // Check if labelId is within bounds of labelsList
   if (labelId < 0 || labelId >= labelsList.length) {
     console.error(`Invalid labelId ${labelId}. It should be between 0 and ${labelsList.length - 1}`);
+    res.status(400).send(`Invalid labelId ${labelId}. It should be between 0 and ${labelsList.length - 1}`);
     return { error: "Invalid labelId provided" };
   } else {
-    label = labelsList[labelId]; 
+    label = labelsList[labelId];
   }
 
   if (!label) {
@@ -193,7 +196,7 @@ router.get('/shap/explanations/:modelId/:labelId', (req, res, next) => {
   }
 
   const xaiFilePath = `${XAI_PATH}${modelId.replace('.h5', '')}`;
-  const limeValuesFile = `${xaiFilePath}/${label}_lime_values.json`; 
+  const limeValuesFile = `${xaiFilePath}/${label}_lime_values.json`;
   console.log(limeValuesFile);
 
   isFileExist(limeValuesFile, (ret) => {

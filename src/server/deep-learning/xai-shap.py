@@ -20,13 +20,13 @@ from sklearn.inspection import permutation_importance
 import constants
 
 deepLearningPath = str(Path.cwd()) + '/src/server/deep-learning/'
-features = constants.AD_FEATURES[3:-1]
+features = constants.AD_FEATURES[3:]
 
 def running_shap(numberBackgroundSamples, numberExplainedSamples, maxDisplay):
 
   """
     Produce explanations of feature importance
-    
+
     :param numberBackgroundSamples: number of background samples used for explanations
     :param numberExplainedSamples: number of samples to be explained
     :param maxDisplay: maximum number of features in explanations
@@ -49,7 +49,7 @@ def running_shap(numberBackgroundSamples, numberExplainedSamples, maxDisplay):
     print(shap_values[0])
     shap_df = pd.DataFrame(shap_values[0], columns=features)
 
-  columns = ['feature','importance_value'] 
+  columns = ['feature','importance_value']
   vals= np.abs(shap_values).mean(0)
   sorted_feature_vals = sorted(list(zip(features,sum(vals))), key = lambda x: x[1], reverse=True)
   features_to_display = [dict(zip(columns, row)) for row in sorted_feature_vals]
@@ -57,7 +57,7 @@ def running_shap(numberBackgroundSamples, numberExplainedSamples, maxDisplay):
 
   explanations_path = deepLearningPath + '/xai/' + model_name
   if not os.path.exists(explanations_path):
-    os.makedirs(explanations_path) 
+    os.makedirs(explanations_path)
 
   # the current model only returns the probability for the positive class (Malware)
   # thus, we only obtain LIME explanations for this class
@@ -79,7 +79,7 @@ if __name__ == "__main__":
     numberBackgroundSamples = sys.argv[2]
     numberExplainedSamples = sys.argv[3]
     maxDisplay = sys.argv[4]
-    
+
     model_name = os.path.splitext(modelId)[0]
     model = load_model(deepLearningPath + '/models/' + modelId)
     print("Model has been loaded ...")
@@ -88,7 +88,7 @@ if __name__ == "__main__":
     output_datasets_path = output_path + '/datasets/'
     train_data_path = os.path.join(output_datasets_path,'Train_samples.csv')
     test_data_path = os.path.join(output_datasets_path,'Test_samples.csv')
-    
+
     train_data = pd.read_csv(train_data_path, delimiter=",")
     train_data.drop(columns=['ip.session_id', 'meta.direction'], inplace=True)
     test_data = pd.read_csv(test_data_path, delimiter=",")
@@ -98,7 +98,7 @@ if __name__ == "__main__":
     x_train_norm, x_train_mal, x_test_norm, x_test_mal, x_train, y_train, x_test, y_test, scaler = dataScale_cnn(output_path,
       train_data, test_data, datetime=d)
 
-    # Compute time for producing explanations and save it to file 
+    # Compute time for producing explanations and save it to file
     generation_iters = 1
     time_taken = timeit.timeit(lambda: running_shap(numberBackgroundSamples, numberExplainedSamples, maxDisplay), number=generation_iters)
     print("Time taken for SHAP in seconds: ", time_taken)
