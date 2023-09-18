@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
-import { Tooltip, message, notification, Upload, Spin, Button, Form, Select, Checkbox } from 'antd';
+import { Table, Tooltip, message, notification, Upload, Spin, Button, Form, Select } from 'antd';
 import { UploadOutlined } from "@ant-design/icons";
 import { connect } from "react-redux";
 import {
@@ -10,12 +10,17 @@ import {
 import {
   requestApp,
   requestBuildConfigModel,
-  requestMMTStatus,
   requestAllReports,
   requestAllModels,
   requestPredict,
   requestPredictStatus,
 } from "../actions";
+import {
+  requestMMTStatus,
+  requestMMTOffline,
+  requestCsvReports,
+  requestPredictStats,
+} from "../api";
 import {
   getFilteredModelsOptions,
   getLastPath,
@@ -32,8 +37,10 @@ class PredictOfflinePage extends Component {
       testingDataset: null,
       isRunning: props.predictStatus.isRunning,
       isMMTRunning: props.mmtStatus.isRunning,
+      predictStats: null,
     };
     this.handlePredictOffline = this.handlePredictOffline.bind(this);
+    this.handleTablePredictStats = this.handleTablePredictStats.bind(this);
   }
 
   componentDidMount() {
@@ -43,44 +50,7 @@ class PredictOfflinePage extends Component {
     }
     this.props.fetchApp();
     this.props.fetchAllReports();
-    this.props.fetchAllModels(); 
-  }
-
-  async requestMMTStatus() {
-    const url = `${SERVER_URL}/api/mmt`;
-    const response = await fetch(url);
-    const data = await response.json();
-    if (data.error) {
-      throw data.error;
-    }
-    console.log(data.mmtStatus);
-    return data.mmtStatus;
-  };
-
-  async requestCsvReports(reportId) {
-    const url = `${SERVER_URL}/api/reports/${reportId}`;
-    const response = await fetch(url);
-    const data = await response.json();
-    if (data.error) {
-      throw data.error;
-    }
-    console.log(data.csvFiles);
-    return data.csvFiles;  
-  }
-
-  async requestMMTOffline(file) {
-    console.log(`Uploaded file ${file.name}`);
-    const url = `${SERVER_URL}/api/mmt/offline`;
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ fileName: file.name }),
-    });
-    const data = await response.json();
-    console.log(`MMT offline analysis of pcap file ${file.name}`);
-    return data;
+    this.props.fetchAllModels();
   }
 
   beforeUploadPcap = (file) => {
@@ -95,7 +65,7 @@ class PredictOfflinePage extends Component {
   handleUploadPcap = async (info, typePcap) => {
     const { status, response, name } = info.file;
     console.log({ status, response, name });
-  
+
     if (status === 'uploading') {
       console.log(`Uploading ${name}`);
     } else if (status === 'done') {
@@ -132,7 +102,7 @@ class PredictOfflinePage extends Component {
 
   async handlePredictOffline() {
     const delay = ms => new Promise(res => setTimeout(res, ms));
-    const { 
+    const {
       modelId,
       testingPcapFile,
       testingDataset,
@@ -144,14 +114,12 @@ class PredictOfflinePage extends Component {
     let updatedTestingDataset = null;
 
     if (!isRunning) {
-      
-        
       if (testingDataset) {
         updatedTestingDataset = testingDataset;
       } else if (testingPcapFile) {
-        await this.requestMMTOffline(testingPcapFile);
-        const pcapFileStatus = await this.requestMMTStatus();
-        
+        await requestMMTOffline(testingPcapFile);
+        const pcapFileStatus = await requestMMTStatus();
+
         await delay(10000); // TODO: improve?
         updatedTestingDataset = `report-${pcapFileStatus.sessionId}`;
         this.setState({ testingDataset: updatedTestingDataset });
@@ -159,8 +127,8 @@ class PredictOfflinePage extends Component {
 
       if (updatedTestingDataset) {
         try {
-          csvReports = await this.requestCsvReports(updatedTestingDataset);
-          if (csvReports.length == 0) {
+          csvReports = await requestCsvReports(updatedTestingDataset);
+          if (csvReports.length === 0) {
             console.error(`Testing dataset is not valid!`);
           } else {
             // Suppose that there is at most one csv report in each report folder
@@ -169,7 +137,7 @@ class PredictOfflinePage extends Component {
             console.log(updatedTestingDataset);
             this.props.fetchPredict(fetchModelId, updatedTestingDataset, csvReports[0]);
             console.log("update isRunning state!");
-            this.setState({ isRunning: true });        
+            this.setState({ isRunning: true });
             this.intervalId = setInterval(() => { // start interval when button is clicked
               this.props.fetchPredictStatus();
             }, 2000);
@@ -178,10 +146,48 @@ class PredictOfflinePage extends Component {
           console.error('Error in requestCsvReports:', error);
         }
       }
-    }  
+    }
   }
 
-  componentDidUpdate(prevProps, prevState) {
+  handleTablePredictStats(csvData) {
+    const values = csvData.trim().split('\n')[1].split(',');
+    const normalFlows = parseInt(values[0], 10);
+    const maliciousFlows = parseInt(values[1], 10);
+    const dataSource = [
+      {
+        key: 'data',
+        "Normal flows": values[0],
+        "Malicious flows": values[1],
+        "Total flows": values[2]
+      }
+    ];
+    const columns = [
+      {
+        title: 'Normal flows',
+        dataIndex: 'Normal flows',
+        align: 'center',
+      },
+      {
+        title: 'Malicious flows',
+        dataIndex: 'Malicious flows',
+        align: 'center',
+      },
+      {
+        title: 'Total flows',
+        dataIndex: 'Total flows',
+        align: 'center',
+      }
+    ];
+    const tableConfig = {
+      dataSource: dataSource,
+      columns: columns,
+      pagination: false
+    };
+
+    return { tableConfig, normalFlows, maliciousFlows };
+  }
+
+  async componentDidUpdate(prevProps, prevState) {
     if (this.props.app !== prevProps.app && !isModelIdPresent) {
       this.setState({ modelId: null });
     }
@@ -190,7 +196,6 @@ class PredictOfflinePage extends Component {
       console.log('isRunning has been changed');
       this.setState({ isRunning: this.props.predictStatus.isRunning });
       if (!this.props.predictStatus.isRunning) {
-        //console.log('isRunning changed from True to False');  
         clearInterval(this.intervalId);
         notification.success({
           message: 'Success',
@@ -198,16 +203,21 @@ class PredictOfflinePage extends Component {
           placement: 'topRight',
         });
         this.setState({
-          testingDataset: null, 
+          testingDataset: null,
           testingPcapFile: null,
         });
+        const lastPredictId = this.props.predictStatus.lastPredictedId;
+        console.log(lastPredictId);
+        const predictStats = await requestPredictStats(lastPredictId);
+        console.log(predictStats);
+        this.setState({ predictStats });
       }
     }
   }
 
   render() {
-    const { app, models, mmtStatus, reports } = this.props;
-    const { modelId, testingDataset, testingPcapFile, isRunning } = this.state;
+    const { app, models, reports } = this.props;
+    const { modelId, isRunning, predictStats } = this.state;
 
     // TODO: need to filter mmt reports ?
     const reportsOptions = reports ? reports.map(report => ({
@@ -217,14 +227,26 @@ class PredictOfflinePage extends Component {
 
     const modelsOptions = getFilteredModelsOptions(app, models);
 
-    const subTitle = isModelIdPresent ? 
-      `Offline prediction using the model ${modelId}` : 
+    const subTitle = isModelIdPresent ?
+      `Offline prediction using the model ${modelId}` :
       'Offline prediction using models';
+
+    let tableConfig, maliciousFlows, predictOutput;
+    if (predictStats) {
+      const predictResult = this.handleTablePredictStats(predictStats);
+      tableConfig = predictResult.tableConfig;
+      maliciousFlows = predictResult.maliciousFlows;
+      if (maliciousFlows > 0) {
+        predictOutput = "The model predicts that the given network traffic contains Malicious activity";
+      } else {
+        predictOutput = "The model predicts that the given network traffic is Normal";
+      }
+    }
 
     return (
       <LayoutPage pageTitle="Predict Offline" pageSubTitle={subTitle}>
         <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 700 }}>
-          <Form.Item name="model" label="Model" 
+          <Form.Item name="model" label="Model"
             style={{ flex: 'none', marginBottom: 10 }}
             rules={[
               {
@@ -232,7 +254,7 @@ class PredictOfflinePage extends Component {
                 message: 'Please select a model!',
               },
             ]}
-          > 
+          >
             <Tooltip title="Select a model to perform offline predictions.">
               <Select placeholder="Select a model ..."
                 style={{ width: '100%' }}
@@ -240,10 +262,9 @@ class PredictOfflinePage extends Component {
                 value={this.state.modelId}
                 disabled={isModelIdPresent}
                 onChange={(value) => {
-                  this.setState({ modelId: value });
+                  this.setState({ modelId: value, predictStats: null });
                   console.log(`Select model ${value}`);
                 }}
-                //optionLabelProp="label"
                 options={modelsOptions}
               />
             </Tooltip>
@@ -263,7 +284,7 @@ class PredictOfflinePage extends Component {
                 placeholder="Select testing MMT reports ..."
                 showSearch allowClear
                 onChange={(value) => {
-                  this.setState({ testingDataset: value });
+                  this.setState({ testingDataset: value, predictStats: null });
                 }}
                 options={reportsOptions}
                 disabled={this.state.testingPcapFile !== null}
@@ -272,13 +293,13 @@ class PredictOfflinePage extends Component {
             <Upload
               beforeUpload={this.beforeUploadPcap}
               action={`${SERVER_URL}/api/pcaps`}
-              onChange={(info) => this.handleUploadPcap(info)} 
+              onChange={(info) => this.handleUploadPcap(info)}
               customRequest={this.processUploadPcap}
               onRemove={() => {
-                this.setState({ testingPcapFile: null });
+                this.setState({ testingPcapFile: null, predictStats: null });
               }}
             >
-              <Button icon={<UploadOutlined />} style={{ marginTop: '5px' }} 
+              <Button icon={<UploadOutlined />} style={{ marginTop: '5px' }}
                 disabled={!!this.state.testingDataset}>
                 Upload pcaps only
               </Button>
@@ -290,7 +311,7 @@ class PredictOfflinePage extends Component {
               disabled={ isRunning || !this.state.modelId || !(this.state.testingDataset || this.state.testingPcapFile) }
             >
               Predict
-              {isRunning && 
+              {isRunning &&
                 <Spin size="large" style={{ marginBottom: '8px' }}>
                   <div className="content" />
                 </Spin>
@@ -298,6 +319,18 @@ class PredictOfflinePage extends Component {
             </Button>
           </div>
         </Form>
+
+        { predictStats && modelId &&
+          (
+            <>
+              <div style={{ marginTop: '50px' }}>
+                <h3>{predictOutput}</h3>
+                <Table {...tableConfig} style={{ width: '500px' }} />
+            </div>
+            </>
+          )
+        }
+
       </LayoutPage>
     );
   }
@@ -314,7 +347,7 @@ const mapDispatchToProps = (dispatch) => ({
   fetchMMTStatus: () => dispatch(requestMMTStatus()),
   fetchAllReports: () => dispatch(requestAllReports()),
   fetchPredict: (modelId, reportId, reportFileName) =>
-    dispatch(requestPredict({modelId, reportId, reportFileName})), 
+    dispatch(requestPredict({modelId, reportId, reportFileName})),
   fetchPredictStatus: () => dispatch(requestPredictStatus()),
 });
 

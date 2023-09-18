@@ -11,6 +11,8 @@ src/server/deep-learning/__pycache__/
 src/server/mmt/outputs/*
 src/client/build/
 src/server/deep-learning/attacks/*
-src/server/deep-learning/models/*.h5
+src/server/deep-learning/models/*
 src/server/deep-learning/trainings/*
+src/server/deep-learning/xai/*
+src/server/deep-learning/predictions/*
 src/server/mmt/pcaps/*

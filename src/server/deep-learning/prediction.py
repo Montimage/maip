@@ -44,7 +44,7 @@ def predict(csv_path, model_path, result_path):
     print("Number of normals: " + str(len(normalDF.index)))
     normalDF.to_csv(f"{result_path}/normals.csv", index=False, header=constants.AD_FEATURES_OUTPUT)
 
-    statsArray =np.array([[len(dataFrame.index),len(attackDF.index),len(normalDF.index)]])
+    statsArray =np.array([[len(normalDF.index), len(attackDF.index), len(dataFrame.index)]])
     pd.DataFrame(statsArray).to_csv(f"{result_path}/stats.csv", index=False)
 
 if __name__ == "__main__":

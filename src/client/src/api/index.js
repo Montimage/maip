@@ -119,6 +119,17 @@ export const requestAllReports = async () => {
   return data.reports;
 };
 
+export const requestCsvReports = async (reportId) => {
+  const url = `${SERVER_URL}/api/reports/${reportId}`;
+  const response = await fetch(url);
+  const data = await response.json();
+  if (data.error) {
+    throw data.error;
+  }
+  console.log(data.csvFiles);
+  return data.csvFiles;
+};
+
 export const requestAllModels = async () => {
   const url = `${SERVER_URL}/api/models`;
   const response = await fetch(url);
@@ -236,7 +247,7 @@ export const requestDownloadModel = async (modelId) => {
 export const requestViewModelDatasets = async (modelId, datasetType) => {
   const url = `${SERVER_URL}/api/models/${modelId}/datasets/${datasetType}/view`;
   const response = await fetch(url);
-  const data = await response.text();  
+  const data = await response.text();
   if (data.error) {
     throw data.error;
   }
@@ -469,7 +480,7 @@ export const requestAttacksStatus = async () => {
 export const requestViewPoisonedDatasets = async (modelId, selectedAttack) => {
   const url = `${SERVER_URL}/api/attacks/poisoning/${selectedAttack}/${modelId}/view`;
   const response = await fetch(url);
-  const data = await response.text();  
+  const data = await response.text();
   if (data.error) {
     throw data.error;
   }
@@ -568,4 +579,15 @@ export const requestPredictionsModel = async (modelId) => {
     throw data.error;
   }
   return data.predictions;
+};
+
+export const requestPredictStats = async (predictionId) => {
+  const url = `${SERVER_URL}/api/predictions/${predictionId}`;
+  const response = await fetch(url);
+  const data = await response.json();
+  if (data.error) {
+    throw data.error;
+  }
+  console.log(data.prediction);
+  return data.prediction;
 };

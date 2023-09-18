@@ -9,3 +9,19 @@
 .content>div {
     width: 100%;
 }
+
+.ant-message-notice-content {
+    font-size: 20px;
+}
+
+.ant-message {
+    top: 100px;
+}
+
+.same-value {
+    background-color: green;
+}
+
+.different-value {
+    background-color: red;
+}
