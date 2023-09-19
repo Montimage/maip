@@ -379,9 +379,9 @@ class XAILimePage extends Component {
                 disabled={isModelIdPresent}
                 onChange={(value) => {
                   if (value) {
-                    this.setState({ label: getLabelsListXAI(value)[0] });
+                    this.setState({ label: getLabelsListXAI(value)[1] });
                   } else {
-                    this.setState({ label: getLabelsListAppXAI(this.props.app)[0] });
+                    this.setState({ label: getLabelsListAppXAI(this.props.app)[1] });
                   }
                   this.setState({
                     modelId: value,
@@ -508,7 +508,7 @@ class XAILimePage extends Component {
           </Col>
           <Col className="gutter-row" span={12}>
             <div style={BOX_STYLE}>
-              <h2>&nbsp;&nbsp;&nbsp;Prediction - Sample ID {sampleId} ({sampleTrueLabel})</h2>
+              <h2>&nbsp;&nbsp;&nbsp;Prediction - Sample ID {sampleId} (ground truth: {sampleTrueLabel})</h2>
               <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                 {pieConfig && (
                   <>
