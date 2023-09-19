@@ -583,11 +583,11 @@ const ACC_METRICS_MENU_ITEMS = [
     key: 'classification_plot',
     link: "#classification_plot",
   },
-  {
-    label: 'Precision Plot',
-    key: 'precision_plot',
-    link: "#precision_plot",
-  },
+  // {
+  //   label: 'Precision Plot',
+  //   key: 'precision_plot',
+  //   link: "#precision_plot",
+  // },
   {
     label: 'Currentness Metric',
     key: 'currentness',

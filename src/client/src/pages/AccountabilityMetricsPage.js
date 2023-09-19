@@ -31,6 +31,8 @@ import {
   requestPredictionsModel,
 } from "../api";
 
+// TODO: recheck cutOff, get errors when update Cutoff percentile of samples for AD models
+
 let isModelIdPresent = getLastPath() !== "accountability";
 
 class AccountabilityMetricsPage extends Component {
@@ -59,10 +61,10 @@ class AccountabilityMetricsPage extends Component {
   }
 
   async componentDidUpdate(prevProps, prevState) {
-    const { modelId } = this.state;  
+    const { modelId } = this.state;
     // reset states once app is changed
     if (this.props.app !== prevProps.app && !isModelIdPresent) {
-      this.setState({ 
+      this.setState({
         modelId: null,
         stats: [],
         predictions: [],
@@ -82,7 +84,7 @@ class AccountabilityMetricsPage extends Component {
         console.log(buildConfig);
       } else {
         // reset states once modelId is cleared
-        this.setState({ 
+        this.setState({
           modelId: null,
           stats: [],
           predictions: [],
@@ -111,11 +113,11 @@ class AccountabilityMetricsPage extends Component {
   updateConfusionMatrix() {
     const { predictions, cutoffProb } = this.state;
     const cm = updateConfusionMatrix(this.props.app, predictions, cutoffProb);
-    const confusionMatrix = cm.confusionMatrix; 
+    const confusionMatrix = cm.confusionMatrix;
     const stats = cm.stats;
-    this.setState({ 
+    this.setState({
       predictions,
-      stats, 
+      stats,
       confusionMatrix,
       classificationData: cm.classificationData
     });
@@ -146,8 +148,8 @@ class AccountabilityMetricsPage extends Component {
   render() {
     const { app, models, metrics } = this.props;
 
-    const { 
-      modelId, 
+    const {
+      modelId,
       cutoffProb,
       cutoffPercentile,
       confusionMatrix,
@@ -158,7 +160,7 @@ class AccountabilityMetricsPage extends Component {
 
     const modelsOptions = getFilteredModelsOptions(app, models);
     const columnsPerfStats = getColumnsPerfStats(app);
-    const dataStats = getTablePerformanceStats(modelId, stats, confusionMatrix); 
+    const dataStats = getTablePerformanceStats(modelId, stats, confusionMatrix);
     const configCM = getConfigConfusionMatrix(modelId, confusionMatrix);
     const configClassification = getConfigClassification(classificationData);
     const configPrecision = getConfigPrecisionPlot(dataPrecision);
@@ -168,8 +170,8 @@ class AccountabilityMetricsPage extends Component {
       return { method: method, score: parseFloat(score).toFixed(2) };
     });
 
-    const subTitle = isModelIdPresent ? 
-      `Accountability metrics of the model ${modelId}` : 
+    const subTitle = isModelIdPresent ?
+      `Accountability metrics of the model ${modelId}` :
       'Accountability metrics of models';
 
     return (
@@ -184,7 +186,7 @@ class AccountabilityMetricsPage extends Component {
         <Row type="flex" justify="center">
           <Col>
             <Form name="control-hooks" style={{ maxWidth: 700 }}>
-              <Form.Item name="model" label="Model" 
+              <Form.Item name="model" label="Model"
                 style={{ flex: 'none', marginTop: 20, marginBottom: 10 }}
                 rules={[
                   {
@@ -192,7 +194,7 @@ class AccountabilityMetricsPage extends Component {
                     message: 'Please select a model!',
                   },
                 ]}
-              > 
+              >
                 <Tooltip title="Select a model to perform attacks.">
                   <Select
                     placeholder="Select a model ..."
@@ -212,7 +214,7 @@ class AccountabilityMetricsPage extends Component {
             </Form>
           </Col>
         </Row>
-        
+
         <div style={{ padding: '0 0', marginTop: '20px' }}>
           <div style={{ top: 1 }}>
             <Tooltip title={"Cutoff prediction probability is a fixed probability value above which the model will classify a sample as positive. For example, if the cutoff prediction probability is set to 0.5, the model will classify any sample with a predicted probability of belonging to the positive class greater than 0.5 as positive. Cutoff percentile is defined as the point on the predicted probability distribution above which the model will classify a sample as positive. For example, if the cutoff percentile is set to 90%, the model will classify any sample with a predicted probability of belonging to the positive class greater than the 90th percentile as positive."}>
@@ -297,7 +299,7 @@ class AccountabilityMetricsPage extends Component {
               <Column {...configClassification} style={{ margin: '20px', marginTop: '40px' }}/>
             </div>
           </Col>
-          <Col className="gutter-row" span={12} style={{ marginTop: "24px" }} id="precision_plot">
+          {/* <Col className="gutter-row" span={12} style={{ marginTop: "24px" }} id="precision_plot">
             <div style={{ ...BOX_STYLE, marginTop: '100px' }}>
               <h2>&nbsp;&nbsp;&nbsp;Precision Plot</h2>
               <div style={{ position: 'absolute', top: 110, right: 10 }}>
@@ -307,7 +309,7 @@ class AccountabilityMetricsPage extends Component {
               </div>
               {configPrecision && <Line {...configPrecision} style={{ margin: '20px', marginTop: '40px' }}/>}
             </div>
-          </Col>
+          </Col> */}
           <Col className="gutter-row" span={12} style={{ marginTop: "24px" }} id="currentness">
             <div style={{ ...BOX_STYLE, marginTop: '100px' }}>
               <h2>&nbsp;&nbsp;&nbsp;Currentness Metric</h2>
@@ -316,7 +318,7 @@ class AccountabilityMetricsPage extends Component {
                   <Button type="link" icon={<QuestionOutlined />} />
                 </Tooltip>
               </div>
-              <Table columns={COLUMNS_CURRENTNESS_METRICS} dataSource={dataCurrentnessMetric} 
+              <Table columns={COLUMNS_CURRENTNESS_METRICS} dataSource={dataCurrentnessMetric}
                 pagination={false} style={{ marginTop: '20px' }}/>
             </div>
           </Col>
