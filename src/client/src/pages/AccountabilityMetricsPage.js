@@ -25,11 +25,13 @@ import {
   computeCutoff,
   getDataPrecision,
   getConfigPrecisionPlot,
+  isACApp,
 } from "../utils";
 import {
   requestBuildConfigModel,
   requestPredictionsModel,
 } from "../api";
+import './styles.css';
 
 // TODO: recheck cutOff, get errors when update Cutoff percentile of samples for AD models
 
@@ -163,6 +165,7 @@ class AccountabilityMetricsPage extends Component {
     const dataStats = getTablePerformanceStats(modelId, stats, confusionMatrix);
     const configCM = getConfigConfusionMatrix(modelId, confusionMatrix);
     const configClassification = getConfigClassification(classificationData);
+    const cmStyle = isACApp(this.props.app) ? "cmAC" : "cmAD";
     const configPrecision = getConfigPrecisionPlot(dataPrecision);
 
     const dataCurrentnessMetric = metrics.map((item) => {
@@ -206,7 +209,6 @@ class AccountabilityMetricsPage extends Component {
                       this.setState({ modelId: value });
                       console.log(`Select model ${value}`);
                     }}
-                    //optionLabelProp="label"
                     options={modelsOptions}
                   />
                 </Tooltip>
@@ -282,7 +284,7 @@ class AccountabilityMetricsPage extends Component {
                 </Tooltip>
               </div>
               <div style={{ display: 'flex', justifyContent: 'center', width: '100%', flex: 1, flexWrap: 'wrap', marginTop: '20px' }}>
-                <div style={{ position: 'relative', height: '300px', width: '100%', maxWidth: '340px' }}>
+                <div className={cmStyle}>
                   <Heatmap {...configCM} />
                 </div>
               </div>

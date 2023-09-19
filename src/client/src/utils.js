@@ -187,14 +187,14 @@ export const getFilteredModels = (app, models = []) => {
   if (!Array.isArray(models)) {
     return [];
  }
-  return isACApp(app) ? 
-            models.filter(model => model.modelId.startsWith('ac-')) : 
+  return isACApp(app) ?
+            models.filter(model => model.modelId.startsWith('ac-')) :
             models.filter(model => !model.modelId.startsWith('ac-'));
 }
 
 export const getFilteredModelsOptions = (app, models = []) => {
-  const filteredModels = getFilteredModels(app, models); 
- 
+  const filteredModels = getFilteredModels(app, models);
+
   if (!filteredModels.length) {
     return [];
   }
@@ -221,22 +221,22 @@ export const getFilteredFeaturesModel = (modelId) => {
 
 // TODO: remove the first two keys and the last one
 export const getFilteredFeaturesOptions = (app) => {
-  const features =  isACApp(app) ? 
-            Object.keys(AC_FEATURES_DESCRIPTIONS).sort() : 
+  const features =  isACApp(app) ?
+            Object.keys(AC_FEATURES_DESCRIPTIONS).sort() :
             Object.keys(AD_FEATURES_DESCRIPTIONS).sort();
   return features.map((label, index) => ({
     value: label, label,
-  }));  
+  }));
 }
 
 export const getNumberFeatures = (app) => {
-  return isACApp(app) ? 
+  return isACApp(app) ?
             Object.keys(AC_FEATURES_DESCRIPTIONS).length - 1 : // 21
             Object.keys(AD_FEATURES_DESCRIPTIONS).length - 3; // 59
 }
 
 export const getNumberFeaturesModel = (modelId) => {
-  return isACModel(modelId) ? 
+  return isACModel(modelId) ?
             Object.keys(AC_FEATURES_DESCRIPTIONS).length - 1 : // 21
             Object.keys(AD_FEATURES_DESCRIPTIONS).length - 3; // 59
 }
@@ -305,7 +305,7 @@ export const getConfigScatterPlot = (modelId, csvData, xScatterFeature, yScatter
     // },
   };
 
-  return configScatter; 
+  return configScatter;
 }
 
 export const getLabelsList = (modelId) => {
@@ -340,14 +340,14 @@ export const calculateMetrics = (TP, FP, FN) => {
 
 export const transformConfigStrToTableData = (configStr) => {
   let config;
-  
+
   try {
     config = JSON.parse(configStr);
   } catch(e) {
     console.error('Failed to parse config as JSON:', e);
     return [];
   }
-  
+
   return Object.entries(config).map(([key, value]) => ({
       parameter: key,
       value: value.toString()
@@ -417,7 +417,7 @@ export const getConfigConfusionMatrix = (modelId, confusionMatrix) => {
       },
     },
     heatmapStyle: {
-      padding: 0,  
+      padding: 0,
       stroke: '#fff',
       lineWidth: 1,
     },
@@ -431,11 +431,17 @@ export const getTablePerformanceStats = (modelId, stats, confusionMatrix) => {
 
   // Determine the number of classes based on model type
   const classificationLabels = isACModel(modelId) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
+  console.log(classificationLabels);
+  console.log(classificationLabels.length);
   const numClasses = modelId && classificationLabels.length;
+  console.log(confusionMatrix);
   const accuracy = computeAccuracy(confusionMatrix);
+  console.log(accuracy);
 
   const statsStr = stats.map((row, i) => `${i},${row.join(',')}`).join('\n');
+  console.log(statsStr);
   const rowsStats = statsStr.split('\n').map(row => row.split(','));
+  console.log(rowsStats);
 
   // Loop over the rows in rowsStats excluding the accuracy row
   for (let rowIndex = 0; rowIndex < numClasses; rowIndex++) {
@@ -470,7 +476,7 @@ export const calculateImpactMetric = (app, confusionMatrix, attacksConfusionMatr
   if (confusionMatrix && attacksConfusionMatrix) {
     let errors = 0;
     let errorsAttack = 0;
-    
+
     if (app === 'ad') {
       errors = confusionMatrix[0][1] + confusionMatrix[1][0];
       errorsAttack = attacksConfusionMatrix[0][1] + attacksConfusionMatrix[1][0];
@@ -478,7 +484,7 @@ export const calculateImpactMetric = (app, confusionMatrix, attacksConfusionMatr
       errors = confusionMatrix[0][1] + confusionMatrix[0][2] +
                confusionMatrix[1][0] + confusionMatrix[1][2] +
                confusionMatrix[2][0] + confusionMatrix[2][1];
-      
+
       errorsAttack = attacksConfusionMatrix[0][1] + attacksConfusionMatrix[0][2] +
                      attacksConfusionMatrix[1][0] + attacksConfusionMatrix[1][2] +
                      attacksConfusionMatrix[2][0] + attacksConfusionMatrix[2][1];
@@ -500,27 +506,35 @@ export const isRunningApp = (app, retrainACStatus, retrainStatus) => {
 export const updateConfusionMatrix = (app, predictions, cutoffProb) => {
   // TODO: use highCutoff and lowCutoff
   // let highCutoff = cutoffProb;
-  // let lowCutoff = 0.33; 
-
-  const classificationLabels = isACApp(app) ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
-  const numClasses = classificationLabels.length; 
+  // let lowCutoff = 0.33;
+  const isAC = isACApp(app);
+  const classificationLabels = isAC ? AC_OUTPUT_LABELS : AD_OUTPUT_LABELS;
+  const numClasses = classificationLabels.length;
   let confusionMatrix = Array.from({ length: numClasses }, () => Array(numClasses).fill(0));
   let stats = [];
 
   predictions.forEach((d) => {
-    if (isNaN(d.prediction) || isNaN(d.trueLabel)) return; 
+    if (isNaN(d.prediction) || isNaN(d.trueLabel)) return;
     let predictedClass;
     if (isACApp(app)) {
       predictedClass = Math.round(d.prediction) - 1;
     } else {
       predictedClass = d.prediction >= cutoffProb ? 1 : 0;
     }
-    //confusionMatrix[d.trueLabel - 1][predictedClass]++;
-    if (confusionMatrix[d.trueLabel - 1] && 
-      (confusionMatrix[d.trueLabel - 1][predictedClass] !== undefined)) {
-      confusionMatrix[d.trueLabel - 1][predictedClass]++;
+    if (isAC) {
+      if (confusionMatrix[d.trueLabel - 1] &&
+        (confusionMatrix[d.trueLabel - 1][predictedClass] !== undefined)) {
+        confusionMatrix[d.trueLabel - 1][predictedClass]++;
+      } else {
+        console.warn(`Unexpected index encountered: ${d.trueLabel - 1}, ${predictedClass}`);
+      }
     } else {
-      console.warn(`Unexpected index encountered: ${d.trueLabel - 1}, ${predictedClass}`);
+      if (confusionMatrix[d.trueLabel] &&
+        (confusionMatrix[d.trueLabel][predictedClass] !== undefined)) {
+        confusionMatrix[d.trueLabel][predictedClass]++;
+      } else {
+        console.warn(`Unexpected index encountered: ${d.trueLabel}, ${predictedClass}`);
+      }
     }
   });
 
@@ -535,13 +549,13 @@ export const updateConfusionMatrix = (app, predictions, cutoffProb) => {
     return {
       "cutoffProb": "Below cutoff",
       "class": label,
-      "value": confusionMatrix[index][index] 
+      "value": confusionMatrix[index][index]
     }
   }).concat(classificationLabels.map((label, index) => {
     return {
       "cutoffProb": "Above cutoff",
       "class": label,
-      "value": confusionMatrix.reduce((acc, row) => acc + row[index], 0) - confusionMatrix[index][index] 
+      "value": confusionMatrix.reduce((acc, row) => acc + row[index], 0) - confusionMatrix[index][index]
     }
   }));
 
@@ -622,8 +636,8 @@ export const getDataPrecision = (predictions) => {
   }
 
   for (let i = 1; i <= 3; i++) {
-    const precision = (labelCounts[i] === 0) 
-                        ? 0 
+    const precision = (labelCounts[i] === 0)
+                        ? 0
                         : correctCounts[i] / labelCounts[i];
     precisionArray.push(precision);
   }
@@ -637,7 +651,7 @@ export const getDataPrecision = (predictions) => {
 }
 
 export const getConfigPrecisionPlot = (dataPrecision) => {
-  const configPrecision = dataPrecision ? 
+  const configPrecision = dataPrecision ?
     {
       data: dataPrecision,
       xField: 'label',
@@ -786,7 +800,7 @@ export const getTableDatasetsStats = (csvData, selectedFeature) => {
     min,
     max,
   } = computeFeatureStatistics(featureValuesFloat);
-  
+
   const dataStats = [
     {
       feature: selectedFeature,
@@ -810,7 +824,7 @@ export const getConfigHistogram = (csvData, selectedFeature, binWidthChoice) => 
   const data = histogramData.map((d) => ({ value: d.value }));
   const binWidth = selectBinWidth(histogramData, binWidthChoice);
 
-  // WIP: compute average values of histogram bins    
+  // WIP: compute average values of histogram bins
   const minValue = histogramData.reduce((min, d) => d.value < min ? d.value : min, Number.MAX_VALUE);
   const maxValue = histogramData.reduce((max, d) => d.value > max ? d.value : max, Number.MIN_VALUE);
   const numBins = Math.ceil((maxValue - minValue) / binWidth);
@@ -842,7 +856,7 @@ export const getConfigHistogram = (csvData, selectedFeature, binWidthChoice) => 
   bins.forEach((bin) => {
     const sum = bin.values.reduce((a, b) => a + b, 0);
     bin.average = sum / bin.values.length;
-    
+
   });
   const binAverages = bins.map((bin) => bin.average);
   console.log(binAverages);

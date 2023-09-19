@@ -14,15 +14,18 @@ import {
   getTablePerformanceStats,
   getConfigConfusionMatrix,
   getFilteredModels,
-  getColumnsPerfStats 
+  getColumnsPerfStats,
+  isACApp,
 } from "../utils";
 import {
   requestBuildConfigModel,
   requestPredictionsModel,
 } from "../api";
+import './styles.css';
+
 const {
   BOX_STYLE,
-  CRITERIA_LIST, TABLE_BUILD_CONFIGS, 
+  CRITERIA_LIST, TABLE_BUILD_CONFIGS,
 } = require('../constants');
 const { Option } = Select;
 
@@ -55,7 +58,7 @@ class ModelListPage extends Component {
     const { app } = this.props;
     if (prevProps.app !== app) {
       this.setState({
-        selectedModelLeft: null, 
+        selectedModelLeft: null,
         selectedModelRight: null,
         selectedCriteria: null,
       });
@@ -63,7 +66,7 @@ class ModelListPage extends Component {
   }
 
   async loadPredictions(modelId, isLeft) {
-    const { cutoffProb } = this.state;
+    const cutoffProb = 0.5; // default value
     const buildConfig = await requestBuildConfigModel(modelId);
     console.log(buildConfig);
 
@@ -86,7 +89,7 @@ class ModelListPage extends Component {
         })),
       ];
     } else {
-      dataBuildConfig = transformConfigStrToTableData(buildConfig); 
+      dataBuildConfig = transformConfigStrToTableData(buildConfig);
     }
     console.log(dataBuildConfig);
 
@@ -98,18 +101,18 @@ class ModelListPage extends Component {
     }));
 
     const cm = updateConfusionMatrix(this.props.app, predictions, cutoffProb);
-    const confusionMatrix = cm.confusionMatrix; 
+    const confusionMatrix = cm.confusionMatrix;
     const stats = cm.stats;
-    this.setState({ 
+    this.setState({
       predictions,
-      stats, 
+      stats,
       confusionMatrix,
       classificationData: cm.classificationData
     });
-    
-    const dataStats = getTablePerformanceStats(modelId, stats, confusionMatrix); 
+
+    const dataStats = getTablePerformanceStats(modelId, stats, confusionMatrix);
     const configCM = confusionMatrix && getConfigConfusionMatrix(modelId, confusionMatrix);
-    
+
     if (isLeft) {
       this.setState({
         selectedModelLeft: modelId,
@@ -124,15 +127,15 @@ class ModelListPage extends Component {
         dataStatsRight: dataStats,
         cmConfigRight: configCM,
       });
-    }    
+    }
   }
 
   render() {
-    const { 
+    const {
       app,
-      models, 
+      models,
     } = this.props;
-    const { 
+    const {
       selectedCriteria,
       selectedModelLeft,
       selectedModelRight,
@@ -149,10 +152,11 @@ class ModelListPage extends Component {
       console.error("No models")
       return null;
     }
-    
+
     const filteredModels = getFilteredModels(app, models);
     const columnsPerfStats = getColumnsPerfStats(app);
     const modelIds = filteredModels.map((model) => model.modelId);
+    const cmStyle = isACApp(this.props.app) ? "cmAC" : "cmAD";
 
     return (
       <LayoutPage pageTitle="Models Comparison" pageSubTitle="Comparing models based on performance metrics">
@@ -272,7 +276,7 @@ class ModelListPage extends Component {
               {selectedModelLeft && cmConfigLeft && (selectedCriteria === "Confusion Matrix") &&
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'center', width: '100%', flex: 1, flexWrap: 'wrap', marginTop: '40px', marginBottom: '10px' }}>
-                    <div style={{ position: 'relative', height: '300px', width: '100%', maxWidth: '340px' }}>
+                    <div className={cmStyle}>
                       <Heatmap {...cmConfigLeft}/>
                     </div>
                   </div>
@@ -283,7 +287,7 @@ class ModelListPage extends Component {
               {selectedModelRight && cmConfigRight && (selectedCriteria === "Confusion Matrix") &&
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'center', width: '100%', flex: 1, flexWrap: 'wrap', marginTop: '40px', marginBottom: '10px' }}>
-                    <div style={{ position: 'relative', height: '300px', width: '100%', maxWidth: '340px' }}>
+                    <div className={cmStyle}>
                       <Heatmap {...cmConfigRight}/>
                     </div>
                   </div>
