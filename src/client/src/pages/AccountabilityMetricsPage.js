@@ -142,7 +142,7 @@ class AccountabilityMetricsPage extends Component {
 
   handleCutoffPercentileChange(value) {
     const { predictions } = this.state;
-    const cutoffProb = computeCutoff(predictions);
+    const cutoffProb = computeCutoff(predictions, value);
     this.setState({ cutoffPercentile: value, cutoffProb: cutoffProb });
     this.handleCutoffProbChange(cutoffProb);
   }
