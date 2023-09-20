@@ -434,7 +434,7 @@ export const requestRetrainStatus = async () => {
 
 export const requestRetrainModel = async (modelId, trainingDataset, testingDataset, params) => {
   const url = `${SERVER_URL}/api/retrain/${modelId}`;
-  const retrainConfig1 = {
+  const retrainADConfig = {
     "trainingDataset": trainingDataset,
     "testingDataset": testingDataset,
     "training_parameters": params,
@@ -444,11 +444,11 @@ export const requestRetrainModel = async (modelId, trainingDataset, testingDatas
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ retrainConfig1 }),
+    body: JSON.stringify({ retrainADConfig }),
   });
-  //console.log(retrainConfig1);
+  console.log(retrainADConfig);
   const data = await response.json();
-  console.log(`Retrain a model on server with config ${retrainConfig1}`);
+  console.log(`Retrain a model on server with config ${retrainADConfig}`);
   return data;
 };
 

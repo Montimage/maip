@@ -25,3 +25,17 @@
 .different-value {
     background-color: red;
 }
+
+.cmAD {
+    position: relative;
+    height: 330px;
+    width: 100%;
+    max-width: 400px;
+}
+
+.cmAC {
+    position: relative;
+    height: 300px;
+    width: 100%;
+    max-width: 340px;
+}
