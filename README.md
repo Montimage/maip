@@ -16,4 +16,4 @@ Overall our framework is designed with a server written in ExpressJS, that emplo
 
 Under construction documentation is available here: https://strongcourages-organization.gitbook.io/maip-documentation/
 
-Video demo: https://drive.google.com/file/d/1Z1T8x1kYRMmW4O0OXPVhn9Por5ceAgDx/view?usp=sharing
+Video demo: https://drive.google.com/file/d/1R2_FHzx1cvv7DMvlbexSeBz_AcxsHrQi/view?usp=sharing
