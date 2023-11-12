@@ -1,0 +1,1 @@
+{"isRunning":true,"lastBuildAt":1699778713686,"lastBuildId":"a563790f-5e87-4b7b-978a-5043aaf40e7a","config":{"modelType":"LightGBM","dataset":"output_full.csv","featuresList":"Raw Features","trainingRatio":0.7}}

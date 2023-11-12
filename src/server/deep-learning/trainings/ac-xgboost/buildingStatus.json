@@ -1,0 +1,1 @@
+{"isRunning":true,"lastBuildAt":1699778673590,"lastBuildId":"8a8f97ac-dc59-48a9-b0b3-632dce648393","config":{"modelType":"XGBoost","dataset":"output_full.csv","featuresList":"Raw Features","trainingRatio":0.7}}
