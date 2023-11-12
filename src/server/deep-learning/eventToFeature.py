@@ -27,18 +27,18 @@ def calculateFeatures(ip_traffic, tcp_traffic, tls_traffic):
 
     bins_len = [0, 150, 300, 450, 600, 750, 900, 1050, 1200, 1350, 1500, 10000]
     bins_time = [0, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550]
-    print("traffic")
-    print(ip_traffic)
-    print(ip_traffic["meta.direction"])
+    #print("traffic")
+    #print(ip_traffic)
+    #print(ip_traffic["meta.direction"])
     ## saving unique ips based on ip_traffic
     ips = ip_traffic.groupby(["ip.session_id", "meta.direction"])[["ip.src", "ip.dst"]].apply(
                                                                                         lambda x: list(numpy.unique(x)))
     ips = ips.to_frame().reset_index()
     ips.columns = ["ip.session_id", "meta.direction", "ip"]
     ips["ip.session_id"] = ips["ip.session_id"].astype(int)
-    print("Features (IPS):")
-    print(ips)
-    print(ips["meta.direction"])
+    #print("Features (IPS):")
+    #print(ips)
+    #print(ips["meta.direction"])
     ips["meta.direction"] = ips["meta.direction"].astype(int)
     ip_traffic.drop(columns=["ip.src", "ip.dst"], inplace=True)
 
@@ -104,7 +104,7 @@ def calculateFeatures(ip_traffic, tcp_traffic, tls_traffic):
     df = ip_traffic[['delta']].copy()
     #####
 
-    print("Times between packets")
+    #print("Times between packets")
     time_between_pkts_sum = df.groupby(['ip.session_id', 'meta.direction'])['delta'].sum().reset_index().rename(
         columns={"delta": "time_between_pkts_sum"})
     time_between_pkts_avg = df.groupby(['ip.session_id', 'meta.direction'])['delta'].mean().reset_index().rename(
@@ -128,7 +128,7 @@ def calculateFeatures(ip_traffic, tcp_traffic, tls_traffic):
     time_between_pkts_min = time_between_pkts_min[0:0]
     time_between_pkts_std = time_between_pkts_std[0:0]
 
-    print("SPTime Sequence")
+    #print("SPTime Sequence")
     time = df.groupby(['ip.session_id', 'meta.direction'])['delta'].value_counts(bins=bins_time, sort=False).to_frame()
     df = df.iloc[0:0]
     time = time.rename(columns={'delta': 'county'}).reset_index()
@@ -142,7 +142,7 @@ def calculateFeatures(ip_traffic, tcp_traffic, tls_traffic):
     sptime = sptime.iloc[0:0]
 
     if not tcp_traffic.empty:
-        print("TCP features")
+        #print("TCP features")
 
         # TCP packets number per flow
         tcp_pkts_per_flow = tcp_traffic.groupby(["ip.session_id", "meta.direction"])[
@@ -176,7 +176,7 @@ def calculateFeatures(ip_traffic, tcp_traffic, tls_traffic):
         ## Sequence: Packet length and time sequences counted in bins, each bin stored as separate column
         # Packet length
 
-        print("SPL Sequence")
+        #print("SPL Sequence")
         # print("tcp_traffic - number of columns: " + str(len(tcp_traffic.columns)))
         # print("tcp_traffic - number of rows: " + str(len(tcp_traffic.index)))
         # tcp_traffic.to_csv('tcp_traffic.csv')
@@ -195,7 +195,7 @@ def calculateFeatures(ip_traffic, tcp_traffic, tls_traffic):
                             right_on=["ip.session_id", "meta.direction"])
         spl = spl.iloc[0:0]
 
-        print("Flags")
+        #print("Flags")
         # Flags: counts the number of turned on flags for each session and direction
         flag_list = ['tcp.fin', 'tcp.syn', 'tcp.rst', 'tcp.psh', 'tcp.ack', 'tcp.urg']
         tcp_flags_cnt_flow = tcp_traffic.groupby(['ip.session_id', 'meta.direction'])[flag_list].aggregate(
@@ -208,7 +208,7 @@ def calculateFeatures(ip_traffic, tcp_traffic, tls_traffic):
 
         ## Source and destination ports greater/less or equal to 1024 ( > ephemeral ports)
         # src ports
-        print("Ports")
+        #print("Ports")
         # tcp_traffic.groupby(['ip.session_id', 'meta.direction'])[['tcp.src_port']].apply(lambda x: len(x[x>3])/len(x) )
         sports = tcp_traffic.groupby(['ip.session_id', 'meta.direction'])[['tcp.src_port']].apply(
             lambda x: (x > 1024).sum()).reset_index().rename(columns={'tcp.src_port': 'sport_g'}).merge(
@@ -231,7 +231,7 @@ def calculateFeatures(ip_traffic, tcp_traffic, tls_traffic):
                             right_on=["ip.session_id", "meta.direction"])
         dports = dports.iloc[0:0]
 
-        print("Min/max pkts")
+        #print("Min/max pkts")
 
         mean_tcp_pkts = tcp_traffic.groupby(['ip.session_id', 'meta.direction'])[
             'tcp.src_port'].mean().reset_index().rename(
@@ -255,7 +255,7 @@ def calculateFeatures(ip_traffic, tcp_traffic, tls_traffic):
         min_tcp_pkts = min_tcp_pkts[0:0]
         max_tcp_pkts = max_tcp_pkts[0:0]
 
-        print("Entropy pkts")
+        #print("Entropy pkts")
         entropy_tcp_pkts = tcp_traffic.groupby(['ip.session_id', 'meta.direction'])['tcp.src_port'].apply(
             lambda x: entropy(
                 x.value_counts(), base=2)).to_frame().reset_index().rename(columns={'tcp.src_port': 'entropy_tcp_pkts'})
@@ -265,7 +265,7 @@ def calculateFeatures(ip_traffic, tcp_traffic, tls_traffic):
         entropy_tcp_pkts = entropy_tcp_pkts.iloc[0:0]
 
         # Min, max, std and mean of packet length in each session+direction
-        print("Min/max pkts")
+        #print("Min/max pkts")
         mean_tcp_len = tcp_traffic.groupby(['ip.session_id', 'meta.direction'])[
             'tcp.payload_len'].mean().reset_index().rename(
             columns={"tcp.payload_len": "mean_tcp_len"})
@@ -291,11 +291,11 @@ def calculateFeatures(ip_traffic, tcp_traffic, tls_traffic):
         min_tcp_len = min_tcp_len[0:0]
         max_tcp_len = max_tcp_len[0:0]
 
-        print("Entropy len")
+        #print("Entropy len")
 
         #TODO: if MMT-probe will be able to provide any other attributes of TLS traffic they should be processed here
         if not tls_traffic.empty:
-            print("TLS features")
+            #print("TLS features")
             # TLS packets number per flow
             tls_pkts_per_flow = tls_traffic.groupby(["ip.session_id", "meta.direction"])[
                 ['ssl.tls_version']].count().reset_index().rename(
@@ -313,7 +313,7 @@ def calculateFeatures(ip_traffic, tcp_traffic, tls_traffic):
     # features.reset_index(inplace=True)
     # features.drop(columns=['delta'], inplace=True)
 
-    print("Created {} feature samples".format(features.shape[0]))
+    #print("Created {} feature samples".format(features.shape[0]))
 
     return ips, features
 
@@ -333,7 +333,7 @@ def readMMTReportFile(csv_path):
         types_dict = {'0': int, '1': int, '2': "string", '3': 'float', '4': 'string'}
         types_dict.update({col: str for col in col_names if col not in types_dict})
         df = pd.read_csv(csv_path, header=None, delimiter=",", names=col_names, dtype=types_dict)
-        print("Read {} lines".format(df.shape[0]))
+        #print("Read {} lines".format(df.shape[0]))
         return df
 
 

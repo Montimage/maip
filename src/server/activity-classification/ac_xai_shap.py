@@ -29,10 +29,10 @@ def preprocess_datasets(X_train, X_test, y_train_orig, y_test_orig):
 
   y_train = np.array(y_train_orig.map(prep_outputs).tolist())
   y_test = np.array(y_test_orig.map(prep_outputs).tolist())
-  
+
   # Preprocessing the data
   scaler = StandardScaler().fit(X_train)
-  
+
   # Apply transform to both the training/testing dataset.
   X_train = scaler.transform(X_train)
   X_test = scaler.transform(X_test)
@@ -63,7 +63,7 @@ def running_shap(model, numberBackgroundSamples, numberExplainedSamples, maxDisp
   classes = ['Web', 'Interactive', 'Video']
 
   background = shap.sample(X_train, int(numberBackgroundSamples))
-  
+
   #background = X_train[np.random.choice(X_train.shape[0], int(numberBackgroundSamples), replace=False)]
 
   if modelType == "LightGBM":
@@ -77,29 +77,29 @@ def running_shap(model, numberBackgroundSamples, numberExplainedSamples, maxDisp
     warnings.filterwarnings("ignore")
     X_test_sample = shap.sample(X_test, int(numberExplainedSamples))
     shap_values = explainer.shap_values(X_test_sample)
-    print(shap_values)
+    #print(shap_values)
 
   explanations_path = deepLearningPath + '/xai/' + modelId
   if not os.path.exists(explanations_path):
     os.makedirs(explanations_path)
 
   for i, label in enumerate(classes):
-    print(f"Shape for {label}: {np.array(shap_values[i]).shape}")
+    #print(f"Shape for {label}: {np.array(shap_values[i]).shape}")
     shap_df = pd.DataFrame(shap_values[i], columns=constants.AC_FEATURES)
-    
+
     columns = ['feature', 'importance_value']
     vals = np.abs(shap_df.values).mean(0)
     sorted_feature_vals = sorted(list(zip(constants.AC_FEATURES, vals)), key=lambda x: x[1], reverse=True)
     features_to_display = [dict(zip(columns, row)) for row in sorted_feature_vals]
 
     jsonfile = os.path.join(explanations_path, f'{label}_importance_values.json')
-    print(jsonfile)
+    #print(jsonfile)
     with open(jsonfile, "w") as outfile:
       json.dump(features_to_display, outfile)
-      print("SHAP values dumped to " + jsonfile)
+      #print("SHAP values dumped to " + jsonfile)
 
   for i, label in enumerate(classes):
-    print(f"Generating SHAP summary plot for {label}")
+    #print(f"Generating SHAP summary plot for {label}")
     shap.summary_plot(shap_values[i], X_test_sample)
     #plt.savefig(os.path.join(explanations_path, f'{label}_summary_plot.png'))
     #plt.clf()  # Clear the current figure after saving
@@ -113,7 +113,7 @@ def running_shap(model, numberBackgroundSamples, numberExplainedSamples, maxDisp
   with open(jsonfile, "w") as outfile:
     json.dump(shap_dict, outfile)
     #json.dump(shap_dict, file, indent=2, ensure_ascii=False)
-    print("SHAP summary values dumped to " + jsonfile)
+    #print("SHAP summary values dumped to " + jsonfile)
 
   # # Convert SHAP values into a dictionary with class labels as keys
   # shap_dict = {}
@@ -145,7 +145,7 @@ if __name__ == "__main__":
     output_path = deepLearningPath + '/trainings/' + modelId
     output_datasets_path = output_path + '/datasets/'
     train_data_path = os.path.join(output_datasets_path,'Train_samples.csv')
-    test_data_path = os.path.join(output_datasets_path,'Test_samples.csv')    
+    test_data_path = os.path.join(output_datasets_path,'Test_samples.csv')
     train_data = pd.read_csv(train_data_path, delimiter=";")
     test_data = pd.read_csv(test_data_path, delimiter=";")
 
@@ -154,11 +154,11 @@ if __name__ == "__main__":
     X_test = test_data.drop(columns=['output'])
     y_test_orig = test_data['output']
 
-    X_train, y_train, X_test, y_test = preprocess_datasets(X_train, X_test, y_train_orig, y_test_orig) 
+    X_train, y_train, X_test, y_test = preprocess_datasets(X_train, X_test, y_train_orig, y_test_orig)
 
     model = get_model(modelType, X_train, y_train, y_train_orig)
 
-    # Compute time for producing explanations and save it to file 
+    # Compute time for producing explanations and save it to file
     generation_iters = 1
     time_taken = timeit.timeit(lambda: running_shap(model, numberBackgroundSamples, numberExplainedSamples, maxDisplay, modelType), number=generation_iters)
     print("Time taken for SHAP in seconds: ", time_taken)

@@ -38,7 +38,7 @@ def running_shap(numberBackgroundSamples, numberExplainedSamples, maxDisplay):
   x_test_df = pd.DataFrame(x_test, columns=features)
   x_train_df = x_train_df.reset_index(drop=True)
 
-  print(features)
+  #print(features)
 
   background = x_train[np.random.choice(x_train.shape[0], int(numberBackgroundSamples), replace=False)]
   explainer = shap.KernelExplainer(model.predict, background)
@@ -46,14 +46,14 @@ def running_shap(numberBackgroundSamples, numberExplainedSamples, maxDisplay):
     warnings.filterwarnings("ignore")
     x_samples = shap.sample(x_test_df, int(numberExplainedSamples))
     shap_values = explainer.shap_values(x_samples)
-    print(shap_values[0])
+    #print(shap_values[0])
     shap_df = pd.DataFrame(shap_values[0], columns=features)
 
   columns = ['feature','importance_value']
   vals= np.abs(shap_values).mean(0)
   sorted_feature_vals = sorted(list(zip(features,sum(vals))), key = lambda x: x[1], reverse=True)
   features_to_display = [dict(zip(columns, row)) for row in sorted_feature_vals]
-  print(json.dumps(features_to_display, indent=2, ensure_ascii=False))
+  #print(json.dumps(features_to_display, indent=2, ensure_ascii=False))
 
   explanations_path = deepLearningPath + '/xai/' + model_name
   if not os.path.exists(explanations_path):
@@ -63,14 +63,14 @@ def running_shap(numberBackgroundSamples, numberExplainedSamples, maxDisplay):
   # thus, we only obtain LIME explanations for this class
   label = classes[1]
   jsonfile = os.path.join(explanations_path, f'{label}_importance_values.json')
-  print(jsonfile)
+  #print(jsonfile)
   with open(jsonfile, "w") as outfile:
     json.dump(features_to_display, outfile)
 
 
 if __name__ == "__main__":
   import sys
-  print(sys.argv)
+  #print(sys.argv)
   if len(sys.argv) != 5:
     print('Invalid inputs')
     print('python xai-shap.py modelId numberBackgroundSamples numberExplainedSamples maxDisplay')
