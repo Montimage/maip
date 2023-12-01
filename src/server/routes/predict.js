@@ -54,13 +54,14 @@ router.post('/', (req, res) => {
       error: 'Missing predicting configuration. Please read the docs',
     });
   } else {
-    const predictionStatus = getPredictingStatus();
+    /*const predictionStatus = getPredictingStatus();
     if (predictionStatus.isRunning) {
       res.status(401).send({
         error: 'A predicting process is running. Please try again later',
       });
     } else {
-      startPredicting(predictConfig, (predictingStatus) => {
+    */
+    startPredicting(predictConfig, (predictingStatus) => {
         if (predictingStatus.error) {
           res.status(401).send({
             error: predictingStatus.error,
@@ -70,7 +71,7 @@ router.post('/', (req, res) => {
           res.send(predictingStatus);
         }
       });
-    }
+    //}
   }
 });
 
@@ -84,7 +85,7 @@ router.get('/interfaces', (req, res) => {
   const networkInterfaces = listNetworkInterfaces();
   const ipv4Addresses = Object.keys(networkInterfaces).reduce((addresses, interfaceName) => {
     const ipv4Interface = networkInterfaces[interfaceName].find((interface) => interface.family === 'IPv4');
-    
+
     if (ipv4Interface) {
       addresses.push(`${interfaceName} - ${ipv4Interface.address}`);
     }
