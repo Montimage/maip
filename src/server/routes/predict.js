@@ -45,7 +45,7 @@ router.get('/stop', (req, res) => {
  *  }
  * }
  */
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const {
     predictConfig,
   } = req.body;
@@ -67,7 +67,7 @@ router.post('/', (req, res) => {
             error: predictingStatus.error,
           });
         } else {
-          console.log(predictingStatus);
+          //console.log(predictingStatus);
           res.send(predictingStatus);
         }
       });

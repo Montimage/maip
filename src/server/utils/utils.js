@@ -1,5 +1,6 @@
 const fs = require('fs');
 const os = require('os');
+const util = require('util');
 const {
   spawn,
 } = require('child_process');
@@ -34,6 +35,31 @@ const spawnCommand = (cmd, params, logFilePath, onCloseCallback = null) => {
       return onCloseCallback();
     }
     return null;
+  });
+};
+
+const spawnCommandAsync = (cmd, params, logFilePath) => {
+  return new Promise((resolve, reject) => {
+    //console.log('Command to be copied');
+    //console.log(`${cmd} ${params.join(' ')}`);
+    //const logFile = fs.createWriteStream(logFilePath, {
+    //  flags: 'a',
+    //});
+    const proc = spawn(cmd, params);
+    //proc.stdout.pipe(logFile);
+    //proc.stderr.pipe(logFile);
+    proc.on('close', (code) => {
+      //console.log('Process has completed: ', cmd, params);
+      //console.log('The log can be found at: ', logFilePath);
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`Command failed with code ${code}`));
+      }
+    });
+    proc.on('error', (err) => {
+      reject(new Error(`Command execution error: ${err.message}`));
+    });
   });
 };
 
@@ -117,6 +143,7 @@ function listNetworkInterfaces() {
 
 module.exports = {
   spawnCommand,
+  spawnCommandAsync,
   getInterfaceByName,
   getAllInterfacesName,
   interfaceExist,

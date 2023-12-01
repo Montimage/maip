@@ -158,7 +158,7 @@ router.post('/poisoning/random-swapping-labels', (req, res) => {
             error: attacksStatus.error,
           });
         } else {
-          console.log(attacksStatus);
+          //console.log(attacksStatus);
           res.send(attacksStatus);
         }
       });
@@ -197,11 +197,11 @@ router.post('/poisoning/target-label-flipping', (req, res) => {
 });
 
 router.get('/poisoning/:typeAttack/:modelId/download', (req, res, next) => {
-  const { 
-    typeAttack, 
-    modelId, 
+  const {
+    typeAttack,
+    modelId,
   } = req.params;
-  
+
   const poisonedDatasetPath = `${ATTACKS_PATH}${modelId.replace('.h5', '')}/${typeAttack}_poisoned_dataset.csv`;
 
   isFileExist(poisonedDatasetPath, (ret) => {
@@ -225,7 +225,7 @@ router.get('/poisoning/:typeAttack/:modelId/view', (req, res, next) => {
     if (!ret) {
       res.status(401).send(`The poisoned training dataset of model ${modelId} does not exist`);
     } else {
-      res.setHeader('Content-Type', 'text/csv'); 
+      res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', `attachment; filename="${poisonedDatasetToViewPath}"`);
       const fileStream = fs.createReadStream(poisonedDatasetToViewPath);
       fileStream.pipe(res);

@@ -9,9 +9,10 @@ const {
 } = require('../utils/file-utils');
 const {
   spawnCommand,
+  spawnCommandAsync,
 } = require('../utils/utils');
-  
-const fs = require('fs');  
+
+const fs = require('fs');
 const fsPromises = require('fs').promises;
 
 /**
@@ -21,13 +22,13 @@ const fsPromises = require('fs').promises;
   isRunning: false, // indicate if the XAI process is ongoing
   config: null, // the configuration of the last XAI process
   lastRunAt: null, // indicate the last time of the XAI process
-}; 
+};
 
 const getXAIStatus = () => xaiStatus;
 
 const getModelType = async (modelId) => {
   if (!modelId.startsWith("ac-")) return null;  // Return null for non "ac-" models
-  
+
   const buildConfigFilePath = `${TRAINING_PATH}${modelId}/build-config.json`;
   try {
     const buildConfig = await fsPromises.readFile(buildConfigFilePath, 'utf-8');
@@ -46,13 +47,13 @@ const runSHAP = async (shapConfig, callback) => {
     numberExplainedSamples,
     maxDisplay,
   } = shapConfig;
-  console.log(xaiStatus);
-  if (xaiStatus.isRunning) {
+  //console.log(xaiStatus);
+  /*if (xaiStatus.isRunning) {
     console.warn('An explaining process is on going. Only one process can be run at a time');
     return callback({
       error: 'An explaining process is on going',
     });
-  }
+  }*/
   const inputModelFilePath = MODEL_PATH + modelId;
   if (!fs.existsSync(inputModelFilePath)) {
     return callback({
@@ -69,19 +70,17 @@ const runSHAP = async (shapConfig, callback) => {
   const modelType = await getModelType(modelId);
   if (modelId.startsWith("ac-")) {
     scriptPath = `${AC_PATH}/ac_xai_shap.py`;
-    spawnCommand(PYTHON_CMD, [scriptPath, modelId, numberBackgroundSamples, numberExplainedSamples, maxDisplay, modelType], logFile, () => {
+    await spawnCommandAsync(PYTHON_CMD, [scriptPath, modelId, numberBackgroundSamples, numberExplainedSamples, maxDisplay, modelType], logFile, () => {
       xaiStatus.isRunning = false;
       console.log('Finish producing SHAP feature importance explanations');
     });
   } else {
-    spawnCommand(PYTHON_CMD, [scriptPath, modelId, numberBackgroundSamples, numberExplainedSamples, maxDisplay], logFile, () => {
+    await spawnCommandAsync(PYTHON_CMD, [scriptPath, modelId, numberBackgroundSamples, numberExplainedSamples, maxDisplay], logFile, () => {
       xaiStatus.isRunning = false;
       console.log('Finish producing LIME explanations for a particular instance');
     });
   }
 
-  
-  
   return callback(xaiStatus);
 };
 
@@ -112,7 +111,7 @@ const runLIME = async (limeConfig, callback) => {
   const logFile = `${LOG_PATH}xai_${modelId}.log`;
   let scriptPath = `${DEEP_LEARNING_PATH}/xai-lime.py`;  // default path
   const modelType = await getModelType(modelId);
-  
+
   if (modelId.startsWith("ac-")) {
     scriptPath = `${AC_PATH}/ac_xai_lime.py`;
     spawnCommand(PYTHON_CMD, [scriptPath, modelId, sampleId, numberFeature, modelType], logFile, () => {
@@ -125,8 +124,8 @@ const runLIME = async (limeConfig, callback) => {
       console.log('Finish producing LIME explanations for a particular instance');
     });
   }
-  
-  
+
+
   return callback(xaiStatus);
 };
 

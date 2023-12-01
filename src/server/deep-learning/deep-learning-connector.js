@@ -22,6 +22,7 @@ const {
 const {
   spawnCommand,
   getUniqueId,
+  spawnCommandAsync,
 } = require('../utils/utils');
 
 const fs = require('fs');
@@ -380,7 +381,7 @@ const startOnlinePrediction = (reportPath, modelPath, predictionPath, logPath, c
  * }
  * @param {Function} callback callback function after setting up the predicting process
  */
-const startPredicting = (predictConfig, callback) => {
+const startPredicting = async (predictConfig, callback) => {
   const {
     modelId,
     inputTraffic,
@@ -390,7 +391,7 @@ const startPredicting = (predictConfig, callback) => {
   const predictionId = getUniqueId();
   const predictionPath = `${PREDICTION_PATH}${predictionId}/`;
   const logFile = `${logFilePath}${predictionId}.log`;
-  isFileExist(modelPath, (exist) => {
+  isFileExist(modelPath, async (exist) => {
     if (!exist) {
       callback({
         error: `Model ${modelId} doest not exist`,
@@ -404,7 +405,7 @@ const startPredicting = (predictConfig, callback) => {
         case 'report':
           // eslint-disable-next-line no-case-declarations
           const csvPath = `${REPORT_PATH}/${value.reportId}/${value.reportFileName}`;
-          isFileExist(csvPath, (report) => {
+          isFileExist(csvPath, async (report) => {
             if (!report) {
               callback({
                 error: `The input traffic ${JSON.stringify(value)} doest not exist`,
@@ -414,7 +415,7 @@ const startPredicting = (predictConfig, callback) => {
               predictingStatus.config = predictConfig;
               predictingStatus.lastPredictedAt = Date.now();
               predictingStatus.lastPredictedId = predictionId;
-              spawnCommand(PYTHON_CMD, [`${DEEP_LEARNING_PATH}/prediction.py`, csvPath, modelPath, predictionPath], logFile, () => {
+              await spawnCommandAsync(PYTHON_CMD, [`${DEEP_LEARNING_PATH}/prediction.py`, csvPath, modelPath, predictionPath], logFile, () => {
                 predictingStatus.isRunning = false;
               });
               callback(predictingStatus);

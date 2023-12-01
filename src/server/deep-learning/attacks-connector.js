@@ -8,9 +8,10 @@ const {
 
 const {
   spawnCommand,
+  spawnCommandAsync,
 } = require('../utils/utils');
-  
-const fs = require('fs');  
+
+const fs = require('fs');
 
 /**
  * The attack injection process status
@@ -19,7 +20,7 @@ const attacksStatus = {
   isRunning: false, // indicate if the attack injection process is ongoing
   config: null, // the configuration of the last attack injection process
   lastRunAt: null, // indicate the last time of the attack injection process
-}; 
+};
 
 const getAttacksStatus = () => attacksStatus;
 
@@ -52,7 +53,7 @@ const performCTGAN = (ctganConfig, callback) => {
     attacksStatus.isRunning = false;
     console.log('Finish producing tabular synthetic samples using CTGAN');
   });
-  
+
   return callback(attacksStatus);
 };
 
@@ -84,17 +85,17 @@ const performPoisoningCTGAN = (poisoningAttacksConfig, callback) => {
     attacksStatus.isRunning = false;
     console.log('Finish performing poisoning attack using CTGAN');
   });
-  
+
   return callback(attacksStatus);
 };
 
-const performPoisoningRSL = (randomSwappingLabelsConfig, callback) => {
+const performPoisoningRSL = async (randomSwappingLabelsConfig, callback) => {
   const { poisoningAttacksConfig } = randomSwappingLabelsConfig;
   const {
     modelId,
     poisoningRate
   } = poisoningAttacksConfig;
-  console.log(attacksStatus);
+  //console.log(attacksStatus);
   if (attacksStatus.isRunning) {
     console.warn('An attack injection process is on going. Only one process can be run at a time');
     return callback({
@@ -113,11 +114,11 @@ const performPoisoningRSL = (randomSwappingLabelsConfig, callback) => {
   attacksStatus.lastRunAt = Date.now();
 
   const logFile = `${LOG_PATH}attacks_rsl_${modelId}_${poisoningRate}.log`;
-  spawnCommand(PYTHON_CMD, [`${DEEP_LEARNING_PATH}/attacks.py`, modelId, 'rsl', poisoningRate, ''], logFile, () => {
+  await spawnCommandAsync(PYTHON_CMD, [`${DEEP_LEARNING_PATH}/attacks.py`, modelId, 'rsl', poisoningRate, ''], logFile, () => {
     attacksStatus.isRunning = false;
     console.log('Finish performing poisoning random swapping labels attack');
   });
-  
+
   return callback(attacksStatus);
 };
 
@@ -153,7 +154,7 @@ const performPoisoningTLF = (targetLabelFlippingConfig, callback) => {
     attacksStatus.isRunning = false;
     console.log('Finish performing poisoning target label flipping attack');
   });
-  
+
   return callback(attacksStatus);
 };
 
