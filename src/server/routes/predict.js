@@ -54,24 +54,9 @@ router.post('/', async (req, res) => {
       error: 'Missing predicting configuration. Please read the docs',
     });
   } else {
-    /*const predictionStatus = getPredictingStatus();
-    if (predictionStatus.isRunning) {
-      res.status(401).send({
-        error: 'A predicting process is running. Please try again later',
-      });
-    } else {
-    */
     startPredicting(predictConfig, (predictingStatus) => {
-        if (predictingStatus.error) {
-          res.status(401).send({
-            error: predictingStatus.error,
-          });
-        } else {
-          //console.log(predictingStatus);
-          res.send(predictingStatus);
-        }
-      });
-    //}
+      res.send(predictingStatus);
+    });
   }
 });
 

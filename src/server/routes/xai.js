@@ -40,27 +40,9 @@ router.post('/shap', async (req, res) => {
       error: 'Missing SHAP configuration. Please read the docs',
     });
   } else {
-    //const result = await runSHAP(shapConfig);
-    //console.log(result);
-    //res.send(result);
-    /*const xaiStatus = getXAIStatus();
-    if (xaiStatus.isRunning) {
-      res.status(401).send({
-        error: 'An explaining process is running. Only one process is allowed at the time. Please try again later',
-      });
-    } else {
-    */
     runSHAP(shapConfig, (xaiStatus) => {
-      if (xaiStatus.error) {
-        res.status(401).send({
-          error: xaiStatus.error,
-        });
-      } else {
-        //console.log(xaiStatus);
-        res.send(xaiStatus);
-      }
+      res.send(xaiStatus);
     });
-    //}
   }
 });
 
