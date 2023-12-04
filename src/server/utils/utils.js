@@ -54,11 +54,13 @@ const spawnCommandAsync = (cmd, params, logFilePath) => {
       if (code === 0) {
         resolve();
       } else {
-        reject(new Error(`Command failed with code ${code}`));
+        resolve(401);
+        //reject(new Error(`Command failed with code ${code}`));
       }
     });
     proc.on('error', (err) => {
-      reject(new Error(`Command execution error: ${err.message}`));
+      resolve(401);
+      //reject(new Error(`Command execution error: ${err.message}`));
     });
   });
 };

@@ -137,7 +137,7 @@ router.post('/poisoning/ctgan', (req, res) => {
   }
 });
 
-router.post('/poisoning/random-swapping-labels', (req, res) => {
+router.post('/poisoning/random-swapping-labels', async (req, res) => {
   const {
     randomSwappingLabelsConfig,
   } = req.body;
@@ -146,23 +146,24 @@ router.post('/poisoning/random-swapping-labels', (req, res) => {
       error: 'Missing poisoning RSL attack configuration. Please read the docs',
     });
   } else {
-    const attacksStatus = getAttacksStatus();
-    if (attacksStatus.isRunning) {
+    //const attacksStatus = getAttacksStatus();
+    /*if (attacksStatus.isRunning) {
       res.status(401).send({
         error: 'An attack injection process is running. Only one process is allowed at the time. Please try again later',
       });
     } else {
-      performPoisoningRSL(randomSwappingLabelsConfig, (attacksStatus) => {
-        if (attacksStatus.error) {
-          res.status(401).send({
-            error: attacksStatus.error,
-          });
-        } else {
-          //console.log(attacksStatus);
-          res.send(attacksStatus);
-        }
-      });
-    }
+    */
+    performPoisoningRSL(randomSwappingLabelsConfig, (attacksStatus) => {
+      if (attacksStatus.error) {
+        res.status(401).send({
+          error: attacksStatus.error,
+        });
+      } else {
+        //console.log(attacksStatus);
+        res.send(attacksStatus);
+      }
+    });
+    //}
   }
 });
 

@@ -96,12 +96,12 @@ const performPoisoningRSL = async (randomSwappingLabelsConfig, callback) => {
     poisoningRate
   } = poisoningAttacksConfig;
   //console.log(attacksStatus);
-  if (attacksStatus.isRunning) {
+  /*if (attacksStatus.isRunning) {
     console.warn('An attack injection process is on going. Only one process can be run at a time');
     return callback({
       error: 'An attack injection process is on going',
     });
-  }
+  }*/
   const inputModelFilePath = MODEL_PATH + modelId;
   if (!fs.existsSync(inputModelFilePath)) {
     return callback({
