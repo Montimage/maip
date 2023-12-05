@@ -55,23 +55,9 @@ router.post('/lime', (req, res) => {
       error: 'Missing LIME configuration. Please read the docs',
     });
   } else {
-    const xaiStatus = getXAIStatus();
-    if (xaiStatus.isRunning) {
-      res.status(401).send({
-        error: 'An explaining process is running. Only one process is allowed at the time. Please try again later',
-      });
-    } else {
-      runLIME(limeConfig, (xaiStatus) => {
-        if (xaiStatus.error) {
-          res.status(401).send({
-            error: xaiStatus.error,
-          });
-        } else {
-          console.log(xaiStatus);
-          res.send(xaiStatus);
-        }
-      });
-    }
+    runLIME(limeConfig, (xaiStatus) => {
+        res.send(xaiStatus);
+    });
   }
 });
 
@@ -113,7 +99,7 @@ router.get('/shap/explanations/:modelId/:labelId', (req, res, next) => {
 
   const xaiFilePath = `${XAI_PATH}${modelId.replace('.h5', '')}`;
   const shapValuesFile = `${xaiFilePath}/${label}_importance_values.json`;
-  console.log(shapValuesFile);
+  //console.log(shapValuesFile);
 
   isFileExist(shapValuesFile, (ret) => {
     if (!ret) {
@@ -148,7 +134,7 @@ router.get('/shap/explanations/:modelId/:labelId', (req, res, next) => {
 
   const xaiFilePath = `${XAI_PATH}${modelId.replace('.h5', '')}`;
   const limeExpsFile = `${xaiFilePath}/${label}_lime_explanations.json`;
-  console.log(limeExpsFile);
+  //console.log(limeExpsFile);
 
   isFileExist(limeExpsFile, (ret) => {
     if (!ret) {
@@ -183,7 +169,7 @@ router.get('/shap/explanations/:modelId/:labelId', (req, res, next) => {
 
   const xaiFilePath = `${XAI_PATH}${modelId.replace('.h5', '')}`;
   const limeValuesFile = `${xaiFilePath}/${label}_lime_values.json`;
-  console.log(limeValuesFile);
+  //console.log(limeValuesFile);
 
   isFileExist(limeValuesFile, (ret) => {
     if (!ret) {

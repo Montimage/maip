@@ -47,13 +47,7 @@ const runSHAP = async (shapConfig, callback) => {
     numberExplainedSamples,
     maxDisplay,
   } = shapConfig;
-  //console.log(xaiStatus);
-  /*if (xaiStatus.isRunning) {
-    console.warn('An explaining process is on going. Only one process can be run at a time');
-    return callback({
-      error: 'An explaining process is on going',
-    });
-  }*/
+
   const inputModelFilePath = MODEL_PATH + modelId;
   if (!fs.existsSync(inputModelFilePath)) {
     return callback({
@@ -90,13 +84,7 @@ const runLIME = async (limeConfig, callback) => {
     sampleId,
     numberFeature,
   } = limeConfig;
-  console.log(xaiStatus);
-  if (xaiStatus.isRunning) {
-    console.warn('An explaining process is on going. Only one process can be run at a time');
-    return callback({
-      error: 'An explaining process is on going',
-    });
-  }
+
   const inputModelFilePath = MODEL_PATH + modelId;
   if (!fs.existsSync(inputModelFilePath)) {
     return callback({
@@ -114,12 +102,12 @@ const runLIME = async (limeConfig, callback) => {
 
   if (modelId.startsWith("ac-")) {
     scriptPath = `${AC_PATH}/ac_xai_lime.py`;
-    spawnCommand(PYTHON_CMD, [scriptPath, modelId, sampleId, numberFeature, modelType], logFile, () => {
+    await spawnCommandAsync(PYTHON_CMD, [scriptPath, modelId, sampleId, numberFeature, modelType], logFile, () => {
       xaiStatus.isRunning = false;
       console.log('Finish producing LIME explanations for a particular instance');
     });
   } else {
-    spawnCommand(PYTHON_CMD, [scriptPath, modelId, sampleId, numberFeature], logFile, () => {
+    await spawnCommandAsync(PYTHON_CMD, [scriptPath, modelId, sampleId, numberFeature], logFile, () => {
       xaiStatus.isRunning = false;
       console.log('Finish producing LIME explanations for a particular instance');
     });
