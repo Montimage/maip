@@ -57,18 +57,13 @@ const performCTGAN = (ctganConfig, callback) => {
   return callback(attacksStatus);
 };
 
-const performPoisoningCTGAN = (poisoningAttacksConfig, callback) => {
+const performPoisoningCTGAN = async (ctganConfig, callback) => {
+  const { poisoningAttacksConfig } = ctganConfig;
   const {
     modelId,
     poisoningRate
   } = poisoningAttacksConfig;
-  console.log(attacksStatus);
-  if (attacksStatus.isRunning) {
-    console.warn('An attack injection process is on going. Only one process can be run at a time');
-    return callback({
-      error: 'An attack injection process is on going',
-    });
-  }
+
   const inputModelFilePath = MODEL_PATH + modelId;
   if (!fs.existsSync(inputModelFilePath)) {
     return callback({
@@ -81,7 +76,7 @@ const performPoisoningCTGAN = (poisoningAttacksConfig, callback) => {
   attacksStatus.lastRunAt = Date.now();
 
   const logFile = `${LOG_PATH}attacks_ctgan_${modelId}_${poisoningRate}.log`;
-  spawnCommand(PYTHON_CMD, [`${DEEP_LEARNING_PATH}/attacks.py`, modelId, 'ctgan', poisoningRate, ''], logFile, () => {
+  await spawnCommandAsync(PYTHON_CMD, [`${DEEP_LEARNING_PATH}/attacks.py`, modelId, 'ctgan', poisoningRate, ''], logFile, () => {
     attacksStatus.isRunning = false;
     console.log('Finish performing poisoning attack using CTGAN');
   });
@@ -122,7 +117,7 @@ const performPoisoningRSL = async (randomSwappingLabelsConfig, callback) => {
   return callback(attacksStatus);
 };
 
-const performPoisoningTLF = (targetLabelFlippingConfig, callback) => {
+const performPoisoningTLF = async (targetLabelFlippingConfig, callback) => {
   const {
     poisoningAttacksConfig,
     targetClass,
@@ -132,12 +127,6 @@ const performPoisoningTLF = (targetLabelFlippingConfig, callback) => {
     poisoningRate,
   } = poisoningAttacksConfig;
 
-  if (attacksStatus.isRunning) {
-    console.warn('An attack injection process is on going. Only one process can be run at a time');
-    return callback({
-      error: 'An attack injection process is on going',
-    });
-  }
   const inputModelFilePath = MODEL_PATH + modelId;
   if (!fs.existsSync(inputModelFilePath)) {
     return callback({
@@ -150,7 +139,7 @@ const performPoisoningTLF = (targetLabelFlippingConfig, callback) => {
   attacksStatus.lastRunAt = Date.now();
 
   const logFile = `${LOG_PATH}attacks_tlf_${modelId}_${poisoningRate}_${targetClass}.log`;
-  spawnCommand(PYTHON_CMD, [`${DEEP_LEARNING_PATH}/attacks.py`, modelId, 'tlf', poisoningRate, targetClass], logFile, () => {
+  await spawnCommandAsync(PYTHON_CMD, [`${DEEP_LEARNING_PATH}/attacks.py`, modelId, 'tlf', poisoningRate, targetClass], logFile, () => {
     attacksStatus.isRunning = false;
     console.log('Finish performing poisoning target label flipping attack');
   });

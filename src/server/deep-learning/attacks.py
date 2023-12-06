@@ -35,7 +35,7 @@ def running_poisoning_attacks(modelId, typePoisoningAttacks, poisoningRate, targ
   if 'ac-' in modelId:
     train_data = pd.read_csv(train_data_path, delimiter=";")
     test_data = pd.read_csv(test_data_path, delimiter=";")
-  else: 
+  else:
     train_data = pd.read_csv(train_data_path, delimiter=",")
     test_data = pd.read_csv(test_data_path, delimiter=",")
 
@@ -93,7 +93,7 @@ def running_poisoning_attacks(modelId, typePoisoningAttacks, poisoningRate, targ
         if y_poisoned_train[flip_id_1] != y_poisoned_train[flip_id_2]:
           different_label_count += 1
           y_poisoned_train[flip_id_1], y_poisoned_train[flip_id_2] = y_poisoned_train[flip_id_2], y_poisoned_train[flip_id_1]
-    print(f"Out of {poison_count} swaps, {different_label_count} times the two instances had different labels.")
+    #print(f"Out of {poison_count} swaps, {different_label_count} times the two instances had different labels.")
 
   elif typePoisoningAttacks == 'tlf':
     print(str(targetClass))
@@ -116,6 +116,7 @@ def running_poisoning_attacks(modelId, typePoisoningAttacks, poisoningRate, targ
   poisoned_label_counts = Counter(y_poisoned_train)
 
   # Output the counts
+  """
   print("Original Training Data Label Counts:")
   for label, count in original_label_counts.items():
       print(f"Label {label}: {count}")
@@ -126,6 +127,7 @@ def running_poisoning_attacks(modelId, typePoisoningAttacks, poisoningRate, targ
 
   poisoned_dataset_file = os.path.join(attacks_path, prefix + '_poisoned_dataset.csv')
   print(poisoned_dataset_file)
+  """
 
   # add a new axis to y_poisoned so that it can be concatenated with X_poisoned
   y_poisoned_train = np.expand_dims(y_poisoned_train, axis=1)

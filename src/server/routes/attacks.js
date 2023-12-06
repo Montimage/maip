@@ -110,30 +110,16 @@ router.get('/ctgan/:modelId/download', (req, res, next) => {
 
 router.post('/poisoning/ctgan', (req, res) => {
   const {
-    poisoningAttacksConfig,
+    ctganConfig,
   } = req.body;
-  if (!poisoningAttacksConfig) {
+  if (!ctganConfig) {
     res.status(401).send({
       error: 'Missing CTGAN poisoning attack configuration. Please read the docs',
     });
   } else {
-    const attacksStatus = getAttacksStatus();
-    if (attacksStatus.isRunning) {
-      res.status(401).send({
-        error: 'An attack injection process is running. Only one process is allowed at the time. Please try again later',
-      });
-    } else {
-      performPoisoningCTGAN(poisoningAttacksConfig, (attacksStatus) => {
-        if (attacksStatus.error) {
-          res.status(401).send({
-            error: attacksStatus.error,
-          });
-        } else {
-          console.log(attacksStatus);
-          res.send(attacksStatus);
-        }
-      });
-    }
+    performPoisoningCTGAN(ctganConfig, (attacksStatus) => {
+      res.send(attacksStatus);
+    });
   }
 });
 
@@ -156,29 +142,14 @@ router.post('/poisoning/target-label-flipping', (req, res) => {
   const {
     targetLabelFlippingConfig,
   } = req.body;
-  console.log(targetLabelFlippingConfig);
   if (!targetLabelFlippingConfig) {
     res.status(401).send({
       error: 'Missing poisoning TLF attack configuration. Please read the docs',
     });
   } else {
-    const attacksStatus = getAttacksStatus();
-    if (attacksStatus.isRunning) {
-      res.status(401).send({
-        error: 'An attack injection process is running. Only one process is allowed at the time. Please try again later',
-      });
-    } else {
-      performPoisoningTLF(targetLabelFlippingConfig, (attacksStatus) => {
-        if (attacksStatus.error) {
-          res.status(401).send({
-            error: attacksStatus.error,
-          });
-        } else {
-          console.log(attacksStatus);
-          res.send(attacksStatus);
-        }
-      });
-    }
+    performPoisoningTLF(targetLabelFlippingConfig, (attacksStatus) => {
+      res.send(attacksStatus);
+    });
   }
 });
 
