@@ -108,7 +108,7 @@ router.get('/ctgan/:modelId/download', (req, res, next) => {
   });
 });
 
-router.post('/poisoning/ctgan', (req, res) => {
+router.post('/poisoning/ctgan', async (req, res) => {
   const {
     ctganConfig,
   } = req.body;
@@ -138,7 +138,7 @@ router.post('/poisoning/random-swapping-labels', async (req, res) => {
   }
 });
 
-router.post('/poisoning/target-label-flipping', (req, res) => {
+router.post('/poisoning/target-label-flipping', async (req, res) => {
   const {
     targetLabelFlippingConfig,
   } = req.body;
