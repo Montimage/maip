@@ -415,7 +415,7 @@ const startPredicting = async (predictConfig, callback) => {
               predictingStatus.config = predictConfig;
               predictingStatus.lastPredictedAt = Date.now();
               predictingStatus.lastPredictedId = predictionId;
-              await spawnCommandAsync(PYTHON_CMD, [`${DEEP_LEARNING_PATH}/prediction.py`, csvPath, modelPath, predictionPath], logFile, () => {
+              spawnCommand(PYTHON_CMD, [`${DEEP_LEARNING_PATH}/prediction.py`, csvPath, modelPath, predictionPath], logFile, () => {
                 predictingStatus.isRunning = false;
               });
               callback(predictingStatus);

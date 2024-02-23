@@ -94,7 +94,7 @@ if (process.env.MODE === 'SERVER') {
     res.sendFile(path.join(__dirname, '../public', 'index.html'));
   });
 } else if (process.env.MODE === 'API') {
-  // start Swagger API server 
+  // start Swagger API server
   app.use('/', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
   app.use(express.static(path.join(__dirname, 'swagger')));
   module.exports = app;
