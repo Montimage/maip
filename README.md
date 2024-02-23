@@ -1,5 +1,5 @@
 # maip
-Montimage's AI Platform (MAIP) provides users with easy access to developed AI services  through an intuitive user interface and APIs. It provides a range of ML services, including feature extraction, building or retraining AI models, injecting adversarial attacks, producing explanations, and evaluating the models using different datasets. Each of these services has a dedicated **API** that can be accessed through the server, making it easy to integrate with other applications and systems.
+Montimage's AI Platform (**MAIP**) provides users with easy access to developed AI services  through a friendly and intuitive **user interface** and **APIs**. It provides a range of **ML services**, including feature extraction, building or retraining AI models, injecting adversarial attacks, producing explanations, and evaluating the models using different datasets. Each of these services has a dedicated **API** that can be accessed through the server, making it easy to integrate with other applications and systems.
 
 ![Architecture of our framework](MAIP_architecture.png)
 
