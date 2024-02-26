@@ -2009,7 +2009,7 @@
           "content" : {
             "application/json" : {
               "schema" : {
-                "$ref" : "#/components/schemas/ctganConfig"
+                "$ref" : "#/components/schemas/poisoningAttacksConfig"
               }
             }
           },
@@ -2687,14 +2687,23 @@
           }
         }
       },
-      "ctganConfig": {
-        "type": "object",
-        "properties": {
+      "ctganConfig" : {
+        "type" : "object",
+        "properties" : {
           "ctganConfig" : {
             "type" : "object",
             "properties" : {
-              "poisoningAttacksConfig": {
-                "$ref": "#/components/schemas/poisoningAttacksConfig"
+              "modelId" : {
+                "type" : "string",
+                "example" : "e0a0588e-96c4-4fdf-9237-a8e94a6f5ffe.h5"
+              },
+              "numberEpochs" : {
+                "type" : "number",
+                "example" : "5"
+              },
+              "numberSyntheticSamples" : {
+                "type" : "number",
+                "example" : "10000"
               }
             }
           }

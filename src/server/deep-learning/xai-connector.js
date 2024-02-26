@@ -64,12 +64,12 @@ const runSHAP = async (shapConfig, callback) => {
   const modelType = await getModelType(modelId);
   if (modelId.startsWith("ac-")) {
     scriptPath = `${AC_PATH}/ac_xai_shap.py`;
-    await spawnCommandAsync(PYTHON_CMD, [scriptPath, modelId, numberBackgroundSamples, numberExplainedSamples, maxDisplay, modelType], logFile, () => {
+    spawnCommand(PYTHON_CMD, [scriptPath, modelId, numberBackgroundSamples, numberExplainedSamples, maxDisplay, modelType], logFile, () => {
       xaiStatus.isRunning = false;
       console.log('Finish producing SHAP feature importance explanations');
     });
   } else {
-    await spawnCommandAsync(PYTHON_CMD, [scriptPath, modelId, numberBackgroundSamples, numberExplainedSamples, maxDisplay], logFile, () => {
+    spawnCommand(PYTHON_CMD, [scriptPath, modelId, numberBackgroundSamples, numberExplainedSamples, maxDisplay], logFile, () => {
       xaiStatus.isRunning = false;
       console.log('Finish producing LIME explanations for a particular instance');
     });
@@ -102,12 +102,12 @@ const runLIME = async (limeConfig, callback) => {
 
   if (modelId.startsWith("ac-")) {
     scriptPath = `${AC_PATH}/ac_xai_lime.py`;
-    await spawnCommandAsync(PYTHON_CMD, [scriptPath, modelId, sampleId, numberFeature, modelType], logFile, () => {
+    spawnCommand(PYTHON_CMD, [scriptPath, modelId, sampleId, numberFeature, modelType], logFile, () => {
       xaiStatus.isRunning = false;
       console.log('Finish producing LIME explanations for a particular instance');
     });
   } else {
-    await spawnCommandAsync(PYTHON_CMD, [scriptPath, modelId, sampleId, numberFeature], logFile, () => {
+    spawnCommand(PYTHON_CMD, [scriptPath, modelId, sampleId, numberFeature], logFile, () => {
       xaiStatus.isRunning = false;
       console.log('Finish producing LIME explanations for a particular instance');
     });

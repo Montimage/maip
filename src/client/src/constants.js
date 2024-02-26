@@ -449,7 +449,7 @@ const AC_COLUMNS_PERF_STATS = [
 const ATTACK_OPTIONS =
 [
   {
-    value: 'gan',
+    value: 'ctgan',
     label: 'GAN-driven data poisoning',
   },
   {
@@ -464,7 +464,8 @@ const ATTACK_OPTIONS =
 
 const ATTACK_DATASETS_MAPPING = {
   'rsl_poisoned_dataset.csv': 'Random swapping labels',
-  'tlf_poisoned_dataset.csv': 'Target labels flipping'
+  'tlf_poisoned_dataset.csv': 'Target labels flipping',
+  'ctgan_poisoned_dataset.csv': 'GAN-driven data poisoing'
 };
 
 // Build.js

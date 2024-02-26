@@ -204,9 +204,11 @@ class ResilienceMetricsPage extends Component {
     let configAttacksCM = null, impact = null;
 
     const modelsOptions = getFilteredModelsOptions(app, models);
-    const attacksDatasetsOptions = attacksDatasets ? attacksDatasets.map(dataset => ({
-      value: dataset,
-      label: ATTACK_DATASETS_MAPPING[dataset] || dataset,
+    const attacksDatasetsOptions = attacksDatasets ? attacksDatasets
+      .filter(dataset => ATTACK_DATASETS_MAPPING.hasOwnProperty(dataset))
+      .map(dataset => ({
+        value: dataset,
+        label: ATTACK_DATASETS_MAPPING[dataset] || dataset,
     })) : [];
     const configCM = confusionMatrix && getConfigConfusionMatrix(modelId, confusionMatrix);
     const cmStyle = isACApp(this.props.app) ? "cmAC" : "cmAD";

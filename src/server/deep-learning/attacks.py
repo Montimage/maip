@@ -116,7 +116,6 @@ def running_poisoning_attacks(modelId, typePoisoningAttacks, poisoningRate, targ
   poisoned_label_counts = Counter(y_poisoned_train)
 
   # Output the counts
-  """
   print("Original Training Data Label Counts:")
   for label, count in original_label_counts.items():
       print(f"Label {label}: {count}")
@@ -127,7 +126,6 @@ def running_poisoning_attacks(modelId, typePoisoningAttacks, poisoningRate, targ
 
   poisoned_dataset_file = os.path.join(attacks_path, prefix + '_poisoned_dataset.csv')
   print(poisoned_dataset_file)
-  """
 
   # add a new axis to y_poisoned so that it can be concatenated with X_poisoned
   y_poisoned_train = np.expand_dims(y_poisoned_train, axis=1)

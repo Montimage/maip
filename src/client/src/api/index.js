@@ -521,6 +521,19 @@ export const requestPerformAttack = async (modelId, selectedAttack, poisoningRat
       body: JSON.stringify({ targetLabelFlippingConfig }),
     });
     console.log(targetLabelFlippingConfig);
+  } else if (selectedAttack === "ctgan") {
+    url = `${SERVER_URL}/api/attacks/poisoning/ctgan`;
+    const ctganConfig = {
+      "poisoningAttacksConfig": poisoningAttacksConfig,
+    };
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ ctganConfig }),
+    });
+    console.log(ctganConfig);
   } else {
     console.error("Wrong attack!")
   }

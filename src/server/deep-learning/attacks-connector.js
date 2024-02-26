@@ -76,7 +76,7 @@ const performPoisoningCTGAN = async (ctganConfig, callback) => {
   attacksStatus.lastRunAt = Date.now();
 
   const logFile = `${LOG_PATH}attacks_ctgan_${modelId}_${poisoningRate}.log`;
-  await spawnCommandAsync(PYTHON_CMD, [`${DEEP_LEARNING_PATH}/attacks.py`, modelId, 'ctgan', poisoningRate, ''], logFile, () => {
+  spawnCommand(PYTHON_CMD, [`${DEEP_LEARNING_PATH}/attacks.py`, modelId, 'ctgan', poisoningRate, ''], logFile, () => {
     attacksStatus.isRunning = false;
     console.log('Finish performing poisoning attack using CTGAN');
   });
@@ -109,7 +109,7 @@ const performPoisoningRSL = async (randomSwappingLabelsConfig, callback) => {
   attacksStatus.lastRunAt = Date.now();
 
   const logFile = `${LOG_PATH}attacks_rsl_${modelId}_${poisoningRate}.log`;
-  await spawnCommandAsync(PYTHON_CMD, [`${DEEP_LEARNING_PATH}/attacks.py`, modelId, 'rsl', poisoningRate, ''], logFile, () => {
+  spawnCommand(PYTHON_CMD, [`${DEEP_LEARNING_PATH}/attacks.py`, modelId, 'rsl', poisoningRate, ''], logFile, () => {
     attacksStatus.isRunning = false;
     console.log('Finish performing poisoning random swapping labels attack');
   });
@@ -139,7 +139,7 @@ const performPoisoningTLF = async (targetLabelFlippingConfig, callback) => {
   attacksStatus.lastRunAt = Date.now();
 
   const logFile = `${LOG_PATH}attacks_tlf_${modelId}_${poisoningRate}_${targetClass}.log`;
-  await spawnCommandAsync(PYTHON_CMD, [`${DEEP_LEARNING_PATH}/attacks.py`, modelId, 'tlf', poisoningRate, targetClass], logFile, () => {
+  spawnCommand(PYTHON_CMD, [`${DEEP_LEARNING_PATH}/attacks.py`, modelId, 'tlf', poisoningRate, targetClass], logFile, () => {
     attacksStatus.isRunning = false;
     console.log('Finish performing poisoning target label flipping attack');
   });
