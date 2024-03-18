@@ -1,26 +1,30 @@
-# TODO: don't work yet
-version: "2"
+version: '3.3'
+
 services:
-  server:
-    image: maip-server
+  maip-server:
+    container_name: mi_maip_server
+    image: mi/maip-server
+    restart: unless-stopped
     build:
       context: .
       dockerfile: Dockerfile.server
     ports:
-      - 31057:31057
+      - 127.0.0.1:31057:31057/tcp
     networks:
-      - app_network
+      - maip_network
 
-  client:
-    image: maip-client
+  maip_client:
+    container_name: mi_maip_client
+    image: mi/maip-client
+    restart: unless-stopped
     build:
       context: .
       dockerfile: Dockerfile.client
     ports:
-      - 3000:3000
+      - 127.0.0.1:3000:3000/tcp
     networks:
-      - app_network
+      - maip_network
 
 networks:
-  app_network:
+  maip_network:
     driver: bridge
