@@ -1,4 +1,6 @@
 var express = require('express');
+const https = require('https');
+const fs = require('fs');
 var path = require('path');
 var cookieParser = require('cookie-parser');
 const logger = require('morgan');
@@ -49,17 +51,17 @@ app.use(bodyParser.urlencoded({
 app.use(cookieParser());
 // Set up CORS
 //app.use(cors());
-app.use(cors({
-  origin: 'http://localhost:3000', // replace with your client origin
+/*app.use(cors({
+  origin: 'https://localhost:3000', // replace with your client origin
   methods: ['GET', 'POST', 'DELETE', 'PUT'],
-}));
+}));*/
 // Add headers
-/*app.use((req, res, next) => {
+app.use((req, res, next) => {
   // Website you wish to allow to connect
   res.setHeader('Access-Control-Allow-Origin', '*');
 
   // Request methods you wish to allow
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, PUT');
 
   // Request headers you wish to allow
   res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With, content-type, authorization');
@@ -72,7 +74,7 @@ app.use(cors({
   // logInfo(`${req.method} ${req.protocol}://${req.hostname}${req.path} ${res.statusCode}`);
   // Pass to next layer of middleware
   next();
-});*/
+});
 
 app.use('/api/ac', acRouter);
 app.use('/api/mmt', mmtRouter);
@@ -102,6 +104,26 @@ if (process.env.MODE === 'SERVER') {
 
 module.exports = app;
 
-var server = app.listen(app.get('port'), env.SERVER_HOST, function () {
-  console.log(`[SERVER] MAIP Server started on: http://${env.SERVER_HOST}:${env.SERVER_PORT}`);
-});
+// HTTP or HTTPS server
+let server;
+if (env.PROTOCOL === 'HTTP') {
+  server = app.listen(env.SERVER_PORT, env.SERVER_HOST, () => {
+    console.log(`[HTTP SERVER] MAIP Server started on http://${env.SERVER_HOST}:${env.SERVER_PORT}`);
+  });
+} else if (env.PROTOCOL === 'HTTPS') {
+  const httpsOptions = {
+    key: fs.readFileSync('private.key'),
+    cert: fs.readFileSync('certificate.crt'),
+    // If you have a chain certificate, add it here:
+    // ca: fs.readFileSync('/path/to/ca_bundle.crt')
+  };
+  server = https.createServer(httpsOptions, app);
+  server.listen(env.SERVER_PORT, env.SERVER_HOST, () => {
+    console.log(`[HTTPS SERVER] MAIP Server started on https://${env.SERVER_HOST}:${env.SERVER_PORT}`);
+  });
+} else {
+  console.error('Invalid protocol specified in environment variables.');
+  process.exit(1);
+}
+
+module.exports = server;
