@@ -9,7 +9,7 @@ services:
       context: .
       dockerfile: Dockerfile.server
     ports:
-      - 31057:31057/tcp
+      - 127.0.0.1:31057:31057/tcp
     networks:
       - maip_network
 
@@ -21,7 +21,7 @@ services:
       context: .
       dockerfile: Dockerfile.client
     ports:
-      - 3000:3000/tcp
+      - 127.0.0.1:3000:3000/tcp
     networks:
       - maip_network
 
