@@ -203,10 +203,10 @@ class MAIPHeader extends Component {
           <Col span={1} style={{marginRight: '200px', marginTop: '-8px', height: '64px'}}>
             <a href="https://www.montimage.com/">
               <img
-                src={'/img/logo_montimage_small.png'}
+                src={'/img/logo-montimage.png'}
                 className="logo"
                 alt="Logo"
-                style={{ width: "240px", height: '64px' }}
+                style={{ width: "100px", height: '64px' }}
               />
             </a>
           </Col>
