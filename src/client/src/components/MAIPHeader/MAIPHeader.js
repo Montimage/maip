@@ -2,7 +2,7 @@ import React, { Component } from "react";
 import { connect } from "react-redux";
 import { Layout, Menu, Row, Col, Radio, Button, Select } from "antd";
 import {
-  DeploymentUnitOutlined, FolderOpenOutlined, BlockOutlined, LineChartOutlined, 
+  DeploymentUnitOutlined, FolderOpenOutlined, BlockOutlined, LineChartOutlined,
   SolutionOutlined, BugOutlined, SafetyOutlined, ExperimentOutlined, FilePdfOutlined, DownOutlined,
   InfoCircleOutlined,
 } from "@ant-design/icons";
@@ -69,11 +69,11 @@ class MAIPHeader extends Component {
         label: 'Predict',
         icon: <LineChartOutlined />,
         children: [
-          {
+          /* {
             key: MENU_OPTIONS[5].key,
             label: 'Online Mode',
             link: MENU_OPTIONS[5].link,
-          },
+          }, */
           {
             key: MENU_OPTIONS[6].key,
             label: 'Offline Mode',
@@ -104,7 +104,7 @@ class MAIPHeader extends Component {
           },
         ],
       },
-      
+
       {
         key: MENU_OPTIONS[11].key,
         label: 'Metrics',
@@ -159,7 +159,7 @@ class MAIPHeader extends Component {
     }
 
     if (pathParts[0] === 'models') {
-      if ((pathParts[1] === 'datasets' && pathParts[2]) || 
+      if ((pathParts[1] === 'datasets' && pathParts[2]) ||
             (pathParts[1] === 'retrain' && pathParts[2])) {
           return true;
       }
@@ -178,7 +178,6 @@ class MAIPHeader extends Component {
       this.props.setApp(this.state.selectedValue);
     });
   }
-  
 
   render() {
     // Modify the current pathname if it is "/"
@@ -217,7 +216,7 @@ class MAIPHeader extends Component {
               value={this.props.app}
               //value={this.state.selectedValue}
               className="selectApp"
-              style={{ width: '60%' }} 
+              style={{ width: '60%' }}
               onChange={this.handleChange}
               disabled={this.hasModelIdInUrl()}
               suffixIcon={<DownOutlined style={{ color: '#fff' }} />}
@@ -244,10 +243,10 @@ class MAIPHeader extends Component {
                     ))}
                   </SubMenu>
                 ) : (
-                  <Menu.Item 
-                    key={item.key} 
-                    icon={item.icon} 
-                    className={selectedMenu === item.key ? 'selectedMenuItem' : ''} 
+                  <Menu.Item
+                    key={item.key}
+                    icon={item.icon}
+                    className={selectedMenu === item.key ? 'selectedMenuItem' : ''}
                     style={{ fontSize: '16px' }}>
                     <a href={item.link}>{item.label}</a>
                   </Menu.Item>

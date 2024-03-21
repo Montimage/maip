@@ -2,13 +2,14 @@ import React, { Component } from "react";
 import { connect } from "react-redux";
 import { Modal, Tooltip, Typography, Table, Space, Button, Select, notification } from "antd";
 import LayoutPage from "./LayoutPage";
-import { 
+import {
   FolderViewOutlined, DownloadOutlined, DeleteOutlined,
   LineChartOutlined, SolutionOutlined, BugOutlined, ExperimentOutlined,
   HourglassOutlined, RestOutlined, CopyOutlined, HighlightOutlined
 } from '@ant-design/icons';
 import {
   requestApp,
+  setApp,
   requestAllModels,
   requestDeleteAllModels,
   requestDeleteModel,
@@ -62,16 +63,25 @@ class ModelListPage extends Component {
     });
   };
 
+  async componentDidUpdate(prevProps, prevState) {
+    const { app } = this.props;
+
+    if (app !== prevProps.app) {
+      this.props.setApp(app);
+    }
+    console.log(`app is changed from ${prevProps.app} to ${app}`);
+  }
+
   render() {
-    const { 
+    const {
       app,
-      models, 
-      downloadModel, 
+      models,
+      downloadModel,
       downloadDatasets,
-      deleteModel, 
+      deleteModel,
       updateModel,
     } = this.props;
-    const { 
+    const {
       selectedOption,
     } = this.state;
     //console.log(models);
@@ -90,7 +100,7 @@ class ModelListPage extends Component {
     };
 
     const filteredModels = getFilteredModels(app, models);
-    const dataSource = filteredModels.length ? 
+    const dataSource = filteredModels.length ?
                     filteredModels.map((model, index) => ({ ...model, key: index })) :
                     [];
     const columns = [
@@ -132,7 +142,7 @@ class ModelListPage extends Component {
             }}
             keyboard
             style={{ display: 'flex', alignItems: 'center', gap: '24px' }}
-          > 
+          >
             {model.modelId}
             <span style={{ marginLeft: '10px' }}>
               <Tooltip title="Download">
@@ -168,7 +178,7 @@ class ModelListPage extends Component {
             </a>
             &nbsp;&nbsp;
             <Space wrap>
-              <Button icon={<DownloadOutlined />} 
+              <Button icon={<DownloadOutlined />}
                 onClick={() => downloadDatasets(model.modelId, "train")}
               >Download</Button>
             </Space>
@@ -188,7 +198,7 @@ class ModelListPage extends Component {
               </a>
               &nbsp;&nbsp;
               <Space wrap>
-                <Button icon={<DownloadOutlined />} 
+                <Button icon={<DownloadOutlined />}
                   onClick={() => downloadDatasets(model.modelId, "test")}
                 >Download</Button>
             </Space>
@@ -214,14 +224,14 @@ class ModelListPage extends Component {
                 <span style={{ fontSize: '16px' }}>Predict</span>
               ),
               options: [
-                {
+                /* {
                   label: 'Online',
                   icon: <LineChartOutlined />,
                   url: `/predict/online/${model.modelId}`,
                   onClick: () => {
                     window.location.href = `/predict/online/${model.modelId}`;
                   }
-                },
+                }, */
                 {
                   label: 'Offline',
                   icon: <LineChartOutlined />,
@@ -342,7 +352,7 @@ class ModelListPage extends Component {
         <Table columns={columns} dataSource={dataSource}
           pagination={{ pageSize: 5 }}
           expandable={{
-            expandedRowRender: (model) => 
+            expandedRowRender: (model) =>
               <p style={{ margin: 0 }}>
                 <h3><b>Build config:</b></h3>
                 <pre style={{ fontSize: "12px" }}>
@@ -354,13 +364,13 @@ class ModelListPage extends Component {
             emptyText: <h3>No models found! Let's build a new one!</h3>,
           }}
         />
-        
+
         <Space wrap>
-          <Button type="primary" danger icon={<DeleteOutlined />} 
+          <Button type="primary" danger icon={<DeleteOutlined />}
             onClick={this.showDeleteAllModelsConfirm}
             style={{ marginTop: '10px', marginBottom: '16px' }}
             disabled={dataSource.length === 0}
-          >  
+          >
             Delete All Models
           </Button>
         </Space>
@@ -375,8 +385,9 @@ const mapPropsToStates = ({ models, app }) => ({
 
 const mapDispatchToProps = (dispatch) => ({
   fetchApp: () => dispatch(requestApp()),
+  setApp: (app) => dispatch(setApp(app)),
   fetchAllModels: () => dispatch(requestAllModels()),
-  deleteAllModels: (app) => dispatch(requestDeleteAllModels(app)), 
+  deleteAllModels: (app) => dispatch(requestDeleteAllModels(app)),
   downloadModel: (modelId) => dispatch(requestDownloadModel(modelId)),
   downloadDatasets: (modelId, datasetType) => {
     dispatch(requestDownloadDatasets({modelId, datasetType}))
