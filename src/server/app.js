@@ -51,11 +51,19 @@ app.use(bodyParser.urlencoded({
 app.use(cookieParser());
 // Set up CORS
 //app.use(cors());
-/*app.use(cors({
-  origin: 'https://localhost:3000', // replace with your client origin
+// Define an array of allowed origins
+const allowedOrigins = [
+  'http://maip.montimage.com',
+  'http://localhost:3000',
+  'http://0.0.0.0:3000', // Add more origins as needed
+];
+
+// Configure CORS with allowed origins
+app.use(cors({
+  origin: allowedOrigins,
   methods: ['GET', 'POST', 'DELETE', 'PUT'],
-}));*/
-// Add headers
+}));
+/* // Add headers
 app.use((req, res, next) => {
   // Website you wish to allow to connect
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -74,7 +82,7 @@ app.use((req, res, next) => {
   // logInfo(`${req.method} ${req.protocol}://${req.hostname}${req.path} ${res.statusCode}`);
   // Pass to next layer of middleware
   next();
-});
+}); */
 
 app.use('/api/ac', acRouter);
 app.use('/api/mmt', mmtRouter);
