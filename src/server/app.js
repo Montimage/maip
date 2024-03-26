@@ -1,3 +1,4 @@
+const { expressCspHeader, INLINE, NONE, SELF } = require('express-csp-header');
 var express = require('express');
 const https = require('https');
 const fs = require('fs');
@@ -75,6 +76,13 @@ app.use((req, res, next) => {
   // Pass to next layer of middleware
   next();
 });
+
+app.use(expressCspHeader({
+  policies: {
+      'default-src': [expressCspHeader.NONE],
+      'img-src': [expressCspHeader.SELF],
+  }
+}));
 
 app.use('/api/ac', acRouter);
 app.use('/api/mmt', mmtRouter);

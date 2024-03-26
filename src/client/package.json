@@ -24,13 +24,14 @@
     "recharts": "^2.7.2",
     "redux": "^4.2.1",
     "redux-act": "^1.8.0",
+    "redux-persist": "^6.0.0",
     "redux-saga": "^1.2.3",
     "redux-starter-kit": "^2.0.0",
     "web-vitals": "^2.1.4"
   },
   "scripts": {
     "start": "react-scripts --max_old_space_size=4096 start",
-    "build": "react-scripts build",
+    "build": "react-scripts build && rm -r ../public &&  mv build ../public",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
