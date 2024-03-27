@@ -16,19 +16,46 @@ The above figure shows the architecture of our MAIP framework, that includes the
 Overall our framework is designed with a server written in ExpressJS, that employs the MMT tool written in C for feature extraction and leverages popular Python libraries for DL and XAI. The client is built in React and accessible via Swagger APIs, offering users an intuitive and user-friendly interface to interact with the DL services.
 
 ## Getting Started
+Tested environment: Ubuntu 20.04.6 LTS - focal.
 ```
 git clone https://github.com/Montimage/maip.git
 cd maip
 
-# Run and build docker images
-sudo docker-compose build
-sudo docker-compose up
+# Install some packages
+sudo apt-get update -y
+sudo apt install -y git wget cmake gcc g++ cpp curl software-properties-common
 
-# SSH tunneling allows you to securely forward ports (31057 for the server and 3000 for the client)
-# from a remote server where you have installed MAIP to your local machine
-ssh -L 31057:127.0.0.1:31057 -L 3000:127.0.0.1:3000 username@remote_server_ip
+# Install Python ML libraries (Python 3.8.10, pip 20.0.2)
+sudo apt install -y python3-pip graphviz
+pip3 install src/server/deep-learning/requirements.txt
 
-# Access the server and client on http://localhost:31057 and http://localhost:3000, respectively
+# Install mmt tools
+sudo apt install -y libconfuse-dev libpcap-dev libxml2-dev net-tools
+sudo ldconfig
+sudo dpkg -i src/server/mmt-packages/mmt-dpi*.deb
+sudo dpkg -i src/server/mmt-packages/mmt-security*.deb
+sudo dpkg -i src/server/mmt-packages/mmt-probe*.deb 2>/dev/null||true
+
+# Install nodejs v19.9.0
+sudo apt-get update -y
+curl -sL https://deb.nodesource.com/setup_19.x | bash
+sudo apt install -y nodejs
+
+# Install the server
+cd src/server
+npm install
+cd -
+cp env.example .env
+
+# Install the client
+cd src/client
+npm install --force
+cd -
+
+# Run the application
+./start-maip.sh
+
+# Access the application on http://localhost:31057
 ```
 
 Under construction documentation is available here: https://strongcourages-organization.gitbook.io/maip-documentation/

@@ -1,10 +1,5 @@
 #!/bin/bash
 
-# create static client page in production mode
-cd src/client
-npm run build
-cd -
-
 # create the output directories if they don't exist
 mkdir -p src/server/deep-learning/attacks
 mkdir -p src/server/deep-learning/models
