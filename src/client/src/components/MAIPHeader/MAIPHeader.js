@@ -173,7 +173,7 @@ class MAIPHeader extends Component {
       console.log(`selected ${value}`);
       if (this.state.selectedValue === 'rca') {
         // TODO: check correct link
-        window.open('https://rca.montimage.com', '_blank');
+        window.open('http://rca.montimage.com:8080/ui', '_blank');
       }
       this.props.setApp(this.state.selectedValue);
     });
