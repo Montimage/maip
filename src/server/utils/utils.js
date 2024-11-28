@@ -14,25 +14,48 @@ const {
 let allInterfaces = null;
 
 const spawnCommand = (cmd, params, logFilePath, onCloseCallback = null) => {
-  console.log('Command to be coppied');
-  console.log(`${cmd} ${params.join(' ')}`);
-  // console.log('Start executing command', cmd, params, logFilePath);
+  console.log('Command to be executed:', `${cmd} ${params.join(' ')}`);
+
+  // Create log file stream
   const logFile = fs.createWriteStream(logFilePath, {
     flags: 'a',
   });
-  // console.log('Created log file: ', logFilePath);
-  // console.log('Start executing the command');
+
+  // Execute command
   const proc = spawn(cmd, params);
-  // console.log('Pipe out output');
-  proc.stdout.pipe(logFile);
-  // console.log('Pipe out error');
-  proc.stderr.pipe(logFile);
-  proc.on('close', () => {
-    console.log('Process has completed: ', cmd, params);
-    console.log('The log can be found at: ', logFilePath);
+
+  // Handle stdout
+  proc.stdout.on('data', (data) => {
+    const output = data.toString();
+    console.log('Python output:', output);  // Show in console
+    logFile.write(output);  // Write to log file
+  });
+
+  // Handle stderr
+  proc.stderr.on('data', (data) => {
+    const error = data.toString();
+    console.error('Python error:', error);  // Show in console
+    logFile.write(error);  // Write to log file
+  });
+
+  // Handle process completion
+  proc.on('close', (code) => {
+    console.log(`Process completed with code: ${code}`);
+    logFile.end();
+
     if (onCloseCallback) {
-      console.log('Going to callback on closed');
-      return onCloseCallback();
+      return onCloseCallback(code !== 0 ? new Error(`Exit code: ${code}`) : null);
+    }
+    return null;
+  });
+
+  // Handle spawn errors
+  proc.on('error', (err) => {
+    console.error('Failed to spawn process:', err);
+    logFile.write(`Error: ${err.toString()}\n`);
+    logFile.end();
+    if (onCloseCallback) {
+      return onCloseCallback(err);
     }
     return null;
   });

@@ -96,18 +96,32 @@ def running_poisoning_attacks(modelId, typePoisoningAttacks, poisoningRate, targ
     #print(f"Out of {poison_count} swaps, {different_label_count} times the two instances had different labels.")
 
   elif typePoisoningAttacks == 'tlf':
-    print(str(targetClass))
-    #prefix = prefix + "_" + str(poisoningRate) + "_" + str(targetClass)
+    print(f"Target Class: {targetClass}")
+    targetClass = int(targetClass)  # Convert to int
     flip_amount = int(len(X_poisoned_train) * int(poisoningRate) * 0.01)
     original_count = len(train_data) - flip_amount
     poison_count = flip_amount
-    if len(X_poisoned_train) >= flip_amount:
-      for i in range(flip_amount):
-        flip_id_1 = random.randint(0, len(y_poisoned_train) - 1)
-        y_poisoned_train[flip_id_1] = targetClass
 
+    if len(X_poisoned_train) >= flip_amount:
+        flipped_count = 0
+        attempts = 0
+        max_attempts = len(y_poisoned_train) * 2  # Prevent infinite loop
+
+        while flipped_count < flip_amount and attempts < max_attempts:
+            flip_id = random.randint(0, len(y_poisoned_train) - 1)
+            current_label = y_poisoned_train[flip_id]
+
+            # Only flip if current label is different from target
+            if current_label != targetClass:
+                y_poisoned_train[flip_id] = targetClass
+                flipped_count += 1
+
+            attempts += 1
+
+        if flipped_count < flip_amount:
+            print(f"Warning: Could only flip {flipped_count} labels out of requested {flip_amount}")
     else:
-      raise Exception('Poison percentage should not exceed 100%')
+        raise Exception('Poison percentage should not exceed 100%')
   else:
     raise Exception('typePoisoningAttacks should be in [ctgan, rsl, tlf]')
 
