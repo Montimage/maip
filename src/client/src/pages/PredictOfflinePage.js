@@ -4,6 +4,7 @@ import { Table, Tooltip, message, notification, Upload, Spin, Button, Form, Sele
 import { UploadOutlined } from "@ant-design/icons";
 import { connect } from "react-redux";
 import Papa from 'papaparse';
+import { Pie, RingProgress } from '@ant-design/plots';
 import {
   FORM_LAYOUT,
   SERVER_URL,
@@ -278,16 +279,67 @@ class PredictOfflinePage extends Component {
       'Offline prediction using models';
 
     let tableConfig, maliciousFlows, predictOutput;
+    let normalFlows = 0;
+    let totalFlows = 0;
     if (predictStats) {
       const predictResult = this.handleTablePredictStats(predictStats);
       tableConfig = predictResult.tableConfig;
       maliciousFlows = predictResult.maliciousFlows;
+      normalFlows = predictResult.normalFlows;
+      totalFlows = normalFlows + maliciousFlows;
       if (maliciousFlows > 0) {
         predictOutput = "The model predicts that the given network traffic contains Malicious activity";
       } else {
         predictOutput = "The model predicts that the given network traffic is Normal";
       }
     }
+
+    const donutData = [
+      { type: 'Normal', value: normalFlows },
+      { type: 'Malicious', value: maliciousFlows || 0 },
+    ];
+    const donutConfig = {
+      data: donutData,
+      angleField: 'value',
+      colorField: 'type',
+      radius: 1,
+      innerRadius: 0.64,
+      legend: { position: 'right' },
+      label: {
+        type: 'inner',
+        offset: '-50%',
+        content: ({ percent }) => `${(percent * 100).toFixed(0)}%`,
+        style: { fontSize: 14, textAlign: 'center' },
+      },
+      color: ['#5B8FF9', '#F4664A'],
+      interactions: [{ type: 'element-active' }],
+      statistic: {
+        title: false,
+        content: {
+          content: totalFlows ? `${totalFlows}` : '',
+          style: { fontSize: 16 },
+        },
+      },
+    };
+
+    const maliciousRate = totalFlows > 0 ? maliciousFlows / totalFlows : 0;
+    const ringConfig = {
+      height: 140,
+      width: 140,
+      autoFit: false,
+      percent: maliciousRate,
+      color: ['#F4664A', '#E8EDF3'],
+      statistic: {
+        title: {
+          formatter: () => 'Malicious',
+          style: { fontSize: 12 },
+        },
+        content: {
+          formatter: () => `${(maliciousRate * 100).toFixed(1)}%`,
+          style: { fontSize: 16 },
+        },
+      },
+    };
 
     return (
       <LayoutPage pageTitle="Predict Offline" pageSubTitle={subTitle}>
@@ -370,7 +422,17 @@ class PredictOfflinePage extends Component {
           <>
             <div style={{ marginTop: '50px' }}>
               <h3>{predictOutput}</h3>
-              <Table {...tableConfig} style={{ width: '500px' }} />
+              <div style={{ display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
+                <div>
+                  <Pie {...donutConfig} style={{ width: 320, height: 220 }} />
+                </div>
+                <div>
+                  <RingProgress {...ringConfig} />
+                </div>
+                <div>
+                  <Table {...tableConfig} style={{ width: '500px' }} />
+                </div>
+              </div>
             </div>
             {attackCsv && (
               <div style={{ marginTop: '30px' }}>
