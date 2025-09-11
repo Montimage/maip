@@ -294,7 +294,7 @@ class XAILimePage extends Component {
       }));
 
     let sampleTrueLabel = "";
-    if (predictions) {
+    if (predictions && Number.isInteger(sampleId) && sampleId >= 0) {
       sampleTrueLabel = getTrueLabel(modelId, predictions, sampleId);
     }
 
