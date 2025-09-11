@@ -163,9 +163,16 @@ class MAIPHeader extends Component {
             </a>
           </Col>
 
+          {/* Title next to the logo */}
+          <Col span={6} style={{ display: 'flex', alignItems: 'center' }}>
+            <div style={{ color: '#fff', fontSize: '24px', fontWeight: 700, marginTop: '-8px', marginLeft: '30px', whiteSpace: 'nowrap' }}>
+              Network Detection and Response
+            </div>
+          </Col>
+
           {/* Removed the app selection dropdown */}
 
-          <Col span={23} style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <Col span={17} style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <Menu
               theme="dark"
               mode="horizontal"
