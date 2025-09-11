@@ -1,16 +1,16 @@
 import React, { Component } from "react";
 import { connect } from "react-redux";
-import { Layout, Menu, Row, Col, Radio, Button, Select } from "antd";
+import { Layout, Menu, Row, Col } from "antd";
 import {
   DeploymentUnitOutlined, FolderOpenOutlined, BlockOutlined, LineChartOutlined,
-  SolutionOutlined, BugOutlined, SafetyOutlined, ExperimentOutlined, FilePdfOutlined, DownOutlined,
+  SolutionOutlined, BugOutlined, SafetyOutlined, ExperimentOutlined, FilePdfOutlined,
   InfoCircleOutlined,
 } from "@ant-design/icons";
-import {
-  setNotification,
-  requestApp,
-  setApp,
-} from "../../actions";
+// import {
+//   setNotification,
+//   requestApp,
+//   setApp,
+// } from "../../actions";
 import "./styles.css";
 import {
   MENU_OPTIONS,
@@ -18,15 +18,9 @@ import {
 
 const { Header } = Layout;
 const { SubMenu } = Menu;
-const { Option } = Select;
 
 class MAIPHeader extends Component {
-  constructor(props) {
-    super(props);
-    this.state = {
-      selectedValue: this.props.app,
-    };
-  }
+  // Removed state and constructor since app selection is no longer needed
 
   getMenuItems() {
     return [
@@ -34,7 +28,7 @@ class MAIPHeader extends Component {
         key: MENU_OPTIONS[0].key,
         label: 'Build',
         icon: <DeploymentUnitOutlined />,
-        link: `/build/${this.props.app}`,
+        link: `/build/ad`,
         //link: MENU_OPTIONS[0].link,
       },
       {
@@ -137,48 +131,6 @@ class MAIPHeader extends Component {
     ];
   }
 
-  hasModelIdInUrl = () => {
-    const { pathname } = window.location;
-    const pathParts = pathname.split('/').filter(Boolean);
-
-    // List of all specific routes that should disable the updating app
-    const restrictedRoutes = [
-      '/xai/shap/',
-      '/xai/lime/',
-      '/metrics/accountability/',
-      '/metrics/resilience/',
-      '/attacks/',
-      '/predict/online/',
-      '/predict/offline/',
-      '/build/ad',
-      '/build/ac'
-    ];
-
-    if (restrictedRoutes.some(route => pathname.startsWith(route))) {
-      return true;
-    }
-
-    if (pathParts[0] === 'models') {
-      if ((pathParts[1] === 'datasets' && pathParts[2]) ||
-            (pathParts[1] === 'retrain' && pathParts[2])) {
-          return true;
-      }
-    }
-
-    return false;
-  }
-
-  handleChange = (value) => {
-    this.setState({ selectedValue: value }, () => {
-      console.log(`selected ${value}`);
-      if (this.state.selectedValue === 'rca') {
-        // TODO: check correct link
-        window.open('http://rca.montimage.com:8080/ui', '_blank');
-      }
-      this.props.setApp(this.state.selectedValue);
-    });
-  }
-
   render() {
     // Modify the current pathname if it is "/"
     let { pathname } = window.location;
@@ -200,7 +152,7 @@ class MAIPHeader extends Component {
     return (
       <Header>
         <Row>
-          <Col span={1} style={{marginRight: '200px', marginTop: '-8px', height: '64px'}}>
+          <Col span={1} style={{marginTop: '-8px', height: '64px'}}>
             <a href="https://www.montimage.com/">
               <img
                 src={'/img/logo-montimage.png'}
@@ -211,26 +163,13 @@ class MAIPHeader extends Component {
             </a>
           </Col>
 
-          <Col span={7} style={{ marginLeft: '100px', marginRight: '100px', marginTop: '-7px' }}>
-            <Select defaultValue="ad" bordered={false}
-              value={this.props.app}
-              //value={this.state.selectedValue}
-              className="selectApp"
-              style={{ width: '60%' }}
-              onChange={this.handleChange}
-              disabled={this.hasModelIdInUrl()}
-              suffixIcon={<DownOutlined style={{ color: '#fff' }} />}
-            >
-              <Option style={{ fontSize: '16px' }} value="ac">Activity Classification</Option>
-              <Option style={{ fontSize: '16px', }} value="ad">Anomaly Detection</Option>
-              <Option style={{ fontSize: '16px', }} value="rca">Root Cause Analysis</Option>
-            </Select>
-          </Col>
-          <Col span={10}>
+          {/* Removed the app selection dropdown */}
+
+          <Col span={23} style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <Menu
               theme="dark"
               mode="horizontal"
-              style={{ lineHeight: '52px', width: '730px', fontSize: '16px' }}
+              style={{ lineHeight: '52px', fontSize: '16px' }}
               selectedKeys={selectedKeys}
             >
               {menuItems.map((item) =>
@@ -264,11 +203,4 @@ const mapPropsToStates = ({ app, requesting }) => ({
   app, requesting,
 });
 
-const mapDispatchToProps = (dispatch) => ({
-  setNotification: ({ type, message }) =>
-    dispatch(setNotification({ type, message })),
-  setApp: (app) => dispatch(setApp(app)),
-  fetchApp: () => dispatch(requestApp()),
-});
-
-export default connect(mapPropsToStates, mapDispatchToProps)(MAIPHeader);
+export default connect(mapPropsToStates)(MAIPHeader);
