@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
-import { Table, Tooltip, message, notification, Upload, Spin, Button, Form, Select } from 'antd';
+import { Table, Tooltip, message, notification, Upload, Spin, Button, Form, Select, Dropdown, Menu, Modal } from 'antd';
 import { UploadOutlined } from "@ant-design/icons";
 import { connect } from "react-redux";
 import Papa from 'papaparse';
@@ -28,6 +28,7 @@ import {
   getFilteredModelsOptions,
   getLastPath,
 } from "../utils";
+import { handleMitigationAction } from '../utils/mitigation';
 
 let isModelIdPresent = getLastPath() !== "offline";
 
@@ -44,9 +45,23 @@ class PredictOfflinePage extends Component {
       attackCsv: null,
       attackRows: [],
       attackColumns: [],
+      attackFlowColumns: [],
+      mitigationColumns: [],
+      attackPagination: { current: 1, pageSize: 10 },
     };
     this.handlePredictOffline = this.handlePredictOffline.bind(this);
     this.handleTablePredictStats = this.handleTablePredictStats.bind(this);
+  }
+
+  // Strict IPv4 validation (each octet 0-255)
+  isValidIPv4(ip) {
+    if (typeof ip !== 'string') return false;
+    const m = ip.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (!m) return false;
+    return m.slice(1).every(o => {
+      const n = Number(o);
+      return n >= 0 && n <= 255 && String(n) === String(Number(o));
+    });
   }
 
   componentDidMount() {
@@ -193,6 +208,26 @@ class PredictOfflinePage extends Component {
     return { tableConfig, normalFlows, maliciousFlows };
   }
 
+  handleMitigation = (key, record, srcKey, dstKey, derived) => {
+    const srcIp = srcKey ? record[srcKey] : (derived?.srcIp || null);
+    const dstIp = dstKey ? record[dstKey] : (derived?.dstIp || null);
+    const sessionId = record['ip.session_id'] || record['session_id'] || null;
+    const dport = record['dport_g'] ?? record['dport_le'] ?? record['dport'] ?? null;
+    const pktsRate = record['pkts_rate'] ?? null;
+    const byteRate = record['byte_rate'] ?? null;
+
+    handleMitigationAction({
+      actionKey: key,
+      srcIp,
+      dstIp,
+      sessionId,
+      dport,
+      pktsRate,
+      byteRate,
+      isValidIPv4: this.isValidIPv4.bind(this),
+    });
+  }
+
   parseAttackCsv(csvString) {
     try {
       const results = Papa.parse(csvString.trim(), {
@@ -200,24 +235,89 @@ class PredictOfflinePage extends Component {
         skipEmptyLines: true,
       });
       const rows = (results.data || []).map((row, index) => ({ key: index + 1, ...row }));
-      const columns = rows.length > 0
-        ? Object.keys(rows[0]).filter(k => k !== 'key').map((key) => ({
-            title: key,
-            dataIndex: key,
-            sorter: (a, b) => {
-              const aVal = parseFloat(a[key]);
-              const bVal = parseFloat(b[key]);
-              if (!isNaN(aVal) && !isNaN(bVal)) {
-                return aVal - bVal;
-              }
-              return String(a[key]).localeCompare(String(b[key]));
-            },
-          }))
-        : [];
-      return { rows, columns };
+
+      // Detect likely src/dst IP keys (more permissive patterns)
+      const keyList = rows.length > 0 ? Object.keys(rows[0]).filter(k => k !== 'key') : [];
+      const findKey = (patterns) => keyList.find(k => patterns.some(p => p.test(k)));
+      const srcKey = findKey([
+        /src.*ip/i, /source.*ip/i, /^ip[_-]?src$/i, /^src[_-]?ip$/i, /(src|source).*addr/i, /^saddr$/i
+      ]);
+      const dstKey = findKey([
+        /dst.*ip/i, /dest.*ip/i, /destination.*ip/i, /^ip[_-]?dst$/i, /^dst[_-]?ip$/i, /(dst|dest|destination).*addr/i, /^daddr$/i
+      ]);
+
+      // If no explicit src/dst, try to derive from a combined IP column
+      const combinedIpKey = !srcKey && !dstKey ? findKey([/^ip$/i, /ip.*pair/i, /ip.*addr/i, /address/i]) : null;
+
+      const deriveIps = (record) => {
+        if (!combinedIpKey) return { srcIp: null, dstIp: null };
+        const text = String(record[combinedIpKey] || '');
+        const ipv4s = text.match(/(?:\d{1,3}\.){3}\d{1,3}/g) || [];
+        return { srcIp: ipv4s[0] || null, dstIp: ipv4s[1] || null };
+      };
+
+      const flowColumns = keyList.map((key) => ({
+        title: key,
+        dataIndex: key,
+        sorter: (a, b) => {
+          const aVal = parseFloat(a[key]);
+          const bVal = parseFloat(b[key]);
+          if (!isNaN(aVal) && !isNaN(bVal)) {
+            return aVal - bVal;
+          }
+          return String(a[key]).localeCompare(String(b[key]));
+        },
+      }));
+
+      const actionsMenu = (record) => {
+        const derived = deriveIps(record);
+        const srcIpLabel = srcKey ? record[srcKey] : derived.srcIp;
+        const dstIpLabel = dstKey ? record[dstKey] : derived.dstIp;
+        const srcDisabled = !this.isValidIPv4(srcIpLabel);
+        const dstDisabled = !this.isValidIPv4(dstIpLabel);
+        const sessionId = record['ip.session_id'] || record['session_id'] || null;
+        const direction = record['meta.direction'] || record['direction'] || null;
+        // try to extract a single destination port from dport fields
+        const dport = record['dport_g'] ?? record['dport_le'] ?? record['dport'] ?? null;
+        const pktsRate = record['pkts_rate'] ?? null;
+        const byteRate = record['byte_rate'] ?? null;
+        const protocol = 'tcp';
+        const portLabel = dport ? `${dport}/${protocol}` : '';
+        return (
+          <Menu onClick={({ key }) => this.handleMitigation(key, record, srcKey, dstKey, derived)}>
+            <Menu.Item key="block-src-ip" disabled={srcDisabled}>{`Block source IP ${srcIpLabel || ''}`.trim()}</Menu.Item>
+            <Menu.Item key="block-dst-ip" disabled={dstDisabled}>{`Block destination IP ${dstIpLabel || ''}`.trim()}</Menu.Item>
+            <Menu.Divider />
+            <Menu.Item key="block-dst-port" disabled={!dport}>{`Block destination port ${portLabel}`.trim()}</Menu.Item>
+            <Menu.Item key="block-ip-port-src" disabled={srcDisabled || !dport}>{`Block ${srcIpLabel || ''}:${dport || ''}/${protocol}`.trim()}</Menu.Item>
+            <Menu.Item key="block-ip-port-dst" disabled={dstDisabled || !dport}>{`Block ${dstIpLabel || ''}:${dport || ''}/${protocol}`.trim()}</Menu.Item>
+            <Menu.Divider />
+            <Menu.Item key="drop-session" disabled={!sessionId}>{`Drop session ${sessionId || ''}`.trim()}</Menu.Item>
+            <Menu.Item key="rate-limit-src" disabled={!srcDisabled && (pktsRate || byteRate) ? false : true}>{`Rate-limit ${srcIpLabel || ''}`.trim()}</Menu.Item>
+            <Menu.Item key="add-watchlist-src" disabled={srcDisabled}>{`Add ${srcIpLabel || ''} to watchlist`.trim()}</Menu.Item>
+            <Menu.Item key="reputation-src" disabled={srcDisabled}>{`Open reputation for ${srcIpLabel || ''}`.trim()}</Menu.Item>
+          </Menu>
+        );
+      };
+
+      const mitigationColumns = [
+        {
+          title: 'Mitigation',
+          key: 'mitigation',
+          width: 160,
+          align: 'center',
+          render: (_, record) => (
+            <Dropdown overlay={actionsMenu(record)} trigger={["click"]}>
+              <Button size="small">Actions</Button>
+            </Dropdown>
+          ),
+        },
+      ];
+
+      return { rows, flowColumns, mitigationColumns };
     } catch (e) {
       console.error('Failed to parse attack CSV', e);
-      return { rows: [], columns: [] };
+      return { rows: [], flowColumns: [], mitigationColumns: [] };
     }
   }
 
@@ -251,13 +351,15 @@ class PredictOfflinePage extends Component {
           console.warn('No attack CSV available:', e.message);
         }
         let attackRows = [];
-        let attackColumns = [];
+        let attackFlowColumns = [];
+        let mitigationColumns = [];
         if (attackCsv) {
           const parsed = this.parseAttackCsv(attackCsv);
           attackRows = parsed.rows;
-          attackColumns = parsed.columns;
+          attackFlowColumns = parsed.flowColumns;
+          mitigationColumns = parsed.mitigationColumns;
         }
-        this.setState({ predictStats, attackCsv, attackRows, attackColumns });
+        this.setState({ predictStats, attackCsv, attackRows, attackFlowColumns, mitigationColumns });
       }
     }
   }
@@ -341,6 +443,10 @@ class PredictOfflinePage extends Component {
       },
     };
 
+    const onSyncPaginate = (pagination) => {
+      this.setState({ attackPagination: { current: pagination.current, pageSize: pagination.pageSize } });
+    };
+
     return (
       <LayoutPage pageTitle="Predict Offline" pageSubTitle={subTitle}>
         <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 700 }}>
@@ -421,7 +527,7 @@ class PredictOfflinePage extends Component {
         { predictStats && modelId && (
           <>
             <div style={{ marginTop: '50px' }}>
-              <h3>{predictOutput}</h3>
+              <h3 style={{ fontSize: '22px' }}>{predictOutput}</h3>
               <div style={{ display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
                 <div>
                   <Pie {...donutConfig} style={{ width: 320, height: 220 }} />
@@ -436,15 +542,28 @@ class PredictOfflinePage extends Component {
             </div>
             {attackCsv && (
               <div style={{ marginTop: '30px' }}>
-                <h3>Malicious flows details</h3>
-                <Table
-                  dataSource={this.state.attackRows}
-                  columns={this.state.attackColumns}
-                  size="small"
-                  style={{ width: '100%', marginTop: '10px' }}
-                  scroll={{ x: 'max-content' }}
-                  pagination={{ pageSize: 10 }}
-                />
+                <h3 style={{ fontSize: '20px' }}>Malicious flows details</h3>
+                <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <Table
+                      dataSource={this.state.attackRows}
+                      columns={this.state.attackFlowColumns}
+                      size="small"
+                      style={{ width: '100%' }}
+                      scroll={{ x: 'max-content' }}
+                      pagination={{ ...this.state.attackPagination, showSizeChanger: true }}
+                      onChange={(pagination) => onSyncPaginate(pagination)}
+                    />
+                  </div>
+                  <div style={{ width: 160 }}>
+                    <Table
+                      dataSource={this.state.attackRows}
+                      columns={this.state.mitigationColumns}
+                      size="small"
+                      pagination={false}
+                    />
+                  </div>
+                </div>
               </div>
             )}
           </>
