@@ -36,13 +36,13 @@ function App() {
   return (
     <Router>
       <ErrorBoundary>
-        <Layout className="layout" style={{ height: "100%" }}>
+        <Layout className="layout" style={{ minHeight: "100vh", paddingBottom: 64 }}>
           <MAIPHeader />
-          <Routes>    
+          <Routes>
             <Route
               path="/"
               element={<Navigate to="/models/all" replace />}
-            />     
+            />
             <Route path="/models/all" element={<ModelListPage />}/>
             <Route path="/models/comparison" element={<ModelsComparisonPage />}/>
             <Route path="/models/retrain" element={<RetrainPage />}/>
