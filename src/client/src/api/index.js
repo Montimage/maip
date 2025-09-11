@@ -604,3 +604,13 @@ export const requestPredictStats = async (predictionId) => {
   console.log(data.prediction);
   return data.prediction;
 };
+
+export const requestPredictionAttack = async (predictionId) => {
+  const url = `${SERVER_URL}/api/predictions/${predictionId}/attack`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch attack details for prediction ${predictionId}`);
+  }
+  const csvText = await response.text();
+  return csvText;
+};

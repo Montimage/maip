@@ -3,6 +3,7 @@ import LayoutPage from './LayoutPage';
 import { Table, Tooltip, message, notification, Upload, Spin, Button, Form, Select } from 'antd';
 import { UploadOutlined } from "@ant-design/icons";
 import { connect } from "react-redux";
+import Papa from 'papaparse';
 import {
   FORM_LAYOUT,
   SERVER_URL,
@@ -20,6 +21,7 @@ import {
   requestMMTOffline,
   requestCsvReports,
   requestPredictStats,
+  requestPredictionAttack,
 } from "../api";
 import {
   getFilteredModelsOptions,
@@ -38,6 +40,9 @@ class PredictOfflinePage extends Component {
       isRunning: props.predictStatus.isRunning,
       isMMTRunning: props.mmtStatus.isRunning,
       predictStats: null,
+      attackCsv: null,
+      attackRows: [],
+      attackColumns: [],
     };
     this.handlePredictOffline = this.handlePredictOffline.bind(this);
     this.handleTablePredictStats = this.handleTablePredictStats.bind(this);
@@ -187,6 +192,34 @@ class PredictOfflinePage extends Component {
     return { tableConfig, normalFlows, maliciousFlows };
   }
 
+  parseAttackCsv(csvString) {
+    try {
+      const results = Papa.parse(csvString.trim(), {
+        header: true,
+        skipEmptyLines: true,
+      });
+      const rows = (results.data || []).map((row, index) => ({ key: index + 1, ...row }));
+      const columns = rows.length > 0
+        ? Object.keys(rows[0]).filter(k => k !== 'key').map((key) => ({
+            title: key,
+            dataIndex: key,
+            sorter: (a, b) => {
+              const aVal = parseFloat(a[key]);
+              const bVal = parseFloat(b[key]);
+              if (!isNaN(aVal) && !isNaN(bVal)) {
+                return aVal - bVal;
+              }
+              return String(a[key]).localeCompare(String(b[key]));
+            },
+          }))
+        : [];
+      return { rows, columns };
+    } catch (e) {
+      console.error('Failed to parse attack CSV', e);
+      return { rows: [], columns: [] };
+    }
+  }
+
   async componentDidUpdate(prevProps, prevState) {
     if (this.props.app !== prevProps.app && !isModelIdPresent) {
       this.setState({ modelId: null });
@@ -210,14 +243,27 @@ class PredictOfflinePage extends Component {
         console.log(lastPredictId);
         const predictStats = await requestPredictStats(lastPredictId);
         console.log(predictStats);
-        this.setState({ predictStats });
+        let attackCsv = null;
+        try {
+          attackCsv = await requestPredictionAttack(lastPredictId);
+        } catch (e) {
+          console.warn('No attack CSV available:', e.message);
+        }
+        let attackRows = [];
+        let attackColumns = [];
+        if (attackCsv) {
+          const parsed = this.parseAttackCsv(attackCsv);
+          attackRows = parsed.rows;
+          attackColumns = parsed.columns;
+        }
+        this.setState({ predictStats, attackCsv, attackRows, attackColumns });
       }
     }
   }
 
   render() {
     const { app, models, reports } = this.props;
-    const { modelId, isRunning, predictStats } = this.state;
+    const { modelId, isRunning, predictStats, attackCsv } = this.state;
 
     // TODO: need to filter mmt reports ?
     const reportsOptions = reports ? reports.map(report => ({
@@ -320,16 +366,27 @@ class PredictOfflinePage extends Component {
           </div>
         </Form>
 
-        { predictStats && modelId &&
-          (
-            <>
-              <div style={{ marginTop: '50px' }}>
-                <h3>{predictOutput}</h3>
-                <Table {...tableConfig} style={{ width: '500px' }} />
+        { predictStats && modelId && (
+          <>
+            <div style={{ marginTop: '50px' }}>
+              <h3>{predictOutput}</h3>
+              <Table {...tableConfig} style={{ width: '500px' }} />
             </div>
-            </>
-          )
-        }
+            {attackCsv && (
+              <div style={{ marginTop: '30px' }}>
+                <h3>Malicious flows details</h3>
+                <Table
+                  dataSource={this.state.attackRows}
+                  columns={this.state.attackColumns}
+                  size="small"
+                  style={{ width: '100%', marginTop: '10px' }}
+                  scroll={{ x: 'max-content' }}
+                  pagination={{ pageSize: 10 }}
+                />
+              </div>
+            )}
+          </>
+        )}
 
       </LayoutPage>
     );
