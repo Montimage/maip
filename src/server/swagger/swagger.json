@@ -1,8 +1,8 @@
 {
   "openapi" : "3.0.2",
   "info" : {
-    "title" : "Montimage AI Platform (MAIP)",
-    "description" : "The APIs provided by MAIP",
+    "title" : "Network Detection and Response (NDR)",
+    "description" : "The APIs provided by the NDR component",
     "termsOfService" : "https://github.com/Montimage/maip",
     "contact" : {
       "email" : "developer@montimage.com"
