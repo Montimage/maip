@@ -125,7 +125,15 @@ class PredictOnlinePage extends Component {
     try {
       const res = await fetch(`${SERVER_URL}/api/online/status`);
       const status = await res.json();
-      this.setState({ status, isCapturing: status.running });
+      const prev = this.state.status || {};
+      const hasChanged = (
+        prev.running !== status.running ||
+        prev.pid !== status.pid ||
+        prev.lastFile !== status.lastFile
+      );
+      if (hasChanged) {
+        this.setState({ status, isCapturing: status.running });
+      }
       const { lastFile, lastFileAgeMs } = status;
       const { lastProcessedFile, processedFiles, isRunning, modelId, isProcessingSlice } = this.state;
       const base = lastFile ? String(lastFile).split('/').pop() : null;
@@ -143,6 +151,11 @@ class PredictOnlinePage extends Component {
         // Mark as processed immediately to avoid races
         this.setState({ lastProcessedFile: lastFile, processedFiles: [...processedFiles, base], isProcessingSlice: true });
         await this.processSlice(lastFile);
+      }
+      // If capture stopped and results already shown, stop polling status
+      if (status.running === false && this.state.predictStats && this.statusTimer) {
+        clearInterval(this.statusTimer);
+        this.statusTimer = null;
       }
     } catch (e) {
       console.warn('Failed to poll online status:', e.message);
