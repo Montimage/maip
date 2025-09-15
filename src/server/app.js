@@ -28,6 +28,7 @@ const xaiRouter = require('./routes/xai');
 const attacksRouter = require('./routes/attacks');
 const metricsRouter = require('./routes/metrics');
 const securityRouter = require('./routes/security');
+const onlineRouter = require('./routes/online');
 
 const app = express();
 var compression = require('compression');
@@ -107,6 +108,7 @@ app.use('/api/xai', xaiRouter);
 app.use('/api/attacks', attacksRouter);
 app.use('/api/metrics', metricsRouter);
 app.use('/api/security', securityRouter);
+app.use('/api/online', onlineRouter);
 
 if (process.env.MODE === 'SERVER') {
   app.use(express.static(path.join(__dirname, '../public')));

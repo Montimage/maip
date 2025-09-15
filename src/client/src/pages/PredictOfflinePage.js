@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
-import { Table, Tooltip, message, notification, Upload, Spin, Button, Form, Select, Dropdown, Menu, Modal } from 'antd';
+import { Table, Tooltip, message, notification, Upload, Spin, Button, Form, Select, Dropdown, Menu, Modal, Divider } from 'antd';
 import { UploadOutlined } from "@ant-design/icons";
 import { connect } from "react-redux";
 import Papa from 'papaparse';
@@ -451,6 +451,9 @@ class PredictOfflinePage extends Component {
 
     return (
       <LayoutPage pageTitle="Predict Offline" pageSubTitle={subTitle}>
+        <Divider orientation="left">
+          <h1 style={{ fontSize: '24px' }}>Prediction Parameters</h1>
+        </Divider>
         <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 700 }}>
           <Form.Item name="model" label="Model"
             style={{ flex: 'none', marginBottom: 10 }}
@@ -526,9 +529,12 @@ class PredictOfflinePage extends Component {
           </div>
         </Form>
 
+        <Divider orientation="left">
+          <h1 style={{ fontSize: '24px' }}>Prediction Results</h1>
+        </Divider>
         { predictStats && modelId && (
           <>
-            <div style={{ marginTop: '50px' }}>
+            <div style={{ marginTop: '10px' }}>
               <h3 style={{ fontSize: '22px' }}>{predictOutput}</h3>
               <div style={{ display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
                 <div>

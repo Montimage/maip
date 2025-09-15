@@ -6,6 +6,9 @@ const {
   startMMTOffline,
   startMMTForDataset,
 } = require('../mmt/mmt-connector');
+const fs = require('fs');
+const path = require('path');
+const { PCAP_PATH } = require('../constants');
 
 const router = express.Router();
 
@@ -35,7 +38,30 @@ router.post('/online', (req, res) => {
 router.post('/offline', (req, res) => {
   const {
     fileName,
+    filePath,
   } = req.body;
+
+  // If filePath is provided (e.g., /tmp/ndr_xxx.pcap), copy it into PCAP_PATH and use its basename
+  if (filePath && !fileName) {
+    try {
+      const basename = path.basename(filePath);
+      const dest = path.join(PCAP_PATH, basename);
+      if (!fs.existsSync(dest)) {
+        fs.copyFileSync(filePath, dest);
+      }
+      return startMMTOffline(basename, (mmtStatus) => {
+        if (mmtStatus.error) {
+          res.status(401).send({ error: mmtStatus.error });
+        } else {
+          console.log(mmtStatus);
+          res.send(mmtStatus);
+        }
+      });
+    } catch (e) {
+      return res.status(401).send({ error: e.message || 'Failed to copy pcap' });
+    }
+  }
+
   startMMTOffline(fileName, (mmtStatus) => {
     if (mmtStatus.error) {
       res.status(401).send({
