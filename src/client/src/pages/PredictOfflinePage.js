@@ -225,6 +225,8 @@ class PredictOfflinePage extends Component {
       pktsRate,
       byteRate,
       isValidIPv4: this.isValidIPv4.bind(this),
+      flowRecord: record,
+      natsSubject: 'ndr.malicious.flow'
     });
   }
 
@@ -296,6 +298,8 @@ class PredictOfflinePage extends Component {
             <Menu.Item key="rate-limit-src" disabled={!srcDisabled && (pktsRate || byteRate) ? false : true}>{`Rate-limit ${srcIpLabel || ''}`.trim()}</Menu.Item>
             <Menu.Item key="add-watchlist-src" disabled={srcDisabled}>{`Add ${srcIpLabel || ''} to watchlist`.trim()}</Menu.Item>
             <Menu.Item key="reputation-src" disabled={srcDisabled}>{`Open reputation for ${srcIpLabel || ''}`.trim()}</Menu.Item>
+            <Menu.Divider />
+            <Menu.Item key="send-nats">Send flow to NATS</Menu.Item>
           </Menu>
         );
       };
@@ -536,7 +540,7 @@ class PredictOfflinePage extends Component {
                   <RingProgress {...ringConfig} />
                 </div>
                 <div>
-                  <Table {...tableConfig} style={{ width: '500px' }} />
+              <Table {...tableConfig} style={{ width: '500px' }} />
                 </div>
               </div>
             </div>

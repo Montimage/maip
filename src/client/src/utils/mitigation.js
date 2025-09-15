@@ -171,8 +171,30 @@ export function openReputation(ipAddress) {
   window.open(url, '_blank', 'noopener');
 }
 
+export async function sendToNats({ subject = 'ndr.malicious.flow', payload }) {
+  try {
+    const res = await fetch(`${SERVER_URL}/api/security/nats-publish`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subject, payload }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    notification.success({
+      message: 'Sent to NATS',
+      description: `Published to ${subject}`,
+      placement: 'topRight',
+    });
+  } catch (e) {
+    notification.error({
+      message: 'Publish failed',
+      description: e.message,
+      placement: 'topRight',
+    });
+  }
+}
+
 // Mitigation dispatcher
-export function handleMitigationAction({ actionKey, srcIp, dstIp, sessionId, dport, pktsRate, byteRate, isValidIPv4 }) {
+export function handleMitigationAction({ actionKey, srcIp, dstIp, sessionId, dport, pktsRate, byteRate, isValidIPv4, flowRecord, natsSubject }) {
   switch (actionKey) {
     case 'block-src-ip':
       if (isValidIPv4(srcIp)) {
@@ -235,6 +257,13 @@ export function handleMitigationAction({ actionKey, srcIp, dstIp, sessionId, dpo
         openReputation(srcIp);
       } else {
         message.warning('Invalid source IP');
+      }
+      break;
+    case 'send-nats':
+      if (flowRecord) {
+        sendToNats({ subject: natsSubject || 'ndr.malicious.flow', payload: flowRecord });
+      } else {
+        message.warning('No flow data to send');
       }
       break;
     default:
