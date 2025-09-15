@@ -21,6 +21,8 @@ const AC_TRAINING_PATH = `${AC_PATH}trainings/`;
 
 const OUTPUT_DIRS = [TRAINING_PATH, PREDICTION_PATH, XAI_PATH, ATTACKS_PATH];
 
+const LOCAL_NATS_URL = 'nats://localhost:4222';
+
 module.exports = {
   PYTHON_CMD,
   AC_PATH, AC_TRAINING_PATH,
@@ -39,4 +41,5 @@ module.exports = {
   DATASETS_PATH,
   PCAP_EXTENSIONS,
   OUTPUT_DIRS,
+  LOCAL_NATS_URL,
 };

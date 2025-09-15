@@ -84,21 +84,21 @@ export async function blockIpPort(ipAddress, port, protocol = 'tcp') {
   }
 }
 
-export async function dropSession(sessionId) {
-  if (!sessionId) {
-    message.warning('No session id available');
+export async function dropSession(ipAddress) {
+  if (!ipAddress) {
+    message.warning('Invalid IP to drop');
     return;
   }
   try {
     const res = await fetch(`${SERVER_URL}/api/security/drop-session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId }),
+      body: JSON.stringify({ ip: String(ipAddress).trim() }),
     });
     if (!res.ok) throw new Error(await res.text());
     notification.success({
       message: 'Action submitted',
-      description: `Session ${sessionId} will be dropped`,
+      description: `Session traffic dropped for ${ipAddress}`,
       placement: 'topRight',
     });
   } catch (e) {
@@ -136,52 +136,17 @@ export async function rateLimitIp(ipAddress, byteRate, pktsRate) {
   }
 }
 
-export async function addToWatchlist(ipAddress) {
-  if (!ipAddress) {
-    message.warning('No IP address found');
-    return;
-  }
-  try {
-    const res = await fetch(`${SERVER_URL}/api/security/watchlist`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ip: String(ipAddress).trim() }),
-    });
-    if (!res.ok) throw new Error(await res.text());
-    notification.success({
-      message: 'Added to watchlist',
-      description: `${ipAddress} has been added to the watchlist`,
-      placement: 'topRight',
-    });
-  } catch (e) {
-    notification.error({
-      message: 'Action failed',
-      description: e.message,
-      placement: 'topRight',
-    });
-  }
-}
-
-export function openReputation(ipAddress) {
-  if (!ipAddress) {
-    message.warning('No IP address found');
-    return;
-  }
-  const url = `https://www.virustotal.com/gui/ip-address/${encodeURIComponent(ipAddress)}`;
-  window.open(url, '_blank', 'noopener');
-}
-
-export async function sendToNats({ subject = 'ndr.malicious.flow', payload }) {
+export async function sendToNats({ payload }) {
   try {
     const res = await fetch(`${SERVER_URL}/api/security/nats-publish`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ subject, payload }),
+      body: JSON.stringify({ payload }),
     });
     if (!res.ok) throw new Error(await res.text());
     notification.success({
       message: 'Sent to NATS',
-      description: `Published to ${subject}`,
+      description: `Published to server default subject (env NATS_SUBJECT)`,
       placement: 'topRight',
     });
   } catch (e) {
@@ -193,75 +158,130 @@ export async function sendToNats({ subject = 'ndr.malicious.flow', payload }) {
   }
 }
 
+function buildCommandPreview(actionKey, params) {
+  const { srcIp, dstIp, dport, limit = '5/sec', burst = 10 } = params || {};
+  switch (actionKey) {
+    case 'block-src-ip':
+      return `sudo iptables -I INPUT -s ${srcIp} -j DROP\nsudo iptables -I OUTPUT -d ${srcIp} -j DROP`;
+    case 'block-dst-ip':
+      return `sudo iptables -I INPUT -s ${dstIp} -j DROP\nsudo iptables -I OUTPUT -d ${dstIp} -j DROP`;
+    case 'block-dst-port':
+      return `sudo iptables -I INPUT -p tcp --dport ${dport} -j DROP\nsudo iptables -I OUTPUT -p tcp --sport ${dport} -j DROP`;
+    case 'block-ip-port-src':
+      return `sudo iptables -I INPUT -s ${srcIp} -p tcp --dport ${dport} -j DROP\nsudo iptables -I OUTPUT -d ${srcIp} -p tcp --sport ${dport} -j DROP`;
+    case 'block-ip-port-dst':
+      return `sudo iptables -I INPUT -s ${dstIp} -p tcp --dport ${dport} -j DROP\nsudo iptables -I OUTPUT -d ${dstIp} -p tcp --sport ${dport} -j DROP`;
+    case 'drop-session': {
+      const ip = (dstIp && dstIp) || srcIp;
+      return `sudo iptables -I INPUT -s ${ip} -j DROP\nsudo iptables -I OUTPUT -d ${ip} -j DROP`;
+    }
+    case 'rate-limit-src':
+      return `sudo iptables -I INPUT -s ${srcIp} -p tcp --dport ${dport} -m limit --limit ${limit} --limit-burst ${burst} -j ACCEPT\nsudo iptables -I INPUT -s ${srcIp} -p tcp --dport ${dport} -j DROP`;
+    case 'send-nats':
+      return `POST ${SERVER_URL}/api/security/nats-publish with server default subject (env NATS_SUBJECT)`;
+    default:
+      return '';
+  }
+}
+
 // Mitigation dispatcher
-export function handleMitigationAction({ actionKey, srcIp, dstIp, sessionId, dport, pktsRate, byteRate, isValidIPv4, flowRecord, natsSubject }) {
+export function handleMitigationAction({ actionKey, srcIp, dstIp, sessionId, dport, pktsRate, byteRate, isValidIPv4, flowRecord }) {
+  const preview = buildCommandPreview(actionKey, { srcIp, dstIp, dport });
   switch (actionKey) {
     case 'block-src-ip':
       if (isValidIPv4(srcIp)) {
-        Modal.confirm({ title: `Block source IP ${srcIp}?`, onOk: () => blockIp(srcIp) });
+        Modal.confirm({
+          title: `Confirm action: Block source IP ${srcIp}`,
+          content: preview,
+          onOk: () => blockIp(srcIp)
+        });
       } else {
         message.warning('Source IP missing or not valid IPv4');
       }
       break;
     case 'block-dst-ip':
       if (isValidIPv4(dstIp)) {
-        Modal.confirm({ title: `Block destination IP ${dstIp}?`, onOk: () => blockIp(dstIp) });
+        Modal.confirm({
+          title: `Confirm action: Block destination IP ${dstIp}`,
+          content: preview,
+          onOk: () => blockIp(dstIp)
+        });
       } else {
         message.warning('Destination IP missing or not valid IPv4');
       }
       break;
     case 'block-dst-port':
       if (dport) {
-        blockPort(dport, 'tcp');
+        Modal.confirm({
+          title: `Confirm action: Block destination port ${dport}/tcp`,
+          content: preview,
+          onOk: () => blockPort(dport, 'tcp')
+        });
       } else {
         message.warning('No destination port available');
       }
       break;
     case 'block-ip-port-src':
       if (isValidIPv4(srcIp) && dport) {
-        blockIpPort(srcIp, dport, 'tcp');
+        Modal.confirm({
+          title: `Confirm action: Block ${srcIp}:${dport}/tcp`,
+          content: preview,
+          onOk: () => blockIpPort(srcIp, dport, 'tcp')
+        });
       } else {
         message.warning('Missing source IP or port');
       }
       break;
     case 'block-ip-port-dst':
       if (isValidIPv4(dstIp) && dport) {
-        blockIpPort(dstIp, dport, 'tcp');
+        Modal.confirm({
+          title: `Confirm action: Block ${dstIp}:${dport}/tcp`,
+          content: preview,
+          onOk: () => blockIpPort(dstIp, dport, 'tcp')
+        });
       } else {
         message.warning('Missing destination IP or port');
       }
       break;
     case 'drop-session':
-      if (sessionId) {
-        dropSession(sessionId);
+      if (isValidIPv4(dstIp || srcIp)) {
+        const ipToDrop = isValidIPv4(dstIp) ? dstIp : srcIp;
+        Modal.confirm({
+          title: `Confirm action: Drop traffic for ${ipToDrop}`,
+          content: preview,
+          onOk: () => dropSession(ipToDrop)
+        });
       } else {
-        message.warning('No session id available');
+        message.warning('Invalid IP to drop');
       }
       break;
     case 'rate-limit-src':
-      if (isValidIPv4(srcIp) && (pktsRate || byteRate)) {
-        rateLimitIp(srcIp, byteRate, pktsRate);
+      if (isValidIPv4(srcIp) && dport) {
+        Modal.confirm({
+          title: `Confirm action: Rate limit ${srcIp}:${dport}/tcp`,
+          content: preview,
+          onOk: () => fetch(`${SERVER_URL}/api/security/rate-limit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ip: srcIp, port: dport, protocol: 'tcp', limit: '5/sec', burst: 10, direction: 'in' }),
+          }).then(async (r) => {
+            if (!r.ok) throw new Error(await r.text());
+            notification.success({ message: 'Action submitted', description: `Rate limit applied to ${srcIp}:${dport}/tcp`, placement: 'topRight' });
+          }).catch((e) => {
+            notification.error({ message: 'Action failed', description: e.message, placement: 'topRight' });
+          })
+        });
       } else {
-        message.warning('Missing metrics or invalid source IP');
-      }
-      break;
-    case 'add-watchlist-src':
-      if (isValidIPv4(srcIp)) {
-        addToWatchlist(srcIp);
-      } else {
-        message.warning('Invalid source IP');
-      }
-      break;
-    case 'reputation-src':
-      if (isValidIPv4(srcIp)) {
-        openReputation(srcIp);
-      } else {
-        message.warning('Invalid source IP');
+        message.warning('Missing src IP or port for rate limit');
       }
       break;
     case 'send-nats':
       if (flowRecord) {
-        sendToNats({ subject: natsSubject || 'ndr.malicious.flow', payload: flowRecord });
+        Modal.confirm({
+          title: 'Confirm action: Send flow to NATS',
+          content: `Subject: "otics.ingest.>" (server default subject)`,
+          onOk: () => sendToNats({ payload: flowRecord })
+        });
       } else {
         message.warning('No flow data to send');
       }

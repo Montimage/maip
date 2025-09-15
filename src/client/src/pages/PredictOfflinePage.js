@@ -296,8 +296,6 @@ class PredictOfflinePage extends Component {
             <Menu.Divider />
             <Menu.Item key="drop-session" disabled={!sessionId}>{`Drop session ${sessionId || ''}`.trim()}</Menu.Item>
             <Menu.Item key="rate-limit-src" disabled={!srcDisabled && (pktsRate || byteRate) ? false : true}>{`Rate-limit ${srcIpLabel || ''}`.trim()}</Menu.Item>
-            <Menu.Item key="add-watchlist-src" disabled={srcDisabled}>{`Add ${srcIpLabel || ''} to watchlist`.trim()}</Menu.Item>
-            <Menu.Item key="reputation-src" disabled={srcDisabled}>{`Open reputation for ${srcIpLabel || ''}`.trim()}</Menu.Item>
             <Menu.Divider />
             <Menu.Item key="send-nats">Send flow to NATS</Menu.Item>
           </Menu>
