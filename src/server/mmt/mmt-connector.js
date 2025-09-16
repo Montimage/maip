@@ -48,7 +48,7 @@ const runOnDataset = (pcapFiles, datasetPath, outputDir, logFilePath, onFinishCa
  * Start analysing a traffic in given pcap file
  * @param {String} pcapFileName absoluted path of the pcap file
  */
-const startMMTOffline = (pcapFileName, callback) => {
+const startMMTOffline = (pcapFileName, callback, overrideOutputSessionId = null) => {
   console.log(mmtStatus);
   if (mmtStatus.isRunning) {
     console.warn('An analysing process is on going. Only one process can be run at a time');
@@ -63,7 +63,7 @@ const startMMTOffline = (pcapFileName, callback) => {
     });
   }
 
-  const sessionId = `${pcapFileName}-${getUniqueId()}`;
+  const sessionId = overrideOutputSessionId ? overrideOutputSessionId : `${pcapFileName}-${getUniqueId()}`;
   const outputDir = `${REPORT_PATH}report-${sessionId}/`;
   const logFilePath = `${LOG_PATH + sessionId}.log`;
 

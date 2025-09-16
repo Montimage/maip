@@ -39,6 +39,7 @@ router.post('/offline', (req, res) => {
   const {
     fileName,
     filePath,
+    outputSessionId,
   } = req.body;
 
   // If filePath is provided (e.g., /tmp/ndr_xxx.pcap), copy it into PCAP_PATH and use its basename
@@ -56,7 +57,7 @@ router.post('/offline', (req, res) => {
           console.log(mmtStatus);
           res.send(mmtStatus);
         }
-      });
+      }, outputSessionId || null);
     } catch (e) {
       return res.status(401).send({ error: e.message || 'Failed to copy pcap' });
     }
@@ -71,7 +72,7 @@ router.post('/offline', (req, res) => {
       console.log(mmtStatus);
       res.send(mmtStatus);
     }
-  });
+  }, outputSessionId || null);
 });
 
 router.get('/stop', (req, res) => {
