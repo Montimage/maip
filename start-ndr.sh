@@ -2,7 +2,8 @@
 
 # create static client page in production mode
 cd src/client
-npm run build
+#npm run build
+npm run start
 cd -
 
 # create the output directories if they don't exist
