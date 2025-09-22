@@ -1,4 +1,5 @@
 import React, { Component, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import LayoutPage from './LayoutPage';
 import { connect } from "react-redux";
 import { Row, Col, Tooltip, message, notification, Upload, Spin, Button, InputNumber, Space, Form, Input, Select, Checkbox } from 'antd';
@@ -17,8 +18,6 @@ import {
 } from "../constants";
 
 const { Panel } = Collapse;
-
-// TODO: if building a model is done, jump to ModelsPage -> seems to be difficult!
 
 class BuildADPage extends Component {
   constructor(props) {
@@ -185,6 +184,10 @@ class BuildADPage extends Component {
           attackDataset: null,
           normalDataset: null,
         });
+        // Navigate to models page after successful build
+        if (this.props.navigate) {
+          this.props.navigate('/models/all');
+        }
       }
     }
   }
@@ -269,7 +272,6 @@ class BuildADPage extends Component {
       label: feature,
     })) : [];
 
-    // TODO: disable button Upload pcaps if users selected already datasets and vice versa
     return (
       <LayoutPage pageTitle="Build Models" pageSubTitle="Build a new AI model for anomaly detection">
         <Row>
@@ -464,4 +466,12 @@ const mapDispatchToProps = (dispatch) => ({
   fetchAllReports: () => dispatch(requestAllReports()),
 });
 
-export default connect(mapPropsToStates, mapDispatchToProps)(BuildADPage);
+// React Router v6: inject navigate into class component via HOC
+function withNavigation(ComponentWithNav) {
+  return function WrappedComponent(props) {
+    const navigate = useNavigate();
+    return <ComponentWithNav {...props} navigate={navigate} />;
+  };
+}
+
+export default connect(mapPropsToStates, mapDispatchToProps)(withNavigation(BuildADPage));
