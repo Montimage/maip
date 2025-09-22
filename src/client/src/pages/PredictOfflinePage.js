@@ -548,7 +548,7 @@ class PredictOfflinePage extends Component {
                 </div>
               </div>
             </div>
-            {attackCsv && (
+            {attackCsv && maliciousFlows > 0 && (
               <div style={{ marginTop: '30px' }}>
                 <h3 style={{ fontSize: '20px' }}>Malicious flows details</h3>
                 <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
