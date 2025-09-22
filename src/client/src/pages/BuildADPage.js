@@ -31,10 +31,10 @@ class BuildADPage extends Component {
       featureList: "Raw Features",
       training_ratio: 0.7,
       training_parameters: {
-        nb_epoch_cnn: 2,
-        nb_epoch_sae: 5,
-        batch_size_cnn: 32,
-        batch_size_sae: 16,
+        nb_epoch_cnn: 5,
+        nb_epoch_sae: 3,
+        batch_size_cnn: 16,
+        batch_size_sae: 32,
       },
       isRunning: props.buildStatus.isRunning,
     };
@@ -69,27 +69,23 @@ class BuildADPage extends Component {
     console.log(`MMT offline analysis of pcap file ${file}`);
     return data;
   }
-  
+
   async handleButtonBuild() {
     const delay = ms => new Promise(res => setTimeout(res, ms));
-    const { 
-      attackDataset, 
+    const {
+      attackDataset,
       normalDataset,
       attackPcapFile,
       normalPcapFile,
-      training_ratio, 
+      training_ratio,
       training_parameters,
       isRunning,
-    } = this.state; 
+    } = this.state;
     const { mmtStatus } = this.props;
     console.log(`mmtStatus: ${mmtStatus.isRunning}`);
-    let datasets;
+    let datasets = null;
     if (!isRunning) {
       console.log("update isRunning state!");
-      this.setState({ isRunning: true });        
-      this.intervalId = setInterval(() => { // start interval when button is clicked
-        this.props.fetchBuildStatus();
-      }, 5000);   
 
       if (attackDataset && normalDataset) {
         datasets = [
@@ -97,15 +93,46 @@ class BuildADPage extends Component {
           { datasetId: normalDataset, isAttack: false },
         ];
       } else if (attackPcapFile && normalPcapFile) {
-        await this.requestMMTOffline(attackPcapFile.name);
-        const attackMMTStatus = await this.requestMMTStatus();
-        this.setState({ attackDataset: `report-${attackMMTStatus.sessionId}` });
+        // Start MMT for attack pcap and wait until completion
+        const startAttack = await this.requestMMTOffline(attackPcapFile);
+        if (!startAttack || !startAttack.sessionId) {
+          console.error('Failed to start MMT for attack pcap');
+          return;
+        }
+        {
+          const targetSessionId = startAttack.sessionId;
+          const maxAttempts = 60; // ~2 minutes
+          const intervalMs = 2000;
+          let attempt = 0;
+          while (attempt < maxAttempts) {
+            const status = await this.requestMMTStatus();
+            if (!status.isRunning && status.sessionId === targetSessionId) break;
+            await delay(intervalMs);
+            attempt += 1;
+          }
+          this.setState({ attackDataset: `report-${targetSessionId}` });
+        }
 
-        await delay(3000); // TODO: improve?
-        await this.requestMMTOffline(normalPcapFile.name);
-        const normalMMTStatus = await this.requestMMTStatus();
-        this.setState({ normalDataset: `report-${normalMMTStatus.sessionId}` });
-        
+        // Start MMT for normal pcap and wait until completion
+        const startNormal = await this.requestMMTOffline(normalPcapFile);
+        if (!startNormal || !startNormal.sessionId) {
+          console.error('Failed to start MMT for normal pcap');
+          return;
+        }
+        {
+          const targetSessionId = startNormal.sessionId;
+          const maxAttempts = 60; // ~2 minutes
+          const intervalMs = 2000;
+          let attempt = 0;
+          while (attempt < maxAttempts) {
+            const status = await this.requestMMTStatus();
+            if (!status.isRunning && status.sessionId === targetSessionId) break;
+            await delay(intervalMs);
+            attempt += 1;
+          }
+          this.setState({ normalDataset: `report-${targetSessionId}` });
+        }
+
         const { attackDataset, normalDataset } = this.state;
         console.log({ attackDataset, normalDataset });
 
@@ -113,25 +140,27 @@ class BuildADPage extends Component {
           { datasetId: attackDataset, isAttack: true },
           { datasetId: normalDataset, isAttack: false },
         ];
-
-        await delay(5000); // TODO: test again option of uploading pcaps
       }
 
       if (!datasets) {
         console.error('No valid datasets or pcap files provided');
         return;
+      } else {
+        this.intervalId = setInterval(() => { // start interval when button is clicked
+          this.props.fetchBuildStatus();
+        }, 5000);
+        const buildConfig = {
+          buildConfig: {
+            datasets,
+            training_ratio,
+            training_parameters,
+          }
+        };
+        console.log(buildConfig);
+
+        this.props.fetchBuildModel(datasets, training_ratio, training_parameters);
+        this.setState({ isRunning: true });
       }
-
-      const buildConfig = {
-        buildConfig: {
-          datasets,
-          training_ratio,
-          training_parameters,
-        }
-      };
-      console.log(buildConfig);
-
-      this.props.fetchBuildModel(datasets, training_ratio, training_parameters);
     }
   }
 
@@ -145,7 +174,7 @@ class BuildADPage extends Component {
       this.setState({ isRunning: this.props.buildStatus.isRunning });
       if (!this.props.buildStatus.isRunning) {
         let builtModelId = this.props.buildStatus.lastBuildId;
-        console.log('isRunning changed from True to False');  
+        console.log('isRunning changed from True to False');
         clearInterval(this.intervalId);
         notification.success({
           message: 'Success',
@@ -153,7 +182,7 @@ class BuildADPage extends Component {
           placement: 'topRight',
         });
         this.setState({
-          attackDataset: null, 
+          attackDataset: null,
           normalDataset: null,
         });
       }
@@ -172,7 +201,7 @@ class BuildADPage extends Component {
   handleUploadPcap = async (info, typePcap) => {
     const { status, response, name } = info.file;
     console.log({ status, response, name });
-  
+
     if (status === 'uploading') {
       console.log(`Uploading ${name}`);
     } else if (status === 'done') {
@@ -180,9 +209,11 @@ class BuildADPage extends Component {
         'attack': 'attackPcapFile',
         'normal': 'normalPcapFile'
       };
-      
+
       if (pcapTypeToFileState[typePcap]) {
-        this.setState({ [pcapTypeToFileState[typePcap]]: info.file.originFileObj });
+        // Use the filename returned by the server (e.g., { pcapFile: 'file.pcap' })
+        const uploadedPcapName = (response && response.pcapFile) || (info.file.response && info.file.response.pcapFile) || null;
+        this.setState({ [pcapTypeToFileState[typePcap]]: uploadedPcapName });
         console.log(`Uploaded successfully ${name}`);
       } else {
         console.error('Type of pcap file is invalid');
@@ -220,10 +251,10 @@ class BuildADPage extends Component {
   render() {
     const { mmtStatus, buildStatus, reports } = this.props;
     //console.log(reports);
-    const { 
+    const {
       attackPcapFile,
       normalPcapFile,
-      isRunning 
+      isRunning
     } = this.state;
 
     console.log({ attackPcapFile, normalPcapFile, isRunning });
@@ -267,7 +298,7 @@ class BuildADPage extends Component {
             <Upload
               beforeUpload={this.beforeUploadPcap}
               action={`${SERVER_URL}/api/pcaps`}
-              onChange={(info) => this.handleUploadPcap(info, "attack")} 
+              onChange={(info) => this.handleUploadPcap(info, "attack")}
               customRequest={this.processUploadPcap}
               onRemove={() => {
                 this.setState({ attackPcapFile: null });
@@ -300,7 +331,7 @@ class BuildADPage extends Component {
             <Upload
               beforeUpload={this.beforeUploadPcap}
               action={`${SERVER_URL}/api/pcaps`}
-              onChange={(info) => this.handleUploadPcap(info, "normal")} 
+              onChange={(info) => this.handleUploadPcap(info, "normal")}
               customRequest={this.processUploadPcap}
               onRemove={() => {
                 this.setState({ normalPcapFile: null });
@@ -337,7 +368,7 @@ class BuildADPage extends Component {
                   <InputNumber
                     name="nb_epoch_cnn"
                     value={this.state.nb_epoch_cnn}
-                    min={1} max={1000} defaultValue={2}
+                    min={1} max={1000} defaultValue={5}
                     onChange={(v) =>
                       this.setState({
                         training_parameters: { ...this.state.training_parameters, nb_epoch_cnn: v },
@@ -351,7 +382,7 @@ class BuildADPage extends Component {
                   <InputNumber
                     name="nb_epoch_sae"
                     value={this.state.nb_epoch_sae}
-                    min={1} max={1000} defaultValue={5}
+                    min={1} max={1000} defaultValue={3}
                     onChange={(v) =>
                       this.setState({
                         training_parameters: { ...this.state.training_parameters, nb_epoch_sae: v },
@@ -365,7 +396,7 @@ class BuildADPage extends Component {
                   <InputNumber
                     name="batch_size_cnn"
                     value={this.state.batch_size_cnn}
-                    min={1} max={1000} defaultValue={32}
+                    min={1} max={1000} defaultValue={16}
                     onChange={(v) =>
                       this.setState({
                         training_parameters: { ...this.state.training_parameters, batch_size_cnn: v },
@@ -379,7 +410,7 @@ class BuildADPage extends Component {
                   <InputNumber
                     name="batch_size_sae"
                     value={this.state.batch_size_sae}
-                    min={1} max={1000} defaultValue={16}
+                    min={1} max={1000} defaultValue={32}
                     onChange={(v) =>
                       this.setState({
                         training_parameters: { ...this.state.training_parameters, batch_size_sae: v },
@@ -394,14 +425,14 @@ class BuildADPage extends Component {
             <Button
               type="primary"
               style={{ marginTop: '16px' }}
-              disabled={ isRunning || 
+              disabled={ isRunning ||
                 !((this.state.attackDataset && this.state.normalDataset) ||
                 (this.state.attackPcapFile && this.state.normalPcapFile))
               }
               onClick={this.handleButtonBuild}
             >
               Build Model
-              {isRunning && 
+              {isRunning &&
                 <Spin size="large" style={{ marginBottom: '8px' }}>
                   <div className="content" />
                 </Spin>
