@@ -90,7 +90,9 @@ class PredictOfflinePage extends Component {
     if (status === 'uploading') {
       console.log(`Uploading ${name}`);
     } else if (status === 'done') {
-      this.setState({ testingPcapFile: info.file.originFileObj });
+      // Use the filename returned by the server (e.g., { pcapFile: 'file.pcap' })
+      const uploadedPcapName = (response && response.pcapFile) || (info.file.response && info.file.response.pcapFile) || null;
+      this.setState({ testingPcapFile: uploadedPcapName });
     } else if (status === 'error') {
       console.error('Pcap file upload failed');
     }
@@ -138,12 +140,28 @@ class PredictOfflinePage extends Component {
       if (testingDataset) {
         updatedTestingDataset = testingDataset;
       } else if (testingPcapFile) {
-        await requestMMTOffline(testingPcapFile);
-        const pcapFileStatus = await requestMMTStatus();
-
-        await delay(10000); // TODO: improve?
-        updatedTestingDataset = `report-${pcapFileStatus.sessionId}`;
-        this.setState({ testingDataset: updatedTestingDataset });
+        // Start offline analysis and get the sessionId immediately
+        const startStatus = await requestMMTOffline(testingPcapFile);
+        if (startStatus && startStatus.sessionId) {
+          const targetSessionId = startStatus.sessionId;
+          // Poll MMT status until analysis completes (isRunning becomes false)
+          const maxAttempts = 60; // ~2 minutes
+          const intervalMs = 2000;
+          let attempt = 0;
+          while (attempt < maxAttempts) {
+            const status = await requestMMTStatus();
+            if (!status.isRunning && status.sessionId === targetSessionId) {
+              break;
+            }
+            await delay(intervalMs);
+            attempt += 1;
+          }
+          updatedTestingDataset = `report-${targetSessionId}`;
+          this.setState({ testingDataset: updatedTestingDataset });
+        } else {
+          console.error('Failed to start MMT offline analysis or missing sessionId');
+          return;
+        }
       }
 
       if (updatedTestingDataset) {
@@ -551,7 +569,7 @@ class PredictOfflinePage extends Component {
             {attackCsv && maliciousFlows > 0 && (
               <div style={{ marginTop: '30px' }}>
                 <h3 style={{ fontSize: '20px' }}>Malicious flows details</h3>
-                <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', gap: 16, alignItems: 'stretch' }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <Table
                       dataSource={this.state.attackRows}
