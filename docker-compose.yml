@@ -1,9 +1,9 @@
 version: '3.3'
 
 services:
-  maip-server:
-    container_name: mi_maip_server
-    image: mi/maip-server
+  ndr_server:
+    container_name: mont_ndr_server
+    image: mont/ndr-server
     restart: unless-stopped
     build:
       context: .
@@ -11,11 +11,11 @@ services:
     ports:
       - 31057:31057/tcp
     networks:
-      - maip_network
+      - ndr_network
 
-  maip_client:
-    container_name: mi_maip_client
-    image: mi/maip-client
+  ndr_client:
+    container_name: mont_ndr_client
+    image: mont/ndr-client
     restart: unless-stopped
     build:
       context: .
@@ -23,8 +23,8 @@ services:
     ports:
       - 3000:3000/tcp
     networks:
-      - maip_network
+      - ndr_network
 
 networks:
-  maip_network:
+  ndr_network:
     driver: bridge
