@@ -123,7 +123,7 @@ class XAILimePage extends Component {
       // If flow-based (predictionId present), fetch instance probabilities for pie chart
       const params = new URLSearchParams(window.location.search);
       const predictionIdParam = params.get('predictionId');
-      if (predictionIdParam) {
+      if (predictionIdParam && (!this.state.dataTableProbs || this.state.dataTableProbs.length === 0)) {
         try {
           const res = await fetch(`${SERVER_URL}/api/xai/lime/instance-probs/${modelId}`);
           if (res.ok) {
