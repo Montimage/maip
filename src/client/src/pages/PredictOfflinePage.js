@@ -324,10 +324,17 @@ class PredictOfflinePage extends Component {
         {
           title: 'Mitigation',
           key: 'mitigation',
-          width: 160,
+          width: 120,
+          fixed: 'right',
           align: 'center',
           render: (_, record) => (
-            <Dropdown overlay={actionsMenu(record)} trigger={["click"]}>
+            <Dropdown
+              overlay={actionsMenu(record)}
+              trigger={["click"]}
+              placement="bottomRight"
+              getPopupContainer={() => document.body}
+              overlayStyle={{ zIndex: 2000 }}
+            >
               <Button size="small">Actions</Button>
             </Dropdown>
           ),
@@ -573,20 +580,12 @@ class PredictOfflinePage extends Component {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <Table
                       dataSource={this.state.attackRows}
-                      columns={this.state.attackFlowColumns}
+                      columns={[...this.state.attackFlowColumns, ...this.state.mitigationColumns]}
                       size="small"
                       style={{ width: '100%' }}
                       scroll={{ x: 'max-content' }}
                       pagination={{ ...this.state.attackPagination, showSizeChanger: true }}
                       onChange={(pagination) => onSyncPaginate(pagination)}
-                    />
-                  </div>
-                  <div style={{ width: 160 }}>
-                    <Table
-                      dataSource={this.state.attackRows}
-                      columns={this.state.mitigationColumns}
-                      size="small"
-                      pagination={false}
                     />
                   </div>
                 </div>
