@@ -53,10 +53,34 @@ class XAIShapPage extends Component {
     this.handleShapClick = this.handleShapClick.bind(this);
   }
 
-  componentDidMount() {
+  // Flow-based SHAP trigger
+  async handleShapFlow(modelId, predictionId, sessionId) {
+    // numberFeature comes from maxDisplay
+    const { maxDisplay } = this.state;
+    this.setState({ isRunning: true, shapValues: [], isLabelEnabled: false });
+    const payload = {
+      shapFlowConfig: { modelId, predictionId, sessionId: Number(sessionId), numberFeature: maxDisplay },
+    };
+    await fetch(`${SHAP_URL}/flow`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    // start polling
+    this.intervalId = setInterval(() => { this.props.fetchXAIStatus(); }, 1000);
+  }
+
+  async componentDidMount() {
     const modelId = getLastPath();
+    const params = new URLSearchParams(window.location.search);
+    const sampleIdParam = params.get('sampleId');
+    const predictionIdParam = params.get('predictionId');
     if (isModelIdPresent) {
       this.setState({ modelId, label: getLabelsListXAI(modelId)[1] });
+      if (predictionIdParam && sampleIdParam !== null) {
+        // Flow-based: auto-run SHAP for this instance
+        await this.handleShapFlow(modelId, predictionIdParam, sampleIdParam);
+      }
     }
     this.props.fetchApp();
     this.props.fetchAllModels();
@@ -69,7 +93,7 @@ class XAIShapPage extends Component {
   };
 
   async componentDidUpdate(prevProps, prevState) {
-    const { modelId, label, shapValues, isRunning } = this.state;
+    const { modelId, label, shapValues, isRunning, maxDisplay } = this.state;
     const { app, xaiStatus } = this.props;
 
     if (app !== prevProps.app && !isModelIdPresent) {
@@ -103,6 +127,18 @@ class XAIShapPage extends Component {
     if (prevState.shapValues !== shapValues && shapValues.length > 0) {
       this.setState({ isLabelEnabled: true });
       clearInterval(this.intervalId);
+    }
+
+    // In flow-based mode, if user changes 'Features to display', re-run SHAP for the new count
+    const params = new URLSearchParams(window.location.search);
+    const predictionIdParam = params.get('predictionId');
+    const sampleIdParam = params.get('sampleId');
+    if (
+      predictionIdParam && sampleIdParam !== null &&
+      prevState.maxDisplay !== maxDisplay &&
+      !this.state.isRunning && modelId
+    ) {
+      await this.handleShapFlow(modelId, predictionIdParam, sampleIdParam);
     }
   }
 
@@ -187,6 +223,9 @@ class XAIShapPage extends Component {
     const { app, models } = this.props;
 
     const modelsOptions = getFilteredModelsOptions(app, models);
+    const params = new URLSearchParams(window.location.search);
+    const isFlowBased = !!params.get('predictionId');
+    const sampleIdParam = params.get('sampleId');
     const features = isModelIdPresent ?
                       getFilteredFeaturesModel(modelId) : getFilteredFeatures(app);
     getFilteredFeatures(app);
@@ -219,13 +258,31 @@ class XAIShapPage extends Component {
       yField: 'feature',
       //seriesField: 'feature',
       label: false,
+      color: (d) => {
+        return d.importance_value > 0 ? "#0693e3" : "#EB144C";
+      },
       barStyle: (d) => {
         //console.log(d)
         return {
+          /* https://casesandberg.github.io/react-color/ */
+          //color: d.importance_value > 0 ? "#0693e3" : "#EB144C",
           fill: d.importance_value > 0 ? "#0693e3" : "#EB144C"
         };
       },
-      interactions: [{ type: 'element-active' }],
+      legend: false,
+      tooltip: {
+        showMarkers: false,
+        customItems: (items) => {
+          return items.map((it) => {
+            const val = it?.data?.importance_value ?? 0;
+            return {
+              ...it,
+              color: val > 0 ? '#0693e3' : '#EB144C',
+            };
+          });
+        },
+      },
+      interactions: [],
     };
 
     const topFeatures = toDisplayShap.map((item, index) => ({
@@ -276,38 +333,42 @@ class XAIShapPage extends Component {
                 />
               </Tooltip>
             </Form.Item>
-          <Form.Item label="Background samples" style={{ marginBottom: 10 }} >
-            <div style={{ display: 'inline-flex' }}>
-              <Form.Item label="bg" name="bg" noStyle>
-                <Tooltip title="Select number of samples used for producing explanations (maximum is the length of the training dataset).">
-                  <InputNumber min={1} defaultValue={20}
-                    value={this.state.numberBackgroundSamples}
-                    onChange={v => this.setState({
-                      numberBackgroundSamples: v,
-                      shapValues: [],
-                      isLabelEnabled: false
-                    })}
-                  />
-                </Tooltip>
+          {!isFlowBased && (
+            <>
+              <Form.Item label="Background samples" style={{ marginBottom: 10 }} >
+                <div style={{ display: 'inline-flex' }}>
+                  <Form.Item label="bg" name="bg" noStyle>
+                    <Tooltip title="Select number of samples used for producing explanations (maximum is the length of the training dataset).">
+                      <InputNumber min={1} defaultValue={20}
+                        value={this.state.numberBackgroundSamples}
+                        onChange={v => this.setState({
+                          numberBackgroundSamples: v,
+                          shapValues: [],
+                          isLabelEnabled: false
+                        })}
+                      />
+                    </Tooltip>
+                  </Form.Item>
+                </div>
               </Form.Item>
-            </div>
-          </Form.Item>
-          <Form.Item label="Explained samples" style={{ marginBottom: 10 }} >
-            <div style={{ display: 'inline-flex' }}>
-              <Form.Item label="ex" name="ex" noStyle>
-                <Tooltip title="Select number of samples to be explained (maximum is the length of the testing dataset).">
-                  <InputNumber min={1} defaultValue={10}
-                    value={this.state.numberExplainedSamples}
-                    onChange={v => this.setState({
-                      numberExplainedSamples: v,
-                      shapValues: [],
-                      isLabelEnabled: false
-                    })}
-                  />
-                </Tooltip>
+              <Form.Item label="Explained samples" style={{ marginBottom: 10 }} >
+                <div style={{ display: 'inline-flex' }}>
+                  <Form.Item label="ex" name="ex" noStyle>
+                    <Tooltip title="Select number of samples to be explained (maximum is the length of the testing dataset).">
+                      <InputNumber min={1} defaultValue={10}
+                        value={this.state.numberExplainedSamples}
+                        onChange={v => this.setState({
+                          numberExplainedSamples: v,
+                          shapValues: [],
+                          isLabelEnabled: false
+                        })}
+                      />
+                    </Tooltip>
+                  </Form.Item>
+                </div>
               </Form.Item>
-            </div>
-          </Form.Item>
+            </>
+          )}
           <Form.Item name="slider" label="Features to display"
             style={{ marginBottom: -5 }}
           >
@@ -365,7 +426,7 @@ class XAIShapPage extends Component {
           <Col className="gutter-row" span={12}>
             <div style={BOX_STYLE}>
               <div style={{ display: 'flex', alignItems: 'center' }}>
-                <h2>&nbsp;&nbsp;&nbsp;Feature Importances</h2>
+                <h2>&nbsp;&nbsp;&nbsp;Feature Importances{isFlowBased && sampleIdParam ? ` - Flow sample ID ${sampleIdParam}` : ''}</h2>
                 {/* TODO: make position of buttons are flexible */}
                 <div style={{ position: 'absolute', top: 10, right: 10 }}>
                   <Tooltip title="Download plot as png">

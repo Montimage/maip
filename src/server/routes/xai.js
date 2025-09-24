@@ -7,6 +7,7 @@ const {
   runSHAP,
   runLIME,
   runLIMEForFlow,
+  runSHAPForFlow,
 } = require('../deep-learning/xai-connector');
 const {
   listFiles,
@@ -30,6 +31,18 @@ router.get('/', (_, res) => {
   res.send({
     xaiStatus: getXAIStatus(),
   });
+});
+
+// Run SHAP for a specific flow instance based on prediction outputs
+router.post('/shap/flow', (req, res) => {
+  const { shapFlowConfig } = req.body;
+  if (!shapFlowConfig) {
+    res.status(401).send({ error: 'Missing SHAP flow configuration. Please read the docs' });
+  } else {
+    runSHAPForFlow(shapFlowConfig, (xaiStatus) => {
+      res.send(xaiStatus);
+    });
+  }
 });
 
 router.post('/shap', async (req, res) => {

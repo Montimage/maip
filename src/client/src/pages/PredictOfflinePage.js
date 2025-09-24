@@ -253,6 +253,19 @@ class PredictOfflinePage extends Component {
       return;
     }
 
+    // Navigate to XAI SHAP if requested
+    if (key === 'explain-shap') {
+      const modelId = this.state.modelId;
+      const predictionId = this.props.predictStatus?.lastPredictedId || '';
+      if (modelId && sessionId !== null && sessionId !== undefined && sessionId !== '') {
+        const qp = new URLSearchParams({ sampleId: String(sessionId) });
+        if (predictionId) qp.set('predictionId', predictionId);
+        const target = `/xai/shap/${encodeURIComponent(modelId)}?${qp.toString()}`;
+        window.location.href = target;
+      }
+      return;
+    }
+
     handleMitigationAction({
       actionKey: key,
       srcIp,
@@ -352,6 +365,7 @@ class PredictOfflinePage extends Component {
         const portLabel = dport ? `${dport}/${protocol}` : '';
         return (
           <Menu onClick={({ key }) => this.handleMitigation(key, record, srcKey, dstKey, derived)}>
+            <Menu.Item key="explain-shap" disabled={!canExplain}>Explain (XAI SHAP)</Menu.Item>
             <Menu.Item key="explain-lime" disabled={!canExplain}>Explain (XAI LIME)</Menu.Item>
             <Menu.Divider />
             <Menu.Item key="block-src-ip" disabled={srcDisabled}>{`Block source IP ${srcIpLabel || ''}`.trim()}</Menu.Item>

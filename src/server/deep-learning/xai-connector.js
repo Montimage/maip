@@ -104,6 +104,41 @@ const runLIMEForFlow = async (limeFlowConfig, callback) => {
   }
 };
 
+/**
+ * Run SHAP for a specific flow instance based on prediction outputs
+ */
+const runSHAPForFlow = async (shapFlowConfig, callback) => {
+  const { modelId, predictionId, sessionId, numberFeature } = shapFlowConfig;
+
+  const inputModelFilePath = MODEL_PATH + modelId;
+  if (!fs.existsSync(inputModelFilePath)) {
+    return callback({ error: `The given model file ${modelId} does not exist` });
+  }
+
+  xaiStatus.isRunning = true;
+  xaiStatus.config = shapFlowConfig;
+  xaiStatus.lastRunAt = Date.now();
+
+  try {
+    const { featureMap } = await buildInstanceVectorFromPrediction(predictionId, sessionId);
+    const tmpDir = path.join(DEEP_LEARNING_PATH, 'xai', 'tmp');
+    if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+    const instanceJsonPath = path.join(tmpDir, `${predictionId}_${sessionId}_shap.json`);
+    await fsPromises.writeFile(instanceJsonPath, JSON.stringify(featureMap));
+
+    const logFile = `${LOG_PATH}xai_${modelId}.log`;
+    const scriptPath = `${DEEP_LEARNING_PATH}/xai-shap-instance.py`;
+    spawnCommand(PYTHON_CMD, [scriptPath, modelId, instanceJsonPath, numberFeature], logFile, () => {
+      xaiStatus.isRunning = false;
+      console.log('Finish producing SHAP explanations for a specific flow instance');
+    });
+    return callback(xaiStatus);
+  } catch (e) {
+    xaiStatus.isRunning = false;
+    return callback({ error: e.message || String(e) });
+  }
+};
+
 const getXAIStatus = () => xaiStatus;
 
 const getModelType = async (modelId) => {
@@ -202,4 +237,5 @@ module.exports = {
   runSHAP,
   runLIME,
   runLIMEForFlow,
+  runSHAPForFlow,
 };
