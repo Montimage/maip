@@ -1,7 +1,5 @@
-//const SERVER_HOST = "0.0.0.0";
-//const SERVER_PORT = 31057;
-//const SERVER_URL = `http://${SERVER_HOST}:${SERVER_PORT}`;
-const SERVER_URL = "";
+// Use REACT_APP_API_URL if set, else default to localhost for local dev
+const SERVER_URL = process.env.REACT_APP_API_URL || "http://localhost:31057";
 
 const MENU_OPTIONS = [
   { key: '0', link: '/build' },
