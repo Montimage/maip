@@ -17,12 +17,15 @@ import {
   requestPredict,
   requestPredictStatus,
 } from "../actions";
+import { requestRunLime } from "../actions";
 import {
   requestMMTStatus,
   requestMMTOffline,
   requestCsvReports,
   requestPredictStats,
   requestPredictionAttack,
+  requestXAIStatus,
+  requestLimeValues,
 } from "../api";
 import {
   getFilteredModelsOptions,
@@ -48,9 +51,12 @@ class PredictOfflinePage extends Component {
       attackFlowColumns: [],
       mitigationColumns: [],
       attackPagination: { current: 1, pageSize: 10 },
+      limeModalVisible: false,
+      limeValues: [],
     };
     this.handlePredictOffline = this.handlePredictOffline.bind(this);
     this.handleTablePredictStats = this.handleTablePredictStats.bind(this);
+    this.runLimeForSample = this.runLimeForSample.bind(this);
   }
 
   // Strict IPv4 validation (each octet 0-255)
@@ -234,6 +240,19 @@ class PredictOfflinePage extends Component {
     const pktsRate = record['pkts_rate'] ?? null;
     const byteRate = record['byte_rate'] ?? null;
 
+    // Navigate to XAI LIME if requested
+    if (key === 'explain-lime') {
+      const modelId = this.state.modelId;
+      const predictionId = this.props.predictStatus?.lastPredictedId || '';
+      if (modelId && sessionId !== null && sessionId !== undefined && sessionId !== '') {
+        const qp = new URLSearchParams({ sampleId: String(sessionId) });
+        if (predictionId) qp.set('predictionId', predictionId);
+        const target = `/xai/lime/${encodeURIComponent(modelId)}?${qp.toString()}`;
+        window.location.href = target;
+      }
+      return;
+    }
+
     handleMitigationAction({
       actionKey: key,
       srcIp,
@@ -246,6 +265,33 @@ class PredictOfflinePage extends Component {
       flowRecord: record,
       natsSubject: 'ndr.malicious.flow'
     });
+  }
+
+  async runLimeForSample(sampleId) {
+    try {
+      const numberFeatures = 10; // default number of features to explain
+      // Trigger LIME run via saga (server starts processing)
+      this.props.fetchRunLime(this.state.modelId, sampleId, numberFeatures);
+      // Poll XAI status until finished
+      const delay = (ms) => new Promise((res) => setTimeout(res, ms));
+      const maxAttempts = 60; // up to ~2 minutes
+      for (let i = 0; i < maxAttempts; i++) {
+        const status = await requestXAIStatus();
+        if (!status.isRunning) break;
+        await delay(2000);
+      }
+      // For AD models, Malware is labelId = 1
+      const labelId = 1;
+      const limeValues = await requestLimeValues(this.state.modelId, labelId);
+      this.setState({ limeValues, limeModalVisible: true });
+    } catch (e) {
+      console.error('Failed to run/fetch LIME explanations', e);
+      notification.error({
+        message: 'LIME Error',
+        description: e?.message || 'Failed to obtain LIME explanations',
+        placement: 'topRight',
+      });
+    }
   }
 
   parseAttackCsv(csvString) {
@@ -296,6 +342,7 @@ class PredictOfflinePage extends Component {
         const srcDisabled = !this.isValidIPv4(srcIpLabel);
         const dstDisabled = !this.isValidIPv4(dstIpLabel);
         const sessionId = record['ip.session_id'] || record['session_id'] || null;
+        const canExplain = !!this.state.modelId && sessionId !== null && sessionId !== undefined && sessionId !== '';
         const direction = record['meta.direction'] || record['direction'] || null;
         // try to extract a single destination port from dport fields
         const dport = record['dport_g'] ?? record['dport_le'] ?? record['dport'] ?? null;
@@ -305,6 +352,8 @@ class PredictOfflinePage extends Component {
         const portLabel = dport ? `${dport}/${protocol}` : '';
         return (
           <Menu onClick={({ key }) => this.handleMitigation(key, record, srcKey, dstKey, derived)}>
+            <Menu.Item key="explain-lime" disabled={!canExplain}>Explain (XAI LIME)</Menu.Item>
+            <Menu.Divider />
             <Menu.Item key="block-src-ip" disabled={srcDisabled}>{`Block source IP ${srcIpLabel || ''}`.trim()}</Menu.Item>
             <Menu.Item key="block-dst-ip" disabled={dstDisabled}>{`Block destination IP ${dstIpLabel || ''}`.trim()}</Menu.Item>
             <Menu.Divider />
@@ -591,6 +640,23 @@ class PredictOfflinePage extends Component {
                 </div>
               </div>
             )}
+            <Modal
+              title="LIME Explanation"
+              open={this.state.limeModalVisible}
+              onCancel={() => this.setState({ limeModalVisible: false })}
+              footer={<Button onClick={() => this.setState({ limeModalVisible: false })}>Close</Button>}
+              width={700}
+            >
+              <Table
+                dataSource={(this.state.limeValues || []).map((row, idx) => ({ key: idx + 1, ...row }))}
+                columns={[
+                  { title: 'Feature', dataIndex: 'feature' },
+                  { title: 'Value', dataIndex: 'value' },
+                ]}
+                size="small"
+                pagination={{ pageSize: 10 }}
+              />
+            </Modal>
           </>
         )}
 
@@ -612,6 +678,8 @@ const mapDispatchToProps = (dispatch) => ({
   fetchPredict: (modelId, reportId, reportFileName) =>
     dispatch(requestPredict({modelId, reportId, reportFileName})),
   fetchPredictStatus: () => dispatch(requestPredictStatus()),
+  fetchRunLime: (modelId, sampleId, numberFeatures) =>
+    dispatch(requestRunLime({ modelId, sampleId, numberFeatures })),
 });
 
 export default connect(mapPropsToStates, mapDispatchToProps)(PredictOfflinePage);

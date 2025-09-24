@@ -59,10 +59,24 @@ class XAILimePage extends Component {
 
   async componentDidMount() {
     const modelId = getLastPath();
+    // read optional sampleId from query string
+    const params = new URLSearchParams(window.location.search);
+    const sampleIdParam = params.get('sampleId');
+    const predictionIdParam = params.get('predictionId');
+    const sampleIdFromQuery = sampleIdParam !== null ? parseInt(sampleIdParam, 10) : null;
     if (isModelIdPresent) {
       this.setState({ modelId, label: getLabelsListXAI(modelId)[1] });
-      const predictions = await requestPredictionsModel(modelId);
-      this.setState({ predictions });
+      // Only fetch test-set predictions for non flow-based mode
+      if (!predictionIdParam) {
+        const predictions = await requestPredictionsModel(modelId);
+        this.setState({ predictions });
+      }
+      if (Number.isInteger(sampleIdFromQuery)) {
+        // apply provided sampleId and auto-run LIME
+        this.setState({ sampleId: sampleIdFromQuery }, async () => {
+          await this.handleLimeClick();
+        });
+      }
     }
     this.props.fetchApp();
     this.props.fetchAllModels();
@@ -106,6 +120,30 @@ class XAILimePage extends Component {
       console.log('isRunning has been changed from true to false');
       this.setState({ isRunning: false, isLabelEnabled: true });
       await this.fetchNewValues(modelId, label);
+      // If flow-based (predictionId present), fetch instance probabilities for pie chart
+      const params = new URLSearchParams(window.location.search);
+      const predictionIdParam = params.get('predictionId');
+      if (predictionIdParam) {
+        try {
+          const res = await fetch(`${SERVER_URL}/api/xai/lime/instance-probs/${modelId}`);
+          if (res.ok) {
+            const probs = await res.json();
+            const malware = Number(probs.malware || 0);
+            const normal = Number(probs.normal || Math.max(0, 1 - malware));
+            const dataTableProbs = [
+              { key: 0, label: 'Normal traffic', probability: normal.toFixed(6) },
+              { key: 1, label: 'Malware traffic', probability: malware.toFixed(6) },
+            ];
+            const pieData = [
+              { type: 'Normal', value: parseFloat((normal * 100).toFixed(2)) },
+              { type: 'Malware', value: parseFloat((malware * 100).toFixed(2)) },
+            ];
+            this.setState({ dataTableProbs, pieData });
+          }
+        } catch (e) {
+          // ignore errors fetching instance probs
+        }
+      }
     }
 
     // Check if limeValues state is updated and clear the interval if it is
@@ -145,13 +183,16 @@ class XAILimePage extends Component {
 
   async handleLimeClick() {
     const { modelId, sampleId, maxDisplay } = this.state;
+    const params = new URLSearchParams(window.location.search);
+    const predictionIdParam = params.get('predictionId');
     const limeConfig = {
       "modelId": modelId,
       "sampleId": sampleId,
       "numberFeature": maxDisplay,
     };
 
-    const predictions = await requestPredictionsModel(modelId);
+    // Only fetch test-set predictions for non flow-based mode
+    const predictions = predictionIdParam ? null : await requestPredictionsModel(modelId);
 
     this.setState({
       isRunning: true,
@@ -162,12 +203,19 @@ class XAILimePage extends Component {
       predictions
     });
 
-    const response = await fetch(LIME_URL, {
+    // Choose endpoint: flow-based when predictionId is provided
+    const isFlowBased = !!predictionIdParam;
+    const endpoint = isFlowBased ? `${LIME_URL}/flow` : LIME_URL;
+    const payload = isFlowBased
+      ? { limeFlowConfig: { modelId, predictionId: predictionIdParam, sessionId: sampleId, numberFeature: maxDisplay } }
+      : { limeConfig };
+
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ limeConfig }),
+      body: JSON.stringify(payload),
     });
     const data = await response.json();
 
@@ -293,8 +341,9 @@ class XAILimePage extends Component {
         label: label,
       }));
 
+    const isFlowBased = !!(new URLSearchParams(window.location.search).get('predictionId'));
     let sampleTrueLabel = "";
-    if (predictions && Number.isInteger(sampleId) && sampleId >= 0) {
+    if (!isFlowBased && predictions && Number.isInteger(sampleId) && sampleId >= 0) {
       sampleTrueLabel = getTrueLabel(modelId, predictions, sampleId);
     }
 
@@ -337,9 +386,9 @@ class XAILimePage extends Component {
       yField: 'feature',
       //seriesField: "value",
       label: false,
-      // color: (d) => {
-      //   return d.value > 0 ? "#0693e3" : "#EB144C";
-      // },
+      color: (d) => {
+        return d.value > 0 ? "#0693e3" : "#EB144C";
+      },
       barStyle: (d) => {
         //console.log(d)
         return {
@@ -348,7 +397,20 @@ class XAILimePage extends Component {
           fill: d.value > 0 ? "#0693e3" : "#EB144C"
         };
       },
-      interactions: [{ type: 'element-active' }],
+      legend: false,
+      tooltip: {
+        showMarkers: false,
+        customItems: (items) => {
+          return items.map((it) => {
+            const val = it?.data?.value ?? 0;
+            return {
+              ...it,
+              color: val > 0 ? '#0693e3' : '#EB144C',
+            };
+          });
+        },
+      },
+      interactions: [],
     };
 
     const subTitle = isModelIdPresent ?
@@ -508,7 +570,7 @@ class XAILimePage extends Component {
           </Col>
           <Col className="gutter-row" span={12}>
             <div style={BOX_STYLE}>
-              <h2>&nbsp;&nbsp;&nbsp;Prediction - Sample ID {sampleId} (ground truth: {sampleTrueLabel})</h2>
+              <h2>&nbsp;&nbsp;&nbsp;Prediction - Sample ID {sampleId} { !isFlowBased ? `(ground truth: ${sampleTrueLabel})` : '' }</h2>
               <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                 {pieConfig && (
                   <>

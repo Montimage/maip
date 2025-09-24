@@ -6,6 +6,7 @@ const {
   getXAIStatus,
   runSHAP,
   runLIME,
+  runLIMEForFlow,
 } = require('../deep-learning/xai-connector');
 const {
   listFiles,
@@ -41,6 +42,32 @@ router.post('/shap', async (req, res) => {
     });
   } else {
     runSHAP(shapConfig, (xaiStatus) => {
+      res.send(xaiStatus);
+    });
+  }
+});
+
+// Get instance-level predicted probabilities (flow-based LIME)
+router.get('/lime/instance-probs/:modelId', (req, res) => {
+  const { modelId } = req.params;
+  const modelDir = modelId.replace('.h5', '');
+  const probsFile = `${XAI_PATH}${modelDir}/instance_probs.json`;
+  isFileExist(probsFile, (ret) => {
+    if (!ret) {
+      res.status(404).send(`The instance probabilities file ${probsFile} does not exist`);
+    } else {
+      res.sendFile(probsFile);
+    }
+  });
+});
+
+// Run LIME for a specific flow instance based on prediction outputs
+router.post('/lime/flow', (req, res) => {
+  const { limeFlowConfig } = req.body;
+  if (!limeFlowConfig) {
+    res.status(401).send({ error: 'Missing LIME flow configuration. Please read the docs' });
+  } else {
+    runLIMEForFlow(limeFlowConfig, (xaiStatus) => {
       res.send(xaiStatus);
     });
   }
