@@ -31,11 +31,10 @@
   },
   "scripts": {
     "start": "react-scripts --max_old_space_size=4096 start",
-    "build": "react-scripts build && rm -r ../public &&  mv build ../public",
+    "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
-  "proxy": "http://localhost:31057",
   "eslintConfig": {
     "extends": [
       "react-app",
