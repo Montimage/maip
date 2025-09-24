@@ -8,16 +8,16 @@ RUN apt-get update && \
     apt-get install -y git wget cmake gcc g++ cpp curl software-properties-common
 
 # Install Node.js and npm
-RUN curl -sL https://deb.nodesource.com/setup_14.x | bash - && \
+RUN curl -sL https://deb.nodesource.com/setup_18.x | bash - && \
     apt-get install -y nodejs
 
 # Install serve globally
 RUN npm install -g serve
 
-COPY . /maip-app
-WORKDIR /maip-app/src/client
-RUN npm install
+COPY . /ndr-app
+WORKDIR /ndr-app/src/client
+RUN npm install -f
 RUN npm run build
 EXPOSE 3000
-WORKDIR /maip-app/src/client/build
+WORKDIR /ndr-app/src/client/build
 CMD ["serve", "-s", "."]
