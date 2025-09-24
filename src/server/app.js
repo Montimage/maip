@@ -11,8 +11,33 @@ const swaggerDocument = require('./swagger/swagger.json');
 var bodyParser = require('body-parser');
 const dotenv = require('dotenv');
 const cors = require('cors');
-// read and pass the environment variables into reactjs application
-const env = dotenv.config().parsed;
+const { URL } = require('url');
+
+// Load environment variables from .env (if present)
+dotenv.config();
+// Derive server configuration, preferring REACT_APP_API_URL when present
+const API_URL_STR = process.env.REACT_APP_API_URL;
+let derivedProtocol = undefined;
+let derivedPort = undefined;
+if (API_URL_STR) {
+  try {
+    const parsed = new URL(API_URL_STR);
+    derivedProtocol = parsed.protocol === 'https:' ? 'HTTPS' : 'HTTP';
+    // If no explicit port in the URL, fall back to standard ports
+    const portFromUrl = parsed.port ? parseInt(parsed.port, 10) : (derivedProtocol === 'HTTPS' ? 443 : 80);
+    if (!Number.isNaN(portFromUrl)) {
+      derivedPort = portFromUrl;
+    }
+  } catch (e) {
+    console.warn(`[CONFIG] Failed to parse REACT_APP_API_URL='${API_URL_STR}': ${e.message}`);
+  }
+}
+
+// Server configuration with sensible defaults and overrides
+const PROTOCOL = process.env.PROTOCOL || derivedProtocol || 'HTTP';
+const SERVER_HOST = process.env.SERVER_HOST || '0.0.0.0';
+const SERVER_PORT = (process.env.SERVER_PORT && parseInt(process.env.SERVER_PORT, 10)) || derivedPort || 31057;
+const MODE = process.env.MODE || 'SERVER';
 
 const acRouter = require('./routes/ac');
 const mmtRouter = require('./routes/mmt');
@@ -36,7 +61,7 @@ var helmet = require('helmet');
 
 app.use(compression()); //Compress all routes
 app.use(helmet());
-app.set("port", env.SERVER_PORT);
+app.set("port", SERVER_PORT);
 app.use(logger('dev'));
 app.use(express.json());
 app.use(express.urlencoded({
@@ -110,12 +135,12 @@ app.use('/api/metrics', metricsRouter);
 app.use('/api/security', securityRouter);
 app.use('/api/online', onlineRouter);
 
-if (process.env.MODE === 'SERVER') {
+if (MODE === 'SERVER') {
   app.use(express.static(path.join(__dirname, '../public')));
   app.get('/*', function (req, res) {
     res.sendFile(path.join(__dirname, '../public', 'index.html'));
   });
-} else if (process.env.MODE === 'API') {
+} else if (MODE === 'API') {
   // start Swagger API server
   app.use('/', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
   app.use(express.static(path.join(__dirname, 'swagger')));
@@ -124,26 +149,11 @@ if (process.env.MODE === 'SERVER') {
 
 module.exports = app;
 
-// HTTP or HTTPS server
 let server;
-if (env.PROTOCOL === 'HTTP') {
-  server = app.listen(env.SERVER_PORT, env.SERVER_HOST, () => {
-    console.log(`[HTTP SERVER] MAIP Server started on http://${env.SERVER_HOST}:${env.SERVER_PORT}`);
+if (PROTOCOL === 'HTTP') {
+  server = app.listen(SERVER_PORT, SERVER_HOST, () => {
+    console.log(`[HTTP SERVER] NDR server started on http://${SERVER_HOST}:${SERVER_PORT}`);
   });
-} else if (env.PROTOCOL === 'HTTPS') {
-  const httpsOptions = {
-    key: fs.readFileSync('private.key'),
-    cert: fs.readFileSync('certificate.crt'),
-    // If you have a chain certificate, add it here:
-    // ca: fs.readFileSync('/path/to/ca_bundle.crt')
-  };
-  server = https.createServer(httpsOptions, app);
-  server.listen(env.SERVER_PORT, env.SERVER_HOST, () => {
-    console.log(`[HTTPS SERVER] MAIP Server started on https://${env.SERVER_HOST}:${env.SERVER_PORT}`);
-  });
-} else {
-  console.error('Invalid protocol specified in environment variables.');
-  process.exit(1);
 }
 
 module.exports = server;
