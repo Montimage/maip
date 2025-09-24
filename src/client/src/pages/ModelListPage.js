@@ -224,14 +224,14 @@ class ModelListPage extends Component {
                 <span style={{ fontSize: '16px' }}>Predict</span>
               ),
               options: [
-                /* {
+                {
                   label: 'Online',
                   icon: <LineChartOutlined />,
                   url: `/predict/online/${model.modelId}`,
                   onClick: () => {
                     window.location.href = `/predict/online/${model.modelId}`;
                   }
-                }, */
+                },
                 {
                   label: 'Offline',
                   icon: <LineChartOutlined />,
