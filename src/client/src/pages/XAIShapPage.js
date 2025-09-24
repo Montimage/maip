@@ -10,6 +10,7 @@ import {
   requestRunShap,
   requestXAIStatus,
 } from "../actions";
+import { getFlowParams, runFlowAndPoll } from "../utils/xaiFlowHelpers";
 import {
   getFilteredModelsOptions,
   getFilteredFeatures,
@@ -55,26 +56,20 @@ class XAIShapPage extends Component {
 
   // Flow-based SHAP trigger
   async handleShapFlow(modelId, predictionId, sessionId) {
-    // numberFeature comes from maxDisplay
     const { maxDisplay } = this.state;
     this.setState({ isRunning: true, shapValues: [], isLabelEnabled: false });
-    const payload = {
-      shapFlowConfig: { modelId, predictionId, sessionId: Number(sessionId), numberFeature: maxDisplay },
-    };
-    await fetch(`${SHAP_URL}/flow`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+    const payload = { shapFlowConfig: { modelId, predictionId, sessionId: Number(sessionId), numberFeature: maxDisplay } };
+    this.intervalId = await runFlowAndPoll({
+      endpointUrl: `${SHAP_URL}/flow`,
+      payload,
+      fetchXAIStatus: this.props.fetchXAIStatus,
+      pollMs: 1000,
     });
-    // start polling
-    this.intervalId = setInterval(() => { this.props.fetchXAIStatus(); }, 1000);
   }
 
   async componentDidMount() {
     const modelId = getLastPath();
-    const params = new URLSearchParams(window.location.search);
-    const sampleIdParam = params.get('sampleId');
-    const predictionIdParam = params.get('predictionId');
+    const { sampleId: sampleIdParam, predictionId: predictionIdParam } = getFlowParams();
     if (isModelIdPresent) {
       this.setState({ modelId, label: getLabelsListXAI(modelId)[1] });
       if (predictionIdParam && sampleIdParam !== null) {
@@ -130,9 +125,7 @@ class XAIShapPage extends Component {
     }
 
     // In flow-based mode, if user changes 'Features to display', re-run SHAP for the new count
-    const params = new URLSearchParams(window.location.search);
-    const predictionIdParam = params.get('predictionId');
-    const sampleIdParam = params.get('sampleId');
+    const { predictionId: predictionIdParam, sampleId: sampleIdParam } = getFlowParams();
     if (
       predictionIdParam && sampleIdParam !== null &&
       prevState.maxDisplay !== maxDisplay &&

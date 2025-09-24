@@ -22,6 +22,7 @@ import {
   getLabelsListAppXAI,
   getTrueLabel
 } from "../utils";
+import { getFlowParams, fetchInstanceProbs } from "../utils/xaiFlowHelpers";
 import {
   FORM_LAYOUT, BOX_STYLE,
   AC_OUTPUT_LABELS, AD_OUTPUT_LABELS,
@@ -60,9 +61,7 @@ class XAILimePage extends Component {
   async componentDidMount() {
     const modelId = getLastPath();
     // read optional sampleId from query string
-    const params = new URLSearchParams(window.location.search);
-    const sampleIdParam = params.get('sampleId');
-    const predictionIdParam = params.get('predictionId');
+    const { sampleId: sampleIdParam, predictionId: predictionIdParam } = getFlowParams();
     const sampleIdFromQuery = sampleIdParam !== null ? parseInt(sampleIdParam, 10) : null;
     if (isModelIdPresent) {
       this.setState({ modelId, label: getLabelsListXAI(modelId)[1] });
@@ -121,13 +120,11 @@ class XAILimePage extends Component {
       this.setState({ isRunning: false, isLabelEnabled: true });
       await this.fetchNewValues(modelId, label);
       // If flow-based (predictionId present), fetch instance probabilities for pie chart
-      const params = new URLSearchParams(window.location.search);
-      const predictionIdParam = params.get('predictionId');
+      const { predictionId: predictionIdParam } = getFlowParams();
       if (predictionIdParam && (!this.state.dataTableProbs || this.state.dataTableProbs.length === 0)) {
         try {
-          const res = await fetch(`${SERVER_URL}/api/xai/lime/instance-probs/${modelId}`);
-          if (res.ok) {
-            const probs = await res.json();
+          const probs = await fetchInstanceProbs({ serverUrl: SERVER_URL, modelId });
+          if (probs) {
             const malware = Number(probs.malware || 0);
             const normal = Number(probs.normal || Math.max(0, 1 - malware));
             const dataTableProbs = [
@@ -183,8 +180,7 @@ class XAILimePage extends Component {
 
   async handleLimeClick() {
     const { modelId, sampleId, maxDisplay } = this.state;
-    const params = new URLSearchParams(window.location.search);
-    const predictionIdParam = params.get('predictionId');
+    const { predictionId: predictionIdParam } = getFlowParams();
     const limeConfig = {
       "modelId": modelId,
       "sampleId": sampleId,
