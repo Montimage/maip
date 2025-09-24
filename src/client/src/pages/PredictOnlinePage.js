@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
-import { Tooltip, message, Upload, Spin, Button, Form, Select, Checkbox, InputNumber, Table, Divider } from 'antd';
+import { Tooltip, message, Upload, Spin, Button, Form, Select, Checkbox, InputNumber, Table, Divider, Dropdown, Menu } from 'antd';
 import { connect } from "react-redux";
 import {
   FORM_LAYOUT,
@@ -13,12 +13,14 @@ import {
   requestPredict,
   requestPredictStatus,
 } from "../actions";
-import { requestPredictStats } from "../api";
+import { requestPredictStats, requestPredictionAttack } from "../api";
 import { Pie, RingProgress } from '@ant-design/plots';
 import {
   getFilteredModelsOptions,
   getLastPath,
 } from "../utils";
+import { handleMitigationAction } from '../utils/mitigation';
+import { buildAttackTable } from '../utils/attacksTable';
 
 let isModelIdPresent = getLastPath() !== "online";
 
@@ -42,6 +44,12 @@ class PredictOnlinePage extends Component {
       aggregateMalicious: 0,
       lastSliceStats: null,
       processedCsvs: [],
+      attackCsv: null,
+      attackRows: [],
+      attackFlowColumns: [],
+      mitigationColumns: [],
+      attackPagination: { current: 1, pageSize: 10 },
+      hasResultsShown: false,
     };
     this.handleButtonStart = this.handleButtonStart.bind(this);
     this.handleButtonStop = this.handleButtonStop.bind(this);
@@ -59,10 +67,6 @@ class PredictOnlinePage extends Component {
   }
 
   async componentDidUpdate(prevProps, prevState) {
-    if (this.props.app !== prevProps.app && !isModelIdPresent) {
-      this.setState({ modelId: null });
-    }
-
     if (prevProps.predictStatus && prevProps.predictStatus.isRunning !== this.props.predictStatus.isRunning) {
       this.setState({ isRunning: this.props.predictStatus.isRunning });
       if (!this.props.predictStatus.isRunning) {
@@ -75,17 +79,90 @@ class PredictOnlinePage extends Component {
           const values = predictStats.trim().split('\n')[1].split(',');
           const normal = parseInt(values[0], 10) || 0;
           const malicious = parseInt(values[1], 10) || 0;
-          this.setState(prev => ({
+          // Load attacks CSV for table/actions
+          let attackCsv = null;
+          try {
+            attackCsv = await requestPredictionAttack(lastPredictId);
+          } catch (e) {
+            // ignore
+          }
+          let built = null;
+          if (attackCsv) {
+            built = buildAttackTable({ csvString: attackCsv, onAction: (key, record) => this.onMitigationAction(key, record) });
+          }
+          this.setState(prev => {
+            const newRows = built?.rows || [];
+            const nextAttackRows = newRows.length > 0 ? [...prev.attackRows, ...newRows] : prev.attackRows;
+            const attackFlowColumns = (prev.attackFlowColumns && prev.attackFlowColumns.length > 0) ? prev.attackFlowColumns : (built?.flowColumns || []);
+            const mitigationColumns = (prev.mitigationColumns && prev.mitigationColumns.length > 0) ? prev.mitigationColumns : (built?.mitigationColumns || []);
+            return {
             predictStats,
             lastSliceStats: predictStats,
             aggregateNormal: prev.aggregateNormal + normal,
             aggregateMalicious: prev.aggregateMalicious + malicious,
-          }));
+            attackCsv,
+            attackRows: nextAttackRows,
+            attackFlowColumns,
+            mitigationColumns,
+            hasResultsShown: prev.hasResultsShown || (nextAttackRows && nextAttackRows.length > 0) || !!predictStats,
+          };});
         } catch (e) {
           console.error('Failed to load prediction stats:', e);
         }
       }
     }
+  }
+
+  onMitigationAction = (key, record) => {
+    // Derive common fields similarly to offline
+    const keyList = Object.keys(record).filter(k => k !== 'key');
+    const findKey = (patterns) => keyList.find(k => patterns.some(p => p.test(k)));
+    const srcKey = findKey([
+      /src.*ip/i, /source.*ip/i, /^ip[_-]?src$/i, /^src[_-]?ip$/i, /(src|source).*addr/i, /^saddr$/i
+    ]);
+    const dstKey = findKey([
+      /dst.*ip/i, /dest.*ip/i, /destination.*ip/i, /^ip[_-]?dst$/i, /^dst[_-]?ip$/i, /(dst|dest|destination).*addr/i, /^daddr$/i
+    ]);
+    const combinedIpKey = (!srcKey && !dstKey) ? findKey([/^ip$/i, /ip.*pair/i, /ip.*addr/i, /address/i]) : null;
+    const deriveIps = (rec) => {
+      if (!combinedIpKey) return { srcIp: null, dstIp: null };
+      const text = String(rec[combinedIpKey] || '');
+      const ipv4s = text.match(/(?:\d{1,3}\.){3}\d{1,3}/g) || [];
+      return { srcIp: ipv4s[0] || null, dstIp: ipv4s[1] || null };
+    };
+    const derived = deriveIps(record);
+    const srcIp = srcKey ? record[srcKey] : (derived?.srcIp || null);
+    const dstIp = dstKey ? record[dstKey] : (derived?.dstIp || null);
+    const sessionId = record['ip.session_id'] || record['session_id'] || null;
+    const dport = record['dport_g'] ?? record['dport_le'] ?? record['dport'] ?? null;
+    const pktsRate = record['pkts_rate'] ?? null;
+    const byteRate = record['byte_rate'] ?? null;
+
+    if (key === 'explain-lime' || key === 'explain-shap') {
+      const modelId = this.state.modelId;
+      const predictionId = this.props.predictStatus?.lastPredictedId || '';
+      if (modelId && sessionId) {
+        const qp = new URLSearchParams({ sampleId: String(sessionId) });
+        if (predictionId) qp.set('predictionId', predictionId);
+        const base = key === 'explain-lime' ? '/xai/lime/' : '/xai/shap/';
+        const target = `${base}${encodeURIComponent(modelId)}?${qp.toString()}`;
+        window.location.href = target;
+      }
+      return;
+    }
+
+    handleMitigationAction({
+      actionKey: key,
+      srcIp,
+      dstIp,
+      sessionId,
+      dport,
+      pktsRate,
+      byteRate,
+      isValidIPv4: this.isValidIPv4.bind(this),
+      flowRecord: record,
+      natsSubject: 'ndr.malicious.flow'
+    });
   }
 
   componentWillUnmount() {
@@ -231,7 +308,7 @@ class PredictOnlinePage extends Component {
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       message.success(`Started capture on ${iface} (pid ${data.pid})`);
-      this.setState({ isCapturing: true, status: data, sessionDir: data.sessionDir, lastProcessedFile: null, processedFiles: [], processedCsvs: [], predictStats: null, aggregateNormal: 0, aggregateMalicious: 0, lastSliceStats: null });
+      this.setState({ isCapturing: true, status: data, sessionDir: data.sessionDir, lastProcessedFile: null, processedFiles: [], processedCsvs: [], predictStats: null, aggregateNormal: 0, aggregateMalicious: 0, lastSliceStats: null, attackCsv: null, attackRows: [], attackFlowColumns: [], mitigationColumns: [], hasResultsShown: false });
       if (this.statusTimer) clearInterval(this.statusTimer);
       this.statusTimer = setInterval(this.pollStatus, 2000);
     } catch (e) {
@@ -243,7 +320,7 @@ class PredictOnlinePage extends Component {
     try {
       const res = await fetch(`${SERVER_URL}/api/online/stop`, { method: 'POST' });
       const data = await res.json();
-      this.setState({ isCapturing: false, status: { ...(this.state.status || {}), running: false } });
+      this.setState({ isCapturing: false, status: { ...(this.state.status || {}), running: false }, hasResultsShown: true });
       // Keep polling so we can finish processing remaining files; pollStatus will stop itself when done
       if (!this.statusTimer) {
         this.statusTimer = setInterval(this.pollStatus, 2000);
@@ -410,7 +487,7 @@ class PredictOnlinePage extends Component {
         <Divider orientation="left">
           <h1 style={{ fontSize: '24px' }}>Prediction Results</h1>
         </Divider>
-        {(modelId && (aggregateNormal > 0 || aggregateMalicious > 0 || lastSliceStats)) && (
+        {(modelId && (this.state.hasResultsShown || aggregateNormal > 0 || aggregateMalicious > 0 || lastSliceStats || (this.state.attackRows && this.state.attackRows.length > 0))) && (
           <>
             <div style={{ marginTop: '10px' }}>
               <h3 style={{ fontSize: '22px' }}>{predictOutput}</h3>
@@ -423,6 +500,29 @@ class PredictOnlinePage extends Component {
                 </div>
                 <div>
                   <Table {...tableConfig} style={{ width: '500px' }} />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {this.state.attackRows && this.state.attackRows.length > 0 && (
+          <>
+            <Divider orientation="left">
+              <h1 style={{ fontSize: '24px' }}>Malicious Flows</h1>
+            </Divider>
+            <div style={{ marginTop: '10px' }}>
+              <div style={{ display: 'flex', gap: 16, alignItems: 'stretch' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <Table
+                    dataSource={this.state.attackRows}
+                    columns={[...this.state.attackFlowColumns, ...this.state.mitigationColumns]}
+                    size="small"
+                    style={{ width: '100%' }}
+                    scroll={{ x: 'max-content' }}
+                    pagination={{ ...this.state.attackPagination, showSizeChanger: true }}
+                    onChange={(pagination) => this.setState({ attackPagination: { current: pagination.current, pageSize: pagination.pageSize } })}
+                  />
                 </div>
               </div>
             </div>
