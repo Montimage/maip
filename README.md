@@ -54,11 +54,11 @@ git fetch --tags --force
 LATEST_TAG=$(git describe --tags "$(git rev-list --tags --max-count=1)")
 git checkout "$LATEST_TAG"
 
-# Create and edit the .env file (see env.example) with values appropriate for your deployment
+# Create and edit the .env file (see env.example) with values appropriate for your deployment (optional)
 
 # Build and run the Docker stack
 sudo docker-compose build
 sudo docker-compose up -d
 
-# Access the application on http://localhost:31057
+# Access the application on http://localhost:3000
 ```
