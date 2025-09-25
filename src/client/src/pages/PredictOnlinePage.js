@@ -21,6 +21,7 @@ import {
 } from "../utils";
 import { handleMitigationAction } from '../utils/mitigation';
 import { buildAttackTable } from '../utils/attacksTable';
+import { computeFlowDetails, isValidIPv4 } from '../utils/flowDetails';
 
 let isModelIdPresent = getLastPath() !== "online";
 
@@ -88,7 +89,47 @@ class PredictOnlinePage extends Component {
           }
           let built = null;
           if (attackCsv) {
-            built = buildAttackTable({ csvString: attackCsv, onAction: (key, record) => this.onMitigationAction(key, record) });
+            built = buildAttackTable({
+              csvString: attackCsv,
+              onAction: (key, record) => this.onMitigationAction(key, record),
+              buildMenu: (record, onAction) => {
+                const { srcIp, dstIp, dport } = computeFlowDetails(record);
+                const validSrc = isValidIPv4(srcIp);
+                const validDst = isValidIPv4(dstIp);
+                return (
+                  <Menu onClick={({ key }) => onAction && onAction(key, record)}>
+                    <Menu.Item key="explain-shap">Explain (XAI SHAP)</Menu.Item>
+                    <Menu.Item key="explain-lime">Explain (XAI LIME)</Menu.Item>
+                    <Menu.Divider />
+                    <Menu.Item key="block-src-ip" disabled={!validSrc}>
+                      {`Block source IP${validSrc ? ` ${srcIp}` : ''}`}
+                    </Menu.Item>
+                    <Menu.Item key="block-dst-ip" disabled={!validDst}>
+                      {`Block destination IP${validDst ? ` ${dstIp}` : ''}`}
+                    </Menu.Item>
+                    <Menu.Divider />
+                    <Menu.Item key="block-dst-port" disabled={!dport}>
+                      {`Block destination port${dport ? ` ${dport}/tcp` : ''}`}
+                    </Menu.Item>
+                    <Menu.Item key="block-ip-port-src" disabled={!(validSrc && dport)}>
+                      {`Block${validSrc && dport ? ` ${srcIp}:${dport}/tcp` : ' srcIP:dstPort/tcp'}`}
+                    </Menu.Item>
+                    <Menu.Item key="block-ip-port-dst" disabled={!(validDst && dport)}>
+                      {`Block${validDst && dport ? ` ${dstIp}:${dport}/tcp` : ' dstIP:dstPort/tcp'}`}
+                    </Menu.Item>
+                    <Menu.Divider />
+                    <Menu.Item key="drop-session" disabled={!(validSrc || validDst)}>
+                      {`Drop session${validDst ? ` ${dstIp}` : validSrc ? ` ${srcIp}` : ''}`}
+                    </Menu.Item>
+                    <Menu.Item key="rate-limit-src" disabled={!(validSrc && dport)}>
+                      {`Rate-limit source${validSrc && dport ? ` ${srcIp}:${dport}/tcp` : ''}`}
+                    </Menu.Item>
+                    <Menu.Divider />
+                    <Menu.Item key="send-nats">Send flow to NATS</Menu.Item>
+                  </Menu>
+                );
+              }
+            });
           }
           this.setState(prev => {
             const newRows = built?.rows || [];
@@ -114,29 +155,8 @@ class PredictOnlinePage extends Component {
   }
 
   onMitigationAction = (key, record) => {
-    // Derive common fields similarly to offline
-    const keyList = Object.keys(record).filter(k => k !== 'key');
-    const findKey = (patterns) => keyList.find(k => patterns.some(p => p.test(k)));
-    const srcKey = findKey([
-      /src.*ip/i, /source.*ip/i, /^ip[_-]?src$/i, /^src[_-]?ip$/i, /(src|source).*addr/i, /^saddr$/i
-    ]);
-    const dstKey = findKey([
-      /dst.*ip/i, /dest.*ip/i, /destination.*ip/i, /^ip[_-]?dst$/i, /^dst[_-]?ip$/i, /(dst|dest|destination).*addr/i, /^daddr$/i
-    ]);
-    const combinedIpKey = (!srcKey && !dstKey) ? findKey([/^ip$/i, /ip.*pair/i, /ip.*addr/i, /address/i]) : null;
-    const deriveIps = (rec) => {
-      if (!combinedIpKey) return { srcIp: null, dstIp: null };
-      const text = String(rec[combinedIpKey] || '');
-      const ipv4s = text.match(/(?:\d{1,3}\.){3}\d{1,3}/g) || [];
-      return { srcIp: ipv4s[0] || null, dstIp: ipv4s[1] || null };
-    };
-    const derived = deriveIps(record);
-    const srcIp = srcKey ? record[srcKey] : (derived?.srcIp || null);
-    const dstIp = dstKey ? record[dstKey] : (derived?.dstIp || null);
-    const sessionId = record['ip.session_id'] || record['session_id'] || null;
-    const dport = record['dport_g'] ?? record['dport_le'] ?? record['dport'] ?? null;
-    const pktsRate = record['pkts_rate'] ?? null;
-    const byteRate = record['byte_rate'] ?? null;
+    // Derive common fields using shared helper
+    const { srcIp, dstIp, sessionId, dport, pktsRate, byteRate } = computeFlowDetails(record);
 
     if (key === 'explain-lime' || key === 'explain-shap') {
       const modelId = this.state.modelId;
@@ -159,7 +179,7 @@ class PredictOnlinePage extends Component {
       dport,
       pktsRate,
       byteRate,
-      isValidIPv4: this.isValidIPv4.bind(this),
+      isValidIPv4,
       flowRecord: record,
       natsSubject: 'ndr.malicious.flow'
     });
