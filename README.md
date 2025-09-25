@@ -54,7 +54,7 @@ git fetch --tags --force
 LATEST_TAG=$(git describe --tags "$(git rev-list --tags --max-count=1)")
 git checkout "$LATEST_TAG"
 
-# Edit .env and set values appropriate for your deployment
+# Create and edit the .env file (see env.example) with values appropriate for your deployment
 
 # Build and run the Docker stack
 sudo docker-compose build
