@@ -1,7 +1,9 @@
 import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
-import { Spin, Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Tooltip } from 'antd';
+import { Spin, Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Tooltip, Modal } from 'antd';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { QuestionOutlined, CameraOutlined } from "@ant-design/icons";
 import { Bar, Pie } from '@ant-design/plots';
 import {
@@ -11,9 +13,7 @@ import {
   requestRunLime,
   requestXAIStatus,
 } from "../actions";
-import {
-  requestPredictionsModel,
-} from "../api";
+import { requestPredictionsModel, requestAssistantExplainXAI } from "../api";
 import {
   getFilteredFeaturesOptions,
   getFilteredModelsOptions,
@@ -53,9 +53,33 @@ class XAILimePage extends Component {
       limeValues: [],
       isLabelEnabled: false,
       predictions: null,
+      assistantModalVisible: false,
+      assistantText: '',
+      assistantLoading: false,
     };
     this.handleContributionsChange = this.handleContributionsChange.bind(this);
     this.handleLimeClick = this.handleLimeClick.bind(this);
+  }
+
+  handleAskAssistantLime = async () => {
+    const { modelId, label, limeValues, dataTableProbs, pieData, sampleId } = this.state;
+    if (!modelId || !limeValues || limeValues.length === 0) return;
+    this.setState({ assistantModalVisible: true, assistantLoading: true, assistantText: '' });
+    try {
+      const context = { dataTableProbs, pieData, sampleId };
+      const resp = await requestAssistantExplainXAI({
+        method: 'lime',
+        modelId,
+        label,
+        explanation: limeValues,
+        context,
+      });
+      console.log('Assistant (LIME) response:', resp);
+      const text = resp && typeof resp.text === 'string' ? resp.text : '';
+      this.setState({ assistantText: text || 'Assistant returned no content.', assistantLoading: false });
+    } catch (e) {
+      this.setState({ assistantText: `Error: ${e.message || String(e)}` , assistantLoading: false });
+    }
   }
 
   async componentDidMount() {
@@ -162,7 +186,7 @@ class XAILimePage extends Component {
   // Pay attention to re-render
   shouldComponentUpdate(nextProps, nextState) {
     const { app, models, xaiStatus } = this.props;
-    const { modelId, label, limeValues, positiveChecked, negativeChecked, maxDisplay, maskedFeatures} = this.state;
+    const { modelId, label, limeValues, positiveChecked, negativeChecked, maxDisplay, maskedFeatures, assistantModalVisible, assistantLoading, assistantText } = this.state;
     return (
       app !== nextProps.app ||
       models !== nextProps.models ||
@@ -170,6 +194,9 @@ class XAILimePage extends Component {
       label !== nextState.label ||
       limeValues !== nextState.limeValues ||
       xaiStatus.isRunning !== nextProps.xaiStatus.isRunning ||
+      assistantModalVisible !== nextState.assistantModalVisible ||
+      assistantLoading !== nextState.assistantLoading ||
+      assistantText !== nextState.assistantText ||
       (limeValues === nextState.limeValues &&
         (positiveChecked !== nextState.positiveChecked ||
           negativeChecked !== nextState.negativeChecked ||
@@ -517,6 +544,11 @@ class XAILimePage extends Component {
                 </Spin>
               }
             </Button>
+            <Button style={{ marginLeft: 8 }} htmlType="button"
+              onClick={() => this.handleAskAssistantLime()}
+              disabled={!this.state.modelId || this.state.limeValues.length === 0}
+            >Ask Assistant
+            </Button>
           </div>
         </Form>
 
@@ -590,6 +622,27 @@ class XAILimePage extends Component {
             </div>
           </Col>
         </Row>
+        <Modal
+          title="Assistant Explanation"
+          open={this.state.assistantModalVisible}
+          onCancel={() => this.setState({ assistantModalVisible: false })}
+          footer={<Button onClick={() => this.setState({ assistantModalVisible: false })}>Close</Button>}
+          width={800}
+          zIndex={2000}
+          getContainer={() => document.body}
+        >
+          {this.state.assistantLoading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
+              <Spin size="large" />
+            </div>
+          ) : (
+            <div className="assistant-markdown" style={{ maxHeight: 500, overflowY: 'auto' }}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {this.state.assistantText || ''}
+              </ReactMarkdown>
+            </div>
+          )}
+        </Modal>
       </LayoutPage>
     );
   }

@@ -1,6 +1,8 @@
 import React, { Component } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import LayoutPage from './LayoutPage';
-import { Tooltip, message, Upload, Spin, Button, Form, Select, Checkbox, InputNumber, Table, Divider, Dropdown, Menu } from 'antd';
+import { Tooltip, message, Spin, Button, Form, Select, InputNumber, Table, Divider, Menu, Modal } from 'antd';
 import { connect } from "react-redux";
 import {
   FORM_LAYOUT,
@@ -13,7 +15,7 @@ import {
   requestPredict,
   requestPredictStatus,
 } from "../actions";
-import { requestPredictStats, requestPredictionAttack, requestPredictStatus as apiRequestPredictStatus } from "../api";
+import { requestPredictStats, requestPredictionAttack, requestPredictStatus as apiRequestPredictStatus, requestAssistantExplainFlow } from "../api";
 import { Pie, RingProgress } from '@ant-design/plots';
 import {
   getFilteredModelsOptions,
@@ -54,6 +56,9 @@ class PredictOnlinePage extends Component {
       lastShownPredictionId: null,
       lastStatsSignature: null,
       loadedPredictionIds: [],
+      assistantModalVisible: false,
+      assistantText: '',
+      assistantLoading: false,
     };
     this.handleButtonStart = this.handleButtonStart.bind(this);
     this.handleButtonStop = this.handleButtonStop.bind(this);
@@ -134,8 +139,9 @@ class PredictOnlinePage extends Component {
             const validDst = isValidIPv4(dstIp);
             return (
               <Menu onClick={({ key }) => onAction && onAction(key, record)}>
-                <Menu.Item key="explain-shap">Explain (XAI SHAP)</Menu.Item>
-                <Menu.Item key="explain-lime">Explain (XAI LIME)</Menu.Item>
+                <Menu.Item key="explain-gpt">Ask Assistant</Menu.Item>
+                <Menu.Item key="explain-shap" disabled>Explain (XAI SHAP)</Menu.Item>
+                <Menu.Item key="explain-lime" disabled>Explain (XAI LIME)</Menu.Item>
                 <Menu.Divider />
                 <Menu.Item key="block-src-ip" disabled={!validSrc}>{`Block source IP${validSrc ? ` ${srcIp}` : ''}`}</Menu.Item>
                 <Menu.Item key="block-dst-ip" disabled={!validDst}>{`Block destination IP${validDst ? ` ${dstIp}` : ''}`}</Menu.Item>
@@ -201,6 +207,24 @@ class PredictOnlinePage extends Component {
   onMitigationAction = (key, record) => {
     // Derive common fields using shared helper
     const { srcIp, dstIp, sessionId, dport, pktsRate, byteRate } = computeFlowDetails(record);
+
+    if (key === 'explain-gpt') {
+      const modelId = this.state.modelId;
+      const predictionId = this.props.predictStatus?.lastPredictedId || '';
+      if (!modelId) return;
+      this.setState({ assistantModalVisible: true, assistantLoading: true, assistantText: '' });
+      requestAssistantExplainFlow({
+        flowRecord: record,
+        modelId,
+        predictionId,
+        extra: { srcIp, dstIp, sessionId, dport, pktsRate, byteRate }
+      }).then(({ text }) => {
+        this.setState({ assistantText: text || '', assistantLoading: false });
+      }).catch((e) => {
+        this.setState({ assistantText: `Error: ${e.message || String(e)}`, assistantLoading: false });
+      });
+      return;
+    }
 
     if (key === 'explain-lime' || key === 'explain-shap') {
       const modelId = this.state.modelId;
@@ -603,7 +627,7 @@ class PredictOnlinePage extends Component {
                   onClick={() => handleBulkMitigationAction({ actionKey: 'send-nats-bulk', rows: this.state.attackRows, isValidIPv4 })}
                   disabled={!(this.state.attackRows && this.state.attackRows.length > 0)}
                 >
-                  Send ALL to NATS
+                  Send all flows to NATS
                 </Button>
               </div>
               <Table
@@ -629,6 +653,25 @@ class PredictOnlinePage extends Component {
             <div>Last file: {this._relPath(status.lastFile, status.sessionDir)}</div>
           </div>
         )}
+        <Modal
+              title="Assistant Explanation"
+              open={this.state.assistantModalVisible}
+              onCancel={() => this.setState({ assistantModalVisible: false })}
+              footer={<Button onClick={() => this.setState({ assistantModalVisible: false })}>Close</Button>}
+              width={800}
+            >
+              {this.state.assistantLoading ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
+                  <Spin size="large" />
+                </div>
+              ) : (
+                <div className="assistant-markdown" style={{ maxHeight: 500, overflowY: 'auto' }}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {this.state.assistantText || ''}
+                  </ReactMarkdown>
+                </div>
+              )}
+            </Modal>
       </LayoutPage>
     );
   }

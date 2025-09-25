@@ -1,7 +1,9 @@
 import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
-import { Spin, Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Tooltip, Typography } from 'antd';
+import { Spin, Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Tooltip, Typography, Modal } from 'antd';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { QuestionOutlined, CameraOutlined } from "@ant-design/icons";
 import { Bar } from '@ant-design/plots';
 import {
@@ -10,6 +12,7 @@ import {
   requestRunShap,
   requestXAIStatus,
 } from "../actions";
+import { requestAssistantExplainXAI } from "../api";
 import { getFlowParams, runFlowAndPoll } from "../utils/xaiFlowHelpers";
 import {
   getFilteredModelsOptions,
@@ -49,9 +52,34 @@ class XAIShapPage extends Component {
       isRunning: props.xaiStatus.isRunning,
       shapValues: [],
       isLabelEnabled: false,
+      assistantModalVisible: false,
+      assistantText: '',
+      assistantLoading: false,
     };
     this.handleContributionsChange = this.handleContributionsChange.bind(this);
     this.handleShapClick = this.handleShapClick.bind(this);
+  }
+
+  handleAskAssistantShap = async () => {
+    const { modelId, label, shapValues, maxDisplay } = this.state;
+    if (!modelId || !shapValues || shapValues.length === 0) return;
+    // Build concise explanation payload (top maxDisplay items)
+    const topItems = shapValues.slice(0, maxDisplay);
+    this.setState({ assistantModalVisible: true, assistantLoading: true, assistantText: '' });
+    try {
+      const resp = await requestAssistantExplainXAI({
+        method: 'shap',
+        modelId,
+        label,
+        explanation: topItems,
+        context: {},
+      });
+      console.log('Assistant (SHAP) response:', resp);
+      const text = resp && typeof resp.text === 'string' ? resp.text : '';
+      this.setState({ assistantText: text || 'Assistant returned no content.', assistantLoading: false });
+    } catch (e) {
+      this.setState({ assistantText: `Error: ${e.message || String(e)}`, assistantLoading: false });
+    }
   }
 
   // Flow-based SHAP trigger
@@ -138,7 +166,7 @@ class XAIShapPage extends Component {
   // Pay attention to re-render
   shouldComponentUpdate(nextProps, nextState) {
     const { app, models, xaiStatus } = this.props;
-    const { modelId, label, shapValues, positiveChecked, negativeChecked, maxDisplay, maskedFeatures} = this.state;
+    const { modelId, label, shapValues, positiveChecked, negativeChecked, maxDisplay, maskedFeatures, assistantModalVisible, assistantLoading, assistantText } = this.state;
 
     return (
       app !== nextProps.app ||
@@ -147,6 +175,9 @@ class XAIShapPage extends Component {
       label !== nextState.label ||
       shapValues !== nextState.shapValues ||
       xaiStatus.isRunning !== nextProps.xaiStatus.isRunning ||
+      assistantModalVisible !== nextState.assistantModalVisible ||
+      assistantLoading !== nextState.assistantLoading ||
+      assistantText !== nextState.assistantText ||
       (shapValues === nextState.shapValues &&
         (positiveChecked !== nextState.positiveChecked ||
           negativeChecked !== nextState.negativeChecked ||
@@ -410,6 +441,11 @@ class XAIShapPage extends Component {
                 </Spin>
               }
             </Button>
+            <Button style={{ marginLeft: 8 }} htmlType="button"
+              onClick={() => this.handleAskAssistantShap()}
+              disabled={!this.state.modelId || this.state.shapValues.length === 0}
+            >Ask Assistant
+            </Button>
           </div>
         </Form>
         <Divider orientation="left">
@@ -487,6 +523,27 @@ class XAIShapPage extends Component {
             </div>
           </Col> */}
         </Row>
+        <Modal
+          title="Assistant Explanation"
+          open={this.state.assistantModalVisible}
+          onCancel={() => this.setState({ assistantModalVisible: false })}
+          footer={<Button onClick={() => this.setState({ assistantModalVisible: false })}>Close</Button>}
+          width={800}
+          zIndex={2000}
+          getContainer={() => document.body}
+        >
+          {this.state.assistantLoading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
+              <Spin size="large" />
+            </div>
+          ) : (
+            <div className="assistant-markdown" style={{ maxHeight: 500, overflowY: 'auto' }}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {this.state.assistantText || ''}
+              </ReactMarkdown>
+            </div>
+          )}
+        </Modal>
       </LayoutPage>
     );
   }

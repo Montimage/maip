@@ -1,9 +1,10 @@
 import React, { Component } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import LayoutPage from './LayoutPage';
-import { Table, Tooltip, message, notification, Upload, Spin, Button, Form, Select, Dropdown, Menu, Modal, Divider } from 'antd';
+import { Table, Tooltip, message, notification, Upload, Spin, Button, Form, Select, Menu, Modal, Divider } from 'antd';
 import { UploadOutlined } from "@ant-design/icons";
 import { connect } from "react-redux";
-import Papa from 'papaparse';
 import { Pie, RingProgress } from '@ant-design/plots';
 import {
   FORM_LAYOUT,
@@ -24,8 +25,7 @@ import {
   requestCsvReports,
   requestPredictStats,
   requestPredictionAttack,
-  requestXAIStatus,
-  requestLimeValues,
+  requestAssistantExplainFlow,
 } from "../api";
 import {
   getFilteredModelsOptions,
@@ -54,6 +54,9 @@ class PredictOfflinePage extends Component {
       attackPagination: { current: 1, pageSize: 10 },
       limeModalVisible: false,
       limeValues: [],
+      assistantModalVisible: false,
+      assistantText: '',
+      assistantLoading: false,
     };
     // No binds needed; methods are arrow functions
   }
@@ -302,6 +305,7 @@ class PredictOfflinePage extends Component {
                 const validDst = this.isValidIPv4(dstIp);
                 return (
                   <Menu onClick={({ key }) => onAction && onAction(key, record)}>
+                    <Menu.Item key="explain-gpt">Ask Assistant</Menu.Item>
                     <Menu.Item key="explain-shap">Explain (XAI SHAP)</Menu.Item>
                     <Menu.Item key="explain-lime">Explain (XAI LIME)</Menu.Item>
                     <Menu.Divider />
@@ -347,6 +351,24 @@ class PredictOfflinePage extends Component {
   onMitigationAction = (key, record) => {
     // Derive common fields similar to PredictOnlinePage
     const { srcIp, dstIp, sessionId, dport, pktsRate, byteRate } = this.computeFlowDetails(record);
+
+    if (key === 'explain-gpt') {
+      const modelId = this.state.modelId;
+      const predictionId = this.props.predictStatus?.lastPredictedId || '';
+      if (!modelId) return;
+      this.setState({ assistantModalVisible: true, assistantLoading: true, assistantText: '' });
+      requestAssistantExplainFlow({
+        flowRecord: record,
+        modelId,
+        predictionId,
+        extra: { srcIp, dstIp, sessionId, dport, pktsRate, byteRate }
+      }).then(({ text }) => {
+        this.setState({ assistantText: text || '', assistantLoading: false });
+      }).catch((e) => {
+        this.setState({ assistantText: `Error: ${e.message || String(e)}`, assistantLoading: false });
+      });
+      return;
+    }
 
     if (key === 'explain-lime' || key === 'explain-shap') {
       const modelId = this.state.modelId;
@@ -566,7 +588,7 @@ class PredictOfflinePage extends Component {
                     onClick={() => handleBulkMitigationAction({ actionKey: 'send-nats-bulk', rows: this.state.attackRows, isValidIPv4: this.isValidIPv4 })}
                     disabled={!(this.state.attackRows && this.state.attackRows.length > 0)}
                   >
-                    Send ALL to NATS
+                    Send all flows to NATS
                   </Button>
                 </div>
                 <Table
@@ -597,6 +619,25 @@ class PredictOfflinePage extends Component {
                 size="small"
                 pagination={{ pageSize: 10 }}
               />
+            </Modal>
+            <Modal
+              title="Assistant Explanation"
+              open={this.state.assistantModalVisible}
+              onCancel={() => this.setState({ assistantModalVisible: false })}
+              footer={<Button onClick={() => this.setState({ assistantModalVisible: false })}>Close</Button>}
+              width={800}
+            >
+              {this.state.assistantLoading ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
+                  <Spin size="large" />
+                </div>
+              ) : (
+                <div className="assistant-markdown" style={{ maxHeight: 500, overflowY: 'auto' }}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {this.state.assistantText || ''}
+                  </ReactMarkdown>
+                </div>
+              )}
             </Modal>
           </>
         )}

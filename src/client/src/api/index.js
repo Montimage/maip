@@ -4,6 +4,7 @@ import {
 
 const {
   SERVER_URL,
+  ASSISTANT_URL,
 } = require('../constants');
 
 
@@ -613,4 +614,36 @@ export const requestPredictionAttack = async (predictionId) => {
   }
   const csvText = await response.text();
   return csvText;
+};
+
+// Assistant API: Explain a malicious flow using GPT
+export const requestAssistantExplainFlow = async ({ flowRecord, modelId, predictionId, extra }) => {
+  const url = `${ASSISTANT_URL}/explain/flow`;
+  const body = { flowRecord, modelId, predictionId, extra };
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || 'Failed to get assistant explanation');
+  }
+  return response.json(); // { text }
+};
+
+// Assistant API: Explain XAI output (LIME/SHAP) using GPT
+export const requestAssistantExplainXAI = async ({ method, modelId, label, explanation, context }) => {
+  const url = `${ASSISTANT_URL}/explain/xai`;
+  const body = { method, modelId, label, explanation, context };
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || 'Failed to get assistant explanation');
+  }
+  return response.json(); // { text }
 };
