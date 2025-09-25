@@ -59,6 +59,19 @@ class PredictOnlinePage extends Component {
     this.pollStatus = this.pollStatus.bind(this);
   }
 
+  // Extract a relative path
+  _relPath(path, base) {
+    if (!path) return '-';
+    const p = String(path);
+    const b = base ? String(base) : null;
+    if (b && p.startsWith(b)) return p.slice(b.length).replace(/^\//, '') || '.';
+    const idx = p.indexOf('/src/');
+    if (idx >= 0) return p.slice(idx + 1); // drop leading slash
+    const parts = p.split('/').filter(Boolean);
+    if (parts.length <= 4) return parts.join('/');
+    return '…/' + parts.slice(parts.length - 4).join('/');
+  }
+
   componentDidMount() {
     let modelId = getLastPath();
     if (isModelIdPresent) {
@@ -576,8 +589,8 @@ class PredictOnlinePage extends Component {
           <div style={{ marginTop: 16, fontSize: 12, color: '#888' }}>
             <div>Running: {String(status.running)}</div>
             <div>PID: {status.pid || '-'}</div>
-            <div>Session dir: {status.sessionDir || '-'}</div>
-            <div>Last file: {status.lastFile || '-'}</div>
+            <div>Session dir: {this._relPath(status.sessionDir)}</div>
+            <div>Last file: {this._relPath(status.lastFile, status.sessionDir)}</div>
           </div>
         )}
       </LayoutPage>
