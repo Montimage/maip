@@ -1,5 +1,6 @@
 import { Modal, message, notification } from 'antd';
 import { SERVER_URL } from '../constants';
+import { computeFlowDetails } from './flowDetails';
 
 // Security helpers
 export async function blockIp(ipAddress) {
@@ -30,6 +31,80 @@ export async function blockIp(ipAddress) {
     });
     throw e;
   }
+}
+
+// Bulk mitigation dispatcher for an array of rows (e.g., all malicious flows)
+export async function handleBulkMitigationAction({ actionKey, rows, isValidIPv4 }) {
+  const list = Array.isArray(rows) ? rows : [];
+  if (list.length === 0) {
+    message.info('No flows available for bulk action');
+    return;
+  }
+  // Collect and deduplicate targets
+  const srcIps = new Set();
+  const dstIps = new Set();
+  const dports = new Set();
+  list.forEach((row) => {
+    const { srcIp, dstIp, dport } = computeFlowDetails(row);
+    if (isValidIPv4 && isValidIPv4(srcIp)) srcIps.add(String(srcIp).trim());
+    if (isValidIPv4 && isValidIPv4(dstIp)) dstIps.add(String(dstIp).trim());
+    if (dport !== undefined && dport !== null && dport !== '') dports.add(String(dport));
+  });
+
+  const perform = async () => {
+    switch (actionKey) {
+      case 'send-nats-bulk': {
+        try {
+          const res = await fetch(`${SERVER_URL}/api/security/nats-publish/bulk`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ payloads: list.map((row) => { const copy = { ...row }; delete copy.key; return copy; }) }),
+          });
+          if (!res.ok) throw new Error(await res.text());
+          const data = await res.json();
+          const ok = Number(data.published || 0);
+          const fail = Number(data.failed || 0);
+          if (fail === 0) {
+            notification.success({ message: 'Sent to NATS', description: `Published ${ok} flow(s)`, placement: 'topRight' });
+          } else if (ok === 0) {
+            notification.error({ message: 'NATS publish failed', description: `All ${fail} flow(s) failed`, placement: 'topRight' });
+          } else {
+            notification.warning({ message: 'Partial NATS publish', description: `Published ${ok}, failed ${fail}`, placement: 'topRight' });
+          }
+        } catch (e) {
+          notification.error({ message: 'NATS bulk publish failed', description: e.message, placement: 'topRight' });
+        }
+        break;
+      }
+      case 'block-src-ip-bulk':
+        for (const ip of srcIps) await blockIp(ip);
+        break;
+      case 'block-dst-ip-bulk':
+        for (const ip of dstIps) await blockIp(ip);
+        break;
+      default:
+        message.info('Bulk action not recognized');
+    }
+  };
+
+  const counts = {
+    flows: list.length,
+    srcIps: srcIps.size,
+    dstIps: dstIps.size,
+    dports: dports.size,
+  };
+  const titleMap = {
+    'send-nats-bulk': 'Confirm bulk: Send all flows to NATS',
+    'block-src-ip-bulk': 'Confirm bulk: Block all source IPs',
+    'block-dst-ip-bulk': 'Confirm bulk: Block all destination IPs',
+  };
+  const lines = [];
+  lines.push(`Flows: ${counts.flows}`);
+  if (actionKey !== 'send-nats-bulk') {
+    if (actionKey === 'block-src-ip-bulk') lines.push(`Distinct src IPs: ${counts.srcIps}`);
+    if (actionKey === 'block-dst-ip-bulk') lines.push(`Distinct dst IPs: ${counts.dstIps}`);
+  }
+  Modal.confirm({ title: titleMap[actionKey] || 'Confirm bulk action', content: lines.join('\n'), onOk: perform });
 }
 
 export async function blockPort(port, protocol = 'tcp') {
@@ -141,7 +216,7 @@ export async function sendToNats({ payload }) {
     const res = await fetch(`${SERVER_URL}/api/security/nats-publish`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ payload }),
+      body: JSON.stringify({ payload: (() => { const copy = { ...payload }; delete copy.key; return copy; })() }),
     });
     if (!res.ok) throw new Error(await res.text());
     notification.success({

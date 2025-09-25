@@ -182,4 +182,34 @@ router.post('/nats-publish', async (req, res) => {
   }
 });
 
+// Bulk publish to NATS: accepts an array of payloads and publishes them using a single connection
+router.post('/nats-publish/bulk', async (req, res) => {
+  try {
+    const { subject, payloads } = req.body || {};
+    if (!Array.isArray(payloads) || payloads.length === 0) {
+      return res.status(400).send('Missing payloads');
+    }
+    const nc = await getNatsConnection();
+    const sc = StringCodec();
+    const subj = (NATS_SUBJECT && NATS_SUBJECT.trim()) || subject;
+    let ok = 0, fail = 0;
+    for (const payload of payloads) {
+      try {
+        const data = typeof payload === 'string' ? payload : JSON.stringify(payload);
+        await nc.publish(subj, sc.encode(data));
+        ok += 1;
+      } catch (e) {
+        console.error('NATS publish error (bulk item):', e.message || e);
+        fail += 1;
+      }
+    }
+    await nc.flush();
+    await nc.close();
+    res.send({ ok: true, subject: subj, published: ok, failed: fail });
+  } catch (e) {
+    console.error('NATS bulk publish error:', e);
+    res.status(500).send(e.message || 'NATS bulk publish failed');
+  }
+});
+
 module.exports = router;

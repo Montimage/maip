@@ -13,13 +13,13 @@ import {
   requestPredict,
   requestPredictStatus,
 } from "../actions";
-import { requestPredictStats, requestPredictionAttack } from "../api";
+import { requestPredictStats, requestPredictionAttack, requestPredictStatus as apiRequestPredictStatus } from "../api";
 import { Pie, RingProgress } from '@ant-design/plots';
 import {
   getFilteredModelsOptions,
   getLastPath,
 } from "../utils";
-import { handleMitigationAction } from '../utils/mitigation';
+import { handleMitigationAction, handleBulkMitigationAction } from '../utils/mitigation';
 import { buildAttackTable } from '../utils/attacksTable';
 import { computeFlowDetails, isValidIPv4 } from '../utils/flowDetails';
 
@@ -53,6 +53,7 @@ class PredictOnlinePage extends Component {
       hasResultsShown: false,
       lastShownPredictionId: null,
       lastStatsSignature: null,
+      loadedPredictionIds: [],
     };
     this.handleButtonStart = this.handleButtonStart.bind(this);
     this.handleButtonStop = this.handleButtonStop.bind(this);
@@ -89,94 +90,111 @@ class PredictOnlinePage extends Component {
         if (this.predictTimer) clearInterval(this.predictTimer);
         message.success('Online window prediction completed');
         const lastPredictId = this.props.predictStatus.lastPredictedId;
-        // Only proceed if this finished prediction is new (avoid redundant chart updates)
-        if (!lastPredictId || lastPredictId === this.state.lastShownPredictionId) {
+        // Only require a valid prediction id (we may still want to append new rows even if charts already updated)
+        if (!lastPredictId) {
           return;
         }
-        try {
-          const predictStats = await requestPredictStats(lastPredictId);
-          // Parse counts and update aggregates
-          const values = predictStats.trim().split('\n')[1].split(',');
-          const normal = parseInt(values[0], 10) || 0;
-          const malicious = parseInt(values[1], 10) || 0;
-          const nextSignature = String(predictStats || '').trim();
-          // Avoid re-updating charts if stats content hasn't changed
-          if (nextSignature === this.state.lastStatsSignature) {
-            return;
+        // Load rows for this prediction id if not already loaded
+        await this.appendAttackRowsFromPredictionId(lastPredictId);
+      }
+    }
+    // Also append rows whenever a new prediction id is produced during capture (isRunning may remain true)
+    const prevLastId = prevProps.predictStatus && prevProps.predictStatus.lastPredictedId;
+    const currLastId = this.props.predictStatus && this.props.predictStatus.lastPredictedId;
+    if (currLastId && currLastId !== prevLastId) {
+      await this.appendAttackRowsFromPredictionId(currLastId);
+    }
+  }
+
+  // Append malicious rows and set columns for a finished prediction id
+  appendAttackRowsFromPredictionId = async (predictionId) => {
+    if (!predictionId) return;
+    // Avoid duplicate loads
+    if ((this.state.loadedPredictionIds || []).includes(predictionId)) return;
+    try {
+      const predictStats = await requestPredictStats(predictionId);
+      const values = predictStats.trim().split('\n')[1].split(',');
+      const normal = parseInt(values[0], 10) || 0;
+      const malicious = parseInt(values[1], 10) || 0;
+      const nextSignature = String(predictStats || '').trim();
+      let attackCsv = null;
+      try {
+        attackCsv = await requestPredictionAttack(predictionId);
+      } catch (e) {
+        // ignore
+      }
+      let built = null;
+      if (attackCsv) {
+        built = buildAttackTable({
+          csvString: attackCsv,
+          onAction: (key, record) => this.onMitigationAction(key, record),
+          buildMenu: (record, onAction) => {
+            const { srcIp, dstIp, dport } = computeFlowDetails(record);
+            const validSrc = isValidIPv4(srcIp);
+            const validDst = isValidIPv4(dstIp);
+            return (
+              <Menu onClick={({ key }) => onAction && onAction(key, record)}>
+                <Menu.Item key="explain-shap">Explain (XAI SHAP)</Menu.Item>
+                <Menu.Item key="explain-lime">Explain (XAI LIME)</Menu.Item>
+                <Menu.Divider />
+                <Menu.Item key="block-src-ip" disabled={!validSrc}>{`Block source IP${validSrc ? ` ${srcIp}` : ''}`}</Menu.Item>
+                <Menu.Item key="block-dst-ip" disabled={!validDst}>{`Block destination IP${validDst ? ` ${dstIp}` : ''}`}</Menu.Item>
+                <Menu.Divider />
+                <Menu.Item key="block-dst-port" disabled={!dport}>{`Block destination port${dport ? ` ${dport}/tcp` : ''}`}</Menu.Item>
+                <Menu.Item key="block-ip-port-src" disabled={!(validSrc && dport)}>{`Block${validSrc && dport ? ` ${srcIp}:${dport}/tcp` : ' srcIP:dstPort/tcp'}`}</Menu.Item>
+                <Menu.Item key="block-ip-port-dst" disabled={!(validDst && dport)}>{`Block${validDst && dport ? ` ${dstIp}:${dport}/tcp` : ' dstIP:dstPort/tcp'}`}</Menu.Item>
+                <Menu.Divider />
+                <Menu.Item key="drop-session" disabled={!(validSrc || validDst)}>{`Drop session${validDst ? ` ${dstIp}` : validSrc ? ` ${srcIp}` : ''}`}</Menu.Item>
+                <Menu.Item key="rate-limit-src" disabled={!(validSrc && dport)}>{`Rate-limit source${validSrc && dport ? ` ${srcIp}:${dport}/tcp` : ''}`}</Menu.Item>
+                <Menu.Divider />
+                <Menu.Item key="send-nats">Send flow to NATS</Menu.Item>
+              </Menu>
+            );
           }
-          // Load attacks CSV for table/actions
-          let attackCsv = null;
-          try {
-            attackCsv = await requestPredictionAttack(lastPredictId);
-          } catch (e) {
-            // ignore
-          }
-          let built = null;
-          if (attackCsv) {
-            built = buildAttackTable({
-              csvString: attackCsv,
-              onAction: (key, record) => this.onMitigationAction(key, record),
-              buildMenu: (record, onAction) => {
-                const { srcIp, dstIp, dport } = computeFlowDetails(record);
-                const validSrc = isValidIPv4(srcIp);
-                const validDst = isValidIPv4(dstIp);
-                return (
-                  <Menu onClick={({ key }) => onAction && onAction(key, record)}>
-                    <Menu.Item key="explain-shap">Explain (XAI SHAP)</Menu.Item>
-                    <Menu.Item key="explain-lime">Explain (XAI LIME)</Menu.Item>
-                    <Menu.Divider />
-                    <Menu.Item key="block-src-ip" disabled={!validSrc}>
-                      {`Block source IP${validSrc ? ` ${srcIp}` : ''}`}
-                    </Menu.Item>
-                    <Menu.Item key="block-dst-ip" disabled={!validDst}>
-                      {`Block destination IP${validDst ? ` ${dstIp}` : ''}`}
-                    </Menu.Item>
-                    <Menu.Divider />
-                    <Menu.Item key="block-dst-port" disabled={!dport}>
-                      {`Block destination port${dport ? ` ${dport}/tcp` : ''}`}
-                    </Menu.Item>
-                    <Menu.Item key="block-ip-port-src" disabled={!(validSrc && dport)}>
-                      {`Block${validSrc && dport ? ` ${srcIp}:${dport}/tcp` : ' srcIP:dstPort/tcp'}`}
-                    </Menu.Item>
-                    <Menu.Item key="block-ip-port-dst" disabled={!(validDst && dport)}>
-                      {`Block${validDst && dport ? ` ${dstIp}:${dport}/tcp` : ' dstIP:dstPort/tcp'}`}
-                    </Menu.Item>
-                    <Menu.Divider />
-                    <Menu.Item key="drop-session" disabled={!(validSrc || validDst)}>
-                      {`Drop session${validDst ? ` ${dstIp}` : validSrc ? ` ${srcIp}` : ''}`}
-                    </Menu.Item>
-                    <Menu.Item key="rate-limit-src" disabled={!(validSrc && dport)}>
-                      {`Rate-limit source${validSrc && dport ? ` ${srcIp}:${dport}/tcp` : ''}`}
-                    </Menu.Item>
-                    <Menu.Divider />
-                    <Menu.Item key="send-nats">Send flow to NATS</Menu.Item>
-                  </Menu>
-                );
-              }
-            });
-          }
-          this.setState(prev => {
-            const newRows = built?.rows || [];
-            const nextAttackRows = newRows.length > 0 ? [...prev.attackRows, ...newRows] : prev.attackRows;
-            const attackFlowColumns = (prev.attackFlowColumns && prev.attackFlowColumns.length > 0) ? prev.attackFlowColumns : (built?.flowColumns || []);
-            const mitigationColumns = (prev.mitigationColumns && prev.mitigationColumns.length > 0) ? prev.mitigationColumns : (built?.mitigationColumns || []);
-            return {
-            predictStats,
-            lastSliceStats: predictStats,
-            aggregateNormal: prev.aggregateNormal + normal,
-            aggregateMalicious: prev.aggregateMalicious + malicious,
-            attackCsv,
-            attackRows: nextAttackRows,
-            attackFlowColumns,
-            mitigationColumns,
-            hasResultsShown: prev.hasResultsShown || (nextAttackRows && nextAttackRows.length > 0) || !!predictStats,
-            lastShownPredictionId: lastPredictId,
-            lastStatsSignature: nextSignature,
-          };});
-        } catch (e) {
-          console.error('Failed to load prediction stats:', e);
+        });
+        // Attach prediction metadata to each row for uniqueness in NATS payloads and UI keys
+        if (built && Array.isArray(built.rows)) {
+          built.rows = built.rows.map((r, idx) => ({
+            ...r,
+            __predictionId: predictionId,
+            __rowUid: `${predictionId}-${r.key || (idx + 1)}`,
+          }));
+        }
+        // Hide session_id and malware-related columns in Online table
+        if (built && Array.isArray(built.flowColumns)) {
+          built.flowColumns = built.flowColumns.filter(col => {
+            const di = String(col.dataIndex || '').toLowerCase();
+            // Hide session identifiers and any internal metadata columns starting with '__'
+            const isSessionCol = (di === 'ip.session_id' || di === 'session_id' || di.endsWith('session_id'));
+            const isInternal = di.startsWith('__');
+            const isMalwareCol = di.includes('malware') || di.includes('malicious');
+            return !(isSessionCol || isInternal || isMalwareCol);
+          });
         }
       }
+      this.setState(prev => {
+        const newRows = built?.rows || [];
+        const nextAttackRows = newRows.length > 0 ? [...prev.attackRows, ...newRows] : prev.attackRows;
+        const attackFlowColumns = (prev.attackFlowColumns && prev.attackFlowColumns.length > 0) ? prev.attackFlowColumns : (built?.flowColumns || []);
+        const mitigationColumns = (prev.mitigationColumns && prev.mitigationColumns.length > 0) ? prev.mitigationColumns : (built?.mitigationColumns || []);
+        const canUpdateCharts = (predictionId !== prev.lastShownPredictionId) && (nextSignature !== prev.lastStatsSignature);
+        return {
+          predictStats: canUpdateCharts ? predictStats : prev.predictStats,
+          lastSliceStats: canUpdateCharts ? predictStats : prev.lastSliceStats,
+          aggregateNormal: canUpdateCharts ? (prev.aggregateNormal + normal) : prev.aggregateNormal,
+          aggregateMalicious: canUpdateCharts ? (prev.aggregateMalicious + malicious) : prev.aggregateMalicious,
+          attackCsv,
+          attackRows: nextAttackRows,
+          attackFlowColumns,
+          mitigationColumns,
+          hasResultsShown: prev.hasResultsShown || (!!predictStats),
+          lastShownPredictionId: canUpdateCharts ? predictionId : prev.lastShownPredictionId,
+          lastStatsSignature: canUpdateCharts ? nextSignature : prev.lastStatsSignature,
+          loadedPredictionIds: [...(prev.loadedPredictionIds || []), predictionId],
+        };
+      });
+    } catch (e) {
+      console.error('Failed to append rows for prediction:', predictionId, e);
     }
   }
 
@@ -334,6 +352,17 @@ class PredictOnlinePage extends Component {
         this.predictTimer = setInterval(() => {
           this.props.fetchPredictStatus();
         }, 2000);
+      }
+      // Also actively wait for this slice prediction to complete, then append rows
+      for (let i = 0; i < 20; i++) { // wait up to ~30s
+        try {
+          const st = await apiRequestPredictStatus();
+          if (st && !st.isRunning && st.lastPredictedId) {
+            await this.appendAttackRowsFromPredictionId(st.lastPredictedId);
+            break;
+          }
+        } catch (_) {}
+        await new Promise(r => setTimeout(r, 1500));
       }
     } catch (e) {
       console.error('processSlice error:', e);
@@ -568,19 +597,26 @@ class PredictOnlinePage extends Component {
               <h1 style={{ fontSize: '24px' }}>Malicious Flows</h1>
             </Divider>
             <div style={{ marginTop: '10px' }}>
-              <div style={{ display: 'flex', gap: 16, alignItems: 'stretch' }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <Table
-                    dataSource={this.state.attackRows}
-                    columns={[...this.state.attackFlowColumns, ...this.state.mitigationColumns]}
-                    size="small"
-                    style={{ width: '100%' }}
-                    scroll={{ x: 'max-content' }}
-                    pagination={{ ...this.state.attackPagination, showSizeChanger: true }}
-                    onChange={(pagination) => this.setState({ attackPagination: { current: pagination.current, pageSize: pagination.pageSize } })}
-                  />
-                </div>
+              {/* Bulk actions for all malicious flows */}
+              <div style={{ marginBottom: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <Button
+                  onClick={() => handleBulkMitigationAction({ actionKey: 'send-nats-bulk', rows: this.state.attackRows, isValidIPv4 })}
+                  disabled={!(this.state.attackRows && this.state.attackRows.length > 0)}
+                >
+                  Send ALL to NATS
+                </Button>
               </div>
+              <Table
+                dataSource={this.state.attackRows}
+                columns={[...this.state.attackFlowColumns, ...this.state.mitigationColumns]}
+                size="small"
+                bordered
+                style={{ width: '100%' }}
+                scroll={{ x: 'max-content' }}
+                rowKey={(record, index) => `${index}-${record.key}`}
+                pagination={{ ...this.state.attackPagination, showSizeChanger: true }}
+                onChange={(pagination) => this.setState({ attackPagination: { current: pagination.current, pageSize: pagination.pageSize } })}
+              />
             </div>
           </>
         )}

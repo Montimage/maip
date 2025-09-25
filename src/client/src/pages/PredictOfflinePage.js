@@ -31,7 +31,7 @@ import {
   getFilteredModelsOptions,
   getLastPath,
 } from "../utils";
-import { handleMitigationAction } from '../utils/mitigation';
+import { handleMitigationAction, handleBulkMitigationAction } from '../utils/mitigation';
 import { buildAttackTable } from '../utils/attacksTable';
 
 let isModelIdPresent = getLastPath() !== "offline";
@@ -557,22 +557,28 @@ class PredictOfflinePage extends Component {
                 </div>
               </div>
             </div>
-            {attackCsv && maliciousFlows > 0 && (
+            {this.state.attackRows && this.state.attackRows.length > 0 && (
               <div style={{ marginTop: '30px' }}>
-                <h3 style={{ fontSize: '20px' }}>Malicious flows details</h3>
-                <div style={{ display: 'flex', gap: 16, alignItems: 'stretch' }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <Table
-                      dataSource={this.state.attackRows}
-                      columns={[...this.state.attackFlowColumns, ...this.state.mitigationColumns]}
-                      size="small"
-                      style={{ width: '100%' }}
-                      scroll={{ x: 'max-content' }}
-                      pagination={{ ...this.state.attackPagination, showSizeChanger: true }}
-                      onChange={(pagination) => onSyncPaginate(pagination)}
-                    />
-                  </div>
+                <h3 style={{ fontSize: '20px' }}>Malicious Flows</h3>
+                {/* Bulk actions for all malicious flows */}
+                <div style={{ marginBottom: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <Button
+                    onClick={() => handleBulkMitigationAction({ actionKey: 'send-nats-bulk', rows: this.state.attackRows, isValidIPv4: this.isValidIPv4 })}
+                    disabled={!(this.state.attackRows && this.state.attackRows.length > 0)}
+                  >
+                    Send ALL to NATS
+                  </Button>
                 </div>
+                <Table
+                  dataSource={this.state.attackRows}
+                  columns={[...this.state.attackFlowColumns, ...this.state.mitigationColumns]}
+                  size="small"
+                  bordered
+                  style={{ width: '100%' }}
+                  scroll={{ x: 'max-content' }}
+                  pagination={{ ...this.state.attackPagination, showSizeChanger: true }}
+                  onChange={(pagination) => onSyncPaginate(pagination)}
+                />
               </div>
             )}
             <Modal
