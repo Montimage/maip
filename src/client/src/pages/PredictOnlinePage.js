@@ -33,7 +33,7 @@ class PredictOnlinePage extends Component {
       interface: null,
       interfacesOptions: [],
       windowSec: 10,
-      totalDurationSec: 60,
+      totalDurationSec: null,
       isCapturing: false,
       status: null,
       lastProcessedFile: null,
@@ -51,6 +51,8 @@ class PredictOnlinePage extends Component {
       mitigationColumns: [],
       attackPagination: { current: 1, pageSize: 10 },
       hasResultsShown: false,
+      lastShownPredictionId: null,
+      lastStatsSignature: null,
     };
     this.handleButtonStart = this.handleButtonStart.bind(this);
     this.handleButtonStop = this.handleButtonStop.bind(this);
@@ -74,12 +76,21 @@ class PredictOnlinePage extends Component {
         if (this.predictTimer) clearInterval(this.predictTimer);
         message.success('Online window prediction completed');
         const lastPredictId = this.props.predictStatus.lastPredictedId;
+        // Only proceed if this finished prediction is new (avoid redundant chart updates)
+        if (!lastPredictId || lastPredictId === this.state.lastShownPredictionId) {
+          return;
+        }
         try {
           const predictStats = await requestPredictStats(lastPredictId);
           // Parse counts and update aggregates
           const values = predictStats.trim().split('\n')[1].split(',');
           const normal = parseInt(values[0], 10) || 0;
           const malicious = parseInt(values[1], 10) || 0;
+          const nextSignature = String(predictStats || '').trim();
+          // Avoid re-updating charts if stats content hasn't changed
+          if (nextSignature === this.state.lastStatsSignature) {
+            return;
+          }
           // Load attacks CSV for table/actions
           let attackCsv = null;
           try {
@@ -146,6 +157,8 @@ class PredictOnlinePage extends Component {
             attackFlowColumns,
             mitigationColumns,
             hasResultsShown: prev.hasResultsShown || (nextAttackRows && nextAttackRows.length > 0) || !!predictStats,
+            lastShownPredictionId: lastPredictId,
+            lastStatsSignature: nextSignature,
           };});
         } catch (e) {
           console.error('Failed to load prediction stats:', e);
@@ -320,15 +333,19 @@ class PredictOnlinePage extends Component {
     const { modelId, interface: iface, windowSec, totalDurationSec } = this.state;
     if (!modelId || !iface) return;
     try {
+      const payload = { iface, windowSec };
+      if (totalDurationSec !== null && totalDurationSec !== undefined) {
+        payload.totalDurationSec = totalDurationSec;
+      }
       const res = await fetch(`${SERVER_URL}/api/online/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ iface, windowSec, totalDurationSec }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       message.success(`Started capture on ${iface} (pid ${data.pid})`);
-      this.setState({ isCapturing: true, status: data, sessionDir: data.sessionDir, lastProcessedFile: null, processedFiles: [], processedCsvs: [], predictStats: null, aggregateNormal: 0, aggregateMalicious: 0, lastSliceStats: null, attackCsv: null, attackRows: [], attackFlowColumns: [], mitigationColumns: [], hasResultsShown: false });
+      this.setState({ isCapturing: true, status: data, sessionDir: data.sessionDir, lastProcessedFile: null, processedFiles: [], processedCsvs: [], predictStats: null, aggregateNormal: 0, aggregateMalicious: 0, lastSliceStats: null, attackCsv: null, attackRows: [], attackFlowColumns: [], mitigationColumns: [], hasResultsShown: false, lastShownPredictionId: null });
       if (this.statusTimer) clearInterval(this.statusTimer);
       this.statusTimer = setInterval(this.pollStatus, 2000);
     } catch (e) {
@@ -482,10 +499,16 @@ class PredictOnlinePage extends Component {
             </Tooltip>
           </Form.Item>
           <Form.Item name="windowSec" label="Window (s)" style={{ flex: 'none', marginBottom: 10 }}>
-            <InputNumber min={3} max={60} value={windowSec} onChange={(v) => this.setState({ windowSec: v || 10 })} />
+            <InputNumber min={3} max={60} value={windowSec} defaultValue={10} onChange={(v) => this.setState({ windowSec: v || 10 })} />
           </Form.Item>
           <Form.Item name="totalDurationSec" label="Total Duration (s)" style={{ flex: 'none', marginBottom: 10 }}>
-            <InputNumber min={windowSec} max={3600} value={totalDurationSec} onChange={(v) => this.setState({ totalDurationSec: v || windowSec })} />
+            <InputNumber
+              min={windowSec}
+              max={3600}
+              value={totalDurationSec}
+              placeholder={`Until Stop`}
+              onChange={(v) => this.setState({ totalDurationSec: (v === undefined || v === null) ? null : v })}
+            />
           </Form.Item>
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
             <Button
