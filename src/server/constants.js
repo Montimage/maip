@@ -1,4 +1,4 @@
-const BASE_PATH = process.env.DOCKER_ENV ? '/maip-app/src/server' : __dirname;
+const BASE_PATH = process.env.DOCKER_ENV ? '/ndr-app/src/server' : __dirname;
 const LOG_PATH = `${BASE_PATH}/logs/`;
 const DEFAULT_LOG_PATH = `${BASE_PATH}/logs/all-logs.log`;
 const MMT_PATH = `${BASE_PATH}/mmt/`;
