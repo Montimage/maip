@@ -43,14 +43,21 @@ cd -
 ./start-ndr.sh
 
 # Access the application on http://localhost:31057
-```
 
 ### Build from Docker
 ```
+# Clone the repo and checkout the latest tag
 git clone https://github.com/resilmesh2/Network-Detection-Response.git
 cd Network-Detection-Response
+git fetch --tags --force
+LATEST_TAG=$(git describe --tags "$(git rev-list --tags --max-count=1)")
+git checkout "$LATEST_TAG"
 
-# Run and build docker images
+# Edit .env and set values appropriate for your deployment
+
+# Build and run the Docker stack
 sudo docker-compose build
-sudo docker-compose up
+sudo docker-compose up -d
+
+# Access the application on http://localhost:31057
 ```

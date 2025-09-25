@@ -12,6 +12,8 @@ services:
       - 31057:31057/tcp
     networks:
       - ndr_network
+    env_file:
+      - .env
 
   ndr_client:
     container_name: mont_ndr_client
@@ -20,6 +22,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.client
+      args:
+        REACT_APP_API_URL: ${REACT_APP_API_URL:-http://ndr_server:31057}
     ports:
       - 3000:3000/tcp
     networks:

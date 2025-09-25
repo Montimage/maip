@@ -50,9 +50,6 @@ RUN npm install
 # Now copy the rest of the application
 COPY . .
 
-# Copy env file
-RUN cp env.example .env
-
 # Install MMT packages
 RUN dpkg -i src/server/mmt-packages/mmt-dpi*.deb && \
     dpkg -i src/server/mmt-packages/mmt-security*.deb && \
