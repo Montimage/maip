@@ -42,7 +42,7 @@ cd -
 # Run the application
 ./start-ndr.sh
 
-# Access the application on http://localhost:31057
+# Access the application on http://localhost:3000
 ```
 
 ### Build from Docker
