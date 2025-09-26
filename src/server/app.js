@@ -55,6 +55,7 @@ const metricsRouter = require('./routes/metrics');
 const securityRouter = require('./routes/security');
 const onlineRouter = require('./routes/online');
 const assistantRouter = require('./routes/assistant');
+const featuresRouter = require('./routes/features');
 
 const app = express();
 var compression = require('compression');
@@ -136,6 +137,7 @@ app.use('/api/metrics', metricsRouter);
 app.use('/api/security', securityRouter);
 app.use('/api/online', onlineRouter);
 app.use('/api/assistant', assistantRouter);
+app.use('/api/features', featuresRouter);
 
 if (MODE === 'SERVER') {
   app.use(express.static(path.join(__dirname, '../public')));

@@ -632,6 +632,25 @@ export const requestAssistantExplainFlow = async ({ flowRecord, modelId, predict
   return response.json(); // { text }
 };
 
+// Feature extraction API: run end-to-end extraction on an uploaded PCAP
+export const requestExtractFeatures = async ({ pcapFile, isMalicious }) => {
+  const url = `${SERVER_URL}/api/features/extract`;
+  const body = { pcapFile };
+  if (typeof isMalicious === 'boolean') {
+    body.isMalicious = isMalicious;
+  }
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || 'Feature extraction failed');
+  }
+  return response.json(); // { ok, id, csvFile, csvContent }
+};
+
 // Assistant API: Explain XAI output (LIME/SHAP) using GPT
 export const requestAssistantExplainXAI = async ({ method, modelId, label, explanation, context }) => {
   const url = `${ASSISTANT_URL}/explain/xai`;

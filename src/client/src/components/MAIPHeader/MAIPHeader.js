@@ -25,6 +25,12 @@ class MAIPHeader extends Component {
   getMenuItems() {
     return [
       {
+        key: MENU_OPTIONS[17].key,
+        label: 'Features',
+        icon: <FolderOpenOutlined />,
+        link: '/features',
+      },
+      {
         key: MENU_OPTIONS[0].key,
         label: 'Build',
         icon: <DeploymentUnitOutlined />,

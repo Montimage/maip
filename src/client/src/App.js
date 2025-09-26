@@ -29,6 +29,7 @@ import MetricsPage from "./pages/MetricsPage";
 import AccountabilityMetricsPage from "./pages/AccountabilityMetricsPage";
 import ResilienceMetricsPage from "./pages/ResilienceMetricsPage";
 import AboutPage from "./pages/AboutPage";
+import FeatureExtractionPage from "./pages/FeatureExtractionPage";
 //import MetricsTestPage from "./pages/MetricsTestPage";
 //import ScatterPage from "./pages/ScatterPage";
 
@@ -43,6 +44,7 @@ function App() {
               path="/"
               element={<Navigate to="/models/all" replace />}
             />
+            <Route path="/features" element={<FeatureExtractionPage />}/>
             <Route path="/models/all" element={<ModelListPage />}/>
             <Route path="/models/comparison" element={<ModelsComparisonPage />}/>
             <Route path="/models/retrain" element={<RetrainPage />}/>

@@ -19,6 +19,7 @@ const MENU_OPTIONS = [
   { key: '14', link: '/reports' },
   { key: '15', link: '/models/retrain' },
   { key: '16', link: '/about' },
+  { key: '17', link: '/features' },
 ];
 
 const AD_FEATURES_DESCRIPTIONS = {
