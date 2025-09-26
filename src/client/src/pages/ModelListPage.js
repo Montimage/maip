@@ -3,7 +3,7 @@ import { connect } from "react-redux";
 import { Modal, Tooltip, Typography, Table, Space, Button, Select, notification } from "antd";
 import LayoutPage from "./LayoutPage";
 import {
-  FolderViewOutlined, DownloadOutlined, DeleteOutlined,
+  FolderViewOutlined, DownloadOutlined, DeleteOutlined, SendOutlined,
   LineChartOutlined, SolutionOutlined, BugOutlined, ExperimentOutlined,
   HourglassOutlined, RestOutlined, CopyOutlined, HighlightOutlined
 } from '@ant-design/icons';
@@ -17,10 +17,12 @@ import {
   requestDownloadModel,
   requestDownloadDatasets,
 } from "../actions";
+import { sendToNats } from "../utils/mitigation";
 import {
   getFilteredModels,
   convertBuildConfigStrToJson
 } from "../utils";
+import { SERVER_URL } from "../constants";
 import moment from "moment";
 const { Text } = Typography;
 const { Option, OptGroup } = Select;
@@ -161,27 +163,38 @@ class ModelListPage extends Component {
         sorter: (a, b) => a.lastBuildAt - b.lastBuildAt,
         defaultSortOrder: 'descend',
         render: (model) => {
-          return moment(model.lastBuildAt).format("MMMM Do YYYY, h:mm:ss a");
+          return moment(model.lastBuildAt).format('YYYY-MM-DD HH:mm:ss');
         },
-        width: '20%', /* width: 300, */
+        width: '15%', /* reduced width */
       },
       {
         title: "Training Dataset",
         key: "data",
         width: '20%',
         render: (model) => (
-          <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
             <a href={`/models/datasets/${model.modelId}/train`} view>
-              <Space wrap>
-                <Button icon={<FolderViewOutlined />}>View</Button>
-              </Space>
+              <Button size="small" icon={<FolderViewOutlined />}>View</Button>
             </a>
-            &nbsp;&nbsp;
-            <Space wrap>
-              <Button icon={<DownloadOutlined />}
-                onClick={() => downloadDatasets(model.modelId, "train")}
-              >Download</Button>
-            </Space>
+            <Button size="small" icon={<DownloadOutlined />}
+              onClick={() => downloadDatasets(model.modelId, "train")}
+            >Download</Button>
+            <Button size="small" icon={<SendOutlined />}
+              onClick={async () => {
+                try {
+                  const res = await fetch(`${SERVER_URL}/api/security/nats-publish/dataset`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ modelId: model.modelId, datasetType: 'train', chunkLines: 1000 }),
+                  });
+                  if (!res.ok) throw new Error(await res.text());
+                  const data = await res.json();
+                  notification.success({ message: 'Sent training dataset to NATS', description: `Published in ${data.chunks} chunk(s)`, placement: 'topRight' });
+                } catch (e) {
+                  notification.error({ message: 'Failed to send training dataset to NATS', description: e.message || String(e), placement: 'topRight' });
+                }
+              }}
+            >Send to NATS</Button>
           </div>
         ),
       },
@@ -190,18 +203,29 @@ class ModelListPage extends Component {
         key: "data",
         width: '20%',
         render: (model) => (
-          <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
             <a href={`/models/datasets/${model.modelId}/test`} view>
-                <Space wrap>
-                  <Button icon={<FolderViewOutlined />}>View</Button>
-                </Space>
-              </a>
-              &nbsp;&nbsp;
-              <Space wrap>
-                <Button icon={<DownloadOutlined />}
-                  onClick={() => downloadDatasets(model.modelId, "test")}
-                >Download</Button>
-            </Space>
+              <Button size="small" icon={<FolderViewOutlined />}>View</Button>
+            </a>
+            <Button size="small" icon={<DownloadOutlined />}
+              onClick={() => downloadDatasets(model.modelId, "test")}
+            >Download</Button>
+            <Button size="small" icon={<SendOutlined />}
+              onClick={async () => {
+                try {
+                  const res = await fetch(`${SERVER_URL}/api/security/nats-publish/dataset`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ modelId: model.modelId, datasetType: 'test', chunkLines: 1000 }),
+                  });
+                  if (!res.ok) throw new Error(await res.text());
+                  const data = await res.json();
+                  notification.success({ message: 'Sent testing dataset to NATS', description: `Published in ${data.chunks} chunk(s)`, placement: 'topRight' });
+                } catch (e) {
+                  notification.error({ message: 'Failed to send testing dataset to NATS', description: e.message || String(e), placement: 'topRight' });
+                }
+              }}
+            >Send to NATS</Button>
           </div>
         ),
       },
@@ -350,7 +374,7 @@ class ModelListPage extends Component {
     return (
       <LayoutPage pageTitle="All Models" pageSubTitle="All the machine learning models">
         <Table columns={columns} dataSource={dataSource}
-          pagination={{ pageSize: 5 }}
+          pagination={{ pageSize: 7 }}
           expandable={{
             expandedRowRender: (model) =>
               <p style={{ margin: 0 }}>

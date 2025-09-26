@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { connect, StringCodec } = require('nats');
+const readline = require('readline');
 const { exec } = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -13,7 +14,7 @@ const {
   USE_SUDO,
 } = process.env;
 
-const { LOCAL_NATS_URL } = require('../constants');
+const { LOCAL_NATS_URL, TRAINING_PATH } = require('../constants');
 
 // Default to sudo unless explicitly disabled
 const SUDO = USE_SUDO === 'false' ? '' : 'sudo ';
@@ -66,6 +67,80 @@ router.post('/block-ip', async (req, res) => {
   } catch (e) {
     console.error('block-ip error:', e);
     res.status(500).send(e.message || 'block-ip failed');
+  }
+});
+
+// Stream a model dataset to NATS in chunks to avoid large HTTP payloads
+// Body: { modelId: string, datasetType: 'train'|'test', chunkLines?: number, subject?: string }
+router.post('/nats-publish/dataset', async (req, res) => {
+  try {
+    const { modelId, datasetType = 'train', chunkLines = 500, subject } = req.body || {};
+    if (!modelId || !datasetType) return res.status(400).send('Missing modelId or datasetType');
+
+    const datasetName = `${String(datasetType).charAt(0).toUpperCase() + String(datasetType).slice(1)}_samples.csv`;
+    const datasetFilePath = path.join(TRAINING_PATH, modelId.replace('.h5', ''), 'datasets', datasetName);
+    if (!fs.existsSync(datasetFilePath)) {
+      return res.status(404).send(`Dataset file not found: ${datasetFilePath}`);
+    }
+
+    const nc = await getNatsConnection();
+    const sc = StringCodec();
+    const subj = (process.env.NATS_SUBJECT && process.env.NATS_SUBJECT.trim()) || subject;
+    if (!subj) {
+      await nc.close();
+      return res.status(400).send('Missing NATS subject (set NATS_SUBJECT env or pass subject)');
+    }
+
+    let published = 0;
+    let headerLine = null;
+    let buffer = [];
+    let seq = 0;
+    let headerSent = false;
+
+    const publishChunk = async (lines) => {
+      if (!lines || lines.length === 0) return;
+      const includeHeader = !headerSent && !!headerLine;
+      const columns = includeHeader ? headerLine.split(',').map(s => String(s).trim()) : undefined;
+      const payload = {
+        type: 'dataset',
+        modelId,
+        datasetType,
+        seq,
+        hasHeader: includeHeader,
+        header: includeHeader ? headerLine : undefined,
+        columns,
+        lines,
+      };
+      const data = JSON.stringify(payload);
+      await nc.publish(subj, sc.encode(data));
+      published += 1;
+      seq += 1;
+      if (includeHeader) headerSent = true;
+    };
+
+    const rl = readline.createInterface({ input: fs.createReadStream(datasetFilePath), crlfDelay: Infinity });
+    let lineIndex = 0;
+    for await (const line of rl) {
+      if (lineIndex === 0) {
+        headerLine = line;
+      } else {
+        buffer.push(line);
+        if (buffer.length >= Number(chunkLines)) {
+          await publishChunk(buffer);
+          buffer = [];
+        }
+      }
+      lineIndex += 1;
+    }
+    if (buffer.length > 0) {
+      await publishChunk(buffer);
+    }
+    await nc.flush();
+    await nc.close();
+    res.send({ ok: true, published, chunks: published, modelId, datasetType });
+  } catch (e) {
+    console.error('NATS dataset publish error:', e);
+    res.status(500).send(e.message || 'NATS dataset publish failed');
   }
 });
 
