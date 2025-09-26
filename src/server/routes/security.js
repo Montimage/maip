@@ -14,7 +14,7 @@ const {
   USE_SUDO,
 } = process.env;
 
-const { LOCAL_NATS_URL, TRAINING_PATH } = require('../constants');
+const { LOCAL_NATS_URL, TRAINING_PATH, REPORT_PATH } = require('../constants');
 
 // Default to sudo unless explicitly disabled
 const SUDO = USE_SUDO === 'false' ? '' : 'sudo ';
@@ -67,6 +67,111 @@ router.post('/block-ip', async (req, res) => {
   } catch (e) {
     console.error('block-ip error:', e);
     res.status(500).send(e.message || 'block-ip failed');
+  }
+});
+
+// Stream extracted flows (features CSV) to NATS in chunks
+// Body: { sessionId?: string, reportId?: string, fileName: string, chunkLines?: number, subject?: string }
+router.post('/nats-publish/flows', async (req, res) => {
+  try {
+    const { sessionId, reportId, fileName, chunkLines = 1000, subject } = req.body || {};
+    if (!fileName) return res.status(400).send('Missing fileName');
+    const baseDir = reportId ? path.join(REPORT_PATH, reportId) : (sessionId ? path.join(REPORT_PATH, `report-${sessionId}`) : null);
+    if (!baseDir) return res.status(400).send('Missing sessionId or reportId');
+    let filePath = path.join(baseDir, fileName);
+    if (!fs.existsSync(filePath)) {
+      console.warn(`[NATS flows] File not found at expected path: ${filePath}. Attempting fallback search under ${REPORT_PATH}`);
+      // Fallback: recursive search for fileName under REPORT_PATH
+      const stack = [REPORT_PATH];
+      let foundPath = null;
+      while (stack.length) {
+        const dir = stack.pop();
+        let entries = [];
+        try {
+          entries = fs.readdirSync(dir, { withFileTypes: true });
+        } catch (e) {
+          continue;
+        }
+        for (const ent of entries) {
+          const p = path.join(dir, ent.name);
+          if (ent.isDirectory()) {
+            // Only descend a few levels to avoid huge scans
+            if ((p.match(/\//g) || []).length - (REPORT_PATH.match(/\//g) || []).length <= 6) {
+              stack.push(p);
+            }
+          } else if (ent.isFile() && ent.name === fileName) {
+            foundPath = p;
+            break;
+          }
+        }
+        if (foundPath) break;
+      }
+      if (!foundPath) {
+        return res.status(404).send(`Flows CSV file not found. Tried: ${path.join(baseDir, fileName)} and no fallback match under ${REPORT_PATH}`);
+      }
+      console.log(`[NATS flows] Using fallback match for flows file: ${foundPath}`);
+      filePath = foundPath;
+    }
+
+    const nc = await getNatsConnection();
+    const sc = StringCodec();
+    const subj = (process.env.NATS_SUBJECT && process.env.NATS_SUBJECT.trim()) || subject;
+    if (!subj) {
+      await nc.close();
+      return res.status(400).send('Missing NATS subject (set NATS_SUBJECT env or pass subject)');
+    }
+
+    let published = 0;
+    let headerLine = null;
+    let buffer = [];
+    let seq = 0;
+    let headerSent = false;
+
+    const publishChunk = async (lines) => {
+      if (!lines || lines.length === 0) return;
+      const includeHeader = !headerSent && !!headerLine;
+      const columns = includeHeader ? headerLine.split(',').map(s => String(s).trim()) : undefined;
+      const payload = {
+        type: 'flows',
+        reportId: reportId || (sessionId ? `report-${sessionId}` : undefined),
+        sessionId,
+        fileName,
+        seq,
+        hasHeader: includeHeader,
+        header: includeHeader ? headerLine : undefined,
+        columns,
+        lines,
+      };
+      const data = JSON.stringify(payload);
+      await nc.publish(subj, sc.encode(data));
+      published += 1;
+      seq += 1;
+      if (includeHeader) headerSent = true;
+    };
+
+    const rl = readline.createInterface({ input: fs.createReadStream(filePath), crlfDelay: Infinity });
+    let lineIndex = 0;
+    for await (const line of rl) {
+      if (lineIndex === 0) {
+        headerLine = line;
+      } else {
+        buffer.push(line);
+        if (buffer.length >= Number(chunkLines)) {
+          await publishChunk(buffer);
+          buffer = [];
+        }
+      }
+      lineIndex += 1;
+    }
+    if (buffer.length > 0) {
+      await publishChunk(buffer);
+    }
+    await nc.flush();
+    await nc.close();
+    res.send({ ok: true, published, chunks: published, fileName });
+  } catch (e) {
+    console.error('NATS flows publish error:', e);
+    res.status(500).send(e.message || 'NATS flows publish failed');
   }
 });
 

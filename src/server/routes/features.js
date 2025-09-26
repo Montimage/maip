@@ -84,7 +84,7 @@ router.post('/extract', async (req, res) => {
                   'inp=sys.argv[1]; out=sys.argv[2]; drop=(len(sys.argv)>3 and sys.argv[3]=="1"); ',
                   'df=pd.read_pickle(inp); ',
                   'df=df[df.notnull().all(axis=1)]; ',
-                  'df=df.replace([np.inf, -np.inf], 0); ',
+                  'df=df.replace([np.inf, -np.inf], 0)\n',
                   'if drop:\n',
                   '    cols=list(df.columns)\n',
                   '    norm=[str(c).strip().lower() for c in cols]\n',

@@ -27,6 +27,7 @@ class FeatureExtractionPage extends Component {
       featuresData: [],
       featuresFileName: null,
       featuresColumns: [],
+      featuresSessionId: null,
     };
   }
 
@@ -56,7 +57,7 @@ class FeatureExtractionPage extends Component {
       return;
     }
     try {
-      this.setState({ featuresLoading: true, featuresCsvText: '', featuresData: [], featuresFileName: null });
+      this.setState({ featuresLoading: true, featuresCsvText: '', featuresData: [], featuresFileName: null, featuresSessionId: null });
       const isMalicious = labelChoice === 'malicious' ? true : labelChoice === 'normal' ? false : undefined;
       const result = await requestExtractFeatures({ pcapFile: uploadedPcapName, isMalicious });
       if (!result || !result.csvContent) {
@@ -97,6 +98,7 @@ class FeatureExtractionPage extends Component {
         featuresData: finalRows,
         featuresColumns: finalColumns,
         featuresFileName: result.csvFile || `${uploadedPcapName}.features.csv`,
+        featuresSessionId: result.sessionId || null,
         featuresLoading: false,
       });
       notification.success({ message: 'Feature extraction completed' });
@@ -119,6 +121,26 @@ class FeatureExtractionPage extends Component {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  }
+
+  sendFeaturesToNatsStreaming = async () => {
+    const { featuresFileName, featuresSessionId } = this.state;
+    if (!featuresFileName || !featuresSessionId) {
+      message.warning('No extracted features to send');
+      return;
+    }
+    try {
+      const res = await fetch(`${SERVER_URL}/api/security/nats-publish/flows`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: featuresSessionId, fileName: featuresFileName, chunkLines: 1000 }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      notification.success({ message: 'Sent flows to NATS', description: `Published in ${data.chunks} chunk(s)`, placement: 'topRight' });
+    } catch (e) {
+      notification.error({ message: 'Failed to stream features to NATS', description: e.message || String(e), placement: 'topRight' });
+    }
   }
 
   handleUploadChange = (info) => {
@@ -223,9 +245,9 @@ class FeatureExtractionPage extends Component {
               Download Features CSV
             </Button>
           </Tooltip>
-          <Tooltip title="Send all rows to NATS as JSON payloads">
-            <Button icon={<SendOutlined />} disabled={!featuresData || featuresData.length === 0}
-              onClick={() => handleBulkMitigationAction({ actionKey: 'send-nats-bulk', rows: featuresData })}>
+          <Tooltip title="Stream all flows to NATS in chunks">
+            <Button icon={<SendOutlined />} disabled={!this.state.featuresFileName || !this.state.featuresSessionId}
+              onClick={this.sendFeaturesToNatsStreaming}>
               Send all to NATS
             </Button>
           </Tooltip>
