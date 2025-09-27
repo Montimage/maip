@@ -1,6 +1,37 @@
-import { Modal, message, notification } from 'antd';
+import React from 'react';
+import { Modal, message, notification, Radio, Button } from 'antd';
 import { SERVER_URL } from '../constants';
 import { computeFlowDetails } from './flowDetails';
+
+// Show-only modal with copy button for command-based actions (top-level)
+function ShowCommandsContent({ preview }) {
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(preview || '');
+      message.success('Commands copied to clipboard');
+    } catch (_) {
+      message.info('Copy failed. You can select and copy the commands manually.');
+    }
+  };
+  return (
+    <div>
+      <div style={{ marginBottom: 8 }}>
+        <Button size="small" onClick={handleCopy}>Copy to clipboard</Button>
+      </div>
+      <pre style={{ maxHeight: 280, overflowY: 'auto', background: '#f7f7f7', padding: 8, borderRadius: 4, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{preview || ''}</pre>
+    </div>
+  );
+}
+
+function showCommandsModal({ title, preview }) {
+  Modal.info({
+    title,
+    icon: null,
+    content: (<ShowCommandsContent preview={preview} />),
+    width: 700,
+    okText: 'Close',
+  });
+}
 
 // Security helpers
 export async function blockIp(ipAddress) {
@@ -78,12 +109,6 @@ export async function handleBulkMitigationAction({ actionKey, rows, isValidIPv4,
         }
         break;
       }
-      case 'block-src-ip-bulk':
-        for (const ip of srcIps) await blockIp(ip);
-        break;
-      case 'block-dst-ip-bulk':
-        for (const ip of dstIps) await blockIp(ip);
-        break;
       default:
         message.info('Bulk action not recognized');
     }
@@ -98,14 +123,22 @@ export async function handleBulkMitigationAction({ actionKey, rows, isValidIPv4,
   const properEntityCap = properEntity.charAt(0).toUpperCase() + properEntity.slice(1);
   const titleMap = {
     'send-nats-bulk': `Confirm bulk: Send all ${properEntity} to NATS`,
-    'block-src-ip-bulk': 'Confirm bulk: Block all source IPs',
-    'block-dst-ip-bulk': 'Confirm bulk: Block all destination IPs',
+    'block-src-ip-bulk': 'Bulk commands: Block all source IPs',
+    'block-dst-ip-bulk': 'Bulk commands: Block all destination IPs',
   };
   const lines = [];
   lines.push(`${properEntityCap}: ${counts.items}`);
   if (actionKey !== 'send-nats-bulk') {
     if (actionKey === 'block-src-ip-bulk') lines.push(`Distinct src IPs: ${counts.srcIps}`);
     if (actionKey === 'block-dst-ip-bulk') lines.push(`Distinct dst IPs: ${counts.dstIps}`);
+  }
+  if (actionKey === 'block-src-ip-bulk' || actionKey === 'block-dst-ip-bulk') {
+    const ips = actionKey === 'block-src-ip-bulk' ? Array.from(srcIps) : Array.from(dstIps);
+    const cmdPreview = ips.map(ip => (
+      `sudo iptables -I INPUT -s ${ip} -j DROP\nsudo iptables -I OUTPUT -d ${ip} -j DROP`
+    )).join('\n\n');
+    showCommandsModal({ title: titleOverride || titleMap[actionKey], preview: cmdPreview });
+    return;
   }
   Modal.confirm({ title: titleOverride || titleMap[actionKey] || 'Confirm bulk action', content: lines.join('\n'), onOk: perform });
 }
@@ -236,6 +269,67 @@ export async function sendToNats({ payload }) {
   }
 }
 
+// UI: Confirm content with toggle and copy button
+function ConfirmActionContent({ preview, defaultMode = 'show', onModeChange }) {
+  const [mode, setMode] = React.useState(defaultMode);
+  React.useEffect(() => { onModeChange && onModeChange(mode); }, [mode]);
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(preview || '');
+      message.success('Commands copied to clipboard');
+    } catch (_) {
+      message.info('Copy failed. You can select and copy the commands manually.');
+    }
+  };
+  return (
+    <div>
+      <div style={{ marginBottom: 8 }}>
+        <Radio.Group value={mode} onChange={(e) => setMode(e.target.value)} buttonStyle="solid">
+          <Radio.Button value="execute">Execute on server</Radio.Button>
+          <Radio.Button value="show">Show commands only</Radio.Button>
+        </Radio.Group>
+      </div>
+      <div style={{ marginBottom: 8 }}>
+        <Button size="small" onClick={handleCopy}>Copy to clipboard</Button>
+      </div>
+      <pre style={{ maxHeight: 240, overflowY: 'auto', background: '#f7f7f7', padding: 8, borderRadius: 4, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{preview || ''}</pre>
+    </div>
+  );
+}
+
+function confirmWithToggle({ title, preview, onExecute }) {
+  let mode = 'show';
+  const setMode = (m) => { mode = m; };
+  const handleModeChange = (val) => { setMode(val); };
+  return new Promise((resolve) => {
+    Modal.confirm({
+      title,
+      content: (
+        <ConfirmActionContent
+          preview={preview}
+          defaultMode={mode}
+          onModeChange={handleModeChange}
+        />
+      ),
+      width: 1000,
+      okText: 'Continue',
+      onOk: async () => {
+        if (mode === 'execute') {
+          await onExecute();
+        } else {
+          try {
+            await navigator.clipboard.writeText(preview || '');
+            message.success('Commands copied to clipboard');
+          } catch (_) {
+            message.info('Copy the commands manually from the dialog.');
+          }
+        }
+        resolve();
+      },
+    });
+  });
+}
+
 function buildCommandPreview(actionKey, params) {
   const { srcIp, dstIp, dport, limit = '5/sec', burst = 10 } = params || {};
   switch (actionKey) {
@@ -268,10 +362,9 @@ export function handleMitigationAction({ actionKey, srcIp, dstIp, sessionId, dpo
   switch (actionKey) {
     case 'block-src-ip':
       if (isValidIPv4(srcIp)) {
-        Modal.confirm({
-          title: `Confirm action: Block source IP ${srcIp}`,
-          content: preview,
-          onOk: () => blockIp(srcIp)
+        showCommandsModal({
+          title: `Commands: Block source IP ${srcIp}`,
+          preview,
         });
       } else {
         message.warning('Source IP missing or not valid IPv4');
@@ -279,10 +372,9 @@ export function handleMitigationAction({ actionKey, srcIp, dstIp, sessionId, dpo
       break;
     case 'block-dst-ip':
       if (isValidIPv4(dstIp)) {
-        Modal.confirm({
-          title: `Confirm action: Block destination IP ${dstIp}`,
-          content: preview,
-          onOk: () => blockIp(dstIp)
+        showCommandsModal({
+          title: `Commands: Block destination IP ${dstIp}`,
+          preview,
         });
       } else {
         message.warning('Destination IP missing or not valid IPv4');
@@ -290,10 +382,9 @@ export function handleMitigationAction({ actionKey, srcIp, dstIp, sessionId, dpo
       break;
     case 'block-dst-port':
       if (dport) {
-        Modal.confirm({
-          title: `Confirm action: Block destination port ${dport}/tcp`,
-          content: preview,
-          onOk: () => blockPort(dport, 'tcp')
+        showCommandsModal({
+          title: `Commands: Block destination port ${dport}/tcp`,
+          preview,
         });
       } else {
         message.warning('No destination port available');
@@ -301,10 +392,9 @@ export function handleMitigationAction({ actionKey, srcIp, dstIp, sessionId, dpo
       break;
     case 'block-ip-port-src':
       if (isValidIPv4(srcIp) && dport) {
-        Modal.confirm({
-          title: `Confirm action: Block ${srcIp}:${dport}/tcp`,
-          content: preview,
-          onOk: () => blockIpPort(srcIp, dport, 'tcp')
+        showCommandsModal({
+          title: `Commands: Block ${srcIp}:${dport}/tcp`,
+          preview,
         });
       } else {
         message.warning('Missing source IP or port');
@@ -312,10 +402,9 @@ export function handleMitigationAction({ actionKey, srcIp, dstIp, sessionId, dpo
       break;
     case 'block-ip-port-dst':
       if (isValidIPv4(dstIp) && dport) {
-        Modal.confirm({
-          title: `Confirm action: Block ${dstIp}:${dport}/tcp`,
-          content: preview,
-          onOk: () => blockIpPort(dstIp, dport, 'tcp')
+        showCommandsModal({
+          title: `Commands: Block ${dstIp}:${dport}/tcp`,
+          preview,
         });
       } else {
         message.warning('Missing destination IP or port');
@@ -324,10 +413,9 @@ export function handleMitigationAction({ actionKey, srcIp, dstIp, sessionId, dpo
     case 'drop-session':
       if (isValidIPv4(dstIp || srcIp)) {
         const ipToDrop = isValidIPv4(dstIp) ? dstIp : srcIp;
-        Modal.confirm({
-          title: `Confirm action: Drop traffic for ${ipToDrop}`,
-          content: preview,
-          onOk: () => dropSession(ipToDrop)
+        showCommandsModal({
+          title: `Commands: Drop traffic for ${ipToDrop}`,
+          preview,
         });
       } else {
         message.warning('Invalid IP to drop');
@@ -335,19 +423,9 @@ export function handleMitigationAction({ actionKey, srcIp, dstIp, sessionId, dpo
       break;
     case 'rate-limit-src':
       if (isValidIPv4(srcIp) && dport) {
-        Modal.confirm({
-          title: `Confirm action: Rate limit ${srcIp}:${dport}/tcp`,
-          content: preview,
-          onOk: () => fetch(`${SERVER_URL}/api/security/rate-limit`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ip: srcIp, port: dport, protocol: 'tcp', limit: '5/sec', burst: 10, direction: 'in' }),
-          }).then(async (r) => {
-            if (!r.ok) throw new Error(await r.text());
-            notification.success({ message: 'Action submitted', description: `Rate limit applied to ${srcIp}:${dport}/tcp`, placement: 'topRight' });
-          }).catch((e) => {
-            notification.error({ message: 'Action failed', description: e.message, placement: 'topRight' });
-          })
+        showCommandsModal({
+          title: `Commands: Rate limit ${srcIp}:${dport}/tcp`,
+          preview,
         });
       } else {
         message.warning('Missing src IP or port for rate limit');
