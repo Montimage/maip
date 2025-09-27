@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
-import { Tabs, Form, Select, Button, Table, Divider, Tooltip, Upload, Spin, message } from 'antd';
+import { Tabs, Form, Select, Button, Table, Divider, Tooltip, Upload, Spin, message, Dropdown, Menu } from 'antd';
 import { UploadOutlined, DeleteOutlined } from '@ant-design/icons';
 import { Line } from '@ant-design/plots';
 import {
@@ -14,6 +14,8 @@ import {
   requestRuleOnlineStop,
   requestRuleOffline,
 } from '../api';
+import { handleMitigationAction, handleBulkMitigationAction } from '../utils/mitigation';
+import { computeFlowDetails, isValidIPv4 } from '../utils/flowDetails';
 
 class PredictRuleBasedPage extends Component {
   constructor(props) {
@@ -29,6 +31,9 @@ class PredictRuleBasedPage extends Component {
       // Offline
       pcapFile: null,
       offlineLoading: false,
+      uploadResetKey: 0,
+      // Fallback per-rule counts (used notably for Offline when verdicts are not available)
+      ruleCountsByCode: {},
       // Alerts
       alerts: [],
       polling: false,
@@ -216,9 +221,26 @@ class PredictRuleBasedPage extends Component {
       const data = await requestRuleOffline({ pcapFile });
       message.success(`Offline detection finished: ${data.count} alerts`);
       const unique = this.dedupeAlerts(data.alerts || []);
+      // Build per-rule counts: prefer server-provided ruleVerdicts, else derive a minimal fallback from alerts
+      const mapCounts = new Map();
+      if (Array.isArray(data.ruleVerdicts) && data.ruleVerdicts.length > 0) {
+        data.ruleVerdicts.forEach(({ rule, verdicts }) => {
+          const key = String(typeof rule !== 'undefined' ? rule : '');
+          if (!key) return;
+          mapCounts.set(key, Number(verdicts) || 0);
+        });
+      } else {
+        (Array.isArray(data.alerts) ? data.alerts : []).forEach((a) => {
+          const key = String(typeof a?.code !== 'undefined' ? a.code : '');
+          if (!key) return;
+          mapCounts.set(key, (mapCounts.get(key) || 0) + 1);
+        });
+      }
+      const ruleCountsByCode = Object.fromEntries(mapCounts.entries());
       this.setState(prev => ({
         alerts: unique,
         offlineLoading: false,
+        ruleCountsByCode,
         // Populate ruleVerdicts into status so the Alerts summary can reflect offline runs too
         status: {
           ...(prev.status || {}),
@@ -249,9 +271,36 @@ class PredictRuleBasedPage extends Component {
     { title: 'Alerts', key: 'verdicts', width: 120, render: (_, row) => {
       try {
         const verdicts = (this.state.status?.ruleVerdicts || []).find(r => Number(r.rule) === Number(row.code));
-        return verdicts ? verdicts.verdicts : '';
+        const val = verdicts ? Number(verdicts.verdicts) : undefined;
+        if (typeof val === 'number' && !isNaN(val) && val > 0) return val;
+        // Fallback to per-rule counts (notably for Offline when server did not provide verdicts)
+        const key = String(typeof row?.code !== 'undefined' ? row.code : '');
+        const fb = key && this.state.ruleCountsByCode ? this.state.ruleCountsByCode[key] : undefined;
+        return (typeof fb === 'number' && !isNaN(fb)) ? fb : '';
       } catch {
         return '';
+      }
+    }},
+    { title: 'Mitigation', key: 'actions', width: 140, fixed: 'right', align: 'center', render: (_, row) => {
+      try {
+        const { srcIp, dstIp } = computeFlowDetails(row);
+        const validSrc = isValidIPv4(srcIp);
+        const validDst = isValidIPv4(dstIp);
+        const menu = (
+          <Menu onClick={({ key }) => handleMitigationAction({ actionKey: key, srcIp, dstIp, isValidIPv4, flowRecord: row })}>
+            <Menu.Item key="block-src-ip" disabled={!validSrc}>{`Block source IP${validSrc ? ` ${srcIp}` : ''}`}</Menu.Item>
+            <Menu.Item key="block-dst-ip" disabled={!validDst}>{`Block destination IP${validDst ? ` ${dstIp}` : ''}`}</Menu.Item>
+            <Menu.Divider />
+            <Menu.Item key="send-nats">Send alert to NATS</Menu.Item>
+          </Menu>
+        );
+        return (
+          <Dropdown overlay={menu} trigger={["click"]} placement="bottomRight" getPopupContainer={() => document.body} overlayStyle={{ zIndex: 2000 }}>
+            <Button size="small">Actions</Button>
+          </Dropdown>
+        );
+      } catch (_) {
+        return null;
       }
     }},
   ];
@@ -303,32 +352,33 @@ class PredictRuleBasedPage extends Component {
       <>
         <Form {...FORM_LAYOUT} style={{ maxWidth: 700 }}>
           <Form.Item label="PCAP file" required>
-            <Upload
-              beforeUpload={this.beforeUploadPcap}
-              action={`${SERVER_URL}/api/pcaps`}
-              customRequest={this.processUploadPcap}
-              onRemove={() => this.setState({ pcapFile: null })}
-              maxCount={1}
-              itemRender={(originNode, file, fileList, actions) => (
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                  <code>{file.name}</code>
-                  <Button type="link" size="small" icon={<DeleteOutlined />} onClick={actions.remove} />
-                </div>
-              )}
-            >
-              <Button icon={<UploadOutlined />} disabled={uploading}>
-                Upload pcaps only {uploading && <Spin size="small" style={{ marginLeft: 8 }} />}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, width: '100%' }}>
+              <Upload
+                key={this.state.uploadResetKey}
+                beforeUpload={this.beforeUploadPcap}
+                action={`${SERVER_URL}/api/pcaps`}
+                customRequest={this.processUploadPcap}
+                onRemove={() => this.setState({ pcapFile: null })}
+                maxCount={1}
+                itemRender={(originNode, file, fileList, actions) => (
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <code>{file.name}</code>
+                    <Button type="link" size="small" icon={<DeleteOutlined />} onClick={actions.remove} />
+                  </div>
+                )}
+              >
+                <Button icon={<UploadOutlined />} disabled={uploading} style={{ width: 220 }}>
+                  Upload pcaps only {uploading && <Spin size="small" style={{ marginLeft: 8 }} />}
+                </Button>
+              </Upload>
+              <Button type="primary" onClick={this.handleOfflineDetect} disabled={!pcapFile || this.state.offlineLoading}>
+                Detect
+                {this.state.offlineLoading && (
+                  <Spin size="small" style={{ marginLeft: 8 }} />
+                )}
               </Button>
-            </Upload>
+            </div>
           </Form.Item>
-          <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-            <Button type="primary" onClick={this.handleOfflineDetect} disabled={!pcapFile || this.state.offlineLoading}>
-              Detect
-              {this.state.offlineLoading && (
-                <Spin size="small" style={{ marginLeft: 8 }} />
-              )}
-            </Button>
-          </div>
         </Form>
       </>
     );
@@ -337,8 +387,17 @@ class PredictRuleBasedPage extends Component {
   render() {
     const { alerts } = this.state;
     const ruleVerdicts = Array.isArray(this.state.status?.ruleVerdicts) ? this.state.status.ruleVerdicts : [];
-    const rulesCount = ruleVerdicts.length;
-    const verdictsTotal = ruleVerdicts.reduce((sum, r) => sum + Number(r && r.verdicts ? r.verdicts : 0), 0);
+    let rulesCount = ruleVerdicts.length;
+    let verdictsTotal = ruleVerdicts.reduce((sum, r) => sum + Number(r && r.verdicts ? r.verdicts : 0), 0);
+    // Fallback for offline mode where ruleVerdicts may be unavailable: derive from alerts
+    if ((rulesCount === 0 || isNaN(rulesCount)) && Array.isArray(alerts) && alerts.length > 0) {
+      const uniqueRules = new Set((alerts || []).map(a => String(a && typeof a.code !== 'undefined' ? a.code : '')));
+      uniqueRules.delete('');
+      rulesCount = uniqueRules.size;
+    }
+    if ((verdictsTotal === 0 || isNaN(verdictsTotal)) && Array.isArray(alerts)) {
+      verdictsTotal = alerts.length;
+    }
     const latestBin = (this.state.alertSeries || []).reduce((m, p) => Math.max(m, Number(p.time || 0)), 0) || null;
     const timesArr = (this.state.alertSeries || []).map(p => Number(p.time) || 0);
     const minTime = timesArr.length ? Math.min(...timesArr) : null;
@@ -359,7 +418,19 @@ class PredictRuleBasedPage extends Component {
         <Divider orientation="left"><h1 style={{ fontSize: '24px' }}>Parameters</h1></Divider>
         <Tabs
           activeKey={this.state.activeTab}
-          onChange={(k) => this.setState({ activeTab: k })}
+          onChange={(k) => this.setState(prev => ({
+            activeTab: k,
+            // Clear Alerts table and charts when switching tabs
+            alerts: [],
+            alertSeries: [],
+            alertSeriesByRule: [],
+            ruleCountsByCode: {},
+            // Also clear verdict summary counts; they'll repopulate on the next run
+            status: { ...(prev.status || {}), ruleVerdicts: [] },
+            // Clear opposite tab parameters
+            ...(k === 'online' ? { pcapFile: null, uploading: false, offlineLoading: false, uploadResetKey: (prev.uploadResetKey || 0) + 1 } : {}),
+            ...(k === 'offline' ? { iface: null } : {}),
+          }))}
           items={[
             { key: 'online', label: 'Online', children: this.renderOnlineTab() },
             { key: 'offline', label: 'Offline', children: this.renderOfflineTab() },
@@ -368,7 +439,7 @@ class PredictRuleBasedPage extends Component {
 
         <Divider orientation="left"><h1 style={{ fontSize: '24px' }}>Rule-based Alerts</h1></Divider>
         {/* Real-time alert distribution by Rule (5s bins) */}
-        {(chartData && chartData.length > 0) && (
+        {(this.state.activeTab === 'online') && (chartData && chartData.length > 0) && (
           <div style={{ margin: '4px 0 12px 0' }}>
             <Line
               data={chartData}
@@ -388,6 +459,15 @@ class PredictRuleBasedPage extends Component {
         )}
         <div style={{ margin: '4px 0 8px 0', color: '#555', textAlign: 'center' }}>
           <span style={{ fontSize: 18, fontWeight: 500 }}>Total: <b>{rulesCount}</b> rules, <b>{verdictsTotal}</b> alerts</span>
+        </div>
+        {/* Bulk actions for all alerts */}
+        <div style={{ margin: '8px 0', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Button
+            onClick={() => handleBulkMitigationAction({ actionKey: 'send-nats-bulk', rows: alerts, isValidIPv4, entityLabel: 'alerts', titleOverride: 'Confirm bulk: Send all alerts to NATS' })}
+            disabled={!(alerts && alerts.length > 0)}
+          >
+            Send all alerts to NATS
+          </Button>
         </div>
         <Table
           dataSource={(alerts || []).map((a, idx) => ({ key: idx + 1, ...a }))}

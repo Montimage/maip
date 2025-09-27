@@ -34,10 +34,12 @@ export async function blockIp(ipAddress) {
 }
 
 // Bulk mitigation dispatcher for an array of rows (e.g., all malicious flows)
-export async function handleBulkMitigationAction({ actionKey, rows, isValidIPv4 }) {
+export async function handleBulkMitigationAction({ actionKey, rows, isValidIPv4, entityLabel = 'flows', titleOverride }) {
   const list = Array.isArray(rows) ? rows : [];
+  const properEntity = (entityLabel && typeof entityLabel === 'string') ? entityLabel : 'flows';
+  const noun = (n) => (n === 1 ? properEntity.replace(/s$/, '') : (properEntity.endsWith('s') ? properEntity : `${properEntity}s`));
   if (list.length === 0) {
-    message.info('No flows available for bulk action');
+    message.info(`No ${properEntity} available for bulk action`);
     return;
   }
   // Collect and deduplicate targets
@@ -65,11 +67,11 @@ export async function handleBulkMitigationAction({ actionKey, rows, isValidIPv4 
           const ok = Number(data.published || 0);
           const fail = Number(data.failed || 0);
           if (fail === 0) {
-            notification.success({ message: 'Sent to NATS', description: `Published ${ok} flow(s)`, placement: 'topRight' });
+            notification.success({ message: 'Sent to NATS', description: `Published ${ok} ${noun(ok)}` , placement: 'topRight' });
           } else if (ok === 0) {
-            notification.error({ message: 'NATS publish failed', description: `All ${fail} flow(s) failed`, placement: 'topRight' });
+            notification.error({ message: 'NATS publish failed', description: `All ${fail} ${noun(fail)} failed`, placement: 'topRight' });
           } else {
-            notification.warning({ message: 'Partial NATS publish', description: `Published ${ok}, failed ${fail}`, placement: 'topRight' });
+            notification.warning({ message: 'Partial NATS publish', description: `Published ${ok} ${noun(ok)}, failed ${fail}`, placement: 'topRight' });
           }
         } catch (e) {
           notification.error({ message: 'NATS bulk publish failed', description: e.message, placement: 'topRight' });
@@ -88,23 +90,24 @@ export async function handleBulkMitigationAction({ actionKey, rows, isValidIPv4 
   };
 
   const counts = {
-    flows: list.length,
+    items: list.length,
     srcIps: srcIps.size,
     dstIps: dstIps.size,
     dports: dports.size,
   };
+  const properEntityCap = properEntity.charAt(0).toUpperCase() + properEntity.slice(1);
   const titleMap = {
-    'send-nats-bulk': 'Confirm bulk: Send all flows to NATS',
+    'send-nats-bulk': `Confirm bulk: Send all ${properEntity} to NATS`,
     'block-src-ip-bulk': 'Confirm bulk: Block all source IPs',
     'block-dst-ip-bulk': 'Confirm bulk: Block all destination IPs',
   };
   const lines = [];
-  lines.push(`Flows: ${counts.flows}`);
+  lines.push(`${properEntityCap}: ${counts.items}`);
   if (actionKey !== 'send-nats-bulk') {
     if (actionKey === 'block-src-ip-bulk') lines.push(`Distinct src IPs: ${counts.srcIps}`);
     if (actionKey === 'block-dst-ip-bulk') lines.push(`Distinct dst IPs: ${counts.dstIps}`);
   }
-  Modal.confirm({ title: titleMap[actionKey] || 'Confirm bulk action', content: lines.join('\n'), onOk: perform });
+  Modal.confirm({ title: titleOverride || titleMap[actionKey] || 'Confirm bulk action', content: lines.join('\n'), onOk: perform });
 }
 
 export async function blockPort(port, protocol = 'tcp') {
