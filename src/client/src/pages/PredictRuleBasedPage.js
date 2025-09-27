@@ -1,6 +1,8 @@
 import React, { Component } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import LayoutPage from './LayoutPage';
-import { Tabs, Form, Select, Button, Table, Divider, Tooltip, Upload, Spin, message, Dropdown, Menu } from 'antd';
+import { Tabs, Form, Select, Button, Table, Divider, Tooltip, Upload, Spin, message, Dropdown, Menu, Modal } from 'antd';
 import { UploadOutlined, DeleteOutlined } from '@ant-design/icons';
 import { Line } from '@ant-design/plots';
 import {
@@ -13,6 +15,7 @@ import {
   requestRuleOnlineStart,
   requestRuleOnlineStop,
   requestRuleOffline,
+  requestAssistantExplainFlow,
 } from '../api';
 import { handleMitigationAction, handleBulkMitigationAction } from '../utils/mitigation';
 import { computeFlowDetails, isValidIPv4 } from '../utils/flowDetails';
@@ -41,7 +44,32 @@ class PredictRuleBasedPage extends Component {
       // Real-time alert distribution for Online mode
       alertSeries: [], // [{ time: number (ms), count: number }]
       alertSeriesByRule: [], // [{ time: number (ms, 5s bin), rule: string, count: number }]
+      // Assistant modal
+      assistantModalVisible: false,
+      assistantText: '',
+      assistantLoading: false,
     };
+  }
+
+  onAssistantExplain = (record) => {
+    try {
+      const { srcIp, dstIp, sessionId, dport, pktsRate, byteRate } = computeFlowDetails(record);
+      const modelId = 'rule-based';
+      const predictionId = '';
+      this.setState({ assistantModalVisible: true, assistantLoading: true, assistantText: '' });
+      requestAssistantExplainFlow({
+        flowRecord: record,
+        modelId,
+        predictionId,
+        extra: { srcIp, dstIp, sessionId, dport, pktsRate, byteRate }
+      }).then(({ text }) => {
+        this.setState({ assistantText: text || '', assistantLoading: false });
+      }).catch((e) => {
+        this.setState({ assistantText: `Error: ${e.message || String(e)}`, assistantLoading: false });
+      });
+    } catch (e) {
+      this.setState({ assistantModalVisible: true, assistantLoading: false, assistantText: `Error: ${e.message || String(e)}` });
+    }
   }
 
   componentDidMount() {
@@ -287,7 +315,9 @@ class PredictRuleBasedPage extends Component {
         const validSrc = isValidIPv4(srcIp);
         const validDst = isValidIPv4(dstIp);
         const menu = (
-          <Menu onClick={({ key }) => handleMitigationAction({ actionKey: key, srcIp, dstIp, isValidIPv4, flowRecord: row })}>
+          <Menu onClick={({ key }) => key === 'explain-gpt' ? this.onAssistantExplain(row) : handleMitigationAction({ actionKey: key, srcIp, dstIp, isValidIPv4, flowRecord: row })}>
+            <Menu.Item key="explain-gpt">Ask Assistant</Menu.Item>
+            <Menu.Divider />
             <Menu.Item key="block-src-ip" disabled={!validSrc}>{`Block source IP${validSrc ? ` ${srcIp}` : ''}`}</Menu.Item>
             <Menu.Item key="block-dst-ip" disabled={!validDst}>{`Block destination IP${validDst ? ` ${dstIp}` : ''}`}</Menu.Item>
             <Menu.Divider />
@@ -478,6 +508,25 @@ class PredictRuleBasedPage extends Component {
           scroll={{ x: 'max-content' }}
           pagination={{ pageSize: 10, showSizeChanger: true }}
         />
+        <Modal
+          title="Assistant Explanation"
+          open={this.state.assistantModalVisible}
+          onCancel={() => this.setState({ assistantModalVisible: false })}
+          footer={<Button onClick={() => this.setState({ assistantModalVisible: false })}>Close</Button>}
+          width={800}
+        >
+          {this.state.assistantLoading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
+              <Spin size="large" />
+            </div>
+          ) : (
+            <div className="assistant-markdown" style={{ maxHeight: 500, overflowY: 'auto' }}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {this.state.assistantText || ''}
+              </ReactMarkdown>
+            </div>
+          )}
+        </Modal>
       </LayoutPage>
     );
   }
