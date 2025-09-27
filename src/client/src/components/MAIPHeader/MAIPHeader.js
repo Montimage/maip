@@ -66,18 +66,23 @@ class MAIPHeader extends Component {
       },
       {
         key: MENU_OPTIONS[4].key,
-        label: 'Predict',
+        label: 'Detect',
         icon: <LineChartOutlined />,
         children: [
           {
-            key: MENU_OPTIONS[5].key,
-            label: 'Online Mode',
-            link: MENU_OPTIONS[5].link,
+            key: MENU_OPTIONS[18].key,
+            label: 'Rule-based Mode',
+            link: MENU_OPTIONS[18].link,
           },
           {
             key: MENU_OPTIONS[6].key,
-            label: 'Offline Mode',
+            label: 'Predict Offline',
             link: MENU_OPTIONS[6].link,
+          },
+          {
+            key: MENU_OPTIONS[5].key,
+            label: 'Predict Online',
+            link: MENU_OPTIONS[5].link,
           },
         ],
       },

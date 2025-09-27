@@ -631,6 +631,58 @@ export const requestAssistantExplainFlow = async ({ flowRecord, modelId, predict
   }
   return response.json(); // { text }
 };
+// Rule-based detection (mmt_security)
+export const requestRuleStatus = async () => {
+  const url = `${SERVER_URL}/api/security/rule-based/status`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+};
+
+export const requestRuleAlerts = async (limit = 500) => {
+  const url = `${SERVER_URL}/api/security/rule-based/alerts?limit=${encodeURIComponent(limit)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json(); // { ok, file, count, alerts }
+};
+
+export const requestRuleOnlineStart = async ({ iface, intervalSec = 5, verbose = true, excludeRules, cores } = {}) => {
+  const url = `${SERVER_URL}/api/security/rule-based/online/start`;
+  const payload = { iface, intervalSec, verbose };
+  if (excludeRules) payload.excludeRules = excludeRules;
+  if (cores) payload.cores = cores;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+};
+
+export const requestRuleOnlineStop = async () => {
+  const url = `${SERVER_URL}/api/security/rule-based/online/stop`;
+  const res = await fetch(url, { method: 'POST' });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+};
+
+export const requestRuleOffline = async ({ pcapFile, filePath, verbose = false, excludeRules, cores } = {}) => {
+  const url = `${SERVER_URL}/api/security/rule-based/offline`;
+  const body = {};
+  if (filePath) body.filePath = filePath;
+  if (pcapFile) body.pcapFile = pcapFile;
+  if (verbose) body.verbose = true;
+  if (excludeRules) body.excludeRules = excludeRules;
+  if (cores) body.cores = cores;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json(); // { ok, file, count, alerts }
+};
 
 // Feature extraction API: run end-to-end extraction on an uploaded PCAP
 export const requestExtractFeatures = async ({ pcapFile, isMalicious }) => {

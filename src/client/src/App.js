@@ -23,6 +23,7 @@ import AttacksPage from "./pages/AttacksPage";
 import PredictModelPage from "./pages/PredictModelPage";
 import PredictOnlinePage from "./pages/PredictOnlinePage";
 import PredictOfflinePage from "./pages/PredictOfflinePage";
+import PredictRuleBasedPage from "./pages/PredictRuleBasedPage";
 import XAILimePage from "./pages/XAILimePage";
 import XAIShapPage from "./pages/XAIShapPage";
 import MetricsPage from "./pages/MetricsPage";
@@ -67,6 +68,7 @@ function App() {
             <Route path="/predict/online/:modelId" element={<PredictOnlinePage />}/>
             <Route path="/predict/offline" element={<PredictOfflinePage />}/>
             <Route path="/predict/offline/:modelId" element={<PredictOfflinePage />}/>
+            <Route path="/predict/rule-based" element={<PredictRuleBasedPage />}/>
             <Route path="/predict/:modelId" element={<PredictModelPage />}/>
             <Route path="/about" element={<AboutPage />}/>
           </Routes>

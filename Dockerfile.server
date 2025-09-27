@@ -15,7 +15,8 @@ RUN apt-get update -y && apt-get install -y \
     libconfuse-dev \
     libpcap-dev \
     libxml2-dev \
-    net-tools
+    net-tools \
+    libcap2-bin
 
 # Install Python 3.8.10
 RUN add-apt-repository ppa:deadsnakes/ppa -y && \
@@ -54,9 +55,12 @@ COPY . .
 RUN dpkg -i src/server/mmt-packages/mmt-dpi*.deb && \
     dpkg -i src/server/mmt-packages/mmt-security*.deb && \
     dpkg -i src/server/mmt-packages/mmt-probe*.deb 2>/dev/null||true && \
-    ldconfig
+    ldconfig && \
+    mkdir -p src/server/mmt/outputs && \
+    if [ -f /opt/mmt/security/bin/mmt_security ]; then setcap cap_net_raw,cap_net_admin+eip /opt/mmt/security/bin/mmt_security || true; fi
 
 ENV DOCKER_ENV=true
+ENV USE_SUDO=false
 
 EXPOSE 31057
 CMD ./start-server.sh

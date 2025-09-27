@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { connect, StringCodec } = require('nats');
 const readline = require('readline');
-const { exec } = require('child_process');
+const { spawn, exec } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
@@ -14,10 +14,12 @@ const {
   USE_SUDO,
 } = process.env;
 
-const { LOCAL_NATS_URL, TRAINING_PATH, REPORT_PATH } = require('../constants');
+const { LOCAL_NATS_URL, TRAINING_PATH, REPORT_PATH, PCAP_PATH } = require('../constants');
+// Output folder for mmt_security CSVs
+const SECURITY_OUT_DIR = path.join(__dirname, '../mmt/outputs');
 
-// Default to sudo unless explicitly disabled
-const SUDO = USE_SUDO === 'false' ? '' : 'sudo ';
+// Default to sudo unless explicitly disabled; use non-interactive to avoid blocking
+const SUDO = USE_SUDO === 'false' ? '' : 'sudo -n ';
 
 async function getNatsConnection() {
   const servers = NATS_URL || LOCAL_NATS_URL;
@@ -38,6 +40,376 @@ function isValidIPv4(ip) {
     return n >= 0 && n <= 255 && String(n) === String(Number(o));
   });
 }
+
+// ------------------------------
+// Rule-based detection (mmt_security)
+// ------------------------------
+
+// State for running mmt_security instance (online)
+let secState = {
+  running: false,
+  mode: null, // 'online' | 'offline'
+  pid: null,
+  child: null,
+  iface: null,
+  pcapFile: null,
+  outputDir: null,
+  outputFile: null,
+  startedAt: null,
+  intervalSec: null,
+  ruleVerdicts: [], // [{ rule: 56, verdicts: 8 }]
+};
+
+function ensureDir(dir) {
+  try {
+    fs.mkdirSync(dir, { recursive: true, mode: 0o777 });
+    try { fs.chmodSync(dir, 0o777); } catch (e) {}
+  } catch (e) {}
+}
+
+function resolveSecurityBin() {
+  const candidates = [
+    '/opt/mmt/security/bin/mmt_security',
+    '/opt/mmt/security/bin/mmt-security',
+    'mmt_security',
+    'mmt-security',
+  ];
+  for (const p of candidates) {
+    try {
+      if (p.includes('/') && fs.existsSync(p)) return p;
+    } catch (e) {}
+  }
+  // Fallback to first candidate; spawn will fail and we report error
+  return candidates[0];
+}
+
+function findLatestSecurityCsv(dir) {
+  try {
+    if (!dir || !fs.existsSync(dir)) return null;
+    const files = fs.readdirSync(dir)
+      .filter(f => f.endsWith('.csv'))
+      .map(f => ({ f, full: path.join(dir, f), st: fs.statSync(path.join(dir, f)) }))
+      .sort((a, b) => b.st.mtimeMs - a.st.mtimeMs);
+    return files.length > 0 ? files[0].full : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function parseSecurityCsvLine(line) {
+  // Example line:
+  // 10,0,"",1758916808,56,"detected","attack","Probable SYN flooding attack (Half TCP handshake without TCP RST)",{"event_1":{...}}
+  // We'll parse basic CSV fields until JSON blob, then parse JSON.
+  if (!line || !line.trim()) return null;
+  // Split by commas but preserve JSON at the end; do a naive split by first 8 commas
+  const parts = [];
+  let current = '';
+  let inQuotes = false;
+  let commas = 0;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+      current += ch;
+    } else if (ch === ',' && !inQuotes && commas < 8) {
+      parts.push(current);
+      current = '';
+      commas++;
+    } else {
+      current += ch;
+    }
+  }
+  parts.push(current);
+
+  if (parts.length < 9) return null;
+  const [sev, unknown0, emptyQ, ts, code, status, category, desc, jsonStr] = parts;
+  let details = null;
+  try { details = JSON.parse(jsonStr); } catch (e) { details = null; }
+
+  // Try to derive src/dst from details
+  const attrs = [];
+  function scanAttrs(obj) {
+    try {
+      const events = Object.values(obj || {});
+      for (const ev of events) {
+        const kv = ev && ev.attributes;
+        if (Array.isArray(kv)) {
+          for (const [k, v] of kv) {
+            attrs.push({ k: String(k), v });
+          }
+        }
+      }
+    } catch (e) {}
+  }
+  if (details) scanAttrs(details);
+  const attrMap = new Map(attrs.map(x => [x.k, x.v]));
+  const srcIp = attrMap.get('ip.src') || null;
+  const dstIp = attrMap.get('ip.dst') || null;
+
+  return {
+    probeId: Number(sev),
+    timestamp: Number(ts),
+    code: Number(code),
+    status: (status || '').replace(/"/g, ''),
+    category: (category || '').replace(/"/g, ''),
+    description: (desc || '').replace(/"/g, ''),
+    srcIp,
+    dstIp,
+    raw: line,
+    details,
+  };
+}
+
+function parseSecurityCsv(filePath, limit = 500) {
+  try {
+    if (!filePath || !fs.existsSync(filePath)) return [];
+    const content = fs.readFileSync(filePath, 'utf8');
+    const lines = content.split(/\r?\n/).filter(Boolean);
+    const out = [];
+    for (const line of lines.slice(-limit)) {
+      const obj = parseSecurityCsvLine(line);
+      if (obj) out.push(obj);
+    }
+    return out;
+  } catch (e) {
+    return [];
+  }
+}
+
+function parseRuleVerdictsFromText(text) {
+  try {
+    const map = new Map();
+    String(text || '')
+      .split(/\r?\n/)
+      .forEach((line) => {
+        const m = line.match(/-\s*rule\s+(\d+)\s+generated\s+(\d+)\s+verdicts/i);
+        if (m) {
+          const rule = Number(m[1]);
+          const verdicts = Number(m[2]);
+          map.set(rule, verdicts);
+        }
+      });
+    return Array.from(map.entries()).map(([rule, verdicts]) => ({ rule, verdicts }));
+  } catch {
+    return [];
+  }
+}
+
+function dedupeAlerts(list) {
+  try {
+    const seen = new Set();
+    const out = [];
+    for (const a of list || []) {
+      const code = a && typeof a.code !== 'undefined' ? String(a.code) : '';
+      const category = String((a && a.category) || '').trim().toLowerCase();
+      const desc = String((a && a.description) || '').trim().toLowerCase();
+      const src = String((a && a.srcIp) || '').trim().toLowerCase();
+      const dst = String((a && a.dstIp) || '').trim().toLowerCase();
+      // Group by stable identity ignoring timestamp and probe
+      const key = [code, category, desc, src, dst].join('|');
+      if (!seen.has(key)) {
+        seen.add(key);
+        out.push(a);
+      }
+    }
+    return out;
+  } catch (_) {
+    return Array.isArray(list) ? list : [];
+  }
+}
+
+router.get('/rule-based/status', async (req, res) => {
+  try {
+    const lastFile = secState.outputFile || findLatestSecurityCsv(secState.outputDir);
+    if (lastFile) secState.outputFile = lastFile;
+    res.send({ ok: true, ...secState });
+  } catch (e) {
+    res.status(500).send(e.message || 'Failed to get status');
+  }
+});
+
+router.get('/rule-based/alerts', async (req, res) => {
+  try {
+    const limit = req.query.limit ? Number(req.query.limit) : 500;
+    const file = secState.outputFile || findLatestSecurityCsv(secState.outputDir);
+    if (!file) return res.send({ ok: true, alerts: [] });
+    const alerts = parseSecurityCsv(file, limit);
+    const uniqueAlerts = dedupeAlerts(alerts);
+    res.send({ ok: true, file, count: uniqueAlerts.length, alerts: uniqueAlerts });
+  } catch (e) {
+    res.status(500).send(e.message || 'Failed to read alerts');
+  }
+});
+
+router.post('/rule-based/online/start', async (req, res) => {
+  try {
+    const { iface, intervalSec = 5, verbose = true, excludeRules, cores } = req.body || {};
+    if (!iface) return res.status(400).send('Missing iface');
+    if (secState.running) return res.status(409).send('mmt_security already running');
+
+    // If sudo is enabled, verify non-interactive sudo works; otherwise return guidance
+    if (SUDO && SUDO.trim().length > 0) {
+      try {
+        await new Promise((resolve, reject) => {
+          exec(`${SUDO.trim()} -v`, (err) => {
+            if (err) reject(err); else resolve();
+          });
+        });
+      } catch (e) {
+        return res.status(403).send(
+          'sudo is configured but requires a password. Either set USE_SUDO=false and grant capabilities to mmt_security (setcap cap_net_raw,cap_net_admin+eip), or configure sudoers NOPASSWD for the binary.'
+        );
+      }
+    }
+
+    const outDirBase = SECURITY_OUT_DIR;
+    // Use a unique folder per run to avoid reading previous alerts
+    const runDir = path.join(outDirBase, `run-${Date.now()}`);
+    ensureDir(runDir);
+    const bin = resolveSecurityBin();
+
+    const args = [];
+    args.push('-i', iface);
+    if (verbose) args.push('-v');
+    if (excludeRules) args.push('-x', String(excludeRules));
+    if (cores) args.push('-c', String(cores));
+    // ensure trailing slash and include rotation interval so files are created under the run folder
+    args.push('-f', `${runDir}/:${Number(intervalSec)}`);
+
+    const cmd = `${SUDO}${bin} ${args.map(a => (a.includes(' ') ? `"${a}"` : a)).join(' ')}`;
+    console.log('[SECURITY][rule-based][online] Executing:', cmd);
+
+    // Spawn via bash so sudo can prompt non-interactively (assume configured). We do not pipe stdin.
+    const child = spawn('bash', ['-lc', cmd], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const verdictMap = new Map();
+    let combinedLog = '';
+    const parseAndUpdate = (txt) => {
+      const lines = String(txt || '').split(/\r?\n/);
+      for (const line of lines) {
+        const m = line.match(/-\s*rule\s+(\d+)\s+generated\s+(\d+)\s+verdicts/i);
+        if (m) {
+          verdictMap.set(Number(m[1]), Number(m[2]));
+        }
+      }
+      secState.ruleVerdicts = Array.from(verdictMap.entries()).map(([rule, verdicts]) => ({ rule, verdicts }));
+    };
+    child.stdout.on('data', d => {
+      const raw = d.toString();
+      combinedLog += raw;
+      const txt = raw.trim();
+      if (txt) console.log('[mmt_security][stdout]', txt);
+      parseAndUpdate(raw);
+    });
+    child.stderr.on('data', d => {
+      const raw = d.toString();
+      combinedLog += raw;
+      const txt = raw.trim();
+      if (txt) console.log('[mmt_security][stderr]', txt);
+      parseAndUpdate(raw);
+    });
+    child.on('exit', (code, signal) => {
+      console.log(`[SECURITY][rule-based] mmt_security exited code=${code} signal=${signal}`);
+      secState.running = false;
+      secState.pid = null;
+      secState.child = null;
+      // finalize ruleVerdicts from combined logs on exit
+      const finalVerdicts = parseRuleVerdictsFromText(combinedLog);
+      secState.ruleVerdicts = finalVerdicts && finalVerdicts.length > 0
+        ? finalVerdicts
+        : Array.from(verdictMap.entries()).map(([rule, verdicts]) => ({ rule, verdicts }));
+    });
+
+    secState = {
+      running: true,
+      mode: 'online',
+      pid: child.pid,
+      child,
+      iface,
+      pcapFile: null,
+      outputDir: runDir,
+      outputFile: null,
+      startedAt: new Date().toISOString(),
+      intervalSec: Number(intervalSec),
+      ruleVerdicts: [],
+    };
+
+    res.send({ ok: true, ...secState });
+  } catch (e) {
+    console.error('rule-based online start error:', e);
+    res.status(500).send(e.message || 'Failed to start mmt_security');
+  }
+});
+
+router.post('/rule-based/online/stop', async (req, res) => {
+  try {
+    if (!secState.running) return res.send({ ok: true, stopped: false });
+    const stoppedPid = secState.pid;
+    const child = secState.child;
+    try {
+      process.kill(stoppedPid, 'SIGINT');
+    } catch (e) {
+      console.warn('[SECURITY] Failed SIGINT by PID, trying pkill');
+      exec(`${SUDO}pkill -f mmt_security || ${SUDO}pkill -f mmt-security`, () => {});
+    }
+    // Wait briefly for the process to exit so ruleVerdicts can be finalized
+    if (child && typeof child.once === 'function') {
+      await Promise.race([
+        new Promise((resolve) => child.once('exit', resolve)),
+        new Promise((resolve) => setTimeout(resolve, 4000)),
+      ]);
+    } else {
+      // Fallback wait
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+    secState.running = false;
+    secState.pid = null;
+    const lastFile = findLatestSecurityCsv(secState.outputDir);
+    if (lastFile) secState.outputFile = lastFile;
+    res.send({ ok: true, stopped: true, ...secState });
+  } catch (e) {
+    res.status(500).send(e.message || 'Failed to stop mmt_security');
+  }
+});
+
+router.post('/rule-based/offline', async (req, res) => {
+  try {
+    const { pcapFile, filePath, verbose = false, excludeRules, cores } = req.body || {};
+    let inputPath = null;
+    if (filePath) inputPath = filePath;
+    if (!inputPath && pcapFile) inputPath = path.join(PCAP_PATH, pcapFile);
+    if (!inputPath) return res.status(400).send('Missing pcapFile or filePath');
+    if (!fs.existsSync(inputPath)) return res.status(404).send(`PCAP not found: ${inputPath}`);
+
+    const outDir = SECURITY_OUT_DIR;
+    ensureDir(outDir);
+    const bin = resolveSecurityBin();
+
+    const args = [];
+    args.push('-t', inputPath);
+    if (verbose) args.push('-v');
+    if (excludeRules) args.push('-x', String(excludeRules));
+    if (cores) args.push('-c', String(cores));
+    // ensure trailing slash so files are created under outDir
+    args.push('-f', `${outDir}/`); // offline no rotation needed
+
+    const cmd = `${bin} ${args.map(a => (a.includes(' ') ? `"${a}"` : a)).join(' ')}`;
+    console.log('[SECURITY][rule-based][offline] Executing:', cmd);
+
+    exec(cmd, (error, stdout, stderr) => {
+      if (error) {
+        console.error('mmt_security offline error:', stderr || error.message);
+        return res.status(500).send(stderr || error.message);
+      }
+      const file = findLatestSecurityCsv(outDir);
+      const alerts = parseSecurityCsv(file, 2000);
+      const uniqueAlerts = dedupeAlerts(alerts);
+      const ruleVerdicts = parseRuleVerdictsFromText(`${stdout}\n${stderr}`);
+      res.send({ ok: true, file, count: uniqueAlerts.length, alerts: uniqueAlerts, ruleVerdicts });
+    });
+  } catch (e) {
+    res.status(500).send(e.message || 'Failed to run offline rule-based detection');
+  }
+});
 
 router.post('/block-ip', async (req, res) => {
   try {
