@@ -399,9 +399,8 @@ class PredictOfflinePage extends Component {
 
   render() {
     const { app, models, reports } = this.props;
-    const { modelId, isRunning, predictStats, attackCsv } = this.state;
+    const { modelId, isRunning, predictStats } = this.state;
 
-    // TODO: need to filter mmt reports ?
     const reportsOptions = reports ? reports.map(report => ({
       value: report,
       label: report,

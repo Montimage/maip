@@ -7,12 +7,15 @@ import { connect } from 'react-redux';
 import {
   FORM_LAYOUT,
   SERVER_URL,
+  AD_FEATURES_DESCRIPTIONS,
+  AC_FEATURES_DESCRIPTIONS,
 } from '../constants';
 import {
   requestExtractFeatures,
 } from '../api';
-import { handleBulkMitigationAction } from '../utils/mitigation';
 import { buildAttackTable } from '../utils/attacksTable';
+import FeatureCharts from '../components/FeatureCharts';
+import FeatureDescriptions from '../components/FeatureDescriptions';
 
 class FeatureExtractionPage extends Component {
   constructor(props) {
@@ -179,6 +182,20 @@ class FeatureExtractionPage extends Component {
 
     const featureColumns = (featuresColumns && featuresColumns.length > 0) ? featuresColumns : this.buildColumns(featuresData);
 
+    // Compute categorical feature options for bar plot using AD/AC definitions present in data
+    const barCategoricalOptions = (() => {
+      if (!featuresData || featuresData.length === 0) return [];
+      const keys = new Set(Object.keys(featuresData[0] || {}).filter(k => k !== 'key'));
+      const adKeys = Object.keys(AD_FEATURES_DESCRIPTIONS);
+      const acKeys = Object.keys(AC_FEATURES_DESCRIPTIONS);
+      const adOverlap = adKeys.reduce((acc, k) => acc + (keys.has(k) ? 1 : 0), 0);
+      const acOverlap = acKeys.reduce((acc, k) => acc + (keys.has(k) ? 1 : 0), 0);
+      const desc = adOverlap >= acOverlap ? AD_FEATURES_DESCRIPTIONS : AC_FEATURES_DESCRIPTIONS;
+      return Object.entries(desc)
+        .filter(([name, meta]) => meta.type === 'categorical' && keys.has(name))
+        .map(([name]) => name);
+    })();
+
     return (
       <LayoutPage pageTitle="Feature Extraction" pageSubTitle="Upload a PCAP and extract features">
         <Divider orientation="left">
@@ -263,6 +280,20 @@ class FeatureExtractionPage extends Component {
             pagination={{ pageSize: 10 }}
           />
         </div>
+        {/* Feature descriptions then charts (aligned with DatasetPage structure) */}
+        {featuresData && featuresData.length > 0 && (
+          <>
+            <Divider orientation="left" style={{ marginTop: 24 }}>
+              <h1 style={{ fontSize: '24px' }}>Feature Descriptions</h1>
+            </Divider>
+            <FeatureDescriptions data={featuresData} showTitle={false} />
+            <FeatureCharts
+              data={featuresData}
+              barFeatureOptions={barCategoricalOptions}
+              restrictBarToOptionsOnly={true}
+            />
+          </>
+        )}
       </LayoutPage>
     );
   }

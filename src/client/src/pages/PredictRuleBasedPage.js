@@ -336,7 +336,7 @@ class PredictRuleBasedPage extends Component {
   ];
 
   renderOnlineTab() {
-    const { interfacesOptions, iface, intervalSec, onlineRunning } = this.state;
+    const { interfacesOptions, iface, onlineRunning } = this.state;
     return (
       <>
         <Form {...FORM_LAYOUT} style={{ maxWidth: 500 }}>
@@ -428,7 +428,6 @@ class PredictRuleBasedPage extends Component {
     if ((verdictsTotal === 0 || isNaN(verdictsTotal)) && Array.isArray(alerts)) {
       verdictsTotal = alerts.length;
     }
-    const latestBin = (this.state.alertSeries || []).reduce((m, p) => Math.max(m, Number(p.time || 0)), 0) || null;
     const timesArr = (this.state.alertSeries || []).map(p => Number(p.time) || 0);
     const minTime = timesArr.length ? Math.min(...timesArr) : null;
     const maxTime = timesArr.length ? Math.max(...timesArr) : null;
