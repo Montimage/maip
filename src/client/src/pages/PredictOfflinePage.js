@@ -117,19 +117,32 @@ class PredictOfflinePage extends Component {
     } catch (e) {
       // ignore storage errors
     }
-    // If navigated from Feature Extraction with a pending PCAP, pre-select it and start analysis if needed
+    // If navigated from Feature Extraction with a pending PCAP/report, pre-select it and avoid re-running analysis
     try {
       const pending = localStorage.getItem('pendingPredictOfflinePcap');
+      const pendingReportId = localStorage.getItem('pendingPredictOfflineReportId');
       if (pending) {
-        this.setState({ testingPcapFile: pending, testingDataset: null, predictStats: null }, async () => {
-          const cached = this.getCachedReportForPcap(pending);
-          if (cached) {
-            this.setState({ testingDataset: cached });
+        this.setState({ testingPcapFile: pending, testingDataset: pendingReportId || null, predictStats: null }, async () => {
+          if (pendingReportId) {
+            // Also cache mapping for future reuse
+            try {
+              const raw = localStorage.getItem('pcapToReport');
+              let map = raw ? JSON.parse(raw) : {};
+              if (!map || typeof map !== 'object' || Array.isArray(map)) map = {};
+              map[pending] = pendingReportId;
+              localStorage.setItem('pcapToReport', JSON.stringify(map));
+            } catch (_) {}
           } else {
-            await this.startAnalysisForPcap(pending);
+            const cached = this.getCachedReportForPcap(pending);
+            if (cached) {
+              this.setState({ testingDataset: cached });
+            } else {
+              await this.startAnalysisForPcap(pending);
+            }
           }
         });
         localStorage.removeItem('pendingPredictOfflinePcap');
+        if (pendingReportId) localStorage.removeItem('pendingPredictOfflineReportId');
       }
     } catch (e) {
       // ignore storage errors
@@ -256,27 +269,42 @@ class PredictOfflinePage extends Component {
       if (testingDataset) {
         updatedTestingDataset = testingDataset;
       } else if (testingPcapFile) {
-        // Start offline analysis and get the sessionId immediately
-        const startStatus = await requestMMTOffline(testingPcapFile);
-        if (startStatus && startStatus.sessionId) {
-          const targetSessionId = startStatus.sessionId;
-          // Poll MMT status until analysis completes (isRunning becomes false)
-          const maxAttempts = 60; // ~2 minutes
-          const intervalMs = 2000;
-          let attempt = 0;
-          while (attempt < maxAttempts) {
-            const status = await requestMMTStatus();
-            if (!status.isRunning && status.sessionId === targetSessionId) {
-              break;
-            }
-            await delay(intervalMs);
-            attempt += 1;
-          }
-          updatedTestingDataset = `report-${targetSessionId}`;
+        // Prefer existing mapping to avoid re-running analysis
+        const cached = this.getCachedReportForPcap(testingPcapFile);
+        if (cached) {
+          updatedTestingDataset = cached;
           this.setState({ testingDataset: updatedTestingDataset });
         } else {
-          console.error('Failed to start MMT offline analysis or missing sessionId');
-          return;
+          // Start offline analysis and get the sessionId immediately
+          const startStatus = await requestMMTOffline(testingPcapFile);
+          if (startStatus && startStatus.sessionId) {
+            const targetSessionId = startStatus.sessionId;
+            // Poll MMT status until analysis completes (isRunning becomes false)
+            const maxAttempts = 60; // ~2 minutes
+            const intervalMs = 2000;
+            let attempt = 0;
+            while (attempt < maxAttempts) {
+              const status = await requestMMTStatus();
+              if (!status.isRunning && status.sessionId === targetSessionId) {
+                break;
+              }
+              await delay(intervalMs);
+              attempt += 1;
+            }
+            updatedTestingDataset = `report-${targetSessionId}`;
+            this.setState({ testingDataset: updatedTestingDataset });
+            // Cache mapping for future use
+            try {
+              const raw = localStorage.getItem('pcapToReport');
+              let map = raw ? JSON.parse(raw) : {};
+              if (!map || typeof map !== 'object' || Array.isArray(map)) map = {};
+              map[testingPcapFile] = updatedTestingDataset;
+              localStorage.setItem('pcapToReport', JSON.stringify(map));
+            } catch (_) {}
+          } else {
+            console.error('Failed to start MMT offline analysis or missing sessionId');
+            return;
+          }
         }
       }
 

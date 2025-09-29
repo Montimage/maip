@@ -106,6 +106,17 @@ class FeatureExtractionPage extends Component {
         featuresSessionId: result.sessionId || null,
         featuresLoading: false,
       });
+      // Cache mapping PCAP -> reportId for Predict Offline page to reuse without re-running MMT
+      try {
+        const reportId = result.sessionId ? `report-${result.sessionId}` : null;
+        if (reportId && uploadedPcapName) {
+          const raw = localStorage.getItem('pcapToReport');
+          let map = raw ? JSON.parse(raw) : {};
+          if (!map || typeof map !== 'object' || Array.isArray(map)) map = {};
+          map[uploadedPcapName] = reportId;
+          localStorage.setItem('pcapToReport', JSON.stringify(map));
+        }
+      } catch (e) { /* ignore storage errors */ }
       notification.success({ message: 'Feature extraction completed' });
     } catch (e) {
       console.error(e);
@@ -285,6 +296,10 @@ class FeatureExtractionPage extends Component {
                   this.setState({ disableUpload: true }, () => {
                     try {
                       if (uploadedPcapName) localStorage.setItem('pendingPredictOfflinePcap', uploadedPcapName);
+                      // Pass the known report id (if any) to Predict Offline to avoid re-running MMT
+                      if (this.state.featuresSessionId) {
+                        localStorage.setItem('pendingPredictOfflineReportId', `report-${this.state.featuresSessionId}`);
+                      }
                     } catch (e) { /* ignore */ }
                     // Navigate without a model id so users can select a model
                     window.location.href = '/predict/offline';
