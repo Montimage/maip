@@ -365,9 +365,9 @@ class PredictRuleBasedPage extends Component {
             <Button type="primary" onClick={this.handleStartOnline} disabled={onlineRunning || !iface}>Start</Button>
             <Button onClick={this.handleStopOnline} disabled={!onlineRunning}>Stop</Button>
             {onlineRunning && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                <Spin size="small" />
-                <span>Running...</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                <Spin size="small" style={{ marginLeft: 8 }} />
+                <span style={{ marginLeft: 8 }}>Running...</span>
               </span>
             )}
           </div>

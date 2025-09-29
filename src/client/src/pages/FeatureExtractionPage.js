@@ -31,6 +31,8 @@ class FeatureExtractionPage extends Component {
       featuresFileName: null,
       featuresColumns: [],
       featuresSessionId: null,
+      // When navigating to Predict Offline, disable upload to avoid changes mid-navigation
+      disableUpload: false,
     };
   }
 
@@ -153,6 +155,21 @@ class FeatureExtractionPage extends Component {
     } else if (status === 'done') {
       const uploaded = (response && response.pcapFile) || (info.file.response && info.file.response.pcapFile) || null;
       this.setState({ uploadedPcapName: uploaded });
+      try {
+        if (uploaded) localStorage.setItem('lastUploadedPcap', uploaded);
+        if (uploaded) {
+          const raw = localStorage.getItem('uploadedPcaps');
+          let list = [];
+          try { list = raw ? JSON.parse(raw) : []; } catch (e) { list = []; }
+          if (!Array.isArray(list)) list = [];
+          if (!list.includes(uploaded)) list.unshift(uploaded);
+          // keep only recent 20
+          if (list.length > 20) list = list.slice(0, 20);
+          localStorage.setItem('uploadedPcaps', JSON.stringify(list));
+        }
+      } catch (e) {
+        // ignore storage errors
+      }
       message.success(`Uploaded ${name}`);
     } else if (status === 'error') {
       message.error('Upload failed');
@@ -180,6 +197,9 @@ class FeatureExtractionPage extends Component {
   render() {
     const { uploadedPcapName, featuresLoading, featuresData, featuresCsvText, featuresColumns } = this.state;
 
+    // Only allow Predict Offline after feature extraction has produced results
+    const featuresReady = !featuresLoading && (((featuresData || []).length > 0) || !!featuresCsvText);
+
     const featureColumns = (featuresColumns && featuresColumns.length > 0) ? featuresColumns : this.buildColumns(featuresData);
 
     // Compute categorical feature options for bar plot using AD/AC definitions present in data
@@ -199,10 +219,10 @@ class FeatureExtractionPage extends Component {
     return (
       <LayoutPage pageTitle="Feature Extraction" pageSubTitle="Upload a PCAP and extract features">
         <Divider orientation="left">
-          <h1 style={{ fontSize: '24px' }}>Upload and Analyze</h1>
+          <h1 style={{ fontSize: '24px' }}>Upload</h1>
         </Divider>
         <Form {...FORM_LAYOUT} style={{ maxWidth: 700 }}>
-          <Form.Item label="Upload PCAP" name="pcap"
+          <Form.Item label="PCAP file" name="pcap"
             rules={[
               {
               required: true,
@@ -217,9 +237,17 @@ class FeatureExtractionPage extends Component {
                 onChange={this.handleUploadChange}
                 customRequest={this.processUploadPcap}
                 maxCount={1}
-                onRemove={() => this.setState({ uploadedPcapName: null })}
+                disabled={this.state.disableUpload}
+                onRemove={() => this.setState({
+                  uploadedPcapName: null,
+                  featuresCsvText: '',
+                  featuresData: [],
+                  featuresColumns: [],
+                  featuresFileName: null,
+                  featuresSessionId: null,
+                })}
               >
-                <Button size="large" icon={<UploadOutlined />}>Upload pcap only</Button>
+                <Button size="large" icon={<UploadOutlined />} disabled={this.state.disableUpload}>Upload pcap only</Button>
               </Upload>
               <Space size={8}>
                 <Checkbox
@@ -242,14 +270,30 @@ class FeatureExtractionPage extends Component {
                 </Checkbox>
               </Space>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginTop: 12, marginBottom: 12 }}>
-            <Button onClick={this.handleExtractFeatures} disabled={!uploadedPcapName || featuresLoading}>
-              Extract Features
-              {featuresLoading && (
-                <Spin size="small" style={{ marginLeft: 8 }} />
-              )}
-            </Button>
-          </div>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 12, marginBottom: 12 }}>
+              <Button type={uploadedPcapName ? 'primary' : 'default'} onClick={this.handleExtractFeatures} disabled={!uploadedPcapName || featuresLoading}>
+                Extract Features
+                {featuresLoading && (
+                  <Spin size="small" style={{ marginLeft: 8 }} />
+                )}
+              </Button>
+              <Button
+                type={featuresReady ? 'primary' : 'default'}
+                disabled={!featuresReady}
+                onClick={() => {
+                  // Disable upload immediately to avoid concurrent changes
+                  this.setState({ disableUpload: true }, () => {
+                    try {
+                      if (uploadedPcapName) localStorage.setItem('pendingPredictOfflinePcap', uploadedPcapName);
+                    } catch (e) { /* ignore */ }
+                    // Navigate without a model id so users can select a model
+                    window.location.href = '/predict/offline';
+                  });
+                }}
+              >
+                Predict Offline
+              </Button>
+            </div>
           </Form.Item>
         </Form>
 

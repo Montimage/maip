@@ -435,13 +435,11 @@ class XAIShapPage extends Component {
               onClick={this.handleShapClick}
               disabled={isRunning || !this.state.modelId}
               >SHAP Explain
-              {isRunning &&
-                <Spin size="large" style={{ marginBottom: '8px' }}>
-                  <div className="content" />
-                </Spin>
-              }
+              {isRunning && (
+                <Spin size="small" style={{ marginLeft: 8 }} />
+              )}
             </Button>
-            <Button style={{ marginLeft: 8 }} htmlType="button"
+            <Button style={{ marginLeft: 8 }} htmlType="button" type="primary"
               onClick={() => this.handleAskAssistantShap()}
               disabled={!this.state.modelId || this.state.shapValues.length === 0}
             >Ask Assistant

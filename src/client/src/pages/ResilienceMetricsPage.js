@@ -320,11 +320,9 @@ class ResilienceMetricsPage extends Component {
                         onClick={() => this.handleButtonComputeMetric(this.state.selectedAttack)}
                       >
                         Compute Impact Metric
-                        {isRunning &&
-                          <Spin size="large" style={{ marginBottom: '8px' }}>
-                            <div className="content" />
-                          </Spin>
-                        }
+                        {isRunning && (
+                          <Spin size="small" style={{ marginLeft: 8 }} />
+                        )}
                       </Button>
                     </Col>
                   </Row>

@@ -313,11 +313,9 @@ class AttacksPage extends Component {
                 (this.state.selectedAttack === 'tlf' && this.state.targetClass === null) }
               >
                 Perform Attack
-                {isRunning && 
-                <Spin size="large" style={{ marginBottom: '8px' }}>
-                  <div className="content" />
-                </Spin>
-              }
+                {isRunning && (
+                  <Spin size="small" style={{ marginLeft: 8 }} />
+                )}
             </Button>
           </div>
         </Form>

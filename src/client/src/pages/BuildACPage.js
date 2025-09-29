@@ -162,11 +162,9 @@ class BuildACPage extends Component {
               onClick={this.handleButtonBuild}
             >
               Build Model
-              {isRunning && 
-                <Spin size="large" style={{ marginBottom: '8px' }}>
-                  <div className="content" />
-                </Spin>
-              }
+              {isRunning && (
+                <Spin size="small" style={{ marginLeft: 8 }} />
+              )}
             </Button>
           </div>
         </Form>

@@ -107,11 +107,92 @@ class PredictOfflinePage extends Component {
     this.props.fetchApp();
     this.props.fetchAllReports();
     this.props.fetchAllModels();
+    // Load previously uploaded PCAPs for reuse
+    try {
+      const raw = localStorage.getItem('uploadedPcaps');
+      const list = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(list)) {
+        this.setState({ uploadedPcaps: list });
+      }
+    } catch (e) {
+      // ignore storage errors
+    }
+    // If navigated from Feature Extraction with a pending PCAP, pre-select it and start analysis if needed
+    try {
+      const pending = localStorage.getItem('pendingPredictOfflinePcap');
+      if (pending) {
+        this.setState({ testingPcapFile: pending, testingDataset: null, predictStats: null }, async () => {
+          const cached = this.getCachedReportForPcap(pending);
+          if (cached) {
+            this.setState({ testingDataset: cached });
+          } else {
+            await this.startAnalysisForPcap(pending);
+          }
+        });
+        localStorage.removeItem('pendingPredictOfflinePcap');
+      }
+    } catch (e) {
+      // ignore storage errors
+    }
+  }
+
+  // Retrieve cached report id mapped to a given PCAP filename from localStorage
+  getCachedReportForPcap = (pcapName) => {
+    try {
+      const raw = localStorage.getItem('pcapToReport');
+      const map = raw ? JSON.parse(raw) : {};
+      if (map && typeof map === 'object' && !Array.isArray(map)) {
+        return map[pcapName] || null;
+      }
+    } catch (e) {
+      // ignore
+    }
+    return null;
+  }
+
+  // Start MMT offline analysis for a given PCAP and set testingDataset to the resulting report id
+  startAnalysisForPcap = async (pcapName) => {
+    if (!pcapName) return null;
+    const delay = (ms) => new Promise(res => setTimeout(res, ms));
+    try {
+      const startStatus = await requestMMTOffline(pcapName);
+      if (startStatus && startStatus.sessionId) {
+        const targetSessionId = startStatus.sessionId;
+        const maxAttempts = 60; // ~2 minutes
+        const intervalMs = 2000;
+        let attempt = 0;
+        while (attempt < maxAttempts) {
+          const status = await requestMMTStatus();
+          if (!status.isRunning && status.sessionId === targetSessionId) break;
+          await delay(intervalMs);
+          attempt += 1;
+        }
+        const reportId = `report-${targetSessionId}`;
+        this.setState({ testingDataset: reportId });
+        // Cache mapping for reuse later
+        try {
+          const raw = localStorage.getItem('pcapToReport');
+          let map = raw ? JSON.parse(raw) : {};
+          if (!map || typeof map !== 'object' || Array.isArray(map)) map = {};
+          map[pcapName] = reportId;
+          localStorage.setItem('pcapToReport', JSON.stringify(map));
+        } catch (e) {
+          // ignore storage errors
+        }
+        // Refresh reports list so the dataset appears in options
+        this.props.fetchAllReports && this.props.fetchAllReports();
+        notification.success({ message: 'Report ready', description: `Generated ${reportId} for ${pcapName}`, placement: 'topRight' });
+        return reportId;
+      }
+    } catch (e) {
+      console.error('Failed to start offline analysis:', e);
+      notification.error({ message: 'Analysis failed', description: e.message || String(e), placement: 'topRight' });
+    }
+    return null;
   }
 
   beforeUploadPcap = (file) => {
-    const isPCAP = file.name.endsWith('.pcap');
-    console.log(file.name.endsWith('.pcap'));
+    const isPCAP = file.name.endsWith('.pcap') || file.name.endsWith('.pcapng') || file.name.endsWith('.cap');
     if (!isPCAP) {
       message.error(`${file.name} is not a pcap file`);
     }
@@ -522,6 +603,7 @@ class PredictOfflinePage extends Component {
               <Select
                 placeholder="Select testing MMT reports ..."
                 showSearch allowClear
+                value={this.state.testingDataset}
                 onChange={(value) => {
                   this.setState({ testingDataset: value, predictStats: null });
                 }}
@@ -534,12 +616,13 @@ class PredictOfflinePage extends Component {
               action={`${SERVER_URL}/api/pcaps`}
               onChange={(info) => this.handleUploadPcap(info)}
               customRequest={this.processUploadPcap}
+              disabled={!!this.state.testingPcapFile || !!this.state.testingDataset}
               onRemove={() => {
                 this.setState({ testingPcapFile: null, predictStats: null });
               }}
             >
               <Button icon={<UploadOutlined />} style={{ marginTop: '5px' }}
-                disabled={!!this.state.testingDataset}>
+                disabled={!!this.state.testingPcapFile || !!this.state.testingDataset}>
                 Upload pcaps only
               </Button>
             </Upload>
@@ -550,11 +633,9 @@ class PredictOfflinePage extends Component {
               disabled={ isRunning || !this.state.modelId || !(this.state.testingDataset || this.state.testingPcapFile) }
             >
               Predict
-              {isRunning &&
-                <Spin size="large" style={{ marginBottom: '8px' }}>
-                  <div className="content" />
-                </Spin>
-              }
+              {isRunning && (
+                <Spin size="small" style={{ marginLeft: 8 }} />
+              )}
             </Button>
           </div>
         </Form>
