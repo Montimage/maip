@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.ensemble import IsolationForest
+from sklearn.neighbors import LocalOutlierFactor
 
 def detect_zscore(df, window=120, sigma_mult=3.0):
     """Original Z-Score method with rolling window"""
@@ -64,6 +65,21 @@ def detect_iqr(df, multiplier=1.5):
     
     return pd.Series(anomaly_flags, index=df.index)
 
+def detect_lof(df, contamination=0.015, n_neighbors=30):
+    """Local Outlier Factor - density-based anomaly detection
+    
+    Uses larger neighborhood (30) for more context and slightly higher contamination (1.5%)
+    to differentiate from Isolation Forest which uses 1% contamination.
+    """
+    model = LocalOutlierFactor(contamination=contamination, n_neighbors=n_neighbors, novelty=False)
+    X = df[['flows_per_min']].values
+    predictions = model.fit_predict(X)
+    # -1 = anomaly, 1 = normal
+    anomaly_flag = (predictions == -1).astype(int)
+    # Get negative outlier factor scores (more negative = more anomalous)
+    scores = model.negative_outlier_factor_
+    return anomaly_flag, scores
+
 def main():
     # Read input CSV
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -101,12 +117,18 @@ def main():
     iqr_flags = detect_iqr(df)
     iqr_count = iqr_flags.sum()
     
+    # 5. LOF
+    print("5. LOF (Local Outlier Factor)...")
+    lof_flags, lof_scores = detect_lof(df)
+    lof_count = lof_flags.sum()
+    
     # Print summary
     print("\n=== Detection Summary ===")
     print(f"Z-Score:          {zscore_count} anomalies ({zscore_count/len(df)*100:.2f}%)")
     print(f"EWMA:             {ewma_count} anomalies ({ewma_count/len(df)*100:.2f}%)")
     print(f"Isolation Forest: {iforest_count} anomalies ({iforest_count/len(df)*100:.2f}%)")
     print(f"IQR:              {iqr_count} anomalies ({iqr_count/len(df)*100:.2f}%)")
+    print(f"LOF:              {lof_count} anomalies ({lof_count/len(df)*100:.2f}%)")
     
     # Save results to CSV with additional statistical data
     output_df = df.copy()
@@ -114,6 +136,7 @@ def main():
     output_df['ewma_flag'] = ewma_flags
     output_df['iforest_flag'] = iforest_flags
     output_df['iqr_flag'] = iqr_flags
+    output_df['lof_flag'] = lof_flags
     
     # Add rolling statistics for Z-Score visualization
     window = 120
@@ -125,7 +148,7 @@ def main():
     print(f"\nWrote results to: {output_csv}")
     
     # Create comparison visualization
-    fig, axes = plt.subplots(4, 1, figsize=(14, 12), sharex=True)
+    fig, axes = plt.subplots(5, 1, figsize=(14, 15), sharex=True)
     
     # Plot 1: Z-Score
     ax = axes[0]
@@ -168,8 +191,19 @@ def main():
     ax.scatter(df.loc[anomaly_idx, 'timestamp'], df.loc[anomaly_idx, 'flows_per_min'], 
                color='red', s=20, alpha=0.7, label=f'Anomalies ({iqr_count})', zorder=5)
     ax.set_ylabel('Flows/min')
-    ax.set_xlabel('Time')
     ax.set_title('IQR (Interquartile Range)', fontsize=12, fontweight='bold')
+    ax.legend(loc='upper right')
+    ax.grid(True, alpha=0.3)
+    
+    # Plot 5: LOF
+    ax = axes[4]
+    ax.plot(df['timestamp'], df['flows_per_min'], 'b-', alpha=0.6, linewidth=0.8, label='Flows/min')
+    anomaly_idx = lof_flags == 1
+    ax.scatter(df.loc[anomaly_idx, 'timestamp'], df.loc[anomaly_idx, 'flows_per_min'], 
+               color='red', s=20, alpha=0.7, label=f'Anomalies ({lof_count})', zorder=5)
+    ax.set_ylabel('Flows/min')
+    ax.set_xlabel('Time')
+    ax.set_title('LOF (Local Outlier Factor)', fontsize=12, fontweight='bold')
     ax.legend(loc='upper right')
     ax.grid(True, alpha=0.3)
     
@@ -205,6 +239,11 @@ def main():
                 "name": "IQR",
                 "anomalies": int(iqr_count),
                 "rate": float(iqr_count/len(df)*100)
+            },
+            {
+                "name": "LOF",
+                "anomalies": int(lof_count),
+                "rate": float(lof_count/len(df)*100)
             }
         ],
         "total_points": len(df)

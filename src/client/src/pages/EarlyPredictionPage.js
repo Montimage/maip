@@ -301,28 +301,37 @@ class EarlyPredictionPage extends Component {
   runComparison = async () => {
     this.setState({ running: true, errorMessage: null });
     try {
-      const response = await fetch(`${SERVER_URL}/api/early-prediction/run-comparison`, {
+      // Run detection comparison
+      const detectionResponse = await fetch(`${SERVER_URL}/api/early-prediction/run-comparison`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        notification.success({
-          message: 'Algorithm comparison completed',
-          description: 'Compared Z-Score, EWMA, Isolation Forest, and IQR methods.',
-          placement: 'topRight',
-        });
-        setTimeout(() => this.loadArtifacts(), 1000);
-      } else {
-        const errorText = await response.text();
-        throw new Error(errorText || 'Failed to run comparison');
+      if (!detectionResponse.ok) {
+        throw new Error('Failed to run detection comparison');
       }
+
+      // Run forecast comparison
+      const forecastResponse = await fetch(`${SERVER_URL}/api/early-prediction/run-forecast-comparison`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!forecastResponse.ok) {
+        throw new Error('Failed to run forecast comparison');
+      }
+
+      notification.success({
+        message: 'Analysis completed',
+        description: 'Detection and forecast comparison completed for all 5 algorithms (Z-Score, EWMA, Isolation Forest, IQR, LOF).',
+        placement: 'topRight',
+      });
+      setTimeout(() => this.loadArtifacts(), 1000);
     } catch (error) {
       console.error('Error running comparison:', error);
       notification.error({
-        message: 'Comparison failed',
-        description: error.message || 'Unable to run algorithm comparison.',
+        message: 'Analysis failed',
+        description: error.message || 'Unable to complete analysis.',
         placement: 'topRight',
       });
       this.setState({ errorMessage: error.message });
@@ -387,12 +396,18 @@ class EarlyPredictionPage extends Component {
       'zscore': 'Z-Score',
       'ewma': 'EWMA',
       'iforest': 'Isolation Forest',
-      'iqr': 'IQR'
+      'iqr': 'IQR',
+      'lof': 'LOF'
     };
+
+    // Debug: log available algorithms
+    console.log('Available forecast algorithms:', Object.keys(forecasts));
 
     Object.keys(forecasts).forEach((algoKey) => {
       const algoData = forecasts[algoKey];
-      const algoName = algorithmColors[algoKey];
+      const algoName = algorithmColors[algoKey] || algoKey.toUpperCase();
+      
+      console.log(`Processing ${algoKey}: ${algoName}, forecast points: ${(algoData.forecast || []).length}`);
       
       (algoData.forecast || []).forEach((row) => {
         chartData.push({
@@ -425,7 +440,7 @@ class EarlyPredictionPage extends Component {
       legend: {
         position: 'top-right',
       },
-      color: ['#1890ff', '#52c41a', '#ff7a45', '#9254de', '#ffc53d'],
+      color: ['#1890ff', '#52c41a', '#ff7a45', '#9254de', '#ffc53d', '#eb2f96'],
       lineStyle: (datum) => {
         if (datum.type === 'Historical') {
           return { lineWidth: 2 };
@@ -662,7 +677,8 @@ class EarlyPredictionPage extends Component {
       'zscore': 'zscore_flag',
       'ewma': 'ewma_flag',
       'iforest': 'iforest_flag',
-      'iqr': 'iqr_flag'
+      'iqr': 'iqr_flag',
+      'lof': 'lof_flag'
     };
 
     const flagColumn = algorithmFlagMap[selectedAlgorithm] || 'anomaly_flag';
@@ -769,7 +785,8 @@ class EarlyPredictionPage extends Component {
       'zscore': 'Z-Score',
       'ewma': 'EWMA',
       'iforest': 'Isolation Forest',
-      'iqr': 'IQR'
+      'iqr': 'IQR',
+      'lof': 'LOF'
     };
 
     const contribColumns = [
@@ -799,15 +816,15 @@ class EarlyPredictionPage extends Component {
             <div style={{ textAlign: 'center', marginBottom: 8 }}>
               <strong style={{ fontSize: 14 }}>Algorithm Comparison Results</strong>
             </div>
-            <Row gutter={16}>
+            <Row gutter={12}>
               {comparisonData.algorithms.map((algo, idx) => (
-                <Col span={6} key={idx}>
+                <Col flex={1} key={idx}>
                   <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
                     <Statistic
                       title={algo.name}
                       value={algo.anomalies}
                       suffix={`(${algo.rate.toFixed(2)}%)`}
-                      valueStyle={{ fontSize: 18 }}
+                      valueStyle={{ fontSize: 16 }}
                     />
                   </Card>
                 </Col>
@@ -859,7 +876,7 @@ class EarlyPredictionPage extends Component {
                 Run Detection & Forecast
               </Button>
               <p style={{ marginTop: 8, fontSize: 12, color: '#666' }}>
-                Analyze traffic with 4 anomaly detection algorithms and generate forecast
+                Analyze traffic with 5 anomaly detection algorithms and generate forecast
               </p>
             </div>
           </>
@@ -922,12 +939,13 @@ class EarlyPredictionPage extends Component {
                   <Select
                     value={selectedAlgorithm}
                     onChange={(value) => this.setState({ selectedAlgorithm: value })}
-                    style={{ width: 220 }}
+                    style={{ width: 240 }}
                   >
                     <Option value="zscore">Z-Score (Rolling 3σ)</Option>
                     <Option value="ewma">EWMA (Exponential Weighted)</Option>
                     <Option value="iforest">Isolation Forest (ML)</Option>
                     <Option value="iqr">IQR (Interquartile Range)</Option>
+                    <Option value="lof">LOF (Local Outlier Factor)</Option>
                   </Select>
                 </div>
 
@@ -949,7 +967,8 @@ class EarlyPredictionPage extends Component {
                             'zscore': 'zscore_flag',
                             'ewma': 'ewma_flag',
                             'iforest': 'iforest_flag',
-                            'iqr': 'iqr_flag'
+                            'iqr': 'iqr_flag',
+                            'lof': 'lof_flag'
                           }[selectedAlgorithm];
                           return comparisonCSVData.filter(d => String(d[flagColumn]) === '1').length;
                         })()}
@@ -965,7 +984,8 @@ class EarlyPredictionPage extends Component {
                             'zscore': 'zscore_flag',
                             'ewma': 'ewma_flag',
                             'iforest': 'iforest_flag',
-                            'iqr': 'iqr_flag'
+                            'iqr': 'iqr_flag',
+                            'lof': 'lof_flag'
                           }[selectedAlgorithm];
                           const anomalyCount = comparisonCSVData.filter(d => String(d[flagColumn]) === '1').length;
                           return ((anomalyCount / comparisonCSVData.length) * 100).toFixed(1);
@@ -977,7 +997,8 @@ class EarlyPredictionPage extends Component {
                               'zscore': 'zscore_flag',
                               'ewma': 'ewma_flag',
                               'iforest': 'iforest_flag',
-                              'iqr': 'iqr_flag'
+                              'iqr': 'iqr_flag',
+                              'lof': 'lof_flag'
                             }[selectedAlgorithm];
                             const anomalyCount = comparisonCSVData.filter(d => String(d[flagColumn]) === '1').length;
                             return (anomalyCount / comparisonCSVData.length) > 0.05 ? '#cf1322' : '#3f8600';
@@ -1016,7 +1037,7 @@ class EarlyPredictionPage extends Component {
               <Card style={{ marginBottom: 24 }}>
                 {this.renderMultiAlgorithmForecastChart()}
                 <p style={{ marginTop: 8, fontSize: 12, color: '#666', textAlign: 'center' }}>
-                  Multi-algorithm forecast comparison: Last 12h history + next 60min predictions from all 4 detection algorithms
+                  Multi-algorithm forecast comparison: Last 12h history + next 60min predictions from all 5 detection algorithms (Z-Score, EWMA, Isolation Forest, IQR, LOF)
                 </p>
               </Card>
             ) : forecastChartData ? (

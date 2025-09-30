@@ -110,6 +110,31 @@ def forecast_iqr(df, anomaly_column, forecast_minutes=60):
     
     return model, train_df
 
+def forecast_lof(df, anomaly_column, forecast_minutes=60):
+    """LOF: Density-aware forecast - filters out low-density outliers before training"""
+    train_window = 5 * 24 * 60
+    train_df = df.iloc[-train_window:].copy() if len(df) > train_window else df.copy()
+    
+    # Filter out LOF-detected anomalies (low-density points)
+    train_df = train_df[train_df[anomaly_column] == 0].copy()
+    
+    train_df['minute_of_day'] = pd.to_datetime(train_df['timestamp']).dt.hour * 60 + pd.to_datetime(train_df['timestamp']).dt.minute
+    train_df['day_of_week'] = pd.to_datetime(train_df['timestamp']).dt.dayofweek
+    
+    for lag in [1, 5, 10, 60]:
+        train_df[f'lag_{lag}'] = train_df['flows_per_min'].shift(lag)
+    
+    train_df = train_df.dropna()
+    feature_cols = ['minute_of_day', 'day_of_week'] + [f'lag_{lag}' for lag in [1, 5, 10, 60]]
+    X_train = train_df[feature_cols].values
+    y_train = train_df['flows_per_min'].values
+    
+    # Use standard linear regression on clean data (similar to Isolation Forest approach)
+    model = LinearRegression()
+    model.fit(X_train, y_train)
+    
+    return model, train_df
+
 def generate_forecast(model, train_df, forecast_minutes=60):
     """Generate forecast using trained model"""
     
@@ -188,7 +213,8 @@ def main():
         'zscore': ('zscore_flag', forecast_zscore),
         'ewma': ('ewma_flag', forecast_ewma),
         'iforest': ('iforest_flag', forecast_iforest),
-        'iqr': ('iqr_flag', forecast_iqr)
+        'iqr': ('iqr_flag', forecast_iqr),
+        'lof': ('lof_flag', forecast_lof)
     }
     
     # Generate forecasts for each algorithm
