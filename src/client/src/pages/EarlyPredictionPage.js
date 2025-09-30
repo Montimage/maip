@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
-import { Button, Card, Table, Divider, Alert, Spin, notification } from 'antd';
-import { ReloadOutlined, PlayCircleOutlined } from '@ant-design/icons';
+import { Button, Card, Table, Divider, Alert, Spin, notification, Statistic, Tag, Row, Col } from 'antd';
+import { ReloadOutlined, PlayCircleOutlined, WarningOutlined, CheckCircleOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import { Line, Bar } from '@ant-design/plots';
 import { SERVER_URL } from '../constants';
 
@@ -496,24 +496,97 @@ class EarlyPredictionPage extends Component {
           />
         )}
 
-        {!loading && hasArtifacts && !lastUpdated && (
+        {/* Early Warning Banner - Priority 1 */}
+        {!loading && forecastChartData?.early_warning && (
           <Alert
-            message="Displaying Cached Results"
-            description="These results are from a previous run. Click 'Run Detection' or 'Run Forecast' to generate fresh analysis with current data."
-            type="warning"
+            message={
+              <div style={{ textAlign: 'center' }}>
+                <WarningOutlined style={{ marginRight: 8 }} />
+                <strong>EARLY WARNING: Potential Staged Attack Detected</strong>
+              </div>
+            }
+            description={
+              <div style={{ textAlign: 'center' }}>
+                <p style={{ marginBottom: 8 }}>
+                  <strong>Anomaly Threshold:</strong> {forecastChartData.anomaly_threshold?.toFixed(2)} flows/min
+                </p>
+                {forecastChartData.warning_reasons && forecastChartData.warning_reasons.length > 0 && (
+                  <p style={{ marginBottom: 8 }}>
+                    <strong>Reasons:</strong> {forecastChartData.warning_reasons.join(', ')}
+                  </p>
+                )}
+                <p style={{ marginBottom: 0 }}>
+                  <strong>Action Required:</strong> Investigate network activity and prepare mitigation measures.
+                </p>
+              </div>
+            }
+            type="error"
             showIcon
+            banner
+            closable
             style={{ marginBottom: 16 }}
           />
         )}
 
-        {!loading && hasArtifacts && lastUpdated && (
-          <Alert
-            message="Fresh Results"
-            description={`Analysis completed successfully. Last updated: ${lastUpdated}`}
-            type="success"
-            showIcon
-            style={{ marginBottom: 16 }}
-          />
+        {/* Data Freshness Indicator - Priority 3 */}
+        {!loading && hasArtifacts && (
+          <div style={{ marginBottom: 16, display: 'flex', gap: 8, alignItems: 'center' }}>
+            {lastUpdated ? (
+              <>
+                <Tag icon={<CheckCircleOutlined />} color="success">
+                  Fresh Data
+                </Tag>
+                <span style={{ fontSize: 12, color: '#666' }}>
+                  Last updated: {lastUpdated}
+                </span>
+              </>
+            ) : (
+              <>
+                <Tag icon={<ClockCircleOutlined />} color="warning">
+                  Cached Data
+                </Tag>
+                <span style={{ fontSize: 12, color: '#666' }}>
+                  From previous run - Click button to refresh
+                </span>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Detection Summary Statistics - Priority 2 */}
+        {!loading && hasArtifacts && detectedData.length > 0 && (
+          <Card size="small" style={{ marginBottom: 16, textAlign: 'center' }}>
+            <Row gutter={16}>
+              <Col span={8}>
+                <Statistic
+                  title="Total Data Points"
+                  value={detectedData.length}
+                  prefix={<ClockCircleOutlined />}
+                  style={{ textAlign: 'center' }}
+                />
+              </Col>
+              <Col span={8}>
+                <Statistic
+                  title="Anomalies Detected"
+                  value={detectedData.filter(d => String(d.anomaly_flag) === '1').length}
+                  valueStyle={{ color: '#cf1322' }}
+                  prefix={<WarningOutlined />}
+                  style={{ textAlign: 'center' }}
+                />
+              </Col>
+              <Col span={8}>
+                <Statistic
+                  title="Anomaly Rate"
+                  value={((detectedData.filter(d => String(d.anomaly_flag) === '1').length / detectedData.length) * 100).toFixed(1)}
+                  suffix="%"
+                  valueStyle={{ 
+                    color: (detectedData.filter(d => String(d.anomaly_flag) === '1').length / detectedData.length) > 0.05 ? '#cf1322' : '#3f8600'
+                  }}
+                  style={{ textAlign: 'center' }}
+                />
+              </Col>
+            </Row>
+          </Card>
         )}
 
         {!loading && hasArtifacts && (
