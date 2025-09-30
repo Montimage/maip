@@ -747,16 +747,29 @@ class EarlyPredictionPage extends Component {
       legend: {
         position: 'top-right',
       },
-      color: ['#1890ff', '#ff4d4f', '#52c41a', '#ffadd2', '#ffadd2'],
+      // Use color function for explicit mapping
+      color: (datum) => {
+        const colorMap = {
+          'Flows per min': '#1890ff',    // Blue
+          'Anomaly': '#ff4d4f',           // Red
+          'Rolling mean': '#722ed1',      // Purple
+          'Upper 3σ': '#ffadd2',          // Light pink
+          'Lower 3σ': '#ffadd2',          // Light pink
+        };
+        return colorMap[datum.type] || '#1890ff';
+      },
       lineStyle: (datum) => {
         if (datum.type === 'Upper 3σ' || datum.type === 'Lower 3σ') {
           return { lineDash: [4, 4], opacity: 0.5, lineWidth: 1 };
         }
         if (datum.type === 'Anomaly') {
-          return { lineWidth: 2 }; // Show anomalies as red line
+          return { lineWidth: 4 }; // Thick red line for anomalies (all algorithms)
         }
         if (datum.type === 'Flows per min') {
           return { lineWidth: 1.5 };
+        }
+        if (datum.type === 'Rolling mean') {
+          return { lineWidth: 2 }; // Purple rolling mean line
         }
         return { lineWidth: 1 };
       },
@@ -867,13 +880,13 @@ class EarlyPredictionPage extends Component {
             <div style={{ marginBottom: 24, textAlign: 'center' }}>
               <Button
                 type="primary"
-                icon={<PlayCircleOutlined />}
                 onClick={this.runComparison}
-                loading={running}
                 disabled={running}
                 size="large"
+                style={{ minWidth: 250 }}
               >
                 Run Detection & Forecast
+                {running && <Spin size="small" style={{ marginLeft: 8 }} />}
               </Button>
               <p style={{ marginTop: 8, fontSize: 12, color: '#666' }}>
                 Analyze traffic with 5 anomaly detection algorithms and generate forecast
@@ -1063,10 +1076,100 @@ class EarlyPredictionPage extends Component {
                   <h2 style={{ fontSize: '20px' }}>Top Contributing Features (Forecast)</h2>
                 </Divider>
                 <Card>
-                  {this.renderContributionsChart()}
-                  <p style={{ marginTop: 12, fontSize: 12, color: '#666' }}>
-                    Average absolute contribution of temporal features (lags and time-of-day) across the forecast horizon.
-                  </p>
+                  <Row gutter={16}>
+                    {/* Left: Chart */}
+                    <Col span={12}>
+                      {this.renderContributionsChart()}
+                      <p style={{ marginTop: 12, fontSize: 12, color: '#666', textAlign: 'center' }}>
+                        Average absolute contribution of temporal features across the forecast horizon
+                      </p>
+                    </Col>
+                    
+                    {/* Right: Feature Description Table */}
+                    <Col span={12}>
+                      <div style={{ marginTop: 8 }}>
+                        <h4 style={{ marginBottom: 12 }}>Feature Descriptions</h4>
+                        <Table
+                    dataSource={[
+                      {
+                        key: '1',
+                        feature: 'lag_1',
+                        description: 'Flow rate 1 minute ago',
+                        type: 'Recent History',
+                        importance: 'Captures immediate short-term trends'
+                      },
+                      {
+                        key: '2',
+                        feature: 'lag_5',
+                        description: 'Flow rate 5 minutes ago',
+                        type: 'Short-term History',
+                        importance: 'Captures recent patterns and momentum'
+                      },
+                      {
+                        key: '3',
+                        feature: 'lag_10',
+                        description: 'Flow rate 10 minutes ago',
+                        type: 'Medium-term History',
+                        importance: 'Identifies emerging trends'
+                      },
+                      {
+                        key: '4',
+                        feature: 'lag_60',
+                        description: 'Flow rate 60 minutes ago (1 hour)',
+                        type: 'Long-term History',
+                        importance: 'Captures hourly patterns and cycles'
+                      },
+                      {
+                        key: '5',
+                        feature: 'tod_sin',
+                        description: 'Time of day (sine component)',
+                        type: 'Temporal Cycle',
+                        importance: 'Captures daily periodicity (morning/evening peaks)'
+                      },
+                      {
+                        key: '6',
+                        feature: 'tod_cos',
+                        description: 'Time of day (cosine component)',
+                        type: 'Temporal Cycle',
+                        importance: 'Captures daily periodicity (complementary to sine)'
+                      }
+                    ]}
+                    columns={[
+                      {
+                        title: 'Feature',
+                        dataIndex: 'feature',
+                        key: 'feature',
+                        width: 100,
+                        render: (text) => <code style={{ backgroundColor: '#f5f5f5', padding: '2px 6px', borderRadius: 3 }}>{text}</code>
+                      },
+                      {
+                        title: 'Description',
+                        dataIndex: 'description',
+                        key: 'description',
+                        width: 200
+                      },
+                      {
+                        title: 'Type',
+                        dataIndex: 'type',
+                        key: 'type',
+                        width: 150,
+                        render: (text) => {
+                          const color = text.includes('History') ? 'blue' : 'green';
+                          return <Tag color={color}>{text}</Tag>;
+                        }
+                      },
+                      {
+                        title: 'Importance',
+                        dataIndex: 'importance',
+                        key: 'importance'
+                      }
+                    ]}
+                    pagination={false}
+                    size="small"
+                  />
+                      </div>
+                    </Col>
+                  </Row>
                 </Card>
               </>
             )}

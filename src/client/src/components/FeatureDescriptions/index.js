@@ -1,6 +1,5 @@
 import React from 'react';
-import { Table } from 'antd';
-import { COLUMNS_ALL_FEATURES } from '../../constants';
+import { Table, Tag } from 'antd';
 const { BOX_STYLE, AD_FEATURES_DESCRIPTIONS, AC_FEATURES_DESCRIPTIONS } = require('../../constants');
 
 function inferDescriptionsFromData(data = []) {
@@ -26,10 +25,61 @@ export default function FeatureDescriptions({ data = [], modelId, app, title = '
     }));
   }, [featuresDescriptions]);
 
+  // Enhanced columns with improved styling (matching EarlyPredictionPage format)
+  const enhancedColumns = [
+    {
+      title: 'ID',
+      dataIndex: 'key',
+      key: 'key',
+      width: 60,
+      sorter: (a, b) => a.key - b.key,
+    },
+    {
+      title: 'Feature Name',
+      dataIndex: 'name',
+      key: 'name',
+      width: 250,
+      sorter: (a, b) => a.name.localeCompare(b.name),
+      render: (text) => (
+        <code style={{ backgroundColor: '#f5f5f5', padding: '2px 6px', borderRadius: 3, fontSize: 12 }}>
+          {text}
+        </code>
+      ),
+    },
+    {
+      title: 'Description',
+      dataIndex: 'description',
+      key: 'description',
+      width: 400,
+    },
+    {
+      title: 'Type',
+      dataIndex: 'type',
+      key: 'type',
+      width: 150,
+      render: (text) => {
+        const colorMap = {
+          'numerical': 'blue',
+          'categorical': 'green',
+          'binary': 'orange',
+          'temporal': 'purple',
+        };
+        const color = colorMap[text?.toLowerCase()] || 'default';
+        return <Tag color={color}>{text}</Tag>;
+      },
+    },
+  ];
+
   return (
     <div style={{ ...BOX_STYLE, marginTop: '20px' }}>
       {showTitle && <h2>&nbsp;&nbsp;&nbsp;{title}</h2>}
-      <Table dataSource={allFeatures} columns={COLUMNS_ALL_FEATURES} size="small" style={{ marginTop: '10px' }} />
+      <Table 
+        dataSource={allFeatures} 
+        columns={enhancedColumns} 
+        size="small" 
+        style={{ marginTop: '10px' }}
+        pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (total) => `Total ${total} features` }}
+      />
     </div>
   );
 }
