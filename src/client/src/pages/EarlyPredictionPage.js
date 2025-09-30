@@ -1,9 +1,11 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
-import { Button, Card, Table, Divider, Alert, Spin, notification, Statistic, Tag, Row, Col } from 'antd';
+import { Button, Card, Table, Divider, Alert, Spin, notification, Statistic, Tag, Row, Col, Select } from 'antd';
 import { ReloadOutlined, PlayCircleOutlined, WarningOutlined, CheckCircleOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import { Line, Bar } from '@ant-design/plots';
 import { SERVER_URL } from '../constants';
+
+const { Option } = Select;
 
 class EarlyPredictionPage extends Component {
   constructor(props) {
@@ -13,6 +15,10 @@ class EarlyPredictionPage extends Component {
       detectedData: [],
       forecastData: [],
       forecastChartData: null,
+      comparisonData: null,
+      comparisonCSVData: null,
+      forecastComparisonData: null,
+      selectedAlgorithm: 'zscore',
       loading: false,
       running: false,
       errorMessage: null,
@@ -21,8 +27,25 @@ class EarlyPredictionPage extends Component {
   }
 
   componentDidMount() {
-    this.loadArtifacts();
+    // Load only the raw flow data for initial visualization
+    this.loadRawData();
   }
+
+  loadRawData = async () => {
+    this.setState({ loading: true });
+    try {
+      // Load only detected data (which contains flows_per_min)
+      const detectedResp = await fetch(`${SERVER_URL}/api/early-prediction/data/detected`);
+      if (detectedResp.ok) {
+        const { data } = await detectedResp.json();
+        this.setState({ detectedData: data });
+      }
+    } catch (error) {
+      console.warn('Raw data not available:', error);
+    } finally {
+      this.setState({ loading: false });
+    }
+  };
 
   loadArtifacts = async () => {
     this.setState({ loading: true, errorMessage: null });
@@ -60,6 +83,39 @@ class EarlyPredictionPage extends Component {
         }
       } catch (e) {
         console.warn('Forecast chart data not available:', e);
+      }
+
+      // Fetch comparison data
+      try {
+        const comparisonResp = await fetch(`${SERVER_URL}/api/early-prediction/data/comparison`);
+        if (comparisonResp.ok) {
+          const { data } = await comparisonResp.json();
+          this.setState({ comparisonData: data });
+        }
+      } catch (e) {
+        console.warn('Comparison data not available:', e);
+      }
+
+      // Fetch comparison CSV data for algorithm selection
+      try {
+        const comparisonCSVResp = await fetch(`${SERVER_URL}/api/early-prediction/data/comparison-csv`);
+        if (comparisonCSVResp.ok) {
+          const { data } = await comparisonCSVResp.json();
+          this.setState({ comparisonCSVData: data });
+        }
+      } catch (e) {
+        console.warn('Comparison CSV data not available:', e);
+      }
+
+      // Fetch forecast comparison data
+      try {
+        const forecastCompResp = await fetch(`${SERVER_URL}/api/early-prediction/data/forecast-comparison`);
+        if (forecastCompResp.ok) {
+          const { data } = await forecastCompResp.json();
+          this.setState({ forecastComparisonData: data });
+        }
+      } catch (e) {
+        console.warn('Forecast comparison data not available:', e);
       }
     } catch (error) {
       console.error('Error loading artifacts:', error);
@@ -132,6 +188,50 @@ class EarlyPredictionPage extends Component {
     }
   };
 
+  runSelectedAlgorithm = async () => {
+    const { selectedAlgorithm } = this.state;
+    const algorithmNames = {
+      'zscore': 'Z-Score',
+      'ewma': 'EWMA',
+      'iforest': 'Isolation Forest',
+      'iqr': 'IQR'
+    };
+
+    this.setState({ running: true, errorMessage: null });
+    
+    try {
+      // Run only the selected algorithm
+      const response = await fetch(`${SERVER_URL}/api/early-prediction/run-single-algorithm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ algorithm: selectedAlgorithm }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to run analysis');
+      }
+
+      notification.success({
+        message: `${algorithmNames[selectedAlgorithm]} Complete`,
+        description: `Detection and forecast completed for ${algorithmNames[selectedAlgorithm]}.`,
+        placement: 'topRight',
+      });
+
+      setTimeout(() => this.loadArtifacts(), 1000);
+    } catch (error) {
+      console.error('Error:', error);
+      notification.error({
+        message: 'Analysis Failed',
+        description: error.message || 'Unable to complete analysis.',
+        placement: 'topRight',
+      });
+      this.setState({ errorMessage: error.message });
+    } finally {
+      this.setState({ running: false });
+    }
+  };
+
   runDetect = async () => {
     this.setState({ running: true, errorMessage: null });
     try {
@@ -196,6 +296,179 @@ class EarlyPredictionPage extends Component {
     } finally {
       this.setState({ running: false });
     }
+  };
+
+  runComparison = async () => {
+    this.setState({ running: true, errorMessage: null });
+    try {
+      const response = await fetch(`${SERVER_URL}/api/early-prediction/run-comparison`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        notification.success({
+          message: 'Algorithm comparison completed',
+          description: 'Compared Z-Score, EWMA, Isolation Forest, and IQR methods.',
+          placement: 'topRight',
+        });
+        setTimeout(() => this.loadArtifacts(), 1000);
+      } else {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to run comparison');
+      }
+    } catch (error) {
+      console.error('Error running comparison:', error);
+      notification.error({
+        message: 'Comparison failed',
+        description: error.message || 'Unable to run algorithm comparison.',
+        placement: 'topRight',
+      });
+      this.setState({ errorMessage: error.message });
+    } finally {
+      this.setState({ running: false });
+    }
+  };
+
+  runForecastComparison = async () => {
+    this.setState({ running: true, errorMessage: null });
+    try {
+      const response = await fetch(`${SERVER_URL}/api/early-prediction/run-forecast-comparison`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        notification.success({
+          message: 'Forecast comparison completed',
+          description: 'Generated forecasts for all 4 detection algorithms.',
+          placement: 'topRight',
+        });
+        setTimeout(() => this.loadArtifacts(), 1000);
+      } else {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to run forecast comparison');
+      }
+    } catch (error) {
+      console.error('Error running forecast comparison:', error);
+      notification.error({
+        message: 'Forecast comparison failed',
+        description: error.message || 'Unable to run forecast comparison.',
+        placement: 'topRight',
+      });
+      this.setState({ errorMessage: error.message });
+    } finally {
+      this.setState({ running: false });
+    }
+  };
+
+  renderMultiAlgorithmForecastChart = () => {
+    const { forecastComparisonData } = this.state;
+    if (!forecastComparisonData) return null;
+
+    const { historical, forecasts } = forecastComparisonData;
+
+    // Prepare data for Line chart
+    const chartData = [];
+
+    // Add historical data
+    (historical || []).forEach((row) => {
+      chartData.push({
+        timestamp: row.timestamp,
+        value: parseFloat(row.flows_per_min),
+        type: 'Historical',
+      });
+    });
+
+    // Add forecasts for each algorithm
+    const algorithmColors = {
+      'zscore': 'Z-Score',
+      'ewma': 'EWMA',
+      'iforest': 'Isolation Forest',
+      'iqr': 'IQR'
+    };
+
+    Object.keys(forecasts).forEach((algoKey) => {
+      const algoData = forecasts[algoKey];
+      const algoName = algorithmColors[algoKey];
+      
+      (algoData.forecast || []).forEach((row) => {
+        chartData.push({
+          timestamp: row.timestamp,
+          value: parseFloat(row.pred),
+          type: `${algoName} Forecast`,
+        });
+      });
+    });
+
+    const config = {
+      data: chartData,
+      xField: 'timestamp',
+      yField: 'value',
+      seriesField: 'type',
+      smooth: true,
+      animation: false,
+      xAxis: {
+        type: 'time',
+        label: {
+          autoRotate: true,
+          autoHide: true,
+        },
+      },
+      yAxis: {
+        label: {
+          formatter: (v) => `${parseFloat(v).toFixed(0)}`,
+        },
+      },
+      legend: {
+        position: 'top-right',
+      },
+      color: ['#1890ff', '#52c41a', '#ff7a45', '#9254de', '#ffc53d'],
+      lineStyle: (datum) => {
+        if (datum.type === 'Historical') {
+          return { lineWidth: 2 };
+        }
+        return { lineWidth: 1.5, lineDash: [4, 4] };
+      },
+    };
+
+    // Check for early warnings
+    const warnings = [];
+    Object.keys(forecasts).forEach((algoKey) => {
+      const algoData = forecasts[algoKey];
+      if (algoData.early_warning) {
+        warnings.push({
+          algorithm: algorithmColors[algoKey],
+          reasons: algoData.warning_reasons,
+          threshold: algoData.anomaly_threshold
+        });
+      }
+    });
+
+    return (
+      <>
+        <Line {...config} style={{ height: 400 }} />
+        {warnings.length > 0 && (
+          <Alert
+            message={`EARLY WARNING (${warnings.length} algorithm${warnings.length > 1 ? 's' : ''})`}
+            description={
+              <div>
+                {warnings.map((w, idx) => (
+                  <div key={idx} style={{ marginBottom: 8 }}>
+                    <strong>{w.algorithm}:</strong> {w.reasons.join(', ')} (Threshold: {w.threshold.toFixed(2)} flows/min)
+                  </div>
+                ))}
+              </div>
+            }
+            type="error"
+            showIcon
+            style={{ marginTop: 16 }}
+          />
+        )}
+      </>
+    );
   };
 
   renderForecastChart = () => {
@@ -329,33 +602,109 @@ class EarlyPredictionPage extends Component {
     return <Bar {...config} style={{ height: 300 }} />;
   };
 
-  renderDetectionChart = () => {
+  renderRawDataChart = () => {
     const { detectedData } = this.state;
     if (!detectedData || detectedData.length === 0) return null;
 
-    // Sample data for performance (take every 10th point if > 1000 points)
+    // Sample data for performance
     const sampledData = detectedData.length > 1000
       ? detectedData.filter((_, idx) => idx % 10 === 0)
       : detectedData;
 
+    // Prepare data - only flows per minute
+    const chartData = sampledData.map(row => ({
+      timestamp: row.timestamp,
+      value: parseFloat(row.flows_per_min),
+      type: 'Flows per min'
+    }));
+
+    const config = {
+      data: chartData,
+      xField: 'timestamp',
+      yField: 'value',
+      seriesField: 'type',
+      smooth: true,
+      animation: false,
+      xAxis: {
+        type: 'time',
+        label: {
+          autoRotate: true,
+          autoHide: true,
+        },
+      },
+      yAxis: {
+        label: {
+          formatter: (v) => `${parseFloat(v).toFixed(0)}`,
+        },
+      },
+      legend: {
+        position: 'top-right',
+      },
+      color: ['#1890ff'],
+      lineStyle: {
+        lineWidth: 2,
+      },
+    };
+
+    return <Line {...config} style={{ height: 400 }} />;
+  };
+
+  renderDetectionChart = () => {
+    const { comparisonCSVData, selectedAlgorithm } = this.state;
+    
+    // Use comparison data if available, otherwise fall back to original detected data
+    const dataToUse = comparisonCSVData && comparisonCSVData.length > 0 ? comparisonCSVData : this.state.detectedData;
+    
+    if (!dataToUse || dataToUse.length === 0) return null;
+
+    // Map algorithm names to flag columns
+    const algorithmFlagMap = {
+      'zscore': 'zscore_flag',
+      'ewma': 'ewma_flag',
+      'iforest': 'iforest_flag',
+      'iqr': 'iqr_flag'
+    };
+
+    const flagColumn = algorithmFlagMap[selectedAlgorithm] || 'anomaly_flag';
+
+    // Sample data for performance but keep all anomalies
+    let sampledData;
+    if (dataToUse.length > 1000) {
+      // Keep every 10th point + all anomalies
+      sampledData = dataToUse.filter((row, idx) => {
+        return idx % 10 === 0 || parseInt(row[flagColumn] || row.anomaly_flag || 0) === 1;
+      });
+    } else {
+      sampledData = dataToUse;
+    }
+
     // Prepare data for Line chart
     const chartData = [];
+    
     sampledData.forEach((row) => {
       const timestamp = row.timestamp;
       const flowsPerMin = parseFloat(row.flows_per_min);
-      const rollMean = parseFloat(row.roll_mean);
-      const rollStd = parseFloat(row.roll_std);
-      const anomalyFlag = parseInt(row.anomaly_flag);
+      const anomalyFlag = parseInt(row[flagColumn] || row.anomaly_flag || 0);
 
       if (!isNaN(flowsPerMin)) {
         chartData.push({ timestamp, value: flowsPerMin, type: 'Flows per min' });
+        
+        // Add anomaly points as separate series for visibility
+        if (anomalyFlag === 1) {
+          chartData.push({ timestamp, value: flowsPerMin, type: 'Anomaly' });
+        }
       }
-      if (!isNaN(rollMean)) {
-        chartData.push({ timestamp, value: rollMean, type: 'Rolling mean' });
-        // Add ±3σ bands
-        if (!isNaN(rollStd)) {
-          chartData.push({ timestamp, value: rollMean + 3 * rollStd, type: 'Upper 3σ' });
-          chartData.push({ timestamp, value: rollMean - 3 * rollStd, type: 'Lower 3σ' });
+
+      // Add reference lines for Z-Score algorithm (rolling mean and bands)
+      if (selectedAlgorithm === 'zscore' && row.roll_mean && row.roll_std) {
+        const rollMean = parseFloat(row.roll_mean);
+        const rollStd = parseFloat(row.roll_std);
+        if (!isNaN(rollMean)) {
+          chartData.push({ timestamp, value: rollMean, type: 'Rolling mean' });
+          if (!isNaN(rollStd)) {
+            chartData.push({ timestamp, value: rollMean + 3 * rollStd, type: 'Upper 3σ' });
+            chartData.push({ timestamp, value: rollMean - 3 * rollStd, type: 'Lower 3σ' });
+          }
         }
       }
     });
@@ -382,16 +731,22 @@ class EarlyPredictionPage extends Component {
       legend: {
         position: 'top-right',
       },
-      color: ['#1890ff', '#52c41a', '#ff4d4f', '#ff4d4f'],
+      color: ['#1890ff', '#ff4d4f', '#52c41a', '#ffadd2', '#ffadd2'],
       lineStyle: (datum) => {
         if (datum.type === 'Upper 3σ' || datum.type === 'Lower 3σ') {
-          return { lineDash: [4, 4], opacity: 0.5 };
+          return { lineDash: [4, 4], opacity: 0.5, lineWidth: 1 };
         }
-        return {};
+        if (datum.type === 'Anomaly') {
+          return { lineWidth: 2 }; // Show anomalies as red line
+        }
+        if (datum.type === 'Flows per min') {
+          return { lineWidth: 1.5 };
+        }
+        return { lineWidth: 1 };
       },
     };
 
-    return <Line {...config} style={{ height: 400 }} />;
+    return <Line {...config} style={{ height: 400 }} key={selectedAlgorithm} />;
   };
 
   render() {
@@ -399,11 +754,23 @@ class EarlyPredictionPage extends Component {
       contributions,
       detectedData,
       forecastChartData,
+      comparisonData,
+      comparisonCSVData,
+      forecastComparisonData,
+      selectedAlgorithm,
       loading,
       running,
       errorMessage,
       lastUpdated,
     } = this.state;
+
+    // Algorithm display names
+    const algorithmNames = {
+      'zscore': 'Z-Score',
+      'ewma': 'EWMA',
+      'iforest': 'Isolation Forest',
+      'iqr': 'IQR'
+    };
 
     const contribColumns = [
       {
@@ -426,47 +793,27 @@ class EarlyPredictionPage extends Component {
         pageTitle="Early Prediction"
         pageSubTitle="Anomaly detection and short-term forecasting for staged attack prediction"
       >
-        <div style={{ marginBottom: 16, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <Button
-            type="primary"
-            icon={<PlayCircleOutlined />}
-            onClick={this.runDetect}
-            loading={running}
-            disabled={running}
-          >
-            Run Detection
-          </Button>
-          <Button
-            type="primary"
-            icon={<PlayCircleOutlined />}
-            onClick={this.runForecast}
-            loading={running}
-            disabled={running}
-          >
-            Run Forecast
-          </Button>
-          <Button
-            icon={<PlayCircleOutlined />}
-            onClick={this.runScripts}
-            loading={running}
-            disabled={running}
-          >
-            Run Both
-          </Button>
-          <Button
-            icon={<ReloadOutlined />}
-            onClick={this.loadArtifacts}
-            loading={loading}
-            disabled={loading || running}
-          >
-            Refresh Results
-          </Button>
-        </div>
-
-        {lastUpdated && (
-          <div style={{ marginBottom: 16, fontSize: 12, color: '#888' }}>
-            Last updated: {lastUpdated}
-          </div>
+        {/* Algorithm Comparison Summary Banner */}
+        {!loading && comparisonData && (
+          <Card size="small" style={{ marginBottom: 16, backgroundColor: '#f0f5ff' }}>
+            <div style={{ textAlign: 'center', marginBottom: 8 }}>
+              <strong style={{ fontSize: 14 }}>Algorithm Comparison Results</strong>
+            </div>
+            <Row gutter={16}>
+              {comparisonData.algorithms.map((algo, idx) => (
+                <Col span={6} key={idx}>
+                  <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                    <Statistic
+                      title={algo.name}
+                      value={algo.anomalies}
+                      suffix={`(${algo.rate.toFixed(2)}%)`}
+                      valueStyle={{ fontSize: 18 }}
+                    />
+                  </Card>
+                </Col>
+              ))}
+            </Row>
+          </Card>
         )}
 
         {errorMessage && (
@@ -486,10 +833,42 @@ class EarlyPredictionPage extends Component {
           </div>
         )}
 
-        {!loading && !hasArtifacts && (
+        {/* Show raw data chart before analysis */}
+        {!loading && detectedData.length > 0 && !comparisonData && (
+          <>
+            <Divider orientation="left">
+              <h2 style={{ fontSize: '20px' }}>Network Traffic Overview</h2>
+            </Divider>
+            <Card style={{ marginBottom: 16 }}>
+              {this.renderRawDataChart()}
+              <p style={{ marginTop: 8, fontSize: 12, color: '#666', textAlign: 'center' }}>
+                Raw network traffic visualization on flows_per_min
+              </p>
+            </Card>
+            
+            {/* Main Action Button */}
+            <div style={{ marginBottom: 24, textAlign: 'center' }}>
+              <Button
+                type="primary"
+                icon={<PlayCircleOutlined />}
+                onClick={this.runComparison}
+                loading={running}
+                disabled={running}
+                size="large"
+              >
+                Run Detection & Forecast
+              </Button>
+              <p style={{ marginTop: 8, fontSize: 12, color: '#666' }}>
+                Analyze traffic with 4 anomaly detection algorithms and generate forecast
+              </p>
+            </div>
+          </>
+        )}
+
+        {!loading && !hasArtifacts && detectedData.length === 0 && (
           <Alert
-            message="No Results Available"
-            description="Click 'Run Detection' to start anomaly detection, then 'Run Forecast' to generate predictions. Or click 'Run Both' to execute both steps."
+            message="No Data Available"
+            description="No network traffic data found. Please ensure data collection is running."
             type="info"
             showIcon
             style={{ marginBottom: 16 }}
@@ -528,77 +907,94 @@ class EarlyPredictionPage extends Component {
           />
         )}
 
-        {/* Data Freshness Indicator - Priority 3 */}
-        {!loading && hasArtifacts && (
-          <div style={{ marginBottom: 16, display: 'flex', gap: 8, alignItems: 'center' }}>
-            {lastUpdated ? (
-              <>
-                <Tag icon={<CheckCircleOutlined />} color="success">
-                  Fresh Data
-                </Tag>
-                <span style={{ fontSize: 12, color: '#666' }}>
-                  Last updated: {lastUpdated}
-                </span>
-              </>
-            ) : (
-              <>
-                <Tag icon={<ClockCircleOutlined />} color="warning">
-                  Cached Data
-                </Tag>
-                <span style={{ fontSize: 12, color: '#666' }}>
-                  From previous run - Click button to refresh
-                </span>
-              </>
-            )}
-          </div>
-        )}
 
-        {/* Detection Summary Statistics - Priority 2 */}
-        {!loading && hasArtifacts && detectedData.length > 0 && (
-          <Card size="small" style={{ marginBottom: 16, textAlign: 'center' }}>
-            <Row gutter={16}>
-              <Col span={8}>
-                <Statistic
-                  title="Total Data Points"
-                  value={detectedData.length}
-                  prefix={<ClockCircleOutlined />}
-                  style={{ textAlign: 'center' }}
-                />
-              </Col>
-              <Col span={8}>
-                <Statistic
-                  title="Anomalies Detected"
-                  value={detectedData.filter(d => String(d.anomaly_flag) === '1').length}
-                  valueStyle={{ color: '#cf1322' }}
-                  prefix={<WarningOutlined />}
-                  style={{ textAlign: 'center' }}
-                />
-              </Col>
-              <Col span={8}>
-                <Statistic
-                  title="Anomaly Rate"
-                  value={((detectedData.filter(d => String(d.anomaly_flag) === '1').length / detectedData.length) * 100).toFixed(1)}
-                  suffix="%"
-                  valueStyle={{ 
-                    color: (detectedData.filter(d => String(d.anomaly_flag) === '1').length / detectedData.length) > 0.05 ? '#cf1322' : '#3f8600'
-                  }}
-                  style={{ textAlign: 'center' }}
-                />
-              </Col>
-            </Row>
-          </Card>
-        )}
 
-        {!loading && hasArtifacts && (
+        {!loading && hasArtifacts && comparisonData && (
           <>
             <Divider orientation="left">
-              <h2 style={{ fontSize: '20px' }}>Anomaly Detection (Rolling 3σ)</h2>
+              <h2 style={{ fontSize: '20px' }}>Anomaly Detection</h2>
             </Divider>
-            {detectedData.length > 0 ? (
-              <Card style={{ marginBottom: 24 }}>
+
+            {comparisonCSVData && comparisonCSVData.length > 0 && (
+              <>
+                <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ fontSize: 14, fontWeight: 'bold' }}>Select Algorithm:</span>
+                  <Select
+                    value={selectedAlgorithm}
+                    onChange={(value) => this.setState({ selectedAlgorithm: value })}
+                    style={{ width: 220 }}
+                  >
+                    <Option value="zscore">Z-Score (Rolling 3σ)</Option>
+                    <Option value="ewma">EWMA (Exponential Weighted)</Option>
+                    <Option value="iforest">Isolation Forest (ML)</Option>
+                    <Option value="iqr">IQR (Interquartile Range)</Option>
+                  </Select>
+                </div>
+
+                {/* Selected Algorithm Statistics Banner */}
+                <Card size="small" style={{ marginBottom: 16, backgroundColor: '#fff7e6', textAlign: 'center' }}>
+                  <Row gutter={16}>
+                    <Col span={8}>
+                      <Statistic
+                        title="Total Data Points"
+                        value={comparisonCSVData.length}
+                        prefix={<ClockCircleOutlined />}
+                      />
+                    </Col>
+                    <Col span={8}>
+                      <Statistic
+                        title={`Anomalies (${algorithmNames[selectedAlgorithm]})`}
+                        value={(() => {
+                          const flagColumn = {
+                            'zscore': 'zscore_flag',
+                            'ewma': 'ewma_flag',
+                            'iforest': 'iforest_flag',
+                            'iqr': 'iqr_flag'
+                          }[selectedAlgorithm];
+                          return comparisonCSVData.filter(d => String(d[flagColumn]) === '1').length;
+                        })()}
+                        valueStyle={{ color: '#cf1322' }}
+                        prefix={<WarningOutlined />}
+                      />
+                    </Col>
+                    <Col span={8}>
+                      <Statistic
+                        title="Anomaly Rate"
+                        value={(() => {
+                          const flagColumn = {
+                            'zscore': 'zscore_flag',
+                            'ewma': 'ewma_flag',
+                            'iforest': 'iforest_flag',
+                            'iqr': 'iqr_flag'
+                          }[selectedAlgorithm];
+                          const anomalyCount = comparisonCSVData.filter(d => String(d[flagColumn]) === '1').length;
+                          return ((anomalyCount / comparisonCSVData.length) * 100).toFixed(1);
+                        })()}
+                        suffix="%"
+                        valueStyle={{
+                          color: (() => {
+                            const flagColumn = {
+                              'zscore': 'zscore_flag',
+                              'ewma': 'ewma_flag',
+                              'iforest': 'iforest_flag',
+                              'iqr': 'iqr_flag'
+                            }[selectedAlgorithm];
+                            const anomalyCount = comparisonCSVData.filter(d => String(d[flagColumn]) === '1').length;
+                            return (anomalyCount / comparisonCSVData.length) > 0.05 ? '#cf1322' : '#3f8600';
+                          })()
+                        }}
+                      />
+                    </Col>
+                  </Row>
+                </Card>
+              </>
+            )}
+
+            {(comparisonCSVData || detectedData).length > 0 ? (
+              <Card style={{ marginBottom: 24 }} key={selectedAlgorithm}>
                 {this.renderDetectionChart()}
                 <p style={{ marginTop: 8, fontSize: 12, color: '#666', textAlign: 'center' }}>
-                  Interactive rolling z-score anomaly detection on flows_per_min with ±3σ bands
+                  {algorithmNames[selectedAlgorithm]} anomaly detection on flows_per_min
                 </p>
               </Card>
             ) : (
@@ -612,9 +1008,18 @@ class EarlyPredictionPage extends Component {
             )}
 
             <Divider orientation="left">
-              <h2 style={{ fontSize: '20px' }}>Short-term Forecast & Early Warning</h2>
+              <h2 style={{ fontSize: '20px' }}>
+                {forecastComparisonData ? 'Multi-Algorithm Forecast Comparison' : `Short-term Forecast - ${algorithmNames[selectedAlgorithm]}`}
+              </h2>
             </Divider>
-            {forecastChartData ? (
+            {forecastComparisonData ? (
+              <Card style={{ marginBottom: 24 }}>
+                {this.renderMultiAlgorithmForecastChart()}
+                <p style={{ marginTop: 8, fontSize: 12, color: '#666', textAlign: 'center' }}>
+                  Multi-algorithm forecast comparison: Last 12h history + next 60min predictions from all 4 detection algorithms
+                </p>
+              </Card>
+            ) : forecastChartData ? (
               <Card style={{ marginBottom: 24 }}>
                 {this.renderForecastChart()}
                 <p style={{ marginTop: 8, fontSize: 12, color: '#666', textAlign: 'center' }}>
@@ -624,7 +1029,7 @@ class EarlyPredictionPage extends Component {
             ) : (
               <Alert
                 message="Forecast data not available"
-                description="Click 'Run Forecast' to generate forecast results."
+                description="Click 'Run Forecast' to generate forecast results, or 'Compare Forecast' for multi-algorithm comparison."
                 type="info"
                 showIcon
                 style={{ marginBottom: 24 }}
@@ -644,6 +1049,7 @@ class EarlyPredictionPage extends Component {
                 </Card>
               </>
             )}
+
           </>
         )}
       </LayoutPage>
