@@ -2,8 +2,8 @@ import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
 import { getLastPath } from "../utils";
-import { Menu, Select, Divider, Form, Slider, Switch, Table, Col, Row, Button, Tooltip } from 'antd';
-import { QuestionOutlined, CameraOutlined } from "@ant-design/icons";
+import { Menu, Select, Divider, Form, Slider, Switch, Table, Col, Row, Button, Tooltip, Card, Statistic } from 'antd';
+import { QuestionOutlined, CameraOutlined, CheckCircleOutlined, WarningOutlined, LineChartOutlined } from "@ant-design/icons";
 import { Line, Heatmap, Column, G2 } from '@ant-design/plots';
 import {
   requestModel,
@@ -799,6 +799,12 @@ class MetricsPage extends Component {
       },
     ];
 
+    // Calculate key metrics for summary
+    const accuracy = dataStats.find(d => d.metric === 'accuracy')?.class0 || 0;
+    const precision = dataStats.find(d => d.metric === 'precision')?.class1 || 0;
+    const recall = dataStats.find(d => d.metric === 'recall')?.class1 || 0;
+    const f1score = dataStats.find(d => d.metric === 'f1score')?.class1 || 0;
+
     return (
       <LayoutPage pageTitle="Accountability & Resilience Metrics" pageSubTitle={`Model ${modelId}`}>
         <Menu mode="horizontal" style={{ backgroundColor: 'transparent', fontSize: '16px' }}>
@@ -813,8 +819,63 @@ class MetricsPage extends Component {
           ))}
         </Menu>
 
+        {/* Model Performance Summary Banner */}
+        {dataStats && dataStats.length > 0 && (
+          <Card size="small" style={{ marginBottom: 16, marginTop: 16, backgroundColor: '#fff7e6' }}>
+            <div style={{ textAlign: 'center', marginBottom: 8 }}>
+              <strong style={{ fontSize: 14 }}>Model Performance Summary</strong>
+            </div>
+            <Row gutter={12}>
+              <Col flex={1}>
+                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                  <Statistic
+                    title="Accuracy"
+                    value={(accuracy * 100).toFixed(2)}
+                    suffix="%"
+                    prefix={<CheckCircleOutlined />}
+                    valueStyle={{ fontSize: 16, color: accuracy > 0.9 ? '#52c41a' : '#faad14' }}
+                  />
+                </Card>
+              </Col>
+              <Col flex={1}>
+                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                  <Statistic
+                    title="Precision"
+                    value={(precision * 100).toFixed(2)}
+                    suffix="%"
+                    prefix={<LineChartOutlined />}
+                    valueStyle={{ fontSize: 16 }}
+                  />
+                </Card>
+              </Col>
+              <Col flex={1}>
+                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                  <Statistic
+                    title="Recall"
+                    value={(recall * 100).toFixed(2)}
+                    suffix="%"
+                    prefix={<LineChartOutlined />}
+                    valueStyle={{ fontSize: 16 }}
+                  />
+                </Card>
+              </Col>
+              <Col flex={1}>
+                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                  <Statistic
+                    title="F1-Score"
+                    value={(f1score * 100).toFixed(2)}
+                    suffix="%"
+                    prefix={<LineChartOutlined />}
+                    valueStyle={{ fontSize: 16 }}
+                  />
+                </Card>
+              </Col>
+            </Row>
+          </Card>
+        )}
+
         <Divider orientation="left">
-          <h1 style={{ fontSize: '24px' }}>Accountability Metrics</h1>
+          <h2 style={{ fontSize: '20px' }}>Accountability Metrics</h2>
         </Divider>
         <div style={{ padding: '0 0' }}>
           <div style={{ top: 1 }}>

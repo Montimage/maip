@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
-import { Button, Divider, Form, Table, Tooltip, Upload, message, Spin, notification, Checkbox, Space } from 'antd';
-import { UploadOutlined, DownloadOutlined, SendOutlined } from '@ant-design/icons';
+import { Button, Divider, Form, Table, Tooltip, Upload, message, Spin, notification, Checkbox, Space, Card, Row, Col, Statistic } from 'antd';
+import { UploadOutlined, DownloadOutlined, SendOutlined, FileTextOutlined, DatabaseOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import Papa from 'papaparse';
 import { connect } from 'react-redux';
 import {
@@ -229,8 +229,50 @@ class FeatureExtractionPage extends Component {
 
     return (
       <LayoutPage pageTitle="Feature Extraction" pageSubTitle="Upload a PCAP and extract features">
+        
+        {/* Extraction Summary Banner */}
+        {featuresData && featuresData.length > 0 && (
+          <Card size="small" style={{ marginBottom: 16, backgroundColor: '#f6ffed' }}>
+            <div style={{ textAlign: 'center', marginBottom: 8 }}>
+              <strong style={{ fontSize: 14 }}>Extraction Summary</strong>
+            </div>
+            <Row gutter={12}>
+              <Col flex={1}>
+                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                  <Statistic
+                    title="PCAP File"
+                    value={uploadedPcapName || 'N/A'}
+                    prefix={<FileTextOutlined />}
+                    valueStyle={{ fontSize: 14 }}
+                  />
+                </Card>
+              </Col>
+              <Col flex={1}>
+                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                  <Statistic
+                    title="Extracted Flows"
+                    value={featuresData.length}
+                    prefix={<DatabaseOutlined />}
+                    valueStyle={{ fontSize: 16 }}
+                  />
+                </Card>
+              </Col>
+              <Col flex={1}>
+                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                  <Statistic
+                    title="Features"
+                    value={featureColumns.length}
+                    prefix={<CheckCircleOutlined />}
+                    valueStyle={{ fontSize: 16 }}
+                  />
+                </Card>
+              </Col>
+            </Row>
+          </Card>
+        )}
+
         <Divider orientation="left">
-          <h1 style={{ fontSize: '24px' }}>Upload</h1>
+          <h2 style={{ fontSize: '20px' }}>Upload</h2>
         </Divider>
         <Form {...FORM_LAYOUT} style={{ maxWidth: 700 }}>
           <Form.Item label="PCAP file" name="pcap"
@@ -313,7 +355,7 @@ class FeatureExtractionPage extends Component {
         </Form>
 
         <Divider orientation="left" style={{ marginTop: 24 }}>
-          <h1 style={{ fontSize: '24px' }}>Extracted Features</h1>
+          <h2 style={{ fontSize: '20px' }}>Extracted Features</h2>
         </Divider>
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
           <Tooltip title="Download extracted features CSV">
@@ -336,14 +378,14 @@ class FeatureExtractionPage extends Component {
             bordered
             loading={featuresLoading}
             scroll={{ x: 'max-content' }}
-            pagination={{ pageSize: 10 }}
+            pagination={{ pageSize: 10, showTotal: (total) => `Total ${total} flows` }}
           />
         </div>
         {/* Feature descriptions then charts (aligned with DatasetPage structure) */}
         {featuresData && featuresData.length > 0 && (
           <>
             <Divider orientation="left" style={{ marginTop: 24 }}>
-              <h1 style={{ fontSize: '24px' }}>Feature Descriptions</h1>
+              <h2 style={{ fontSize: '20px' }}>Feature Descriptions</h2>
             </Divider>
             <FeatureDescriptions data={featuresData} showTitle={false} />
             <FeatureCharts

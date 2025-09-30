@@ -2,7 +2,8 @@ import React, { Component } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import LayoutPage from './LayoutPage';
-import { Tooltip, message, Spin, Button, Form, Select, InputNumber, Table, Divider, Menu, Modal } from 'antd';
+import { Tooltip, message, Spin, Button, Form, Select, InputNumber, Table, Divider, Menu, Modal, Card, Row, Col, Statistic } from 'antd';
+import { CheckCircleOutlined, WarningOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import { connect } from "react-redux";
 import {
   FORM_LAYOUT,
@@ -518,8 +519,60 @@ class PredictOnlinePage extends Component {
 
     return (
       <LayoutPage pageTitle="Predict Online" pageSubTitle={subTitle}>
+        
+        {/* Prediction Summary Banner */}
+        {totalFlows > 0 && (
+          <Card size="small" style={{ marginBottom: 16, backgroundColor: maliciousFlows > 0 ? '#fff2f0' : '#f6ffed' }}>
+            <div style={{ textAlign: 'center', marginBottom: 8 }}>
+              <strong style={{ fontSize: 14 }}>Live Prediction Summary</strong>
+            </div>
+            <Row gutter={12}>
+              <Col flex={1}>
+                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                  <Statistic
+                    title="Total Flows"
+                    value={totalFlows}
+                    prefix={<ClockCircleOutlined />}
+                    valueStyle={{ fontSize: 16 }}
+                  />
+                </Card>
+              </Col>
+              <Col flex={1}>
+                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                  <Statistic
+                    title="Normal Flows"
+                    value={normalFlows}
+                    prefix={<CheckCircleOutlined />}
+                    valueStyle={{ fontSize: 16, color: '#52c41a' }}
+                  />
+                </Card>
+              </Col>
+              <Col flex={1}>
+                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                  <Statistic
+                    title="Malicious Flows"
+                    value={maliciousFlows}
+                    prefix={<WarningOutlined />}
+                    valueStyle={{ fontSize: 16, color: maliciousFlows > 0 ? '#ff4d4f' : '#52c41a' }}
+                  />
+                </Card>
+              </Col>
+              <Col flex={1}>
+                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                  <Statistic
+                    title="Malicious Rate"
+                    value={(maliciousRate * 100).toFixed(1)}
+                    suffix="%"
+                    valueStyle={{ fontSize: 16, color: maliciousRate > 0.1 ? '#ff4d4f' : '#52c41a' }}
+                  />
+                </Card>
+              </Col>
+            </Row>
+          </Card>
+        )}
+
         <Divider orientation="left">
-          <h1 style={{ fontSize: '24px' }}>Prediction Parameters</h1>
+          <h2 style={{ fontSize: '20px' }}>Prediction Parameters</h2>
         </Divider>
         <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 700 }}>
           <Form.Item name="model" label="Model"

@@ -20,8 +20,8 @@ import {
 } from "../api";
 import Papa from "papaparse";
 import { Column } from '@ant-design/plots';
-import { Spin, message, Col, Row, Divider, Slider, Form, Button, Checkbox, Select, Tooltip } from 'antd';
-import { QuestionOutlined } from "@ant-design/icons";
+import { Spin, message, Col, Row, Divider, Slider, Form, Button, Checkbox, Select, Tooltip, Card, Statistic } from 'antd';
+import { QuestionOutlined, WarningOutlined, ExperimentOutlined, PercentageOutlined } from "@ant-design/icons";
 import {
   FORM_LAYOUT, BOX_STYLE,
   ATTACK_OPTIONS, ATTACKS_SLIDER_MARKS, 
@@ -232,6 +232,48 @@ class AttacksPage extends Component {
 
     return (
       <LayoutPage pageTitle="Adversarial Attacks" pageSubTitle={subTitle}>
+        
+        {/* Attack Summary Banner */}
+        {csvDataPoisoned && csvDataPoisoned.length > 0 && (
+          <Card size="small" style={{ marginBottom: 16, backgroundColor: '#fff2f0' }}>
+            <div style={{ textAlign: 'center', marginBottom: 8 }}>
+              <strong style={{ fontSize: 14 }}>Attack Summary</strong>
+            </div>
+            <Row gutter={12}>
+              <Col flex={1}>
+                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                  <Statistic
+                    title="Attack Type"
+                    value={ATTACK_OPTIONS.find(a => a.value === selectedAttack)?.label || selectedAttack}
+                    prefix={<WarningOutlined />}
+                    valueStyle={{ fontSize: 14 }}
+                  />
+                </Card>
+              </Col>
+              <Col flex={1}>
+                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                  <Statistic
+                    title="Poisoning Rate"
+                    value={poisoningRate.toFixed(1)}
+                    prefix={<PercentageOutlined />}
+                    valueStyle={{ fontSize: 16, color: poisoningRate > 30 ? '#ff4d4f' : '#faad14' }}
+                  />
+                </Card>
+              </Col>
+              <Col flex={1}>
+                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                  <Statistic
+                    title="Poisoned Samples"
+                    value={Math.round(csvDataOriginal.length * (poisoningRate / 100))}
+                    prefix={<ExperimentOutlined />}
+                    valueStyle={{ fontSize: 16 }}
+                  />
+                </Card>
+              </Col>
+            </Row>
+          </Card>
+        )}
+
         <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 700 }}>
           <Form.Item name="model" label="Model" 
             style={{ flex: 'none', marginBottom: 10 }}

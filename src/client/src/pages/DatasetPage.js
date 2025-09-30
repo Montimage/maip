@@ -16,7 +16,8 @@ import {
 import {
   requestApp,
 } from "../actions";
-import { Menu, Button, Col, Row, Table, Divider } from 'antd';
+import { Menu, Button, Col, Row, Table, Divider, Card, Statistic } from 'antd';
+import { ClockCircleOutlined, DatabaseOutlined } from '@ant-design/icons';
 import Papa from "papaparse";
 import FeatureCharts from '../components/FeatureCharts';
 import FeatureDescriptions from '../components/FeatureDescriptions';
@@ -147,23 +148,48 @@ class DatasetPage extends Component {
           ))}
         </Menu>
 
+        {/* Dataset Summary Banner */}
+        <Card size="small" style={{ marginBottom: 16, backgroundColor: '#f0f5ff' }}>
+          <div style={{ textAlign: 'center', marginBottom: 8 }}>
+            <strong style={{ fontSize: 14 }}>Dataset Summary</strong>
+          </div>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                <Statistic
+                  title="Total Samples"
+                  value={csvData.length}
+                  prefix={<ClockCircleOutlined />}
+                  valueStyle={{ fontSize: 18 }}
+                />
+              </Card>
+            </Col>
+            <Col span={12}>
+              <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                <Statistic
+                  title="Total Features"
+                  value={numberFeatures}
+                  prefix={<DatabaseOutlined />}
+                  valueStyle={{ fontSize: 18 }}
+                />
+              </Card>
+            </Col>
+          </Row>
+        </Card>
+
         {/* TODO: Fix "ResizeObserver loop limit exceeded", fixed header ? */}    
         <Row gutter={24} style={{ marginTop: '20px' }} id="data">
           <Divider orientation="left" style={{ marginTop: 24 }}>
-            <h1 style={{ fontSize: '24px' }}>Dataset</h1>
+            <h2 style={{ fontSize: '20px' }}>Dataset</h2>
           </Divider>
           <Col className="gutter-row" span={24}>
           <div style={{ ...BOX_STYLE, marginTop: '20px' }} >
-            <div style={{ fontSize: '16px', marginTop: '20px' }}>
-              &nbsp;&nbsp;&nbsp;Total number of samples: <strong>{csvData.length}</strong>;
-              Total number of features: <strong>{numberFeatures}</strong>
-            </div>
             <div style={{ maxWidth: '100vw', overflowX: 'auto', marginTop: '20px', height: 490 }}>
               <Table columns={columns} 
                 dataSource={csvData} 
                 size="small" bordered
                 scroll={{ x: 'max-content', /* y: 400 */ }}
-                pagination={{ pageSize: 10 }}
+                pagination={{ pageSize: 10, showTotal: (total) => `Total ${total} records` }}
               />
             </div>
           </div>
