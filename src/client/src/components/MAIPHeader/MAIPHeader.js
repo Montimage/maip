@@ -84,6 +84,11 @@ class MAIPHeader extends Component {
             label: 'Predict Online',
             link: MENU_OPTIONS[5].link,
           },
+          {
+            key: MENU_OPTIONS[19].key,
+            label: 'Early Prediction',
+            link: MENU_OPTIONS[19].link,
+          },
         ],
       },
       {

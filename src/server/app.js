@@ -56,6 +56,7 @@ const securityRouter = require('./routes/security');
 const onlineRouter = require('./routes/online');
 const assistantRouter = require('./routes/assistant');
 const featuresRouter = require('./routes/features');
+const earlyPredictionRouter = require('./routes/early-prediction');
 
 const app = express();
 var compression = require('compression');
@@ -129,6 +130,21 @@ app.use('/api/security', securityRouter);
 app.use('/api/online', onlineRouter);
 app.use('/api/assistant', assistantRouter);
 app.use('/api/features', featuresRouter);
+app.use('/api/early-prediction', earlyPredictionRouter);
+
+// Serve early-prediction artifacts (figures and JSON) as static assets
+// Path: src/server/early-prediction/figures -> /static/early-prediction
+try {
+  const earlyPredFigures = path.join(__dirname, 'early-prediction', 'figures');
+  if (fs.existsSync(earlyPredFigures)) {
+    app.use('/static/early-prediction', express.static(earlyPredFigures));
+    console.log(`[STATIC] Early prediction assets served from ${earlyPredFigures} at /static/early-prediction`);
+  } else {
+    console.warn(`[STATIC] Early prediction figures directory not found: ${earlyPredFigures}`);
+  }
+} catch (e) {
+  console.warn('[STATIC] Failed to set up early prediction static route:', e.message || e);
+}
 
 if (MODE === 'SERVER') {
   app.use(express.static(path.join(__dirname, '../public')));

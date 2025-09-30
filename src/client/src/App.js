@@ -31,6 +31,7 @@ import AccountabilityMetricsPage from "./pages/AccountabilityMetricsPage";
 import ResilienceMetricsPage from "./pages/ResilienceMetricsPage";
 import AboutPage from "./pages/AboutPage";
 import FeatureExtractionPage from "./pages/FeatureExtractionPage";
+import EarlyPredictionPage from "./pages/EarlyPredictionPage";
 //import MetricsTestPage from "./pages/MetricsTestPage";
 //import ScatterPage from "./pages/ScatterPage";
 
@@ -69,6 +70,7 @@ function App() {
             <Route path="/predict/offline" element={<PredictOfflinePage />}/>
             <Route path="/predict/offline/:modelId" element={<PredictOfflinePage />}/>
             <Route path="/predict/rule-based" element={<PredictRuleBasedPage />}/>
+            <Route path="/predict/early" element={<EarlyPredictionPage />}/>
             <Route path="/predict/:modelId" element={<PredictModelPage />}/>
             <Route path="/about" element={<AboutPage />}/>
           </Routes>
