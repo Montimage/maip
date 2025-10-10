@@ -21,7 +21,8 @@ const MENU_OPTIONS = [
   { key: '16', link: '/about' },
   { key: '17', link: '/features' },
   { key: '18', link: '/predict/rule-based' },
-  { key: '19', link: '/predict/early' }
+  { key: '19', link: '/predict/early' },
+  { key: '20', link: '/dpi' }
 ];
 
 const AD_FEATURES_DESCRIPTIONS = {

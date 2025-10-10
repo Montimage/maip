@@ -57,6 +57,7 @@ const onlineRouter = require('./routes/online');
 const assistantRouter = require('./routes/assistant');
 const featuresRouter = require('./routes/features');
 const earlyPredictionRouter = require('./routes/early-prediction');
+const dpiRouter = require('./routes/dpi');
 
 const app = express();
 var compression = require('compression');
@@ -131,6 +132,7 @@ app.use('/api/online', onlineRouter);
 app.use('/api/assistant', assistantRouter);
 app.use('/api/features', featuresRouter);
 app.use('/api/early-prediction', earlyPredictionRouter);
+app.use('/api/dpi', dpiRouter);
 
 // Serve early-prediction artifacts (figures and JSON) as static assets
 // Path: src/server/early-prediction/figures -> /static/early-prediction

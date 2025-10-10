@@ -4,7 +4,7 @@ import { Layout, Menu, Row, Col } from "antd";
 import {
   DeploymentUnitOutlined, FolderOpenOutlined, BlockOutlined, LineChartOutlined,
   SolutionOutlined, BugOutlined, SafetyOutlined, ExperimentOutlined, FilePdfOutlined,
-  InfoCircleOutlined,
+  InfoCircleOutlined, ApartmentOutlined,
 } from "@ant-design/icons";
 // import {
 //   setNotification,
@@ -90,6 +90,12 @@ class MAIPHeader extends Component {
             link: MENU_OPTIONS[19].link,
           },
         ],
+      },
+      {
+        key: MENU_OPTIONS[20].key,
+        label: 'DPI',
+        icon: <ApartmentOutlined />,
+        link: MENU_OPTIONS[20].link,
       },
       {
         key: MENU_OPTIONS[7].key,

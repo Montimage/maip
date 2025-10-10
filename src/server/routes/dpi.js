@@ -1,0 +1,707 @@
+const express = require('express');
+const fs = require('fs');
+const path = require('path');
+const router = express.Router();
+
+const {
+  PCAP_PATH,
+  MMT_PROBE_CONFIG_PATH,
+  REPORT_PATH,
+  LOG_PATH,
+} = require('../constants');
+const { createFolder, listFilesByTypeAsync } = require('../utils/file-utils');
+const { spawnCommand, getUniqueId, interfaceExist } = require('../utils/utils');
+const { startMMTOffline, startMMTOnline, stopMMT, getMMTStatus } = require('../mmt/mmt-connector');
+
+// Store current DPI session state
+let dpiState = {
+  isRunning: false,
+  sessionId: null,
+  mode: null, // 'offline' or 'online'
+  pcapFile: null,
+  interface: null,
+  hierarchyData: null,
+  trafficData: [],
+  lastUpdate: null,
+  lastProcessedLine: 0, // For online mode: track how many lines we've already processed
+  cumulativeProtocols: {}, // For online mode: accumulated protocol counts
+};
+
+/**
+ * Parse protocol hierarchy from mmt-probe CSV output
+ * MMT-Probe format: event-based CSV with lines starting with report type ID
+ * - Lines starting with "1000," are event reports (ipv4-event, tcp-event, etc.)
+ * Format: 1000,probe_id,source,timestamp,event_type,...attributes
+ */
+function parseProtocolHierarchy(csvFilePath, startLine = 0, isOnlineMode = false) {
+  return new Promise((resolve, reject) => {
+    const protocols = isOnlineMode ? { ...dpiState.cumulativeProtocols } : {};
+    const trafficTimeSeries = [];
+    const sessionProtocols = {}; // Track protocol hierarchy per session
+    
+    fs.readFile(csvFilePath, 'utf8', (err, data) => {
+      if (err) {
+        console.error('[DPI Parse] Error reading file:', err);
+        return reject(err);
+      }
+      
+      const lines = data.split('\n');
+      console.log('[DPI Parse] Total lines:', lines.length, 'Starting from:', startLine);
+      
+      let eventCount = 0;
+      lines.forEach((line, index) => {
+        // In online mode, skip already processed lines
+        if (isOnlineMode && index < startLine) {
+          return;
+        }
+        
+        if (!line.startsWith('1000,')) {
+          return; // Skip non-event lines
+        }
+        eventCount++;
+        
+        const parts = line.split(',');
+        if (parts.length < 5) {
+          return;
+        }
+        
+        const timestamp = parseFloat(parts[3]);
+        const eventType = parts[4].replace(/"/g, ''); // Remove quotes
+        
+        // Extract protocol and data based on event type
+        let protocol = null;
+        let dataVolume = 0;
+        let sessionId = null;
+        
+        if (eventType === 'ipv4-event' || eventType === 'ipv6-event') {
+          // IPv4/IPv6 event format: session_id, direction, first_time, last_time, header_len, tot_len, src, dst
+          // Fields: [0-4]=header, [5]=session_id, [6]=direction, [7]=first_time, [8]=last_time, [9]=header_len, [10]=tot_len, [11]=src, [12]=dst
+          protocol = eventType === 'ipv4-event' ? 'IPv4' : 'IPv6';
+          sessionId = parts[5];
+          dataVolume = parseInt(parts[10]) || 0; // tot_len is at index 10
+          
+          // Initialize session protocol stack
+          if (!sessionProtocols[sessionId]) {
+            sessionProtocols[sessionId] = ['ETHERNET', protocol];
+          }
+        } else if (eventType === 'tcp-event') {
+          // TCP event format: src_port, dest_port, payload_len, fin, syn, rst, psh, ack, urg, payload_up, payload_down, session_id, direction
+          // Fields: [0-4]=header, [5]=src_port, [6]=dest_port, [7]=payload_len, ..., [16]=ip.session_id, [17]=direction
+          protocol = 'TCP';
+          const srcPort = parseInt(parts[5]);
+          const destPort = parseInt(parts[6]);
+          dataVolume = parseInt(parts[7]) || 0; // payload_len
+          sessionId = parts[16]; // ip.session_id is at index 16
+          
+          // Initialize session if it doesn't exist (TCP without prior IP event)
+          if (sessionId && !sessionProtocols[sessionId]) {
+            sessionProtocols[sessionId] = ['ETHERNET', 'IPv4'];
+          }
+          
+          // Determine application protocol based on port
+          const appProtocol = identifyApplicationProtocol(srcPort, destPort);
+          
+          if (sessionId && sessionProtocols[sessionId]) {
+            // Only add TCP if not already in stack
+            if (!sessionProtocols[sessionId].includes(protocol)) {
+              sessionProtocols[sessionId].push(protocol);
+            }
+            if (appProtocol && !sessionProtocols[sessionId].includes(appProtocol)) {
+              sessionProtocols[sessionId].push(appProtocol);
+            }
+          }
+        } else if (eventType === 'udp-event') {
+          // UDP event format: similar to TCP
+          // Fields: [0-4]=header, [5]=src_port, [6]=dest_port, [7]=payload_len, ..., [16]=ip.session_id
+          protocol = 'UDP';
+          const srcPort = parseInt(parts[5]);
+          const destPort = parseInt(parts[6]);
+          dataVolume = parseInt(parts[7]) || 0;
+          sessionId = parts[16]; // ip.session_id
+          
+          // Initialize session if it doesn't exist
+          if (sessionId && !sessionProtocols[sessionId]) {
+            sessionProtocols[sessionId] = ['ETHERNET', 'IPv4'];
+          }
+          
+          // Determine application protocol based on port
+          const appProtocol = identifyApplicationProtocol(srcPort, destPort);
+          
+          if (sessionId && sessionProtocols[sessionId]) {
+            if (!sessionProtocols[sessionId].includes(protocol)) {
+              sessionProtocols[sessionId].push(protocol);
+            }
+            if (appProtocol && !sessionProtocols[sessionId].includes(appProtocol)) {
+              sessionProtocols[sessionId].push(appProtocol);
+            }
+          }
+        } else if (eventType === 'tls-event') {
+          // TLS event format: tls_content_type, tls_length, ssl_handshake_type, ip.session_id, meta.direction
+          // Fields: [0-4]=header, [5]=content_type, [6]=length, [7]=handshake_type, [8]=session_id, [9]=direction
+          protocol = 'TLS/SSL';
+          sessionId = parts[8]; // ip.session_id is at index 8
+          
+          if (sessionId && sessionProtocols[sessionId]) {
+            if (!sessionProtocols[sessionId].includes(protocol)) {
+              sessionProtocols[sessionId].push(protocol);
+            }
+          }
+        }
+        
+        // Build protocol hierarchy
+        if (sessionId && sessionProtocols[sessionId]) {
+          const protoStack = sessionProtocols[sessionId];
+          
+          protoStack.forEach((proto, index) => {
+            if (!protocols[proto]) {
+              protocols[proto] = {
+                name: proto,
+                packets: 0,
+                dataVolume: 0,
+                parent: index > 0 ? protoStack[index - 1] : null,
+              };
+            }
+            protocols[proto].packets += 1;
+            protocols[proto].dataVolume += dataVolume;
+          });
+          
+          // Store time series data
+          if (timestamp && !isNaN(timestamp)) {
+            trafficTimeSeries.push({
+              timestamp,
+              protocol: protoStack.join('/'),
+              dataVolume,
+              packetCount: 1,
+            });
+          }
+        }
+      });
+      
+      console.log('[DPI Parse] Processed', eventCount, 'events');
+      console.log('[DPI Parse] Unique protocols:', Object.keys(protocols).length);
+      console.log('[DPI Parse] Protocol names:', Object.keys(protocols).join(', '));
+      console.log('[DPI Parse] Traffic time series entries:', trafficTimeSeries.length);
+      
+      // Build hierarchy tree structure
+      const hierarchy = buildHierarchyTree(protocols);
+      console.log('[DPI Parse] Built hierarchy with', hierarchy.length, 'root nodes');
+      
+      // Update cumulative protocols for online mode
+      if (isOnlineMode) {
+        dpiState.cumulativeProtocols = protocols;
+      }
+      
+      resolve({ 
+        hierarchy, 
+        trafficTimeSeries, 
+        totalLines: lines.length,
+        processedEvents: eventCount 
+      });
+    });
+  });
+}
+
+/**
+ * Identify application protocol based on port numbers
+ */
+function identifyApplicationProtocol(srcPort, destPort) {
+  const wellKnownPorts = {
+    20: 'FTP-DATA',
+    21: 'FTP',
+    22: 'SSH',
+    23: 'TELNET',
+    25: 'SMTP',
+    53: 'DNS',
+    67: 'DHCP',
+    68: 'DHCP',
+    69: 'TFTP',
+    80: 'HTTP',
+    110: 'POP3',
+    123: 'NTP',
+    143: 'IMAP',
+    161: 'SNMP',
+    162: 'SNMP',
+    389: 'LDAP',
+    443: 'HTTPS',
+    445: 'SMB',
+    465: 'SMTPS',
+    514: 'SYSLOG',
+    587: 'SMTP',
+    636: 'LDAPS',
+    993: 'IMAPS',
+    995: 'POP3S',
+    1433: 'MSSQL',
+    1521: 'ORACLE',
+    3306: 'MYSQL',
+    3389: 'RDP',
+    5432: 'POSTGRESQL',
+    5900: 'VNC',
+    6379: 'REDIS',
+    8080: 'HTTP-ALT',
+    8443: 'HTTPS-ALT',
+    9200: 'ELASTICSEARCH',
+    27017: 'MONGODB',
+  };
+  
+  return wellKnownPorts[destPort] || wellKnownPorts[srcPort] || null;
+}
+
+/**
+ * Build a tree structure from flat protocol data
+ */
+function buildHierarchyTree(protocols) {
+  const tree = [];
+  const protocolMap = {};
+  
+  // Create nodes
+  Object.keys(protocols).forEach(protoName => {
+    const proto = protocols[protoName];
+    protocolMap[protoName] = {
+      name: protoName,
+      packets: proto.packets,
+      dataVolume: proto.dataVolume,
+      children: [],
+    };
+  });
+  
+  // Build parent-child relationships
+  Object.keys(protocols).forEach(protoName => {
+    const proto = protocols[protoName];
+    if (proto.parent && protocolMap[proto.parent]) {
+      protocolMap[proto.parent].children.push(protocolMap[protoName]);
+    } else {
+      tree.push(protocolMap[protoName]);
+    }
+  });
+  
+  return tree;
+}
+
+/**
+ * Aggregate traffic data by time windows (1 second by default for better granularity)
+ * For online mode, use current time; for offline mode, use relative timestamps from first packet
+ */
+function aggregateTrafficData(trafficTimeSeries, windowSize = 1, isOnlineMode = false, csvTimestamp = null) {
+  if (!trafficTimeSeries || trafficTimeSeries.length === 0) {
+    return [];
+  }
+  
+  console.log('[DPI Aggregate] Input entries:', trafficTimeSeries.length);
+  console.log('[DPI Aggregate] Sample timestamps:', 
+    trafficTimeSeries.slice(0, 5).map(e => e.timestamp));
+  console.log('[DPI Aggregate] Mode:', isOnlineMode ? 'online' : 'offline');
+  console.log('[DPI Aggregate] CSV timestamp:', csvTimestamp);
+  
+  const aggregated = {};
+  
+  // Get the first packet timestamp as reference
+  const firstPacketTime = trafficTimeSeries[0].timestamp;
+  
+  // For online mode: use current request time to ensure timestamps don't go into the future
+  // For offline mode: use actual PCAP timestamps
+  const currentTime = Math.floor(Date.now() / 1000);
+  const baseTime = isOnlineMode ? currentTime : Math.floor(Date.now() / 1000);
+  
+  // Log first few entries for debugging
+  if (trafficTimeSeries.length > 0) {
+    console.log('[DPI Aggregate] First packet timestamp:', firstPacketTime);
+    console.log('[DPI Aggregate] Base time:', baseTime, new Date(baseTime * 1000).toISOString());
+    console.log('[DPI Aggregate] Current time:', currentTime, new Date(currentTime * 1000).toISOString());
+  }
+  
+  trafficTimeSeries.forEach((entry, index) => {
+    let timeWindow;
+    
+    if (isOnlineMode) {
+      // For online mode: use current request time as base
+      // Map packet timestamps relative to now, ensuring we don't create future timestamps
+      const relativeTime = baseTime - (trafficTimeSeries[trafficTimeSeries.length - 1].timestamp - entry.timestamp);
+      timeWindow = Math.floor(relativeTime / windowSize) * windowSize;
+      
+      // Cap at current time to prevent future timestamps
+      if (timeWindow > currentTime) {
+        timeWindow = Math.floor(currentTime / windowSize) * windowSize;
+      }
+      
+      if (index < 3) {
+        console.log(`[DPI Aggregate] Entry ${index}: packet=${entry.timestamp}, relativeTime=${relativeTime}, window=${timeWindow}, date=${new Date(timeWindow * 1000).toISOString()}`);
+      }
+    } else {
+      // For offline mode: use actual PCAP timestamps (preserve original capture time)
+      // This shows when the traffic was actually captured, not current time
+      timeWindow = Math.floor(entry.timestamp / windowSize) * windowSize;
+      
+      if (index < 3) {
+        console.log(`[DPI Aggregate] Entry ${index}: packet=${entry.timestamp}, window=${timeWindow}, date=${new Date(timeWindow * 1000).toISOString()}`);
+      }
+    }
+    
+    const key = `${timeWindow}_${entry.protocol}`;
+    
+    if (!aggregated[key]) {
+      aggregated[key] = {
+        time: timeWindow,
+        timestamp: timeWindow,
+        protocol: entry.protocol,
+        dataVolume: 0,
+        packetCount: 0,
+      };
+    }
+    
+    aggregated[key].dataVolume += entry.dataVolume;
+    aggregated[key].packetCount += entry.packetCount;
+  });
+  
+  // Get all unique time windows and protocols
+  const allTimeWindows = new Set();
+  const allProtocols = new Set();
+  
+  Object.values(aggregated).forEach(entry => {
+    allTimeWindows.add(entry.time);
+    allProtocols.add(entry.protocol);
+  });
+  
+  // Fill in missing time windows with zero values for each protocol
+  // This ensures all protocols have the same time intervals
+  const filledData = {};
+  allTimeWindows.forEach(timeWindow => {
+    allProtocols.forEach(protocol => {
+      const key = `${timeWindow}_${protocol}`;
+      if (aggregated[key]) {
+        filledData[key] = aggregated[key];
+      } else {
+        // Create zero-value entry for missing time window
+        filledData[key] = {
+          time: timeWindow,
+          timestamp: timeWindow,
+          protocol: protocol,
+          dataVolume: 0,
+          packetCount: 0,
+        };
+      }
+    });
+  });
+  
+  // Sort by time
+  const result = Object.values(filledData);
+  result.sort((a, b) => a.time - b.time || a.protocol.localeCompare(b.protocol));
+  
+  console.log('[DPI Aggregate] Output entries:', result.length);
+  console.log('[DPI Aggregate] Time windows:', allTimeWindows.size, 'Protocols:', allProtocols.size);
+  if (result.length > 0) {
+    const startTime = new Date(result[0].time * 1000);
+    const endTime = new Date(result[result.length-1].time * 1000);
+    console.log('[DPI Aggregate] Time range:', 
+      `${startTime.toISOString()} to ${endTime.toISOString()}`);
+    console.log('[DPI Aggregate] Sample data points:');
+    result.slice(0, Math.min(5, result.length)).forEach((entry, idx) => {
+      const entryTime = new Date(entry.time * 1000);
+      console.log(`  [${idx}] ${entryTime.toISOString()} - ${entry.protocol}: ${entry.packetCount} packets, ${entry.dataVolume} bytes`);
+    });
+  }
+  
+  return result;
+}
+
+// GET /api/dpi/status - Get current DPI analysis status
+router.get('/status', (req, res) => {
+  const mmtStatus = getMMTStatus();
+  res.json({
+    ...dpiState,
+    mmtRunning: mmtStatus.isRunning,
+  });
+});
+
+// POST /api/dpi/start/offline - Start DPI analysis on a PCAP file
+router.post('/start/offline', async (req, res) => {
+  try {
+    const { pcapFile } = req.body;
+    
+    if (!pcapFile) {
+      return res.status(400).json({ error: 'Missing pcapFile parameter' });
+    }
+    
+    const inputPcap = path.join(PCAP_PATH, pcapFile);
+    if (!fs.existsSync(inputPcap)) {
+      return res.status(404).json({ error: `PCAP file not found: ${pcapFile}` });
+    }
+    
+    // Start MMT analysis
+    startMMTOffline(pcapFile, async (status) => {
+      if (status.error) {
+        return res.status(500).json({ error: status.error });
+      }
+      
+      dpiState = {
+        isRunning: true,
+        sessionId: status.sessionId,
+        mode: 'offline',
+        pcapFile,
+        interface: null,
+        hierarchyData: null,
+        trafficData: [],
+        lastUpdate: new Date().toISOString(),
+        lastProcessedLine: 0,
+        cumulativeProtocols: {},
+      };
+      
+      res.json({ success: true, sessionId: status.sessionId });
+    });
+  } catch (error) {
+    console.error('[DPI] Error starting offline analysis:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/dpi/start/online - Start DPI analysis on a network interface
+router.post('/start/online', async (req, res) => {
+  try {
+    const { interface: netInterface } = req.body;
+    
+    if (!netInterface) {
+      return res.status(400).json({ error: 'Missing interface parameter' });
+    }
+    
+    if (!interfaceExist(netInterface)) {
+      return res.status(404).json({ error: `Network interface not found: ${netInterface}` });
+    }
+    
+    // Start MMT online analysis
+    startMMTOnline(netInterface, async (status) => {
+      if (status.error) {
+        return res.status(500).json({ error: status.error });
+      }
+      
+      dpiState = {
+        isRunning: true,
+        sessionId: status.sessionId,
+        mode: 'online',
+        pcapFile: null,
+        interface: netInterface,
+        hierarchyData: null,
+        trafficData: [],
+        lastUpdate: new Date().toISOString(),
+        lastProcessedLine: 0,
+        cumulativeProtocols: {},
+      };
+      
+      res.json({ success: true, sessionId: status.sessionId });
+    });
+  } catch (error) {
+    console.error('[DPI] Error starting online analysis:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/dpi/stop - Stop the running DPI analysis
+router.post('/stop', async (req, res) => {
+  try {
+    console.log('[DPI] Stopping analysis...');
+    
+    stopMMT((status) => {
+      if (status) {
+        console.log('[DPI] Analysis stopped successfully');
+        dpiState.isRunning = false;
+        res.json({ success: true, message: 'DPI analysis stopped' });
+      } else {
+        console.log('[DPI] No analysis was running');
+        res.json({ success: true, message: 'No analysis was running' });
+      }
+    });
+  } catch (error) {
+    console.error('[DPI] Error stopping analysis:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/dpi/data - Get protocol hierarchy and traffic data
+router.get('/data', async (req, res) => {
+  try {
+    const mmtStatus = getMMTStatus();
+    
+    if (!dpiState.sessionId) {
+      console.log('[DPI] No active session');
+      return res.status(404).json({ error: 'No DPI session active' });
+    }
+    
+    const outputDir = path.join(REPORT_PATH, `report-${dpiState.sessionId}`);
+    console.log('[DPI] Looking for data in:', outputDir);
+    
+    if (!fs.existsSync(outputDir)) {
+      console.log('[DPI] Output directory not found:', outputDir);
+      return res.status(404).json({ error: 'Output directory not found' });
+    }
+    
+    // Find the CSV file generated by mmt-probe
+    const csvFiles = listFilesByTypeAsync(outputDir, '.csv') || [];
+    console.log('[DPI] Found CSV files:', csvFiles);
+    
+    if (csvFiles.length === 0) {
+      console.log('[DPI] No CSV files found yet');
+      return res.status(404).json({ error: 'No CSV data available yet' });
+    }
+    
+    // For online mode, use the most recent CSV file (sample files are timestamped)
+    // For offline mode, use the main report file
+    let csvFile;
+    if (dpiState.mode === 'online') {
+      // Sort by modification time and get files with content
+      const filesWithStats = csvFiles.map(file => {
+        const filePath = path.join(outputDir, file);
+        const stats = fs.statSync(filePath);
+        return { file, mtime: stats.mtime, size: stats.size };
+      });
+      
+      // Sort by modification time (newest first)
+      filesWithStats.sort((a, b) => b.mtime - a.mtime);
+      
+      console.log('[DPI] Files sorted by time:', filesWithStats.map(f => 
+        `${f.file} (${f.size} bytes)`).join(', '));
+      
+      // Find the most recent completed file (has content and is not the very latest)
+      // The very latest file might still be being written to
+      let selectedFile = null;
+      
+      // If we have multiple files, skip the newest and use the second newest with content
+      if (filesWithStats.length > 1) {
+        for (let i = 1; i < filesWithStats.length; i++) {
+          if (filesWithStats[i].size > 0) {
+            selectedFile = filesWithStats[i];
+            break;
+          }
+        }
+      }
+      
+      // If only one file or no second file with content, use the newest
+      if (!selectedFile && filesWithStats.length > 0 && filesWithStats[0].size > 0) {
+        selectedFile = filesWithStats[0];
+      }
+      
+      if (!selectedFile) {
+        console.log('[DPI] No files with content found');
+        return res.status(404).json({ error: 'CSV files are empty, waiting for data...' });
+      }
+      
+      csvFile = selectedFile.file;
+      console.log('[DPI] Selected file for online mode:', csvFile, `(${selectedFile.size} bytes)`);
+    } else {
+      // For offline mode, prefer the main report file
+      csvFile = csvFiles.find(f => !f.startsWith('security-reports')) || csvFiles[0];
+      console.log('[DPI] Using file for offline mode:', csvFile);
+    }
+    
+    const csvPath = path.join(outputDir, csvFile);
+    
+    // Check if file has content
+    const stats = fs.statSync(csvPath);
+    if (stats.size === 0) {
+      console.log('[DPI] CSV file is empty:', csvFile);
+      return res.status(404).json({ error: 'CSV file is empty, waiting for data...' });
+    }
+    
+    console.log('[DPI] Parsing CSV file:', csvFile, 'Size:', stats.size, 'bytes');
+    
+    // Extract timestamp from CSV filename (format: timestamp_probe_id_filename.csv)
+    // Example: 1760022937.621963_0_gmail.pcap.csv
+    let csvTimestamp = null;
+    const timestampMatch = csvFile.match(/^(\d+\.\d+)_/);
+    if (timestampMatch) {
+      csvTimestamp = parseFloat(timestampMatch[1]);
+      console.log('[DPI] CSV file timestamp:', csvTimestamp, new Date(csvTimestamp * 1000).toISOString());
+    }
+    
+    // Parse protocol hierarchy and traffic data
+    // In online mode, only parse new lines since last request
+    const isOnlineMode = dpiState.mode === 'online';
+    const startLine = isOnlineMode ? dpiState.lastProcessedLine : 0;
+    const { hierarchy, trafficTimeSeries, totalLines, processedEvents } = await parseProtocolHierarchy(csvPath, startLine, isOnlineMode);
+    console.log('[DPI] Parsed hierarchy:', hierarchy ? hierarchy.length : 0, 'root nodes');
+    console.log('[DPI] Traffic time series entries:', trafficTimeSeries.length);
+    console.log('[DPI] Processed events:', processedEvents, '(new lines from', startLine, 'to', totalLines, ')');
+    
+    // Update last processed line for online mode
+    if (isOnlineMode) {
+      dpiState.lastProcessedLine = totalLines;
+    }
+    
+    // Determine appropriate window size based on mode and traffic duration
+    let windowSize = 5; // default 5 seconds
+    
+    if (trafficTimeSeries.length > 0) {
+      const firstTime = trafficTimeSeries[0].timestamp;
+      const lastTime = trafficTimeSeries[trafficTimeSeries.length - 1].timestamp;
+      const duration = lastTime - firstTime;
+      
+      // Use only two window sizes for consistency:
+      // - 100ms for very short captures (< 2 seconds)
+      // - 5 seconds for all other captures (both online and offline)
+      if (duration < 2) {
+        windowSize = 0.1; // 100ms for sub-2-second captures - shows milliseconds
+        console.log('[DPI] Short capture - duration:', duration.toFixed(3), 'seconds, using window size:', windowSize, 'seconds (100ms)');
+      } else {
+        windowSize = 5; // 5 seconds for all normal captures
+        console.log('[DPI] Normal capture - duration:', duration.toFixed(2), 'seconds, using window size:', windowSize, 'seconds');
+      }
+    } else {
+      console.log('[DPI] Using default window size:', windowSize, 'seconds');
+    }
+    
+    const aggregatedTraffic = aggregateTrafficData(trafficTimeSeries, windowSize, isOnlineMode, csvTimestamp);
+    console.log('[DPI] Aggregated traffic entries:', aggregatedTraffic.length);
+    
+    // Update state
+    dpiState.hierarchyData = hierarchy;
+    dpiState.trafficData = aggregatedTraffic;
+    dpiState.lastUpdate = new Date().toISOString();
+    dpiState.isRunning = mmtStatus.isRunning;
+    
+    res.json({
+      hierarchy,
+      trafficData: aggregatedTraffic,
+      sessionId: dpiState.sessionId,
+      isRunning: mmtStatus.isRunning,
+      lastUpdate: dpiState.lastUpdate,
+      mode: dpiState.mode,
+      csvFile: csvFile,
+    });
+  } catch (error) {
+    console.error('[DPI] Error fetching data:', error);
+    console.error('[DPI] Error stack:', error.stack);
+    res.status(500).json({ error: error.message, stack: error.stack });
+  }
+});
+
+// GET /api/dpi/pcaps - List available PCAP files
+router.get('/pcaps', (req, res) => {
+  try {
+    const pcapFiles = listFilesByTypeAsync(PCAP_PATH, '.pcap') || [];
+    const pcapngFiles = listFilesByTypeAsync(PCAP_PATH, '.pcapng') || [];
+    const allFiles = [...pcapFiles, ...pcapngFiles];
+    
+    res.json({ pcaps: allFiles });
+  } catch (error) {
+    console.error('[DPI] Error listing PCAP files:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/dpi/interfaces - List available network interfaces
+router.get('/interfaces', (req, res) => {
+  try {
+    const { exec } = require('child_process');
+    exec('ip -o link show | awk \'{print $2}\' | sed \'s/:$//\'', (error, stdout, stderr) => {
+      if (error) {
+        console.error('[DPI] Error listing interfaces:', error);
+        return res.status(500).json({ error: 'Failed to list network interfaces' });
+      }
+      
+      const interfaces = stdout.trim().split('\n').filter(i => i && i !== 'lo');
+      res.json({ interfaces });
+    });
+  } catch (error) {
+    console.error('[DPI] Error listing interfaces:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+module.exports = router;
