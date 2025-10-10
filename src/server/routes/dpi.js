@@ -278,6 +278,91 @@ function buildHierarchyTree(protocols) {
 }
 
 /**
+ * Calculate traffic statistics from hierarchy and time series data
+ * For online mode, use cumulative values from all processed data
+ */
+function calculateTrafficStatistics(hierarchy, trafficTimeSeries, isOnlineMode = false) {
+  const stats = {
+    totalPackets: 0,
+    totalBytes: 0,
+    avgPacketSize: 0,
+    duration: 0,
+    packetsPerSecond: 0,
+    bitsPerSecond: 0,
+    bytesPerSecond: 0,
+    distinctProtocols: 0,
+    startTime: null,
+    endTime: null,
+  };
+  
+  // Calculate totals from hierarchy (top-level only to avoid double counting)
+  // In online mode, the hierarchy already contains accumulated values
+  if (hierarchy && hierarchy.length > 0) {
+    console.log('[DPI Stats] Calculating from hierarchy, top-level count:', hierarchy.length);
+    hierarchy.forEach(proto => {
+      console.log(`[DPI Stats] Adding protocol ${proto.name}: ${proto.packets} packets, ${proto.dataVolume} bytes`);
+      stats.totalPackets += proto.packets || 0;
+      stats.totalBytes += proto.dataVolume || 0;
+    });
+    console.log(`[DPI Stats] Total after summing: ${stats.totalPackets} packets, ${stats.totalBytes} bytes`);
+  }
+  
+  // Calculate duration from traffic time series
+  // For online mode, we need to consider all accumulated traffic data
+  if (trafficTimeSeries && trafficTimeSeries.length > 0) {
+    const timestamps = trafficTimeSeries.map(t => t.timestamp).filter(t => t && !isNaN(t));
+    if (timestamps.length > 0) {
+      const currentStartTime = Math.min(...timestamps);
+      const currentEndTime = Math.max(...timestamps);
+      
+      if (isOnlineMode && dpiState.cumulativeStatistics) {
+        // Keep the earliest start time and latest end time
+        stats.startTime = Math.min(dpiState.cumulativeStatistics.startTime || currentStartTime, currentStartTime);
+        stats.endTime = Math.max(dpiState.cumulativeStatistics.endTime || currentEndTime, currentEndTime);
+      } else {
+        // For offline mode or first online capture
+        stats.startTime = currentStartTime;
+        stats.endTime = currentEndTime;
+      }
+    }
+  } else if (isOnlineMode && dpiState.cumulativeStatistics) {
+    // No new data but we have previous stats
+    stats.startTime = dpiState.cumulativeStatistics.startTime;
+    stats.endTime = dpiState.cumulativeStatistics.endTime;
+  }
+  
+  if (stats.startTime && stats.endTime) {
+    stats.duration = stats.endTime - stats.startTime;
+  }
+  
+  // Calculate derived metrics
+  if (stats.totalPackets > 0) {
+    stats.avgPacketSize = stats.totalBytes / stats.totalPackets;
+  }
+  
+  if (stats.duration > 0) {
+    stats.packetsPerSecond = stats.totalPackets / stats.duration;
+    stats.bytesPerSecond = stats.totalBytes / stats.duration;
+    stats.bitsPerSecond = (stats.totalBytes * 8) / stats.duration;
+  }
+  
+  // Count distinct protocols (recursively)
+  const countProtocols = (nodes) => {
+    let count = 0;
+    nodes.forEach(node => {
+      count += 1;
+      if (node.children && node.children.length > 0) {
+        count += countProtocols(node.children);
+      }
+    });
+    return count;
+  };
+  stats.distinctProtocols = hierarchy ? countProtocols(hierarchy) : 0;
+  
+  return stats;
+}
+
+/**
  * Aggregate traffic data by time windows (1 second by default for better granularity)
  * For online mode, use current time; for offline mode, use relative timestamps from first packet
  */
@@ -443,6 +528,7 @@ router.post('/start/offline', async (req, res) => {
         lastUpdate: new Date().toISOString(),
         lastProcessedLine: 0,
         cumulativeProtocols: {},
+        cumulativeStatistics: null,
       };
       
       res.json({ success: true, sessionId: status.sessionId });
@@ -483,6 +569,7 @@ router.post('/start/online', async (req, res) => {
         lastUpdate: new Date().toISOString(),
         lastProcessedLine: 0,
         cumulativeProtocols: {},
+        cumulativeStatistics: null,
       };
       
       res.json({ success: true, sessionId: status.sessionId });
@@ -649,6 +736,16 @@ router.get('/data', async (req, res) => {
     const aggregatedTraffic = aggregateTrafficData(trafficTimeSeries, windowSize, isOnlineMode, csvTimestamp);
     console.log('[DPI] Aggregated traffic entries:', aggregatedTraffic.length);
     
+    // Calculate statistics
+    const statistics = calculateTrafficStatistics(hierarchy, trafficTimeSeries, isOnlineMode);
+    console.log('[DPI] Statistics:', statistics);
+    console.log('[DPI] Hierarchy top-level protocols:', hierarchy.map(p => `${p.name}: ${p.packets} packets, ${p.dataVolume} bytes`));
+    
+    // Store cumulative statistics for online mode
+    if (isOnlineMode) {
+      dpiState.cumulativeStatistics = statistics;
+    }
+    
     // Update state
     dpiState.hierarchyData = hierarchy;
     dpiState.trafficData = aggregatedTraffic;
@@ -658,6 +755,7 @@ router.get('/data', async (req, res) => {
     res.json({
       hierarchy,
       trafficData: aggregatedTraffic,
+      statistics,
       sessionId: dpiState.sessionId,
       isRunning: mmtStatus.isRunning,
       lastUpdate: dpiState.lastUpdate,

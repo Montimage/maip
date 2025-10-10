@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
-import { Button, Card, Select, Alert, Spin, Row, Col, Divider, Tree, Space, Tag, Table } from 'antd';
+import { Button, Card, Select, Alert, Spin, Row, Col, Divider, Tree, Space, Tag, Table, Statistic } from 'antd';
 import { PlayCircleOutlined, StopOutlined, DownOutlined } from '@ant-design/icons';
 import { Line } from '@ant-design/plots';
 import { SERVER_URL } from '../constants';
@@ -23,6 +23,7 @@ class DPIPage extends Component {
       // DPI data
       hierarchyData: [],
       trafficData: [],
+      statistics: null,
       selectedProtocols: ['ETHERNET'], // Default selection
       metricType: 'dataVolume', // 'dataVolume' or 'packetCount'
       
@@ -130,15 +131,9 @@ class DPIPage extends Component {
         const newTreeData = this.convertToTreeData(data.hierarchy || []);
         console.log('[DPI Frontend] Converted tree data:', newTreeData.length, 'nodes');
         
-        // For online mode, accumulate hierarchy data (add packet counts)
-        let finalHierarchyData;
-        if (this.state.mode === 'online' && this.state.hierarchyData.length > 0 && newTreeData.length > 0) {
-          finalHierarchyData = this.accumulateHierarchyData(this.state.hierarchyData, newTreeData);
-          console.log('[DPI Frontend] Accumulated hierarchy data');
-        } else {
-          // For offline mode or first load, replace data
-          finalHierarchyData = newTreeData.length > 0 ? newTreeData : this.state.hierarchyData;
-        }
+        // Backend already handles accumulation for online mode via dpiState.cumulativeProtocols
+        // So we just use the data directly without additional accumulation
+        const finalHierarchyData = newTreeData.length > 0 ? newTreeData : this.state.hierarchyData;
         
         // For traffic data, append new data points in online mode
         let finalTrafficData;
@@ -166,6 +161,7 @@ class DPIPage extends Component {
         this.setState({
           hierarchyData: finalHierarchyData,
           trafficData: finalTrafficData,
+          statistics: data.statistics || null,
           isRunning: data.isRunning,
           lastUpdate: lastDataTimestamp,
           loading: false,
@@ -343,6 +339,7 @@ class DPIPage extends Component {
       error: null,
       hierarchyData: [],
       trafficData: [],
+      statistics: null,
     });
     
     try {
@@ -671,6 +668,131 @@ class DPIPage extends Component {
     return countNodes(hierarchyData);
   };
 
+  formatBitsPerSecond = (bps) => {
+    if (!bps || bps === 0) return '0 bps';
+    const units = ['bps', 'Kbps', 'Mbps', 'Gbps'];
+    const k = 1000;
+    const i = Math.floor(Math.log(bps) / Math.log(k));
+    const value = (bps / Math.pow(k, i)).toFixed(2);
+    return `${value} ${units[i]}`;
+  };
+
+  formatPacketsPerSecond = (pps) => {
+    if (!pps || pps === 0) return '0';
+    if (pps >= 1000000) return `${(pps / 1000000).toFixed(2)}M`;
+    if (pps >= 1000) return `${(pps / 1000).toFixed(2)}K`;
+    return pps.toFixed(2);
+  };
+
+  formatDuration = (seconds) => {
+    if (!seconds || seconds === 0) return '0s';
+    if (seconds < 1) return `${(seconds * 1000).toFixed(0)}ms`;
+    if (seconds < 60) return `${seconds.toFixed(2)}s`;
+    const mins = Math.floor(seconds / 60);
+    const secs = (seconds % 60).toFixed(0);
+    if (mins < 60) return `${mins}m ${secs}s`;
+    const hours = Math.floor(mins / 60);
+    const remainMins = mins % 60;
+    return `${hours}h ${remainMins}m`;
+  };
+
+  renderStatisticsSummary = () => {
+    const { statistics, isRunning, selectedPcap, selectedInterface, mode } = this.state;
+
+    if (!statistics) {
+      // Check if we should show "No Data" based on mode and selection
+      const hasSelection = mode === 'offline' ? selectedPcap : selectedInterface;
+      
+      if (!isRunning && !hasSelection) {
+        return (
+          <Card style={{ marginBottom: 24 }}>
+            <Alert
+              message="No Data"
+              description="Start an analysis to view traffic statistics"
+              type="info"
+              showIcon
+            />
+          </Card>
+        );
+      }
+      
+      // Show placeholder when running but no stats yet
+      if (isRunning) {
+        return (
+          <Card style={{ marginBottom: 24 }}>
+            <div style={{ position: 'relative', minHeight: '120px' }}>
+              <Spin spinning={true} tip="Calculating statistics...">
+                <div style={{ minHeight: '120px' }}></div>
+              </Spin>
+            </div>
+          </Card>
+        );
+      }
+      
+      // If we have a selection but no stats yet and not running, show "No Data"
+      return (
+        <Card style={{ marginBottom: 24 }}>
+          <Alert
+            message="No Data"
+            description="Start an analysis to view traffic statistics"
+            type="info"
+            showIcon
+          />
+        </Card>
+      );
+    }
+
+    return (
+      <Card style={{ marginBottom: 24 }}>
+        <Row gutter={16}>
+          <Col span={4} style={{ textAlign: 'center' }}>
+            <Statistic
+              title="Total Packets"
+              value={statistics.totalPackets}
+              valueStyle={{ color: '#1890ff' }}
+            />
+          </Col>
+          <Col span={4} style={{ textAlign: 'center' }}>
+            <Statistic
+              title="Total Data"
+              value={this.formatBytes(statistics.totalBytes)}
+              valueStyle={{ color: '#52c41a' }}
+            />
+          </Col>
+          <Col span={4} style={{ textAlign: 'center' }}>
+            <Statistic
+              title="Avg Packet Size"
+              value={this.formatBytes(statistics.avgPacketSize)}
+              valueStyle={{ color: '#722ed1' }}
+            />
+          </Col>
+          <Col span={4} style={{ textAlign: 'center' }}>
+            <Statistic
+              title="Duration"
+              value={this.formatDuration(statistics.duration)}
+              valueStyle={{ color: '#fa8c16' }}
+            />
+          </Col>
+          <Col span={4} style={{ textAlign: 'center' }}>
+            <Statistic
+              title="Throughput"
+              value={this.formatBitsPerSecond(statistics.bitsPerSecond)}
+              valueStyle={{ color: '#eb2f96' }}
+            />
+          </Col>
+          <Col span={4} style={{ textAlign: 'center' }}>
+            <Statistic
+              title="Packet Rate"
+              value={this.formatPacketsPerSecond(statistics.packetsPerSecond)}
+              suffix="pps"
+              valueStyle={{ color: '#13c2c2' }}
+            />
+          </Col>
+        </Row>
+      </Card>
+    );
+  };
+
   renderTrafficChart = () => {
     const { loading, selectedProtocols, metricType, isRunning, trafficData } = this.state;
     const chartData = this.getLineChartData();
@@ -891,6 +1013,7 @@ class DPIPage extends Component {
                     mode: value,
                     hierarchyData: [],
                     trafficData: [],
+                    statistics: null,
                     selectedProtocols: ['ETHERNET'],
                     lastUpdate: null,
                   })}
@@ -912,7 +1035,9 @@ class DPIPage extends Component {
                     onChange={(value) => this.setState({ 
                       selectedPcap: value,
                       hierarchyData: value ? this.state.hierarchyData : [],
-                      trafficData: value ? this.state.trafficData : []
+                      trafficData: value ? this.state.trafficData : [],
+                      statistics: value ? this.state.statistics : null,
+                      lastUpdate: value ? this.state.lastUpdate : null
                     })}
                     style={{ width: 280 }}
                     disabled={isRunning}
@@ -929,7 +1054,9 @@ class DPIPage extends Component {
                     onChange={(value) => this.setState({ 
                       selectedInterface: value,
                       hierarchyData: value ? this.state.hierarchyData : [],
-                      trafficData: value ? this.state.trafficData : []
+                      trafficData: value ? this.state.trafficData : [],
+                      statistics: value ? this.state.statistics : null,
+                      lastUpdate: value ? this.state.lastUpdate : null
                     })}
                     style={{ width: 280 }}
                     disabled={isRunning}
@@ -976,7 +1103,7 @@ class DPIPage extends Component {
                 </Tag>
               </Col>
               
-              {lastUpdate && (
+              {lastUpdate && mode === 'online' && (
                 <>
                   <Col flex="none" style={{ marginLeft: 12 }}>
                     <strong style={{ marginRight: 4 }}>Last Update:</strong>
@@ -1003,7 +1130,13 @@ class DPIPage extends Component {
           {(selectedPcap || selectedInterface || hierarchyData.length > 0 || trafficData.length > 0) && (
             <>
               <Divider orientation="left">
-                <h2 style={{ fontSize: '20px' }}>Protocol Hierarchy & Traffic</h2>
+                <h2 style={{ fontSize: '20px' }}>Traffic Statistics</h2>
+              </Divider>
+              
+              {this.renderStatisticsSummary()}
+              
+              <Divider orientation="left">
+                <h2 style={{ fontSize: '20px' }}>Protocol Hierarchy</h2>
               </Divider>
               
               <Card style={{ marginBottom: 24 }}>
