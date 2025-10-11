@@ -887,11 +887,32 @@ class DPIPage extends Component {
     const portData = Object.values(portMap)
       .sort((a, b) => b.bytes - a.bytes)
       .slice(0, 15)
-      .map(p => ({
-        port: `${p.port}`,
-        value: metricType === 'dataVolume' ? p.bytes : p.packets,
-        protocol: p.protocol,
-      }));
+      .map(p => {
+        let value;
+        switch(metricType) {
+          case 'dataVolume':
+            value = p.bytes;
+            break;
+          case 'packetCount':
+            value = p.packets;
+            break;
+          case 'avgPacketSize':
+            value = p.packets > 0 ? p.bytes / p.packets : 0;
+            break;
+          case 'packetRate':
+          case 'dataRate':
+            // For static aggregated data, use packet count as fallback
+            value = p.packets;
+            break;
+          default:
+            value = p.packets;
+        }
+        return {
+          port: `${p.port}`,
+          value: value,
+          protocol: p.protocol,
+        };
+      });
 
     if (portData.length === 0) {
       return (
@@ -938,12 +959,16 @@ class DPIPage extends Component {
       },
       yAxis: {
         title: {
-          text: metricType === 'dataVolume' ? 'Bytes' : 'Packets',
+          text: metricType === 'dataVolume' ? 'Bytes' : 
+                metricType === 'avgPacketSize' ? 'Avg Size (bytes)' : 'Packets',
         },
         label: {
           formatter: (v) => {
             if (metricType === 'dataVolume') {
               return this.formatBytes(Number(v));
+            }
+            if (metricType === 'avgPacketSize') {
+              return `${Number(v).toFixed(0)}`;
             }
             return Number(v) > 1000 ? `${(Number(v) / 1000).toFixed(1)}K` : v;
           },
@@ -954,9 +979,14 @@ class DPIPage extends Component {
       },
       tooltip: {
         formatter: (datum) => {
-          const value = metricType === 'dataVolume'
-            ? this.formatBytes(datum.value)
-            : datum.value.toLocaleString();
+          let value;
+          if (metricType === 'dataVolume') {
+            value = this.formatBytes(datum.value);
+          } else if (metricType === 'avgPacketSize') {
+            value = `${datum.value.toFixed(0)} bytes`;
+          } else {
+            value = datum.value.toLocaleString();
+          }
           return {
             name: `Port ${datum.port} (${datum.protocol})`,
             value: value,
@@ -1022,14 +1052,43 @@ class DPIPage extends Component {
     });
 
     // Convert to array and calculate totals
-    const ipData = Object.values(ipMap).map(ip => ({
-      ip: ip.ip,
-      total: metricType === 'dataVolume' 
-        ? ip.sent.bytes + ip.received.bytes
-        : ip.sent.packets + ip.received.packets,
-      sent: metricType === 'dataVolume' ? ip.sent.bytes : ip.sent.packets,
-      received: metricType === 'dataVolume' ? ip.received.bytes : ip.received.packets,
-    }));
+    const ipData = Object.values(ipMap).map(ip => {
+      let sent, received, total;
+      switch(metricType) {
+        case 'dataVolume':
+          sent = ip.sent.bytes;
+          received = ip.received.bytes;
+          total = sent + received;
+          break;
+        case 'packetCount':
+          sent = ip.sent.packets;
+          received = ip.received.packets;
+          total = sent + received;
+          break;
+        case 'avgPacketSize':
+          sent = ip.sent.packets > 0 ? ip.sent.bytes / ip.sent.packets : 0;
+          received = ip.received.packets > 0 ? ip.received.bytes / ip.received.packets : 0;
+          total = (sent + received) / 2; // average of both directions
+          break;
+        case 'packetRate':
+        case 'dataRate':
+          // For static data, fallback to packet count
+          sent = ip.sent.packets;
+          received = ip.received.packets;
+          total = sent + received;
+          break;
+        default:
+          sent = ip.sent.packets;
+          received = ip.received.packets;
+          total = sent + received;
+      }
+      return {
+        ip: ip.ip,
+        total: total,
+        sent: sent,
+        received: received,
+      };
+    });
 
     // Get top 10 IPs by total traffic
     const topIPs = ipData
@@ -1056,32 +1115,41 @@ class DPIPage extends Component {
         width: 150,
       },
       {
-        title: metricType === 'dataVolume' ? 'Sent (Bytes)' : 'Sent (Packets)',
+        title: metricType === 'dataVolume' ? 'Sent (Bytes)' : 
+               metricType === 'avgPacketSize' ? 'Sent (Avg bytes)' : 'Sent (Packets)',
         dataIndex: 'sent',
         key: 'sent',
         align: 'right',
         width: 120,
         sorter: (a, b) => a.sent - b.sent,
-        render: (val) => metricType === 'dataVolume' ? this.formatBytes(val) : val.toLocaleString(),
+        render: (val) => metricType === 'dataVolume' ? this.formatBytes(val) : 
+                         metricType === 'avgPacketSize' ? `${val.toFixed(0)} bytes` :
+                         val.toLocaleString(),
       },
       {
-        title: metricType === 'dataVolume' ? 'Received (Bytes)' : 'Received (Packets)',
+        title: metricType === 'dataVolume' ? 'Received (Bytes)' : 
+               metricType === 'avgPacketSize' ? 'Received (Avg bytes)' : 'Received (Packets)',
         dataIndex: 'received',
         key: 'received',
         align: 'right',
         width: 120,
         sorter: (a, b) => a.received - b.received,
-        render: (val) => metricType === 'dataVolume' ? this.formatBytes(val) : val.toLocaleString(),
+        render: (val) => metricType === 'dataVolume' ? this.formatBytes(val) : 
+                         metricType === 'avgPacketSize' ? `${val.toFixed(0)} bytes` :
+                         val.toLocaleString(),
       },
       {
-        title: metricType === 'dataVolume' ? 'Total (Bytes)' : 'Total (Packets)',
+        title: metricType === 'dataVolume' ? 'Total (Bytes)' : 
+               metricType === 'avgPacketSize' ? 'Avg (bytes)' : 'Total (Packets)',
         dataIndex: 'total',
         key: 'total',
         align: 'right',
         width: 120,
         sorter: (a, b) => a.total - b.total,
         defaultSortOrder: 'descend',
-        render: (val) => metricType === 'dataVolume' ? this.formatBytes(val) : val.toLocaleString(),
+        render: (val) => metricType === 'dataVolume' ? this.formatBytes(val) : 
+                         metricType === 'avgPacketSize' ? `${val.toFixed(0)} bytes` :
+                         val.toLocaleString(),
       },
     ];
 
@@ -1132,21 +1200,67 @@ class DPIPage extends Component {
       );
     });
 
+    // Calculate time intervals for rate-based metrics
+    const dataWithIntervals = filtered.map((d, idx) => {
+      const timestamp = (d.timestamp || d.time) * 1000;
+      let interval = 1; // default 1 second
+      if (idx > 0) {
+        const prevTimestamp = (filtered[idx - 1].timestamp || filtered[idx - 1].time) * 1000;
+        interval = Math.max((timestamp - prevTimestamp) / 1000, 0.001); // avoid division by zero
+      }
+      return { ...d, timestamp, interval };
+    });
+
     // Get scale for data volume
     let scale = { scale: 1, unit: 'B' };
     if (metricType === 'dataVolume') {
-      const tempData = filtered.map(d => ({ value: d.dataVolume }));
+      const tempData = dataWithIntervals.map(d => ({ value: d.dataVolume }));
       scale = this.getDataVolumeScale(tempData);
     }
 
-    // Format data for stacked area chart
-    const chartData = filtered.map(d => {
-      const timestamp = (d.timestamp || d.time) * 1000;
+    // Format data for stacked area chart with metric calculation
+    const chartData = dataWithIntervals.map(d => {
+      let value, rawValue, displayValue;
+      
+      switch(metricType) {
+        case 'dataVolume':
+          value = d.dataVolume / scale.scale;
+          rawValue = d.dataVolume;
+          displayValue = this.formatBytes(d.dataVolume);
+          break;
+        case 'packetCount':
+          value = d.packetCount;
+          rawValue = d.packetCount;
+          displayValue = d.packetCount.toLocaleString();
+          break;
+        case 'packetRate':
+          value = d.packetCount / d.interval;
+          rawValue = value;
+          displayValue = `${value.toFixed(2)} pps`;
+          break;
+        case 'dataRate':
+          // Convert bytes/sec to Mbps (1 byte = 8 bits, 1 Mbps = 1,000,000 bits/sec)
+          value = (d.dataVolume * 8) / (d.interval * 1000000);
+          rawValue = value;
+          displayValue = `${value.toFixed(3)} Mbps`;
+          break;
+        case 'avgPacketSize':
+          value = d.packetCount > 0 ? d.dataVolume / d.packetCount : 0;
+          rawValue = value;
+          displayValue = `${value.toFixed(0)} bytes`;
+          break;
+        default:
+          value = d.packetCount;
+          rawValue = d.packetCount;
+          displayValue = d.packetCount.toLocaleString();
+      }
+      
       return {
-        time: timestamp,
+        time: d.timestamp,
         protocol: d.protocol,
-        value: metricType === 'dataVolume' ? d.dataVolume / scale.scale : d.packetCount,
-        rawValue: metricType === 'dataVolume' ? d.dataVolume : d.packetCount,
+        value: value,
+        rawValue: rawValue,
+        displayValue: displayValue,
       };
     });
 
@@ -1159,9 +1273,27 @@ class DPIPage extends Component {
       showMilliseconds = duration < 2000;
     }
 
-    const yAxisLabel = metricType === 'dataVolume' 
-      ? `Data Volume (${scale.unit})` 
-      : 'Packet Count';
+    // Y-axis label based on metric type
+    let yAxisLabel;
+    switch(metricType) {
+      case 'dataVolume':
+        yAxisLabel = `Data Volume (${scale.unit})`;
+        break;
+      case 'packetCount':
+        yAxisLabel = 'Packet Count';
+        break;
+      case 'packetRate':
+        yAxisLabel = 'Packet Rate (pps)';
+        break;
+      case 'dataRate':
+        yAxisLabel = 'Data Rate (Mbps)';
+        break;
+      case 'avgPacketSize':
+        yAxisLabel = 'Average Packet Size (bytes)';
+        break;
+      default:
+        yAxisLabel = 'Value';
+    }
 
     const config = {
       data: chartData,
@@ -1241,12 +1373,12 @@ class DPIPage extends Component {
           items.forEach(item => {
             const color = item.color || '#1890ff';
             const name = item.name || 'Unknown';
-            const value = item.data.rawValue || item.value || 0;
+            const displayValue = item.data.displayValue || item.value || 0;
             
             html += `<div style="margin-bottom: 4px;">`;
             html += `<span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${color}; margin-right: 8px;"></span>`;
             html += `<span style="font-weight: 500;">${name}:</span> `;
-            html += `<span>${metricType === 'dataVolume' ? this.formatBytes(value) : value.toLocaleString()}</span>`;
+            html += `<span>${displayValue}</span>`;
             html += `</div>`;
           });
           
@@ -1415,13 +1547,33 @@ class DPIPage extends Component {
       );
     }
 
+    // Calculate metric values
+    const appProtoDataWithMetric = appProtoData.map(proto => {
+      let metricValue;
+      switch(metricType) {
+        case 'dataVolume':
+          metricValue = proto.bytes;
+          break;
+        case 'packetCount':
+          metricValue = proto.packets;
+          break;
+        case 'avgPacketSize':
+          metricValue = proto.packets > 0 ? proto.bytes / proto.packets : 0;
+          break;
+        case 'packetRate':
+        case 'dataRate':
+          // For aggregated data, fallback to packet count
+          metricValue = proto.packets;
+          break;
+        default:
+          metricValue = proto.packets;
+      }
+      return { ...proto, metricValue };
+    });
+
     // Sort by metric and take top 10
-    const sortedData = appProtoData
-      .sort((a, b) => {
-        const aVal = metricType === 'dataVolume' ? b.bytes : b.packets;
-        const bVal = metricType === 'dataVolume' ? a.bytes : a.packets;
-        return aVal - bVal;
-      })
+    const sortedData = appProtoDataWithMetric
+      .sort((a, b) => b.metricValue - a.metricValue)
       .slice(0, 10);
 
     const columns = [
@@ -1447,6 +1599,17 @@ class DPIPage extends Component {
         sorter: (a, b) => a.bytes - b.bytes,
         defaultSortOrder: 'descend',
         render: (val) => this.formatBytes(val),
+      },
+      {
+        title: 'Avg Size',
+        key: 'avgSize',
+        align: 'right',
+        width: 100,
+        sorter: (a, b) => (a.packets > 0 ? a.bytes / a.packets : 0) - (b.packets > 0 ? b.bytes / b.packets : 0),
+        render: (_, record) => {
+          const avg = record.packets > 0 ? record.bytes / record.packets : 0;
+          return `${avg.toFixed(0)} B`;
+        },
       },
     ];
 
@@ -1519,10 +1682,34 @@ class DPIPage extends Component {
       }
     });
 
-    // Convert to array and calculate totals
+    // Convert to array and calculate totals based on metric
     const flows = Object.values(flowMap).map(flow => {
-      const metric1to2 = metricType === 'dataVolume' ? flow.ip1ToIp2.bytes : flow.ip1ToIp2.packets;
-      const metric2to1 = metricType === 'dataVolume' ? flow.ip2ToIp1.bytes : flow.ip2ToIp1.packets;
+      let metric1to2, metric2to1;
+      
+      switch(metricType) {
+        case 'dataVolume':
+          metric1to2 = flow.ip1ToIp2.bytes;
+          metric2to1 = flow.ip2ToIp1.bytes;
+          break;
+        case 'packetCount':
+          metric1to2 = flow.ip1ToIp2.packets;
+          metric2to1 = flow.ip2ToIp1.packets;
+          break;
+        case 'avgPacketSize':
+          metric1to2 = flow.ip1ToIp2.packets > 0 ? flow.ip1ToIp2.bytes / flow.ip1ToIp2.packets : 0;
+          metric2to1 = flow.ip2ToIp1.packets > 0 ? flow.ip2ToIp1.bytes / flow.ip2ToIp1.packets : 0;
+          break;
+        case 'packetRate':
+        case 'dataRate':
+          // For aggregated data, fallback to packet count
+          metric1to2 = flow.ip1ToIp2.packets;
+          metric2to1 = flow.ip2ToIp1.packets;
+          break;
+        default:
+          metric1to2 = flow.ip1ToIp2.packets;
+          metric2to1 = flow.ip2ToIp1.packets;
+      }
+      
       return {
         ...flow,
         total: metric1to2 + metric2to1,
@@ -1569,7 +1756,11 @@ class DPIPage extends Component {
         align: 'right',
         width: 100,
         sorter: (a, b) => a.ip1ToIp2Value - b.ip1ToIp2Value,
-        render: (val) => metricType === 'dataVolume' ? this.formatBytes(val) : val.toLocaleString(),
+        render: (val) => {
+          if (metricType === 'dataVolume') return this.formatBytes(val);
+          if (metricType === 'avgPacketSize') return `${val.toFixed(0)} bytes`;
+          return val.toLocaleString();
+        },
       },
       {
         title: 'IP2→IP1',
@@ -1578,7 +1769,11 @@ class DPIPage extends Component {
         align: 'right',
         width: 100,
         sorter: (a, b) => a.ip2ToIp1Value - b.ip2ToIp1Value,
-        render: (val) => metricType === 'dataVolume' ? this.formatBytes(val) : val.toLocaleString(),
+        render: (val) => {
+          if (metricType === 'dataVolume') return this.formatBytes(val);
+          if (metricType === 'avgPacketSize') return `${val.toFixed(0)} bytes`;
+          return val.toLocaleString();
+        },
       },
       {
         title: 'Total',
@@ -1588,7 +1783,11 @@ class DPIPage extends Component {
         width: 100,
         sorter: (a, b) => a.total - b.total,
         defaultSortOrder: 'descend',
-        render: (val) => metricType === 'dataVolume' ? this.formatBytes(val) : val.toLocaleString(),
+        render: (val) => {
+          if (metricType === 'dataVolume') return this.formatBytes(val);
+          if (metricType === 'avgPacketSize') return `${val.toFixed(0)} bytes`;
+          return val.toLocaleString();
+        },
       },
     ];
 
@@ -1634,11 +1833,32 @@ class DPIPage extends Component {
     // Flatten hierarchy to get all protocols
     const allProtocols = this.flattenHierarchy(hierarchyData);
     
-    // Prepare data for pie chart
-    const pieData = allProtocols.map(proto => ({
-      type: proto.name,
-      value: metricType === 'dataVolume' ? proto.dataVolume : proto.packets,
-    }));
+    // Prepare data for pie chart with metric calculation
+    const pieData = allProtocols.map(proto => {
+      let value;
+      switch(metricType) {
+        case 'dataVolume':
+          value = proto.dataVolume;
+          break;
+        case 'packetCount':
+          value = proto.packets;
+          break;
+        case 'avgPacketSize':
+          value = proto.packets > 0 ? proto.dataVolume / proto.packets : 0;
+          break;
+        case 'packetRate':
+        case 'dataRate':
+          // For aggregated hierarchy data, fallback to packet count
+          value = proto.packets;
+          break;
+        default:
+          value = proto.packets;
+      }
+      return {
+        type: proto.name,
+        value: value,
+      };
+    });
 
     // Sort by value and take top protocols (limit to avoid clutter)
     pieData.sort((a, b) => b.value - a.value);
@@ -1661,9 +1881,17 @@ class DPIPage extends Component {
           formatter: (text, item) => {
             const dataItem = topProtocols.find(d => d.type === text);
             if (dataItem) {
-              const formattedValue = metricType === 'dataVolume' 
-                ? this.formatBytes(dataItem.value)
-                : dataItem.value.toLocaleString();
+              let formattedValue;
+              switch(metricType) {
+                case 'dataVolume':
+                  formattedValue = this.formatBytes(dataItem.value);
+                  break;
+                case 'avgPacketSize':
+                  formattedValue = `${dataItem.value.toFixed(0)} bytes`;
+                  break;
+                default:
+                  formattedValue = dataItem.value.toLocaleString();
+              }
               return `${text}: ${formattedValue}`;
             }
             return text;
@@ -1681,14 +1909,32 @@ class DPIPage extends Component {
             fontSize: '16px',
             fontWeight: 'bold',
           },
-          content: metricType === 'dataVolume' ? 'Data\nVolume' : 'Packet\nCount',
+          content: metricType === 'dataVolume' ? 'Data\nVolume' : 
+                   metricType === 'packetCount' ? 'Packet\nCount' :
+                   metricType === 'packetRate' ? 'Packet\nRate' :
+                   metricType === 'dataRate' ? 'Data\nRate' :
+                   metricType === 'avgPacketSize' ? 'Avg\nSize' : 'Value',
         },
       },
       tooltip: {
         formatter: (datum) => {
-          const value = metricType === 'dataVolume'
-            ? this.formatBytes(datum.value)
-            : datum.value.toLocaleString();
+          let value;
+          switch(metricType) {
+            case 'dataVolume':
+              value = this.formatBytes(datum.value);
+              break;
+            case 'avgPacketSize':
+              value = `${datum.value.toFixed(0)} bytes`;
+              break;
+            case 'packetRate':
+              value = `${datum.value.toFixed(2)} pps`;
+              break;
+            case 'dataRate':
+              value = `${datum.value.toFixed(3)} Mbps`;
+              break;
+            default:
+              value = datum.value.toLocaleString();
+          }
           return {
             name: datum.type,
             value: value,
@@ -2034,6 +2280,7 @@ class DPIPage extends Component {
                     trafficData: [],
                     statistics: null,
                     conversations: [],
+                    packetSizes: [],
                     selectedProtocols: ['ETHERNET'],
                     lastUpdate: null,
                   })}
@@ -2058,6 +2305,7 @@ class DPIPage extends Component {
                       trafficData: value ? this.state.trafficData : [],
                       statistics: value ? this.state.statistics : null,
                       conversations: value ? this.state.conversations : [],
+                      packetSizes: value ? this.state.packetSizes : [],
                       lastUpdate: value ? this.state.lastUpdate : null
                     })}
                     style={{ width: 280 }}
@@ -2078,6 +2326,7 @@ class DPIPage extends Component {
                       trafficData: value ? this.state.trafficData : [],
                       statistics: value ? this.state.statistics : null,
                       conversations: value ? this.state.conversations : [],
+                      packetSizes: value ? this.state.packetSizes : [],
                       lastUpdate: value ? this.state.lastUpdate : null
                     })}
                     style={{ width: 280 }}
@@ -2158,11 +2407,14 @@ class DPIPage extends Component {
                 <Select
                   value={metricType}
                   onChange={(value) => this.setState({ metricType: value })}
-                  style={{ width: 150 }}
+                  style={{ width: 200 }}
                   size="small"
                 >
                   <Option value="dataVolume">Data Volume</Option>
                   <Option value="packetCount">Packet Count</Option>
+                  <Option value="packetRate">Packet Rate (pps)</Option>
+                  <Option value="dataRate">Data Rate (Mbps)</Option>
+                  <Option value="avgPacketSize">Avg Packet Size</Option>
                 </Select>
               </div>
               
