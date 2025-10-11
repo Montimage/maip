@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
 import { Button, Card, Select, Alert, Spin, Row, Col, Divider, Tree, Space, Tag, Table, Statistic } from 'antd';
 import { PlayCircleOutlined, StopOutlined, DownOutlined } from '@ant-design/icons';
-import { Line } from '@ant-design/plots';
+import { Line, Pie } from '@ant-design/plots';
 import { SERVER_URL } from '../constants';
 
 const { Option } = Select;
@@ -24,6 +24,7 @@ class DPIPage extends Component {
       hierarchyData: [],
       trafficData: [],
       statistics: null,
+      conversations: [],
       selectedProtocols: ['ETHERNET'], // Default selection
       metricType: 'dataVolume', // 'dataVolume' or 'packetCount'
       
@@ -162,6 +163,7 @@ class DPIPage extends Component {
           hierarchyData: finalHierarchyData,
           trafficData: finalTrafficData,
           statistics: data.statistics || null,
+          conversations: data.conversations || [],
           isRunning: data.isRunning,
           lastUpdate: lastDataTimestamp,
           loading: false,
@@ -340,6 +342,7 @@ class DPIPage extends Component {
       hierarchyData: [],
       trafficData: [],
       statistics: null,
+      conversations: [],
     });
     
     try {
@@ -668,6 +671,255 @@ class DPIPage extends Component {
     return countNodes(hierarchyData);
   };
 
+  flattenHierarchy = (nodes, result = []) => {
+    nodes.forEach(node => {
+      result.push({
+        name: node.title || node.key,
+        packets: node.packets || 0,
+        dataVolume: node.dataVolume || 0,
+      });
+      if (node.children && node.children.length > 0) {
+        this.flattenHierarchy(node.children, result);
+      }
+    });
+    return result;
+  };
+
+  renderTopConversations = () => {
+    const { conversations, isRunning } = this.state;
+
+    if (!conversations || conversations.length === 0) {
+      if (!isRunning) {
+        return (
+          <Alert
+            message="No Data"
+            description="Start an analysis to view conversations"
+            type="info"
+            showIcon
+          />
+        );
+      }
+      return (
+        <div style={{ position: 'relative', minHeight: '200px' }}>
+          <Spin spinning={true} tip="Loading conversation data...">
+            <div style={{ minHeight: '200px' }}></div>
+          </Spin>
+        </div>
+      );
+    }
+
+    // Group conversations by IP pairs (ignoring ports and protocol)
+    const ipPairMap = {};
+    conversations.forEach(conv => {
+      if (!conv.srcIP || !conv.dstIP) return;
+      
+      // Create a normalized key for IP pairs (bidirectional)
+      // Sort IPs to treat A->B and B->A as the same conversation
+      const ips = [conv.srcIP, conv.dstIP].sort();
+      const pairKey = `${ips[0]} <-> ${ips[1]}`;
+      
+      if (!ipPairMap[pairKey]) {
+        ipPairMap[pairKey] = {
+          ip1: ips[0],
+          ip2: ips[1],
+          packets: 0,
+          bytes: 0,
+          protocols: new Set(),
+          flowCount: 0,
+        };
+      }
+      
+      ipPairMap[pairKey].packets += conv.packets || 0;
+      ipPairMap[pairKey].bytes += conv.bytes || 0;
+      ipPairMap[pairKey].protocols.add(conv.protocol);
+      ipPairMap[pairKey].flowCount += 1;
+    });
+
+    // Convert to array and sort by bytes
+    const ipPairs = Object.values(ipPairMap)
+      .map(pair => ({
+        ...pair,
+        protocols: Array.from(pair.protocols).join(', '),
+      }))
+      .sort((a, b) => b.bytes - a.bytes);
+
+    // Calculate totals
+    const totalPackets = conversations.reduce((sum, c) => sum + c.packets, 0);
+    const totalBytes = conversations.reduce((sum, c) => sum + c.bytes, 0);
+
+    const columns = [
+      {
+        title: 'IP Address 1',
+        dataIndex: 'ip1',
+        key: 'ip1',
+        ellipsis: true,
+        width: 140,
+      },
+      {
+        title: 'IP Address 2',
+        dataIndex: 'ip2',
+        key: 'ip2',
+        ellipsis: true,
+        width: 140,
+      },
+      {
+        title: 'Protocols',
+        dataIndex: 'protocols',
+        key: 'protocols',
+        ellipsis: true,
+        width: 100,
+      },
+      {
+        title: 'Flows',
+        dataIndex: 'flowCount',
+        key: 'flowCount',
+        align: 'right',
+        width: 80,
+        sorter: (a, b) => (a.flowCount || 0) - (b.flowCount || 0),
+        render: (val) => val ? val.toLocaleString() : '-',
+      },
+      {
+        title: 'Packets',
+        dataIndex: 'packets',
+        key: 'packets',
+        align: 'right',
+        width: 100,
+        sorter: (a, b) => (a.packets || 0) - (b.packets || 0),
+        render: (val) => val ? val.toLocaleString() : '-',
+      },
+      {
+        title: 'Bytes',
+        dataIndex: 'bytes',
+        key: 'bytes',
+        align: 'right',
+        width: 110,
+        sorter: (a, b) => (a.bytes || 0) - (b.bytes || 0),
+        defaultSortOrder: 'descend',
+        render: (bytes) => bytes ? this.formatBytes(bytes) : '-',
+      },
+    ];
+
+    // Add keys to data
+    const dataSource = ipPairs.map((pair, index) => ({
+      key: index,
+      ...pair,
+    }));
+
+    return (
+      <div>
+        <div style={{ marginBottom: 12, fontSize: '12px', color: '#666' }}>
+          <strong>{ipPairs.length}</strong> IP pairs | 
+          <strong> {conversations.length}</strong> flows | 
+          <strong> Total: {totalPackets.toLocaleString()}</strong> packets, 
+          <strong> {this.formatBytes(totalBytes)}</strong>
+        </div>
+        <Table
+          columns={columns}
+          dataSource={dataSource}
+          pagination={{ 
+            pageSize: 20, 
+            size: 'small',
+            showTotal: (total) => `Total ${total} IP pairs`,
+          }}
+          size="small"
+          scroll={{ y: 300 }}
+        />
+      </div>
+    );
+  };
+
+  renderProtocolDistributionPie = () => {
+    const { hierarchyData, metricType, isRunning } = this.state;
+
+    if (!hierarchyData || hierarchyData.length === 0) {
+      if (!isRunning) {
+        return (
+          <Alert
+            message="No Data"
+            description="Start an analysis to view protocol distribution"
+            type="info"
+            showIcon
+          />
+        );
+      }
+      return (
+        <div style={{ position: 'relative', minHeight: '300px' }}>
+          <Spin spinning={true} tip="Loading protocol data...">
+            <div style={{ minHeight: '300px' }}></div>
+          </Spin>
+        </div>
+      );
+    }
+
+    // Flatten hierarchy to get all protocols
+    const allProtocols = this.flattenHierarchy(hierarchyData);
+    
+    // Prepare data for pie chart
+    const pieData = allProtocols.map(proto => ({
+      type: proto.name,
+      value: metricType === 'dataVolume' ? proto.dataVolume : proto.packets,
+    }));
+
+    // Sort by value and take top protocols (limit to avoid clutter)
+    pieData.sort((a, b) => b.value - a.value);
+    const topProtocols = pieData.slice(0, 10); // Top 10 protocols
+
+    const config = {
+      data: topProtocols,
+      angleField: 'value',
+      colorField: 'type',
+      radius: 0.8,
+      innerRadius: 0.6,
+      label: {
+        type: 'spider',
+        labelHeight: 28,
+        content: '{name}\n{percentage}',
+      },
+      legend: {
+        position: 'bottom',
+        itemName: {
+          formatter: (text, item) => {
+            const dataItem = topProtocols.find(d => d.type === text);
+            if (dataItem) {
+              const formattedValue = metricType === 'dataVolume' 
+                ? this.formatBytes(dataItem.value)
+                : dataItem.value.toLocaleString();
+              return `${text}: ${formattedValue}`;
+            }
+            return text;
+          },
+        },
+      },
+      interactions: [
+        { type: 'element-selected' },
+        { type: 'element-active' },
+      ],
+      statistic: {
+        title: false,
+        content: {
+          style: {
+            fontSize: '16px',
+            fontWeight: 'bold',
+          },
+          content: metricType === 'dataVolume' ? 'Data\nVolume' : 'Packet\nCount',
+        },
+      },
+      tooltip: {
+        formatter: (datum) => {
+          const value = metricType === 'dataVolume'
+            ? this.formatBytes(datum.value)
+            : datum.value.toLocaleString();
+          return {
+            name: datum.type,
+            value: value,
+          };
+        },
+      },
+    };
+
+    return <Pie {...config} />;
+  };
+
   formatBitsPerSecond = (bps) => {
     if (!bps || bps === 0) return '0 bps';
     const units = ['bps', 'Kbps', 'Mbps', 'Gbps'];
@@ -944,32 +1196,18 @@ class DPIPage extends Component {
     
     return (
       <div>
-        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <strong>Selected Protocols:</strong>{' '}
-            {selectedProtocols.map(proto => (
-              <Tag 
-                key={proto} 
-                closable 
-                onClose={() => this.toggleProtocolSelection(proto)}
-                color="blue"
-              >
-                {proto}
-              </Tag>
-            ))}
-          </div>
-          <div>
-            <strong style={{ marginRight: 8 }}>Metric:</strong>
-            <Select
-              value={metricType}
-              onChange={(value) => this.setState({ metricType: value })}
-              style={{ width: 150 }}
-              size="small"
+        <div style={{ marginBottom: 16 }}>
+          <strong>Selected Protocols:</strong>{' '}
+          {selectedProtocols.map(proto => (
+            <Tag 
+              key={proto} 
+              closable 
+              onClose={() => this.toggleProtocolSelection(proto)}
+              color="blue"
             >
-              <Option value="dataVolume">Data Volume</Option>
-              <Option value="packetCount">Packet Count</Option>
-            </Select>
-          </div>
+              {proto}
+            </Tag>
+          ))}
         </div>
         <Line {...config} />
       </div>
@@ -989,6 +1227,7 @@ class DPIPage extends Component {
       lastUpdate,
       hierarchyData,
       trafficData,
+      metricType,
     } = this.state;
 
     return (
@@ -1014,6 +1253,7 @@ class DPIPage extends Component {
                     hierarchyData: [],
                     trafficData: [],
                     statistics: null,
+                    conversations: [],
                     selectedProtocols: ['ETHERNET'],
                     lastUpdate: null,
                   })}
@@ -1037,6 +1277,7 @@ class DPIPage extends Component {
                       hierarchyData: value ? this.state.hierarchyData : [],
                       trafficData: value ? this.state.trafficData : [],
                       statistics: value ? this.state.statistics : null,
+                      conversations: value ? this.state.conversations : [],
                       lastUpdate: value ? this.state.lastUpdate : null
                     })}
                     style={{ width: 280 }}
@@ -1056,6 +1297,7 @@ class DPIPage extends Component {
                       hierarchyData: value ? this.state.hierarchyData : [],
                       trafficData: value ? this.state.trafficData : [],
                       statistics: value ? this.state.statistics : null,
+                      conversations: value ? this.state.conversations : [],
                       lastUpdate: value ? this.state.lastUpdate : null
                     })}
                     style={{ width: 280 }}
@@ -1118,14 +1360,6 @@ class DPIPage extends Component {
             </Row>
           </Card>
           
-          {loading && !error && (
-            <Alert
-              message="Loading Data"
-              description="Fetching protocol hierarchy and traffic data from mmt-probe..."
-              showIcon
-              style={{ marginBottom: 16 }}
-            />
-          )}
           
           {(selectedPcap || selectedInterface || hierarchyData.length > 0 || trafficData.length > 0) && (
             <>
@@ -1136,20 +1370,47 @@ class DPIPage extends Component {
               {this.renderStatisticsSummary()}
               
               <Divider orientation="left">
-                <h2 style={{ fontSize: '20px' }}>Protocol Hierarchy</h2>
+                <h2 style={{ fontSize: '20px' }}>Protocol Analysis</h2>
               </Divider>
               
-              <Card style={{ marginBottom: 24 }}>
-                <Row gutter={16}>
-                  <Col span={10}>
-                    {this.renderProtocolHierarchy()}
-                  </Col>
-                  
-                  <Col span={14}>
-                    {this.renderTrafficChart()}
-                  </Col>
-                </Row>
+              <div style={{ marginBottom: 16, textAlign: 'right' }}>
+                <strong style={{ marginRight: 8 }}>Metric:</strong>
+                <Select
+                  value={metricType}
+                  onChange={(value) => this.setState({ metricType: value })}
+                  style={{ width: 150 }}
+                  size="small"
+                >
+                  <Option value="dataVolume">Data Volume</Option>
+                  <Option value="packetCount">Packet Count</Option>
+                </Select>
+              </div>
+              
+              <Card style={{ marginBottom: 16 }}>
+                <h3 style={{ fontSize: '16px', marginBottom: 16, fontWeight: 600 }}>Traffic Timeline</h3>
+                {this.renderTrafficChart()}
               </Card>
+              
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Card style={{ marginBottom: 16 }}>
+                    <h3 style={{ fontSize: '16px', marginBottom: 16, fontWeight: 600 }}>Protocol Hierarchy</h3>
+                    {this.renderProtocolHierarchy()}
+                  </Card>
+                  
+                  <Card style={{ marginBottom: 24 }}>
+                    <h3 style={{ fontSize: '16px', marginBottom: 16, fontWeight: 600 }}>Top Conversations</h3>
+                    {this.renderTopConversations()}
+                  </Card>
+                </Col>
+                
+                <Col span={12}>
+                  <Card style={{ marginBottom: 16 }}>
+                    <h3 style={{ fontSize: '16px', marginBottom: 16, fontWeight: 600 }}>Protocol Distribution</h3>
+                    {this.renderProtocolDistributionPie()}
+                  </Card>
+                </Col>
+              </Row>
             </>
           )}
       </LayoutPage>

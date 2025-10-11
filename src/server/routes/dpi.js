@@ -38,6 +38,8 @@ function parseProtocolHierarchy(csvFilePath, startLine = 0, isOnlineMode = false
     const protocols = isOnlineMode ? { ...dpiState.cumulativeProtocols } : {};
     const trafficTimeSeries = [];
     const sessionProtocols = {}; // Track protocol hierarchy per session
+    const conversations = {}; // Track conversations by 5-tuple key
+    const timestampIPMap = {}; // Map timestamp+ports to IP addresses
     
     fs.readFile(csvFilePath, 'utf8', (err, data) => {
       if (err) {
@@ -74,15 +76,29 @@ function parseProtocolHierarchy(csvFilePath, startLine = 0, isOnlineMode = false
         let sessionId = null;
         
         if (eventType === 'ipv4-event' || eventType === 'ipv6-event') {
-          // IPv4/IPv6 event format: session_id, direction, first_time, last_time, header_len, tot_len, src, dst
-          // Fields: [0-4]=header, [5]=session_id, [6]=direction, [7]=first_time, [8]=last_time, [9]=header_len, [10]=tot_len, [11]=src, [12]=dst
+          // IPv4/IPv6 event format: session_id, direction, last_packet_direction, first_time, last_time, header_len, tot_len, src, dst
+          // Fields: [0-4]=header, [5]=session_id, [6]=direction, [7]=last_packet_direction, [8]=first_time, [9]=last_time, [10]=header_len, [11]=tot_len, [12]=src, [13]=dst
           protocol = eventType === 'ipv4-event' ? 'IPv4' : 'IPv6';
           sessionId = parts[5];
-          dataVolume = parseInt(parts[10]) || 0; // tot_len is at index 10
+          dataVolume = parseInt(parts[11]) || 0; // tot_len is at index 11
+          const srcIP = parts[12];
+          const dstIP = parts[13];
           
           // Initialize session protocol stack
           if (!sessionProtocols[sessionId]) {
             sessionProtocols[sessionId] = ['ETHERNET', protocol];
+          }
+          
+          // Store IP addresses by timestamp for correlation with TCP/UDP events
+          if (timestamp && srcIP && dstIP) {
+            const timestampKey = timestamp.toFixed(6); // Use microsecond precision
+            if (!timestampIPMap[timestampKey]) {
+              timestampIPMap[timestampKey] = [];
+            }
+            timestampIPMap[timestampKey].push({
+              srcIP: srcIP.replace(/"/g, ''),
+              dstIP: dstIP.replace(/"/g, ''),
+            });
           }
         } else if (eventType === 'tcp-event') {
           // TCP event format: src_port, dest_port, payload_len, fin, syn, rst, psh, ack, urg, payload_up, payload_down, session_id, direction
@@ -96,6 +112,68 @@ function parseProtocolHierarchy(csvFilePath, startLine = 0, isOnlineMode = false
           // Initialize session if it doesn't exist (TCP without prior IP event)
           if (sessionId && !sessionProtocols[sessionId]) {
             sessionProtocols[sessionId] = ['ETHERNET', 'IPv4'];
+          }
+          
+          // Look up IP addresses by timestamp
+          if (timestamp) {
+            const timestampKey = timestamp.toFixed(6);
+            const ipList = timestampIPMap[timestampKey];
+            
+            if (ipList && ipList.length > 0) {
+              // Match based on typical client-server pattern (high port = client, low port = server)
+              let clientIP = null, serverIP = null, clientPort = null, serverPort = null;
+              
+              // Determine which is client (ephemeral port) vs server (well-known port)
+              if (srcPort > 1024 && destPort <= 1024) {
+                // srcPort is client, destPort is server
+                clientPort = srcPort;
+                serverPort = destPort;
+                // Find matching IPs
+                for (const ipInfo of ipList) {
+                  clientIP = ipInfo.srcIP;
+                  serverIP = ipInfo.dstIP;
+                  break;
+                }
+              } else if (destPort > 1024 && srcPort <= 1024) {
+                // destPort is client, srcPort is server (reversed)
+                clientPort = destPort;
+                serverPort = srcPort;
+                // IPs are reversed
+                for (const ipInfo of ipList) {
+                  clientIP = ipInfo.dstIP;
+                  serverIP = ipInfo.srcIP;
+                  break;
+                }
+              } else {
+                // Can't determine, use as-is
+                for (const ipInfo of ipList) {
+                  clientIP = ipInfo.srcIP;
+                  serverIP = ipInfo.dstIP;
+                  clientPort = srcPort;
+                  serverPort = destPort;
+                  break;
+                }
+              }
+              
+              if (clientIP && serverIP) {
+                // Always use client -> server direction for consistency
+                const convKey = `${clientIP}:${clientPort}-${serverIP}:${serverPort}`;
+                
+                if (!conversations[convKey]) {
+                  conversations[convKey] = {
+                    srcIP: clientIP,
+                    dstIP: serverIP,
+                    srcPort: clientPort,
+                    dstPort: serverPort,
+                    protocol: 'TCP',
+                    packets: 0,
+                    bytes: 0,
+                  };
+                }
+                conversations[convKey].packets += 1;
+                conversations[convKey].bytes += dataVolume;
+              }
+            }
           }
           
           // Determine application protocol based on port
@@ -122,6 +200,62 @@ function parseProtocolHierarchy(csvFilePath, startLine = 0, isOnlineMode = false
           // Initialize session if it doesn't exist
           if (sessionId && !sessionProtocols[sessionId]) {
             sessionProtocols[sessionId] = ['ETHERNET', 'IPv4'];
+          }
+          
+          // Look up IP addresses by timestamp
+          if (timestamp) {
+            const timestampKey = timestamp.toFixed(6);
+            const ipList = timestampIPMap[timestampKey];
+            
+            if (ipList && ipList.length > 0) {
+              // Match based on typical client-server pattern
+              let clientIP = null, serverIP = null, clientPort = null, serverPort = null;
+              
+              // Determine which is client (ephemeral port) vs server (well-known port)
+              if (srcPort > 1024 && destPort <= 1024) {
+                clientPort = srcPort;
+                serverPort = destPort;
+                for (const ipInfo of ipList) {
+                  clientIP = ipInfo.srcIP;
+                  serverIP = ipInfo.dstIP;
+                  break;
+                }
+              } else if (destPort > 1024 && srcPort <= 1024) {
+                clientPort = destPort;
+                serverPort = srcPort;
+                for (const ipInfo of ipList) {
+                  clientIP = ipInfo.dstIP;
+                  serverIP = ipInfo.srcIP;
+                  break;
+                }
+              } else {
+                for (const ipInfo of ipList) {
+                  clientIP = ipInfo.srcIP;
+                  serverIP = ipInfo.dstIP;
+                  clientPort = srcPort;
+                  serverPort = destPort;
+                  break;
+                }
+              }
+              
+              if (clientIP && serverIP) {
+                const convKey = `${clientIP}:${clientPort}-${serverIP}:${serverPort}`;
+                
+                if (!conversations[convKey]) {
+                  conversations[convKey] = {
+                    srcIP: clientIP,
+                    dstIP: serverIP,
+                    srcPort: clientPort,
+                    dstPort: serverPort,
+                    protocol: 'UDP',
+                    packets: 0,
+                    bytes: 0,
+                  };
+                }
+                conversations[convKey].packets += 1;
+                conversations[convKey].bytes += dataVolume;
+              }
+            }
           }
           
           // Determine application protocol based on port
@@ -181,19 +315,41 @@ function parseProtocolHierarchy(csvFilePath, startLine = 0, isOnlineMode = false
       console.log('[DPI Parse] Unique protocols:', Object.keys(protocols).length);
       console.log('[DPI Parse] Protocol names:', Object.keys(protocols).join(', '));
       console.log('[DPI Parse] Traffic time series entries:', trafficTimeSeries.length);
+      console.log('[DPI Parse] Conversations tracked:', Object.keys(conversations).length);
+      
+      // Debug: Show conversation details
+      const convsWithIPs = Object.values(conversations).filter(c => c.srcIP && c.dstIP).length;
+      console.log('[DPI Parse] Conversations with complete IPs:', convsWithIPs);
+      console.log('[DPI Parse] Timestamp IP Map size:', Object.keys(timestampIPMap).length);
+      
+      const debugConvs = Object.entries(conversations).slice(0, 5);
+      console.log('[DPI Parse] Debug - Sample conversations:');
+      debugConvs.forEach(([convKey, conv]) => {
+        console.log(`  ${conv.srcIP}:${conv.srcPort} -> ${conv.dstIP}:${conv.dstPort} [${conv.protocol}] ${conv.packets} pkts, ${conv.bytes} bytes`);
+      });
       
       // Build hierarchy tree structure
       const hierarchy = buildHierarchyTree(protocols);
       console.log('[DPI Parse] Built hierarchy with', hierarchy.length, 'root nodes');
-      
       // Update cumulative protocols for online mode
       if (isOnlineMode) {
         dpiState.cumulativeProtocols = protocols;
       }
       
+      // Convert conversations to array and sort by bytes
+      const conversationArray = Object.values(conversations)
+        .filter(c => c.packets > 0) // Include all conversations with packets
+        .sort((a, b) => b.bytes - a.bytes);
+      
+      console.log('[DPI Parse] Total conversations:', conversationArray.length);
+      console.log('[DPI Parse] Sample conversations:', conversationArray.slice(0, 3).map(c => 
+        `${c.srcIP}:${c.srcPort} -> ${c.dstIP}:${c.dstPort} [${c.protocol}] ${c.packets} pkts, ${c.bytes} bytes`
+      ));
+      
       resolve({ 
         hierarchy, 
         trafficTimeSeries, 
+        conversations: conversationArray,
         totalLines: lines.length,
         processedEvents: eventCount 
       });
@@ -701,9 +857,10 @@ router.get('/data', async (req, res) => {
     // In online mode, only parse new lines since last request
     const isOnlineMode = dpiState.mode === 'online';
     const startLine = isOnlineMode ? dpiState.lastProcessedLine : 0;
-    const { hierarchy, trafficTimeSeries, totalLines, processedEvents } = await parseProtocolHierarchy(csvPath, startLine, isOnlineMode);
+    const { hierarchy, trafficTimeSeries, conversations, totalLines, processedEvents } = await parseProtocolHierarchy(csvPath, startLine, isOnlineMode);
     console.log('[DPI] Parsed hierarchy:', hierarchy ? hierarchy.length : 0, 'root nodes');
     console.log('[DPI] Traffic time series entries:', trafficTimeSeries.length);
+    console.log('[DPI] Top conversations:', conversations.length);
     console.log('[DPI] Processed events:', processedEvents, '(new lines from', startLine, 'to', totalLines, ')');
     
     // Update last processed line for online mode
@@ -756,6 +913,7 @@ router.get('/data', async (req, res) => {
       hierarchy,
       trafficData: aggregatedTraffic,
       statistics,
+      conversations,
       sessionId: dpiState.sessionId,
       isRunning: mmtStatus.isRunning,
       lastUpdate: dpiState.lastUpdate,
