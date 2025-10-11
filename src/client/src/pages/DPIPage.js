@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
 import { Button, Card, Select, Alert, Spin, Row, Col, Divider, Tree, Space, Tag, Table, Statistic } from 'antd';
 import { PlayCircleOutlined, StopOutlined, DownOutlined } from '@ant-design/icons';
-import { Line, Pie } from '@ant-design/plots';
+import { Line, Pie, Column, Area, Histogram } from '@ant-design/plots';
 import { SERVER_URL } from '../constants';
 
 const { Option } = Select;
@@ -25,6 +25,7 @@ class DPIPage extends Component {
       trafficData: [],
       statistics: null,
       conversations: [],
+      packetSizes: [],
       selectedProtocols: ['ETHERNET'], // Default selection
       metricType: 'dataVolume', // 'dataVolume' or 'packetCount'
       
@@ -159,11 +160,20 @@ class DPIPage extends Component {
           }
         }
         
+        // Preserve existing data if new data is empty (to keep plots visible during updates)
+        const finalConversations = data.conversations && data.conversations.length > 0 
+          ? data.conversations 
+          : this.state.conversations;
+        const finalPacketSizes = data.packetSizes && data.packetSizes.length > 0 
+          ? data.packetSizes 
+          : this.state.packetSizes;
+        
         this.setState({
           hierarchyData: finalHierarchyData,
           trafficData: finalTrafficData,
           statistics: data.statistics || null,
-          conversations: data.conversations || [],
+          conversations: finalConversations,
+          packetSizes: finalPacketSizes,
           isRunning: data.isRunning,
           lastUpdate: lastDataTimestamp,
           loading: false,
@@ -343,6 +353,7 @@ class DPIPage extends Component {
       trafficData: [],
       statistics: null,
       conversations: [],
+      packetSizes: [],
     });
     
     try {
@@ -825,6 +836,775 @@ class DPIPage extends Component {
           scroll={{ y: 300 }}
         />
       </div>
+    );
+  };
+
+  renderPortDistribution = () => {
+    const { conversations, isRunning, metricType } = this.state;
+
+    if (!conversations || conversations.length === 0) {
+      if (!isRunning) {
+        return (
+          <Alert
+            message="No Data"
+            description="Start an analysis to view port distribution"
+            type="info"
+            showIcon
+          />
+        );
+      }
+      return (
+        <div style={{ position: 'relative', minHeight: '300px' }}>
+          <Spin spinning={true} tip="Loading port data...">
+            <div style={{ minHeight: '300px' }}></div>
+          </Spin>
+        </div>
+      );
+    }
+
+    // Aggregate by destination port (service ports)
+    const portMap = {};
+    conversations.forEach(conv => {
+      // Use destination port (typically the service port)
+      const port = conv.dstPort || conv.srcPort;
+      if (!port) return;
+      
+      const portKey = `${port}`;
+      if (!portMap[portKey]) {
+        portMap[portKey] = {
+          port: port,
+          protocol: conv.protocol,
+          packets: 0,
+          bytes: 0,
+        };
+      }
+      
+      portMap[portKey].packets += conv.packets || 0;
+      portMap[portKey].bytes += conv.bytes || 0;
+    });
+
+    // Convert to array and get top 15 ports
+    const portData = Object.values(portMap)
+      .sort((a, b) => b.bytes - a.bytes)
+      .slice(0, 15)
+      .map(p => ({
+        port: `${p.port}`,
+        value: metricType === 'dataVolume' ? p.bytes : p.packets,
+        protocol: p.protocol,
+      }));
+
+    if (portData.length === 0) {
+      return (
+        <Alert
+          message="No Port Data"
+          description="No port information available"
+          type="info"
+          showIcon
+        />
+      );
+    }
+
+    const config = {
+      data: portData,
+      xField: 'port',
+      yField: 'value',
+      seriesField: 'protocol',
+      isGroup: true,
+      columnStyle: {
+        radius: [4, 4, 0, 0],
+      },
+      label: {
+        position: 'top',
+        style: {
+          fill: '#000000',
+          opacity: 0.6,
+          fontSize: 10,
+        },
+        formatter: (datum) => {
+          if (metricType === 'dataVolume') {
+            return this.formatBytes(datum.value);
+          }
+          return datum.value > 1000 ? `${(datum.value / 1000).toFixed(1)}K` : datum.value;
+        },
+      },
+      xAxis: {
+        label: {
+          autoRotate: true,
+          autoHide: false,
+        },
+        title: {
+          text: 'Port',
+        },
+      },
+      yAxis: {
+        title: {
+          text: metricType === 'dataVolume' ? 'Bytes' : 'Packets',
+        },
+        label: {
+          formatter: (v) => {
+            if (metricType === 'dataVolume') {
+              return this.formatBytes(Number(v));
+            }
+            return Number(v) > 1000 ? `${(Number(v) / 1000).toFixed(1)}K` : v;
+          },
+        },
+      },
+      legend: {
+        position: 'top',
+      },
+      tooltip: {
+        formatter: (datum) => {
+          const value = metricType === 'dataVolume'
+            ? this.formatBytes(datum.value)
+            : datum.value.toLocaleString();
+          return {
+            name: `Port ${datum.port} (${datum.protocol})`,
+            value: value,
+          };
+        },
+      },
+    };
+
+    return <Column {...config} />;
+  };
+
+  renderTopTalkers = () => {
+    const { conversations, isRunning, metricType } = this.state;
+
+    if (!conversations || conversations.length === 0) {
+      if (!isRunning) {
+        return (
+          <Alert
+            message="No Data"
+            description="Start an analysis to view top talkers"
+            type="info"
+            showIcon
+          />
+        );
+      }
+      return (
+        <div style={{ position: 'relative', minHeight: '300px' }}>
+          <Spin spinning={true} tip="Loading IP data...">
+            <div style={{ minHeight: '300px' }}></div>
+          </Spin>
+        </div>
+      );
+    }
+
+    // Aggregate by IP (both source and destination)
+    const ipMap = {};
+    conversations.forEach(conv => {
+      // Count source IP
+      if (conv.srcIP) {
+        if (!ipMap[conv.srcIP]) {
+          ipMap[conv.srcIP] = {
+            ip: conv.srcIP,
+            sent: { packets: 0, bytes: 0 },
+            received: { packets: 0, bytes: 0 },
+          };
+        }
+        ipMap[conv.srcIP].sent.packets += conv.packets || 0;
+        ipMap[conv.srcIP].sent.bytes += conv.bytes || 0;
+      }
+      
+      // Count destination IP
+      if (conv.dstIP) {
+        if (!ipMap[conv.dstIP]) {
+          ipMap[conv.dstIP] = {
+            ip: conv.dstIP,
+            sent: { packets: 0, bytes: 0 },
+            received: { packets: 0, bytes: 0 },
+          };
+        }
+        ipMap[conv.dstIP].received.packets += conv.packets || 0;
+        ipMap[conv.dstIP].received.bytes += conv.bytes || 0;
+      }
+    });
+
+    // Convert to array and calculate totals
+    const ipData = Object.values(ipMap).map(ip => ({
+      ip: ip.ip,
+      total: metricType === 'dataVolume' 
+        ? ip.sent.bytes + ip.received.bytes
+        : ip.sent.packets + ip.received.packets,
+      sent: metricType === 'dataVolume' ? ip.sent.bytes : ip.sent.packets,
+      received: metricType === 'dataVolume' ? ip.received.bytes : ip.received.packets,
+    }));
+
+    // Get top 10 IPs by total traffic
+    const topIPs = ipData
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10);
+
+    if (topIPs.length === 0) {
+      return (
+        <Alert
+          message="No IP Data"
+          description="No IP information available"
+          type="info"
+          showIcon
+        />
+      );
+    }
+
+    const columns = [
+      {
+        title: 'IP Address',
+        dataIndex: 'ip',
+        key: 'ip',
+        ellipsis: true,
+        width: 150,
+      },
+      {
+        title: metricType === 'dataVolume' ? 'Sent (Bytes)' : 'Sent (Packets)',
+        dataIndex: 'sent',
+        key: 'sent',
+        align: 'right',
+        width: 120,
+        sorter: (a, b) => a.sent - b.sent,
+        render: (val) => metricType === 'dataVolume' ? this.formatBytes(val) : val.toLocaleString(),
+      },
+      {
+        title: metricType === 'dataVolume' ? 'Received (Bytes)' : 'Received (Packets)',
+        dataIndex: 'received',
+        key: 'received',
+        align: 'right',
+        width: 120,
+        sorter: (a, b) => a.received - b.received,
+        render: (val) => metricType === 'dataVolume' ? this.formatBytes(val) : val.toLocaleString(),
+      },
+      {
+        title: metricType === 'dataVolume' ? 'Total (Bytes)' : 'Total (Packets)',
+        dataIndex: 'total',
+        key: 'total',
+        align: 'right',
+        width: 120,
+        sorter: (a, b) => a.total - b.total,
+        defaultSortOrder: 'descend',
+        render: (val) => metricType === 'dataVolume' ? this.formatBytes(val) : val.toLocaleString(),
+      },
+    ];
+
+    const dataSource = topIPs.map((ip, index) => ({
+      key: index,
+      ...ip,
+    }));
+
+    return (
+      <Table
+        columns={columns}
+        dataSource={dataSource}
+        pagination={false}
+        size="small"
+        scroll={{ y: 300 }}
+      />
+    );
+  };
+
+  renderStackedAreaChart = () => {
+    const { trafficData, metricType, isRunning, selectedProtocols } = this.state;
+    
+    if (!trafficData || trafficData.length === 0) {
+      if (isRunning) {
+        return (
+          <div style={{ position: 'relative', minHeight: '300px' }}>
+            <Spin spinning={true} tip="Loading traffic data...">
+              <div style={{ minHeight: '300px' }}></div>
+            </Spin>
+          </div>
+        );
+      }
+      return (
+        <Alert
+          message="No Data"
+          description="Start an analysis to view protocol timeline"
+          type="info"
+          showIcon
+        />
+      );
+    }
+
+    // Filter data by selected protocols
+    const filtered = trafficData.filter(d => {
+      // Check if any selected protocol is in the protocol hierarchy
+      return selectedProtocols.some(proto => 
+        d.protocol.toLowerCase().includes(proto.toLowerCase())
+      );
+    });
+
+    // Get scale for data volume
+    let scale = { scale: 1, unit: 'B' };
+    if (metricType === 'dataVolume') {
+      const tempData = filtered.map(d => ({ value: d.dataVolume }));
+      scale = this.getDataVolumeScale(tempData);
+    }
+
+    // Format data for stacked area chart
+    const chartData = filtered.map(d => {
+      const timestamp = (d.timestamp || d.time) * 1000;
+      return {
+        time: timestamp,
+        protocol: d.protocol,
+        value: metricType === 'dataVolume' ? d.dataVolume / scale.scale : d.packetCount,
+        rawValue: metricType === 'dataVolume' ? d.dataVolume : d.packetCount,
+      };
+    });
+
+    chartData.sort((a, b) => a.time - b.time);
+
+    // Determine if we should show milliseconds
+    let showMilliseconds = false;
+    if (chartData.length > 1) {
+      const duration = chartData[chartData.length - 1].time - chartData[0].time;
+      showMilliseconds = duration < 2000;
+    }
+
+    const yAxisLabel = metricType === 'dataVolume' 
+      ? `Data Volume (${scale.unit})` 
+      : 'Packet Count';
+
+    const config = {
+      data: chartData,
+      xField: 'time',
+      yField: 'value',
+      seriesField: 'protocol',
+      isStack: true,
+      smooth: true,
+      padding: 'auto',
+      appendPadding: [10, 80, 10, 10],
+      animation: {
+        appear: {
+          animation: 'wave-in',
+          duration: 1000,
+        },
+      },
+      legend: {
+        position: 'top',
+      },
+      xAxis: {
+        title: {
+          text: 'Time',
+        },
+        label: {
+          formatter: (v) => {
+            const timestamp = Number(v);
+            if (isNaN(timestamp)) return String(v);
+            
+            const date = new Date(timestamp);
+            if (isNaN(date.getTime())) return String(timestamp);
+            
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            
+            if (showMilliseconds) {
+              const ms = String(date.getMilliseconds()).padStart(3, '0');
+              return `${hours}:${minutes}:${seconds}.${ms}`;
+            }
+            return `${hours}:${minutes}:${seconds}`;
+          },
+          autoRotate: true,
+        },
+        nice: true,
+        tickCount: 10,
+      },
+      yAxis: {
+        title: {
+          text: yAxisLabel,
+        },
+        label: {
+          formatter: (v) => typeof v === 'number' ? v.toFixed(2) : v,
+        },
+      },
+      tooltip: {
+        customContent: (title, items) => {
+          if (!items || items.length === 0) return '';
+          
+          const timestamp = Number(title);
+          const date = new Date(timestamp);
+          const dateStr = date.toLocaleDateString('en-US', { 
+            year: 'numeric', 
+            month: 'short', 
+            day: 'numeric' 
+          });
+          const timeStr = date.toLocaleTimeString('en-US', { 
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            fractionalSecondDigits: 3
+          });
+          
+          let html = `<div style="padding: 8px;">`;
+          html += `<div style="margin-bottom: 8px; font-weight: bold;">${dateStr} ${timeStr}</div>`;
+          
+          items.forEach(item => {
+            const color = item.color || '#1890ff';
+            const name = item.name || 'Unknown';
+            const value = item.data.rawValue || item.value || 0;
+            
+            html += `<div style="margin-bottom: 4px;">`;
+            html += `<span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${color}; margin-right: 8px;"></span>`;
+            html += `<span style="font-weight: 500;">${name}:</span> `;
+            html += `<span>${metricType === 'dataVolume' ? this.formatBytes(value) : value.toLocaleString()}</span>`;
+            html += `</div>`;
+          });
+          
+          html += `</div>`;
+          return html;
+        },
+      },
+    };
+
+    return (
+      <div>
+        <div style={{ marginBottom: 16 }}>
+          <strong>Selected Protocols:</strong>{' '}
+          {selectedProtocols.map(proto => (
+            <Tag 
+              key={proto} 
+              closable 
+              onClose={() => this.toggleProtocolSelection(proto)}
+              color="blue"
+            >
+              {proto}
+            </Tag>
+          ))}
+        </div>
+        <Area {...config} />
+      </div>
+    );
+  };
+
+  renderPacketSizeHistogram = () => {
+    const { packetSizes, isRunning } = this.state;
+
+    if (!packetSizes || packetSizes.length === 0) {
+      if (!isRunning) {
+        return (
+          <Alert
+            message="No Data"
+            description="Start an analysis to view packet size distribution"
+            type="info"
+            showIcon
+          />
+        );
+      }
+      return (
+        <div style={{ position: 'relative', minHeight: '300px' }}>
+          <Spin spinning={true} tip="Loading packet data...">
+            <div style={{ minHeight: '300px' }}></div>
+          </Spin>
+        </div>
+      );
+    }
+
+    // Prepare data for histogram
+    const histogramData = packetSizes.map(size => ({ size }));
+
+    const config = {
+      data: histogramData,
+      binField: 'size',
+      binWidth: 100, // 100 bytes per bin
+      meta: {
+        count: {
+          min: 0,
+        },
+      },
+      xAxis: {
+        title: {
+          text: 'Packet Size (bytes)',
+        },
+        label: {
+          formatter: (v) => {
+            const val = Number(v);
+            if (val >= 1000) return `${(val / 1000).toFixed(1)}K`;
+            return val;
+          },
+        },
+      },
+      yAxis: {
+        type: 'log',
+        title: {
+          text: 'Count (log scale)',
+        },
+        label: {
+          formatter: (v) => {
+            const val = Number(v);
+            if (val >= 1000) return `${(val / 1000).toFixed(1)}K`;
+            return val;
+          },
+        },
+      },
+      tooltip: {
+        showTitle: true,
+        formatter: (datum) => {
+          return {
+            name: 'Packets',
+            value: `${datum.count} packets (${datum.range[0]}-${datum.range[1]} bytes)`,
+          };
+        },
+      },
+      color: '#1890ff',
+      columnStyle: {
+        fill: '#1890ff',
+        fillOpacity: 0.8,
+        stroke: '#1890ff',
+        strokeWidth: 1,
+      },
+    };
+
+    return <Histogram {...config} />;
+  };
+
+  renderApplicationProtocols = () => {
+    const { hierarchyData, metricType, isRunning } = this.state;
+
+    if (!hierarchyData || hierarchyData.length === 0) {
+      if (!isRunning) {
+        return (
+          <Alert
+            message="No Data"
+            description="Start an analysis to view application protocols"
+            type="info"
+            showIcon
+          />
+        );
+      }
+      return (
+        <div style={{ position: 'relative', minHeight: '300px' }}>
+          <Spin spinning={true} tip="Loading protocol data...">
+            <div style={{ minHeight: '300px' }}></div>
+          </Spin>
+        </div>
+      );
+    }
+
+    // Well-known application protocols to filter
+    const appProtocols = ['HTTP', 'HTTPS', 'SSH', 'FTP', 'DNS', 'SMTP', 'POP3', 'IMAP', 
+                          'TELNET', 'SNMP', 'LDAP', 'MYSQL', 'POSTGRESQL', 'MONGODB', 
+                          'REDIS', 'RDP', 'VNC', 'SMB', 'NTP', 'DHCP', 'TLS/SSL'];
+
+    // Flatten hierarchy and filter for application protocols
+    const flattenAndFilter = (nodes, result = []) => {
+      nodes.forEach(node => {
+        if (appProtocols.some(proto => node.title && node.title.includes(proto))) {
+          result.push({
+            protocol: node.title || node.key,
+            packets: node.packets || 0,
+            bytes: node.dataVolume || 0,
+          });
+        }
+        if (node.children && node.children.length > 0) {
+          flattenAndFilter(node.children, result);
+        }
+      });
+      return result;
+    };
+
+    const appProtoData = flattenAndFilter(hierarchyData);
+
+    if (appProtoData.length === 0) {
+      return (
+        <Alert
+          message="No Application Protocols"
+          description="No application-layer protocols detected in the traffic"
+          type="info"
+          showIcon
+        />
+      );
+    }
+
+    // Sort by metric and take top 10
+    const sortedData = appProtoData
+      .sort((a, b) => {
+        const aVal = metricType === 'dataVolume' ? b.bytes : b.packets;
+        const bVal = metricType === 'dataVolume' ? a.bytes : a.packets;
+        return aVal - bVal;
+      })
+      .slice(0, 10);
+
+    const columns = [
+      {
+        title: 'Protocol',
+        dataIndex: 'protocol',
+        key: 'protocol',
+        width: 120,
+      },
+      {
+        title: 'Packets',
+        dataIndex: 'packets',
+        key: 'packets',
+        align: 'right',
+        sorter: (a, b) => a.packets - b.packets,
+        render: (val) => val.toLocaleString(),
+      },
+      {
+        title: 'Bytes',
+        dataIndex: 'bytes',
+        key: 'bytes',
+        align: 'right',
+        sorter: (a, b) => a.bytes - b.bytes,
+        defaultSortOrder: 'descend',
+        render: (val) => this.formatBytes(val),
+      },
+    ];
+
+    const dataSource = sortedData.map((proto, index) => ({
+      key: index,
+      ...proto,
+    }));
+
+    return (
+      <Table
+        columns={columns}
+        dataSource={dataSource}
+        pagination={false}
+        size="small"
+        scroll={{ y: 300 }}
+      />
+    );
+  };
+
+  renderBidirectionalFlow = () => {
+    const { conversations, isRunning, metricType } = this.state;
+
+    if (!conversations || conversations.length === 0) {
+      if (!isRunning) {
+        return (
+          <Alert
+            message="No Data"
+            description="Start an analysis to view bidirectional flows"
+            type="info"
+            showIcon
+          />
+        );
+      }
+      return (
+        <div style={{ position: 'relative', minHeight: '300px' }}>
+          <Spin spinning={true} tip="Loading flow data...">
+            <div style={{ minHeight: '300px' }}></div>
+          </Spin>
+        </div>
+      );
+    }
+
+    // Group conversations bidirectionally
+    const flowMap = {};
+    conversations.forEach(conv => {
+      if (!conv.srcIP || !conv.dstIP) return;
+      
+      // Create bidirectional key (sorted IPs)
+      const ips = [conv.srcIP, conv.dstIP].sort();
+      const flowKey = `${ips[0]} <-> ${ips[1]}`;
+      
+      if (!flowMap[flowKey]) {
+        flowMap[flowKey] = {
+          ip1: ips[0],
+          ip2: ips[1],
+          ip1ToIp2: { packets: 0, bytes: 0 },
+          ip2ToIp1: { packets: 0, bytes: 0 },
+        };
+      }
+      
+      // Determine direction
+      if (conv.srcIP === ips[0]) {
+        // ip1 -> ip2
+        flowMap[flowKey].ip1ToIp2.packets += conv.packets || 0;
+        flowMap[flowKey].ip1ToIp2.bytes += conv.bytes || 0;
+      } else {
+        // ip2 -> ip1
+        flowMap[flowKey].ip2ToIp1.packets += conv.packets || 0;
+        flowMap[flowKey].ip2ToIp1.bytes += conv.bytes || 0;
+      }
+    });
+
+    // Convert to array and calculate totals
+    const flows = Object.values(flowMap).map(flow => {
+      const metric1to2 = metricType === 'dataVolume' ? flow.ip1ToIp2.bytes : flow.ip1ToIp2.packets;
+      const metric2to1 = metricType === 'dataVolume' ? flow.ip2ToIp1.bytes : flow.ip2ToIp1.packets;
+      return {
+        ...flow,
+        total: metric1to2 + metric2to1,
+        ip1ToIp2Value: metric1to2,
+        ip2ToIp1Value: metric2to1,
+      };
+    });
+
+    // Get top 10 flows
+    const topFlows = flows
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10);
+
+    if (topFlows.length === 0) {
+      return (
+        <Alert
+          message="No Flow Data"
+          description="No bidirectional flows detected"
+          type="info"
+          showIcon
+        />
+      );
+    }
+
+    const columns = [
+      {
+        title: 'IP 1',
+        dataIndex: 'ip1',
+        key: 'ip1',
+        ellipsis: true,
+        width: 130,
+      },
+      {
+        title: 'IP 2',
+        dataIndex: 'ip2',
+        key: 'ip2',
+        ellipsis: true,
+        width: 130,
+      },
+      {
+        title: 'IP1→IP2',
+        dataIndex: 'ip1ToIp2Value',
+        key: 'ip1ToIp2',
+        align: 'right',
+        width: 100,
+        sorter: (a, b) => a.ip1ToIp2Value - b.ip1ToIp2Value,
+        render: (val) => metricType === 'dataVolume' ? this.formatBytes(val) : val.toLocaleString(),
+      },
+      {
+        title: 'IP2→IP1',
+        dataIndex: 'ip2ToIp1Value',
+        key: 'ip2ToIp1',
+        align: 'right',
+        width: 100,
+        sorter: (a, b) => a.ip2ToIp1Value - b.ip2ToIp1Value,
+        render: (val) => metricType === 'dataVolume' ? this.formatBytes(val) : val.toLocaleString(),
+      },
+      {
+        title: 'Total',
+        dataIndex: 'total',
+        key: 'total',
+        align: 'right',
+        width: 100,
+        sorter: (a, b) => a.total - b.total,
+        defaultSortOrder: 'descend',
+        render: (val) => metricType === 'dataVolume' ? this.formatBytes(val) : val.toLocaleString(),
+      },
+    ];
+
+    const dataSource = topFlows.map((flow, index) => ({
+      key: index,
+      ...flow,
+    }));
+
+    return (
+      <Table
+        columns={columns}
+        dataSource={dataSource}
+        pagination={false}
+        size="small"
+        scroll={{ y: 300 }}
+      />
     );
   };
 
@@ -1387,8 +2167,8 @@ class DPIPage extends Component {
               </div>
               
               <Card style={{ marginBottom: 16 }}>
-                <h3 style={{ fontSize: '16px', marginBottom: 16, fontWeight: 600 }}>Traffic Timeline</h3>
-                {this.renderTrafficChart()}
+                <h3 style={{ fontSize: '16px', marginBottom: 16, fontWeight: 600 }}>Protocol Timeline</h3>
+                {this.renderStackedAreaChart()}
               </Card>
               
               <Row gutter={16}>
@@ -1398,9 +2178,19 @@ class DPIPage extends Component {
                     {this.renderProtocolHierarchy()}
                   </Card>
                   
-                  <Card style={{ marginBottom: 24 }}>
-                    <h3 style={{ fontSize: '16px', marginBottom: 16, fontWeight: 600 }}>Top Conversations</h3>
+                  <Card style={{ marginBottom: 16 }}>
+                    <h3 style={{ fontSize: '16px', marginBottom: 16, fontWeight: 600 }}>Top Conversations (IP Pairs)</h3>
                     {this.renderTopConversations()}
+                  </Card>
+                  
+                  <Card style={{ marginBottom: 16 }}>
+                    <h3 style={{ fontSize: '16px', marginBottom: 16, fontWeight: 600 }}>Port Distribution</h3>
+                    {this.renderPortDistribution()}
+                  </Card>
+                  
+                  <Card style={{ marginBottom: 24 }}>
+                    <h3 style={{ fontSize: '16px', marginBottom: 16, fontWeight: 600 }}>Packet Size Distribution</h3>
+                    {this.renderPacketSizeHistogram()}
                   </Card>
                 </Col>
                 
@@ -1408,6 +2198,21 @@ class DPIPage extends Component {
                   <Card style={{ marginBottom: 16 }}>
                     <h3 style={{ fontSize: '16px', marginBottom: 16, fontWeight: 600 }}>Protocol Distribution</h3>
                     {this.renderProtocolDistributionPie()}
+                  </Card>
+                  
+                  <Card style={{ marginBottom: 16 }}>
+                    <h3 style={{ fontSize: '16px', marginBottom: 16, fontWeight: 600 }}>Top Talkers (Most Active IPs)</h3>
+                    {this.renderTopTalkers()}
+                  </Card>
+                  
+                  <Card style={{ marginBottom: 16 }}>
+                    <h3 style={{ fontSize: '16px', marginBottom: 16, fontWeight: 600 }}>Application Protocols</h3>
+                    {this.renderApplicationProtocols()}
+                  </Card>
+                  
+                  <Card style={{ marginBottom: 16 }}>
+                    <h3 style={{ fontSize: '16px', marginBottom: 16, fontWeight: 600 }}>Bidirectional Flows</h3>
+                    {this.renderBidirectionalFlow()}
                   </Card>
                 </Col>
               </Row>

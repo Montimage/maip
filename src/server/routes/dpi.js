@@ -25,6 +25,7 @@ let dpiState = {
   lastUpdate: null,
   lastProcessedLine: 0, // For online mode: track how many lines we've already processed
   cumulativeProtocols: {}, // For online mode: accumulated protocol counts
+  cumulativeConversations: {}, // For online mode: accumulated conversations
 };
 
 /**
@@ -38,8 +39,9 @@ function parseProtocolHierarchy(csvFilePath, startLine = 0, isOnlineMode = false
     const protocols = isOnlineMode ? { ...dpiState.cumulativeProtocols } : {};
     const trafficTimeSeries = [];
     const sessionProtocols = {}; // Track protocol hierarchy per session
-    const conversations = {}; // Track conversations by 5-tuple key
+    const conversations = isOnlineMode ? { ...dpiState.cumulativeConversations } : {}; // Track conversations by 5-tuple key
     const timestampIPMap = {}; // Map timestamp+ports to IP addresses
+    const packetSizes = []; // Track packet sizes for histogram
     
     fs.readFile(csvFilePath, 'utf8', (err, data) => {
       if (err) {
@@ -84,6 +86,11 @@ function parseProtocolHierarchy(csvFilePath, startLine = 0, isOnlineMode = false
           const srcIP = parts[12];
           const dstIP = parts[13];
           
+          // Track packet size
+          if (dataVolume > 0) {
+            packetSizes.push(dataVolume);
+          }
+          
           // Initialize session protocol stack
           if (!sessionProtocols[sessionId]) {
             sessionProtocols[sessionId] = ['ETHERNET', protocol];
@@ -108,6 +115,11 @@ function parseProtocolHierarchy(csvFilePath, startLine = 0, isOnlineMode = false
           const destPort = parseInt(parts[6]);
           dataVolume = parseInt(parts[7]) || 0; // payload_len
           sessionId = parts[16]; // ip.session_id is at index 16
+          
+          // Track packet size (payload only for TCP/UDP)
+          if (dataVolume > 0) {
+            packetSizes.push(dataVolume);
+          }
           
           // Initialize session if it doesn't exist (TCP without prior IP event)
           if (sessionId && !sessionProtocols[sessionId]) {
@@ -196,6 +208,11 @@ function parseProtocolHierarchy(csvFilePath, startLine = 0, isOnlineMode = false
           const destPort = parseInt(parts[6]);
           dataVolume = parseInt(parts[7]) || 0;
           sessionId = parts[16]; // ip.session_id
+          
+          // Track packet size (payload only for TCP/UDP)
+          if (dataVolume > 0) {
+            packetSizes.push(dataVolume);
+          }
           
           // Initialize session if it doesn't exist
           if (sessionId && !sessionProtocols[sessionId]) {
@@ -331,9 +348,10 @@ function parseProtocolHierarchy(csvFilePath, startLine = 0, isOnlineMode = false
       // Build hierarchy tree structure
       const hierarchy = buildHierarchyTree(protocols);
       console.log('[DPI Parse] Built hierarchy with', hierarchy.length, 'root nodes');
-      // Update cumulative protocols for online mode
+      // Update cumulative protocols and conversations for online mode
       if (isOnlineMode) {
         dpiState.cumulativeProtocols = protocols;
+        dpiState.cumulativeConversations = conversations;
       }
       
       // Convert conversations to array and sort by bytes
@@ -350,6 +368,7 @@ function parseProtocolHierarchy(csvFilePath, startLine = 0, isOnlineMode = false
         hierarchy, 
         trafficTimeSeries, 
         conversations: conversationArray,
+        packetSizes,
         totalLines: lines.length,
         processedEvents: eventCount 
       });
@@ -684,6 +703,7 @@ router.post('/start/offline', async (req, res) => {
         lastUpdate: new Date().toISOString(),
         lastProcessedLine: 0,
         cumulativeProtocols: {},
+        cumulativeConversations: {},
         cumulativeStatistics: null,
       };
       
@@ -725,6 +745,7 @@ router.post('/start/online', async (req, res) => {
         lastUpdate: new Date().toISOString(),
         lastProcessedLine: 0,
         cumulativeProtocols: {},
+        cumulativeConversations: {},
         cumulativeStatistics: null,
       };
       
@@ -857,7 +878,7 @@ router.get('/data', async (req, res) => {
     // In online mode, only parse new lines since last request
     const isOnlineMode = dpiState.mode === 'online';
     const startLine = isOnlineMode ? dpiState.lastProcessedLine : 0;
-    const { hierarchy, trafficTimeSeries, conversations, totalLines, processedEvents } = await parseProtocolHierarchy(csvPath, startLine, isOnlineMode);
+    const { hierarchy, trafficTimeSeries, conversations, packetSizes, totalLines, processedEvents } = await parseProtocolHierarchy(csvPath, startLine, isOnlineMode);
     console.log('[DPI] Parsed hierarchy:', hierarchy ? hierarchy.length : 0, 'root nodes');
     console.log('[DPI] Traffic time series entries:', trafficTimeSeries.length);
     console.log('[DPI] Top conversations:', conversations.length);
@@ -914,6 +935,7 @@ router.get('/data', async (req, res) => {
       trafficData: aggregatedTraffic,
       statistics,
       conversations,
+      packetSizes,
       sessionId: dpiState.sessionId,
       isRunning: mmtStatus.isRunning,
       lastUpdate: dpiState.lastUpdate,
