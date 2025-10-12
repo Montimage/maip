@@ -276,9 +276,9 @@ class BuildADPage extends Component {
       <LayoutPage pageTitle="Build Models" pageSubTitle="Build a new AI model for anomaly detection">
         <Row>
         <Col span={12}>
-        <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 700 }}>
+        <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 700 }} className="bold-labels">
           <Form.Item
-            label="Malicious Dataset"
+            label={<strong>Malicious Dataset</strong>}
             name="attackDataset"
             rules={[
               {
@@ -312,7 +312,7 @@ class BuildADPage extends Component {
             </Upload>
           </Form.Item>
 
-          <Form.Item label="Normal Dataset" name="normalDataset"
+          <Form.Item label={<strong>Normal Dataset</strong>} name="normalDataset"
             rules={[
               {
                 required: true,
@@ -344,7 +344,7 @@ class BuildADPage extends Component {
               </Button>
             </Upload>
           </Form.Item>
-          <Form.Item label="Feature List" name="featureList">
+          <Form.Item label={<strong>Feature List</strong>} name="featureList">
             <Tooltip title="Select feature lists used to build models.">
               <Select
                 value={this.state.featureList}
@@ -353,7 +353,7 @@ class BuildADPage extends Component {
               />
             </Tooltip>
           </Form.Item>
-          <Form.Item label="Training Ratio" name="training_ratio">
+          <Form.Item label={<strong>Training Ratio</strong>} name="training_ratio">
             <Tooltip title="The training ratio refers to the proportion of data used for training a machine learning model compared to the total dataset. The training ratio is 0.7, meaning 70% for training and 30% for testing/validation.">
               <InputNumber
                 name="training_ratio"
@@ -365,7 +365,7 @@ class BuildADPage extends Component {
           </Form.Item>
           <Collapse>
             <Panel header="Training Parameters">
-              <Form.Item label="Number of Epochs (CNN)" name="nb_epoch_cnn">
+              <Form.Item label={<strong>Number of Epochs (CNN)</strong>} name="nb_epoch_cnn">
                 <Tooltip title="In convolutional neural networks (CNN), the number of epochs determines how many times the model will iterate over the training data during the training process.">
                   <InputNumber
                     name="nb_epoch_cnn"
@@ -379,7 +379,7 @@ class BuildADPage extends Component {
                   />
                 </Tooltip>
               </Form.Item>
-              <Form.Item label="Number of Epochs (SAE)" name="nb_epoch_sae">
+              <Form.Item label={<strong>Number of Epochs (SAE)</strong>} name="nb_epoch_sae">
                 <Tooltip title="In Stacked Autoencoder (SAE), the number of epochs determines how many times this encoding-decoding process is repeated during training.">
                   <InputNumber
                     name="nb_epoch_sae"
@@ -393,7 +393,7 @@ class BuildADPage extends Component {
                   />
                 </Tooltip>
               </Form.Item>
-              <Form.Item label="Batch Size (CNN)" name="batch_size_cnn">
+              <Form.Item label={<strong>Batch Size (CNN)</strong>} name="batch_size_cnn">
                 <Tooltip title="Batch size in CNN refers to the number of samples that are processed together in a single forward and backward pass during each epoch of training. The training dataset is divided into smaller batches, and the model's parameters are updated based on the average gradients computed from each batch.">
                   <InputNumber
                     name="batch_size_cnn"
@@ -407,7 +407,7 @@ class BuildADPage extends Component {
                   />
                 </Tooltip>
               </Form.Item>
-              <Form.Item label="Batch Size (SAE)" name="batch_size_sae">
+              <Form.Item label={<strong>Batch Size (SAE)</strong>} name="batch_size_sae">
                 <Tooltip title="Batch size in a SAE determines the number of samples processed together in each training iteration.">
                   <InputNumber
                     name="batch_size_sae"

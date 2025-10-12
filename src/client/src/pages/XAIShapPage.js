@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
-import { Spin, Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Tooltip, Typography, Modal } from 'antd';
+import { Spin, Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Tooltip, Typography, Modal, Card } from 'antd';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { QuestionOutlined, CameraOutlined } from "@ant-design/icons";
@@ -321,10 +321,13 @@ class XAIShapPage extends Component {
 
     return (
       <LayoutPage pageTitle="Explainable AI with SHapley Additive exPlanations (SHAP)" pageSubTitle={subTitle}>
+        
         <Divider orientation="left">
-          <h1 style={{ fontSize: '24px' }}>SHAP Parameters</h1>
+          <h2 style={{ fontSize: '20px' }}>Configuration</h2>
         </Divider>
-        <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 600 }}>
+        
+        <Card style={{ marginBottom: 16 }}>
+          <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 600 }}>
           <Form.Item name="model" label="Model"
               style={{ flex: 'none', marginBottom: 10 }}
               rules={[
@@ -434,35 +437,34 @@ class XAIShapPage extends Component {
             <Button type="primary"
               onClick={this.handleShapClick}
               disabled={isRunning || !this.state.modelId}
-              >SHAP Explain
-              {isRunning && (
-                <Spin size="small" style={{ marginLeft: 8 }} />
-              )}
+              loading={isRunning}
+            >
+              SHAP Explain
             </Button>
             <Button style={{ marginLeft: 8 }} htmlType="button" type="primary"
               onClick={() => this.handleAskAssistantShap()}
               disabled={!this.state.modelId || this.state.shapValues.length === 0}
-            >Ask Assistant
+            >
+              Ask Assistant
             </Button>
           </div>
-        </Form>
+          </Form>
+        </Card>
+        
         <Divider orientation="left">
-          <h1 style={{ fontSize: '24px' }}>SHAP Explanations</h1>
+          <h2 style={{ fontSize: '20px' }}>SHAP Explanations</h2>
         </Divider>
-        <Row gutter={24}>
-          <Col className="gutter-row" span={12}>
-            <div style={BOX_STYLE}>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <h2>&nbsp;&nbsp;&nbsp;Feature Importances{isFlowBased && sampleIdParam ? ` - Flow sample ID ${sampleIdParam}` : ''}</h2>
-                {/* TODO: make position of buttons are flexible */}
-                <div style={{ position: 'absolute', top: 10, right: 10 }}>
+        
+        <Row gutter={16}>
+          <Col span={12}>
+            <Card style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>Feature Importances{isFlowBased && sampleIdParam ? ` - Flow sample ID ${sampleIdParam}` : ''}</h3>
+                <div>
                   <Tooltip title="Download plot as png">
                     <Button
                       type="link"
                       icon={<CameraOutlined />}
-                      style={{
-                        marginLeft: '20rem',
-                      }}
                       onClick={downloadShapImage}
                     />
                   </Tooltip>
@@ -500,20 +502,21 @@ class XAIShapPage extends Component {
               <Typography.Title level={4} style={{ textAlign: 'center', fontSize: '16px', marginTop: '10px' }}>
                 Mean absolute SHAP value
               </Typography.Title>
-            </div>
+            </Card>
           </Col>
-          <Col className="gutter-row" span={12}>
-            <div style={BOX_STYLE}>
-              <h2>&nbsp;&nbsp;&nbsp;{`Top ${maxDisplay} most important features`}</h2>
-              <div style={{ position: 'absolute', top: 10, right: 10 }}>
+          
+          <Col span={12}>
+            <Card style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>{`Top ${maxDisplay} most important features`}</h3>
                 <Tooltip title={`Displays the top ${maxDisplay} most important features with detailed description.`}>
                   <Button type="link" icon={<QuestionOutlined />} />
                 </Tooltip>
               </div>
               <Table dataSource={topFeatures} columns={COLUMNS_TOP_FEATURES}
-                size="small" style={{ marginTop: '20px', marginBottom: 0 }}
+                size="small"
               />
-            </div>
+            </Card>
           </Col>
           {/* <Col span={12} style={{ marginTop: "24px" }}>
             <div style={BOX_STYLE}>

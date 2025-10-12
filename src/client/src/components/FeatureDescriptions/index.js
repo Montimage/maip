@@ -1,6 +1,6 @@
 import React from 'react';
 import { Table, Tag } from 'antd';
-const { BOX_STYLE, AD_FEATURES_DESCRIPTIONS, AC_FEATURES_DESCRIPTIONS } = require('../../constants');
+const { AD_FEATURES_DESCRIPTIONS, AC_FEATURES_DESCRIPTIONS } = require('../../constants');
 
 function inferDescriptionsFromData(data = []) {
   if (!Array.isArray(data) || data.length === 0) return AD_FEATURES_DESCRIPTIONS;
@@ -71,15 +71,14 @@ export default function FeatureDescriptions({ data = [], modelId, app, title = '
   ];
 
   return (
-    <div style={{ ...BOX_STYLE, marginTop: '20px' }}>
-      {showTitle && <h2>&nbsp;&nbsp;&nbsp;{title}</h2>}
+    <>
+      {showTitle && <h3 style={{ fontSize: '16px', marginBottom: 16, fontWeight: 600 }}>{title}</h3>}
       <Table 
         dataSource={allFeatures} 
         columns={enhancedColumns} 
-        size="small" 
-        style={{ marginTop: '10px' }}
+        size="small"
         pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (total) => `Total ${total} features` }}
       />
-    </div>
+    </>
   );
 }

@@ -2,8 +2,8 @@ import React, { Component } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import LayoutPage from './LayoutPage';
-import { Tabs, Form, Select, Button, Table, Divider, Tooltip, Upload, Spin, message, Dropdown, Menu, Modal } from 'antd';
-import { UploadOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Tabs, Form, Select, Button, Table, Divider, Tooltip, Upload, Spin, message, notification, Dropdown, Menu, Modal, Card, Row, Col, Statistic, Tag, Space } from 'antd';
+import { UploadOutlined, DeleteOutlined, PlayCircleOutlined, StopOutlined, SendOutlined } from '@ant-design/icons';
 import { Line } from '@ant-design/plots';
 import {
   FORM_LAYOUT,
@@ -194,27 +194,43 @@ class PredictRuleBasedPage extends Component {
       // Clear previous alerts for a fresh run
       this.setState({ alerts: [], alertSeries: [], alertSeriesByRule: [] });
       const data = await requestRuleOnlineStart({ iface, intervalSec });
-      message.success(`Started rule-based detection on ${iface}`);
+      notification.success({
+        message: 'Success',
+        description: `Started rule-based detection on ${iface}`,
+        placement: 'topRight',
+      });
       this.setState({ onlineRunning: true, status: data }, () => {
         // Kick an immediate refresh after starting
         this.pollStatus();
         this.pollAlerts();
       });
     } catch (e) {
-      message.error(`Failed to start: ${e.message}`);
+      notification.error({
+        message: 'Error',
+        description: `Failed to start: ${e.message}`,
+        placement: 'topRight',
+      });
     }
   }
 
   handleStopOnline = async () => {
     try {
       await requestRuleOnlineStop();
-      message.success('Stopped rule-based detection');
+      notification.success({
+        message: 'Success',
+        description: 'Stopped rule-based detection',
+        placement: 'topRight',
+      });
       this.setState({ onlineRunning: false });
       // Wait briefly for rule verdicts to be finalized by the server, then refresh alerts
       await this.waitForVerdicts(5000);
       await this.pollAlerts();
     } catch (e) {
-      message.error(`Failed to stop: ${e.message}`);
+      notification.error({
+        message: 'Error',
+        description: `Failed to stop: ${e.message}`,
+        placement: 'topRight',
+      });
     }
   }
 
@@ -247,7 +263,11 @@ class PredictRuleBasedPage extends Component {
     try {
       this.setState({ offlineLoading: true });
       const data = await requestRuleOffline({ pcapFile });
-      message.success(`Offline detection finished: ${data.count} alerts`);
+      notification.success({
+        message: 'Success',
+        description: `Offline detection finished: ${data.count} alerts`,
+        placement: 'topRight',
+      });
       const unique = this.dedupeAlerts(data.alerts || []);
       // Build per-rule counts: prefer server-provided ruleVerdicts, else derive a minimal fallback from alerts
       const mapCounts = new Map();
@@ -276,7 +296,11 @@ class PredictRuleBasedPage extends Component {
         }
       }));
     } catch (e) {
-      message.error(`Offline detection failed: ${e.message}`);
+      notification.error({
+        message: 'Error',
+        description: `Offline detection failed: ${e.message}`,
+        placement: 'topRight',
+      });
       this.setState({ offlineLoading: false });
     }
   }
@@ -338,79 +362,106 @@ class PredictRuleBasedPage extends Component {
   renderOnlineTab() {
     const { interfacesOptions, iface, onlineRunning } = this.state;
     return (
-      <>
-        <Form {...FORM_LAYOUT} style={{ maxWidth: 500 }}>
-          <Form.Item label="Network interface" required>
-            <Tooltip title="Select a network interface to run rule-based detection online.">
-              <Select
-                placeholder="Select a network interface ..."
-                options={interfacesOptions}
-                value={iface}
-                onChange={(v) => {
-                  // Always clear existing alerts and charts when the interface changes or is cleared
-                  this.setState(prev => ({
-                    iface: v,
-                    alerts: [],
-                    alertSeries: [],
-                    alertSeriesByRule: [],
-                    status: { ...(prev.status || {}), ruleVerdicts: [] },
-                  }));
-                }}
-                showSearch allowClear
-                style={{ width: '100%' }}
-              />
-            </Tooltip>
-          </Form.Item>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'center' }}>
-            <Button type="primary" onClick={this.handleStartOnline} disabled={onlineRunning || !iface}>Start</Button>
-            <Button onClick={this.handleStopOnline} disabled={!onlineRunning}>Stop</Button>
-            {onlineRunning && (
-              <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                <Spin size="small" style={{ marginLeft: 8 }} />
-                <span style={{ marginLeft: 8 }}>Running...</span>
-              </span>
-            )}
-          </div>
-        </Form>
-      </>
+      <Row gutter={4} align="middle" justify="center">
+        <Col flex="none">
+          <strong style={{ marginRight: 4 }}>Network Interface:</strong>
+        </Col>
+        <Col flex="none">
+          <Tooltip title="Select a network interface to run rule-based detection online.">
+            <Select
+              placeholder="Select a network interface ..."
+              options={interfacesOptions}
+              value={iface}
+              onChange={(v) => {
+                // Always clear existing alerts and charts when the interface changes or is cleared
+                this.setState(prev => ({
+                  iface: v,
+                  alerts: [],
+                  alertSeries: [],
+                  alertSeriesByRule: [],
+                  status: { ...(prev.status || {}), ruleVerdicts: [] },
+                }));
+              }}
+              showSearch allowClear
+              style={{ width: 280 }}
+            />
+          </Tooltip>
+        </Col>
+        
+        <Col flex="none" style={{ marginLeft: 12 }}>
+          <Space size="small">
+            <Button 
+              type="primary" 
+              icon={<PlayCircleOutlined />}
+              onClick={this.handleStartOnline} 
+              disabled={onlineRunning || !iface}
+            >
+              Start
+            </Button>
+            <Button 
+              danger
+              icon={<StopOutlined />}
+              onClick={this.handleStopOnline} 
+              disabled={!onlineRunning}
+            >
+              Stop
+            </Button>
+          </Space>
+        </Col>
+        
+        <Col flex="none" style={{ marginLeft: 24 }}>
+          <strong style={{ marginRight: 4 }}>Status:</strong>
+        </Col>
+        <Col flex="none">
+          <Tag color={onlineRunning ? 'green' : 'default'}>
+            {onlineRunning ? 'Running' : 'Stopped'}
+          </Tag>
+        </Col>
+      </Row>
     );
   }
 
   renderOfflineTab() {
     const { uploading, pcapFile } = this.state;
     return (
-      <>
-        <Form {...FORM_LAYOUT} style={{ maxWidth: 700 }}>
-          <Form.Item label="PCAP file" required>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, width: '100%' }}>
-              <Upload
-                key={this.state.uploadResetKey}
-                beforeUpload={this.beforeUploadPcap}
-                action={`${SERVER_URL}/api/pcaps`}
-                customRequest={this.processUploadPcap}
-                onRemove={() => this.setState({ pcapFile: null })}
-                maxCount={1}
-                itemRender={(originNode, file, fileList, actions) => (
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                    <code>{file.name}</code>
-                    <Button type="link" size="small" icon={<DeleteOutlined />} onClick={actions.remove} />
-                  </div>
-                )}
-              >
-                <Button icon={<UploadOutlined />} disabled={uploading} style={{ width: 220 }}>
-                  Upload pcaps only {uploading && <Spin size="small" style={{ marginLeft: 8 }} />}
-                </Button>
-              </Upload>
-              <Button type="primary" onClick={this.handleOfflineDetect} disabled={!pcapFile || this.state.offlineLoading}>
-                Detect
-                {this.state.offlineLoading && (
-                  <Spin size="small" style={{ marginLeft: 8 }} />
-                )}
-              </Button>
-            </div>
-          </Form.Item>
-        </Form>
-      </>
+      <Row gutter={4} align="middle" justify="center">
+        <Col flex="none">
+          <strong style={{ marginRight: 4 }}>PCAP File:</strong>
+        </Col>
+        <Col flex="none">
+          <Upload
+            key={this.state.uploadResetKey}
+            beforeUpload={this.beforeUploadPcap}
+            action={`${SERVER_URL}/api/pcaps`}
+            customRequest={this.processUploadPcap}
+            onRemove={() => this.setState(prev => ({
+              pcapFile: null,
+              alerts: [],
+              alertSeries: [],
+              alertSeriesByRule: [],
+              ruleCountsByCode: {},
+              status: { ...(prev.status || {}), ruleVerdicts: [] },
+            }))}
+            maxCount={1}
+            itemRender={(originNode, file, fileList, actions) => (
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <code>{file.name}</code>
+                <Button type="link" size="small" icon={<DeleteOutlined />} onClick={actions.remove} />
+              </div>
+            )}
+          >
+            <Button icon={<UploadOutlined />} loading={uploading} disabled={uploading} style={{ width: 280 }}>
+              Upload PCAP
+            </Button>
+          </Upload>
+        </Col>
+        
+        <Col flex="none" style={{ marginLeft: 12 }}>
+          <Button type="primary" onClick={this.handleOfflineDetect} loading={this.state.offlineLoading} disabled={!pcapFile || this.state.offlineLoading}>
+            Detect
+          </Button>
+        </Col>
+      </Row>
     );
   }
 
@@ -443,33 +494,64 @@ class PredictRuleBasedPage extends Component {
       count: p.count,
     }));
     return (
-      <LayoutPage pageTitle="Rule-based detection" pageSubTitle="Detect anomalies using predefined rules (mmt_security)">
-        <Divider orientation="left"><h1 style={{ fontSize: '24px' }}>Parameters</h1></Divider>
-        <Tabs
-          activeKey={this.state.activeTab}
-          onChange={(k) => this.setState(prev => ({
-            activeTab: k,
-            // Clear Alerts table and charts when switching tabs
-            alerts: [],
-            alertSeries: [],
-            alertSeriesByRule: [],
-            ruleCountsByCode: {},
-            // Also clear verdict summary counts; they'll repopulate on the next run
-            status: { ...(prev.status || {}), ruleVerdicts: [] },
-            // Clear opposite tab parameters
-            ...(k === 'online' ? { pcapFile: null, uploading: false, offlineLoading: false, uploadResetKey: (prev.uploadResetKey || 0) + 1 } : {}),
-            ...(k === 'offline' ? { iface: null } : {}),
-          }))}
-          items={[
-            { key: 'online', label: 'Online', children: this.renderOnlineTab() },
-            { key: 'offline', label: 'Offline', children: this.renderOfflineTab() },
-          ]}
-        />
+      <LayoutPage pageTitle="Rule-based detection" pageSubTitle="Detect anomalies using predefined rules using mmt_security">
+        
+        <Divider orientation="left">
+          <h2 style={{ fontSize: '20px' }}>Configuration</h2>
+        </Divider>
+        
+        <Card style={{ marginBottom: 16 }}>
+          <Tabs
+            activeKey={this.state.activeTab}
+            onChange={(k) => this.setState(prev => ({
+              activeTab: k,
+              alerts: [],
+              alertSeries: [],
+              alertSeriesByRule: [],
+              ruleCountsByCode: {},
+              status: { ...(prev.status || {}), ruleVerdicts: [] },
+              ...(k === 'online' ? { pcapFile: null, uploading: false, offlineLoading: false, uploadResetKey: (prev.uploadResetKey || 0) + 1 } : {}),
+              ...(k === 'offline' ? { iface: null } : {}),
+            }))}
+            items={[
+              { key: 'online', label: 'Online', children: this.renderOnlineTab() },
+              { key: 'offline', label: 'Offline', children: this.renderOfflineTab() },
+            ]}
+          />
+        </Card>
 
-        <Divider orientation="left"><h1 style={{ fontSize: '24px' }}>Rule-based Alerts</h1></Divider>
-        {/* Real-time alert distribution by Rule (5s bins) */}
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ textAlign: 'center', marginBottom: 12 }}>
+            <strong style={{ fontSize: 16 }}>Detection Statistics</strong>
+          </div>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                <Statistic
+                  title="Rules Triggered"
+                  value={rulesCount}
+                  valueStyle={{ color: rulesCount > 0 ? '#cf1322' : '#3f8600', fontSize: 16 }}
+                />
+              </Card>
+            </Col>
+            <Col span={12}>
+              <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                <Statistic
+                  title="Total Alerts"
+                  value={verdictsTotal}
+                  valueStyle={{ color: verdictsTotal > 0 ? '#cf1322' : '#3f8600', fontSize: 16 }}
+                />
+              </Card>
+            </Col>
+          </Row>
+        </Card>
+
+        <Divider orientation="left">
+          <h2 style={{ fontSize: '20px' }}>Rule-based Alerts</h2>
+        </Divider>
         {(this.state.activeTab === 'online') && (chartData && chartData.length > 0) && (
-          <div style={{ margin: '4px 0 12px 0' }}>
+          <Card style={{ marginBottom: 16 }}>
+            <h3 style={{ fontSize: '16px', marginBottom: 16, fontWeight: 600 }}>Real-time Alert Distribution</h3>
             <Line
               data={chartData}
               xField="time"
@@ -484,29 +566,29 @@ class PredictRuleBasedPage extends Component {
               point={{ size: 3 }}
               animation
             />
-          </div>
+          </Card>
         )}
-        <div style={{ margin: '4px 0 8px 0', color: '#555', textAlign: 'center' }}>
-          <span style={{ fontSize: 18, fontWeight: 500 }}>Total: <b>{rulesCount}</b> rules, <b>{verdictsTotal}</b> alerts</span>
-        </div>
-        {/* Bulk actions for all alerts */}
-        <div style={{ margin: '8px 0', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <Button
-            onClick={() => handleBulkMitigationAction({ actionKey: 'send-nats-bulk', rows: alerts, isValidIPv4, entityLabel: 'alerts', titleOverride: 'Confirm bulk: Send all alerts to NATS' })}
-            disabled={!(alerts && alerts.length > 0)}
-          >
-            Send all alerts to NATS
-          </Button>
-        </div>
-        <Table
-          dataSource={(alerts || []).map((a, idx) => ({ key: idx + 1, ...a }))}
-          columns={this.columns}
-          size="small"
-          bordered
-          style={{ width: '100%' }}
-          scroll={{ x: 'max-content' }}
-          pagination={{ pageSize: 10, showSizeChanger: true }}
-        />
+        
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>Detected Alerts</h3>
+            <Button
+              icon={<SendOutlined />}
+              onClick={() => handleBulkMitigationAction({ actionKey: 'send-nats-bulk', rows: alerts, isValidIPv4, entityLabel: 'alerts', titleOverride: 'Confirm bulk: Send all alerts to NATS' })}
+              disabled={!(alerts && alerts.length > 0)}
+            >
+              Send all alerts to NATS
+            </Button>
+          </div>
+          <Table
+            dataSource={(alerts || []).map((a, idx) => ({ key: idx + 1, ...a }))}
+            columns={this.columns}
+            size="small"
+            style={{ width: '100%' }}
+            scroll={{ x: 'max-content' }}
+            pagination={{ pageSize: 10, showSizeChanger: true }}
+          />
+        </Card>
         <Modal
           title="Assistant Explanation"
           open={this.state.assistantModalVisible}

@@ -181,7 +181,7 @@ class FeatureExtractionPage extends Component {
       } catch (e) {
         // ignore storage errors
       }
-      message.success(`Uploaded ${name}`);
+      // Removed success notification
     } else if (status === 'error') {
       message.error('Upload failed');
     }
@@ -230,60 +230,16 @@ class FeatureExtractionPage extends Component {
     return (
       <LayoutPage pageTitle="Feature Extraction" pageSubTitle="Upload a PCAP and extract features">
         
-        {/* Extraction Summary Banner */}
-        {featuresData && featuresData.length > 0 && (
-          <Card size="small" style={{ marginBottom: 16, backgroundColor: '#f6ffed' }}>
-            <div style={{ textAlign: 'center', marginBottom: 8 }}>
-              <strong style={{ fontSize: 14 }}>Extraction Summary</strong>
-            </div>
-            <Row gutter={12}>
-              <Col flex={1}>
-                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
-                  <Statistic
-                    title="PCAP File"
-                    value={uploadedPcapName || 'N/A'}
-                    prefix={<FileTextOutlined />}
-                    valueStyle={{ fontSize: 14 }}
-                  />
-                </Card>
-              </Col>
-              <Col flex={1}>
-                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
-                  <Statistic
-                    title="Extracted Flows"
-                    value={featuresData.length}
-                    prefix={<DatabaseOutlined />}
-                    valueStyle={{ fontSize: 16 }}
-                  />
-                </Card>
-              </Col>
-              <Col flex={1}>
-                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
-                  <Statistic
-                    title="Features"
-                    value={featureColumns.length}
-                    prefix={<CheckCircleOutlined />}
-                    valueStyle={{ fontSize: 16 }}
-                  />
-                </Card>
-              </Col>
-            </Row>
-          </Card>
-        )}
-
         <Divider orientation="left">
-          <h2 style={{ fontSize: '20px' }}>Upload</h2>
+          <h2 style={{ fontSize: '20px' }}>Configuration</h2>
         </Divider>
-        <Form {...FORM_LAYOUT} style={{ maxWidth: 700 }}>
-          <Form.Item label="PCAP file" name="pcap"
-            rules={[
-              {
-              required: true,
-              message: 'Please select a pcap file!',
-              },
-            ]}
-          >
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'nowrap' }}>
+        
+        <Card style={{ marginBottom: 16 }}>
+          <Row gutter={4} align="middle" justify="space-between">
+            <Col flex="none">
+              <strong style={{ marginRight: 4 }}><span style={{ color: 'red' }}>* </span>PCAP File:</strong>
+            </Col>
+            <Col flex="none">
               <Upload
                 beforeUpload={this.beforeUploadPcap}
                 action={`${SERVER_URL}/api/pcaps`}
@@ -300,9 +256,15 @@ class FeatureExtractionPage extends Component {
                   featuresSessionId: null,
                 })}
               >
-                <Button size="large" icon={<UploadOutlined />} disabled={this.state.disableUpload}>Upload pcap only</Button>
+                <Button icon={<UploadOutlined />} disabled={this.state.disableUpload} style={{ width: 280 }}>Upload PCAP</Button>
               </Upload>
-              <Space size={8}>
+            </Col>
+            
+            <Col flex="none" style={{ marginLeft: 12 }}>
+              <strong style={{ marginRight: 4 }}>Label:</strong>
+            </Col>
+            <Col flex="none">
+              <Space size={4}>
                 <Checkbox
                   checked={this.state.labelChoice === 'normal'}
                   onChange={(e) => {
@@ -322,72 +284,118 @@ class FeatureExtractionPage extends Component {
                   Malicious
                 </Checkbox>
               </Space>
+            </Col>
+            
+            <Col flex="none" style={{ marginLeft: 12 }}>
+              <Space size={4}>
+                <Button 
+                  type="primary" 
+                  onClick={this.handleExtractFeatures} 
+                  disabled={!uploadedPcapName || featuresLoading}
+                  loading={featuresLoading}
+                >
+                  Extract Features
+                </Button>
+                <Button
+                  type={featuresReady ? 'primary' : 'default'}
+                  disabled={!featuresReady}
+                  onClick={() => {
+                    this.setState({ disableUpload: true }, () => {
+                      try {
+                        if (uploadedPcapName) localStorage.setItem('pendingPredictOfflinePcap', uploadedPcapName);
+                        if (this.state.featuresSessionId) {
+                          localStorage.setItem('pendingPredictOfflineReportId', `report-${this.state.featuresSessionId}`);
+                        }
+                      } catch (e) { /* ignore */ }
+                      window.location.href = '/predict/offline';
+                    });
+                  }}
+                >
+                  Predict Offline
+                </Button>
+              </Space>
+            </Col>
+          </Row>
+        </Card>
+        
+        {featuresData && featuresData.length > 0 && (
+          <Card style={{ marginBottom: 16 }}>
+            <div style={{ textAlign: 'center', marginBottom: 12 }}>
+              <strong style={{ fontSize: 16 }}>Extraction Summary</strong>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 12, marginBottom: 12 }}>
-              <Button type={uploadedPcapName ? 'primary' : 'default'} onClick={this.handleExtractFeatures} disabled={!uploadedPcapName || featuresLoading}>
-                Extract Features
-                {featuresLoading && (
-                  <Spin size="small" style={{ marginLeft: 8 }} />
-                )}
-              </Button>
-              <Button
-                type={featuresReady ? 'primary' : 'default'}
-                disabled={!featuresReady}
-                onClick={() => {
-                  // Disable upload immediately to avoid concurrent changes
-                  this.setState({ disableUpload: true }, () => {
-                    try {
-                      if (uploadedPcapName) localStorage.setItem('pendingPredictOfflinePcap', uploadedPcapName);
-                      // Pass the known report id (if any) to Predict Offline to avoid re-running MMT
-                      if (this.state.featuresSessionId) {
-                        localStorage.setItem('pendingPredictOfflineReportId', `report-${this.state.featuresSessionId}`);
-                      }
-                    } catch (e) { /* ignore */ }
-                    // Navigate without a model id so users can select a model
-                    window.location.href = '/predict/offline';
-                  });
-                }}
-              >
-                Predict Offline
-              </Button>
-            </div>
-          </Form.Item>
-        </Form>
+            <Row gutter={16}>
+              <Col span={8}>
+                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                  <Statistic
+                    title="PCAP File"
+                    value={uploadedPcapName || 'N/A'}
+                    prefix={<FileTextOutlined />}
+                    valueStyle={{ fontSize: 14 }}
+                  />
+                </Card>
+              </Col>
+              <Col span={8}>
+                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                  <Statistic
+                    title="Extracted Flows"
+                    value={featuresData.length}
+                    prefix={<DatabaseOutlined />}
+                    valueStyle={{ fontSize: 16 }}
+                  />
+                </Card>
+              </Col>
+              <Col span={8}>
+                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                  <Statistic
+                    title="Features"
+                    value={featureColumns.length}
+                    prefix={<CheckCircleOutlined />}
+                    valueStyle={{ fontSize: 16 }}
+                  />
+                </Card>
+              </Col>
+            </Row>
+          </Card>
+        )}
 
-        <Divider orientation="left" style={{ marginTop: 24 }}>
+        <Divider orientation="left">
           <h2 style={{ fontSize: '20px' }}>Extracted Features</h2>
         </Divider>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          <Tooltip title="Download extracted features CSV">
-            <Button icon={<DownloadOutlined />} disabled={!featuresCsvText} onClick={this.downloadExtractedCsv}>
-              Download Features CSV
-            </Button>
-          </Tooltip>
-          <Tooltip title="Stream all flows to NATS in chunks">
-            <Button icon={<SendOutlined />} disabled={!this.state.featuresFileName || !this.state.featuresSessionId}
-              onClick={this.sendFeaturesToNatsStreaming}>
-              Send all to NATS
-            </Button>
-          </Tooltip>
-        </div>
-        <div>
+        
+        <Card style={{ marginBottom: 16 }}>
+          <h3 style={{ fontSize: '16px', marginBottom: 16, fontWeight: 600 }}>Features Table</h3>
+          <div style={{ marginBottom: 12 }}>
+            <Space size={8}>
+              <Tooltip title="Download extracted features CSV">
+                <Button icon={<DownloadOutlined />} disabled={!featuresCsvText} onClick={this.downloadExtractedCsv}>
+                  Download Features CSV
+                </Button>
+              </Tooltip>
+              <Tooltip title="Stream all flows to NATS in chunks">
+                <Button icon={<SendOutlined />} disabled={!this.state.featuresFileName || !this.state.featuresSessionId}
+                  onClick={this.sendFeaturesToNatsStreaming}>
+                  Send all to NATS
+                </Button>
+              </Tooltip>
+            </Space>
+          </div>
           <Table
             dataSource={(featuresData || []).map((r, idx) => ({ key: idx + 1, ...r }))}
             columns={featureColumns}
             size="small"
-            bordered
             loading={featuresLoading}
             scroll={{ x: 'max-content' }}
             pagination={{ pageSize: 10, showTotal: (total) => `Total ${total} flows` }}
           />
-        </div>
-        {/* Feature descriptions then charts (aligned with DatasetPage structure) */}
+        </Card>
+        
         {featuresData && featuresData.length > 0 && (
           <>
-            <Divider orientation="left" style={{ marginTop: 24 }}>
-              <h2 style={{ fontSize: '20px' }}>Feature Descriptions</h2>
-            </Divider>
-            <FeatureDescriptions data={featuresData} showTitle={false} />
+            <Card style={{ marginBottom: 16 }}>
+              <h3 style={{ fontSize: '16px', marginBottom: 16, fontWeight: 600 }}>Feature Descriptions</h3>
+              <FeatureDescriptions data={featuresData} showTitle={false} />
+            </Card>
+            
             <FeatureCharts
               data={featuresData}
               barFeatureOptions={barCategoricalOptions}

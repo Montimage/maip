@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
-import { Spin, Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Tooltip, Modal } from 'antd';
+import { Spin, Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Tooltip, Modal, Card } from 'antd';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { QuestionOutlined, CameraOutlined } from "@ant-design/icons";
@@ -443,10 +443,13 @@ class XAILimePage extends Component {
     return (
       <LayoutPage pageTitle="Explainable AI with Local Interpretable Model-Agnostic Explanations (LIME)"
         pageSubTitle={subTitle}>
+        
         <Divider orientation="left">
-          <h1 style={{ fontSize: '24px' }}>LIME Parameters</h1>
+          <h2 style={{ fontSize: '20px' }}>Configuration</h2>
         </Divider>
-        <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 600 }}>
+        
+        <Card style={{ marginBottom: 16 }}>
+          <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 600 }}>
           <Form.Item name="model" label="Model"
             style={{ flex: 'none', marginBottom: 10 }}
             rules={[
@@ -534,35 +537,36 @@ class XAILimePage extends Component {
             />
           </Form.Item>
           <div style={{ textAlign: 'center' }}>
-            <Button type="primary" //>icon={<UserOutlined />}
+            <Button type="primary"
               onClick={this.handleLimeClick}
               disabled={isRunning || !this.state.modelId}
-              >LIME Explain
-              {isRunning && (
-                <Spin size="small" style={{ marginLeft: 8 }} />
-              )}
+              loading={isRunning}
+            >
+              LIME Explain
             </Button>
             <Button style={{ marginLeft: 8 }} htmlType="button" type="primary"
               onClick={() => this.handleAskAssistantLime()}
               disabled={!this.state.modelId || this.state.limeValues.length === 0}
-            >Ask Assistant
+            >
+              Ask Assistant
             </Button>
           </div>
-        </Form>
+          </Form>
+        </Card>
 
         <Divider orientation="left">
-          <h1 style={{ fontSize: '24px' }}>LIME Explanations</h1>
+          <h2 style={{ fontSize: '20px' }}>LIME Explanations</h2>
         </Divider>
-        <Row gutter={24}>
-          <Col className="gutter-row" span={12}>
-            <div style={BOX_STYLE}>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <h2>&nbsp;&nbsp;&nbsp;Local Explanation - Sample ID {sampleId}</h2>
-                <div style={{ position: 'absolute', top: 10, right: 10 }}>
+        
+        <Row gutter={16}>
+          <Col span={12}>
+            <Card style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>Local Explanation - Sample ID {sampleId}</h3>
+                <div>
                   <Tooltip title="Download plot as png">
                     <Button
                       type="link" icon={<CameraOutlined />}
-                      style={{ marginLeft: '15rem' }}
                       onClick={downloadLimeImage}
                     />
                   </Tooltip>
@@ -592,11 +596,17 @@ class XAILimePage extends Component {
               {limeValuesBarConfig && (
                 <Bar {...limeValuesBarConfig} onReady={(bar) => (barLime = bar)}/>
               )}
-            </div>
+            </Card>
           </Col>
-          <Col className="gutter-row" span={12}>
-            <div style={BOX_STYLE}>
-              <h2>&nbsp;&nbsp;&nbsp;Prediction - Sample ID {sampleId} { !isFlowBased ? `(ground truth: ${sampleTrueLabel})` : '' }</h2>
+          
+          <Col span={12}>
+            <Card style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>Prediction - Sample ID {sampleId} { !isFlowBased ? `(ground truth: ${sampleTrueLabel})` : '' }</h3>
+                <Tooltip title="Shows predicted probability for each sample.">
+                  <Button type="link" icon={<QuestionOutlined />} />
+                </Tooltip>
+              </div>
               <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                 {pieConfig && (
                   <>
@@ -604,20 +614,15 @@ class XAILimePage extends Component {
                       columns={COLUMNS_TABLE_PROBS}
                       dataSource={dataTableProbs}
                       pagination={false}
-                      style={{ marginLeft: '10px', marginRight: '10px', marginTop: '-50px', width: '280px' }}
+                      style={{ marginLeft: '10px', marginRight: '10px', width: '280px' }}
                     />
-                    <div style={{ width: '400px', marginRight: '10px', marginTop: '-50px' }}>
+                    <div style={{ width: '400px', marginRight: '10px' }}>
                       <Pie {...pieConfig} />
-                      <div style={{ position: 'absolute', top: 10, right: 10 }}>
-                        <Tooltip title="Shows predicted probability for each sample.">
-                          <Button type="link" icon={<QuestionOutlined />} />
-                        </Tooltip>
-                      </div>
                     </div>
                   </>
                 )}
               </div>
-            </div>
+            </Card>
           </Col>
         </Row>
         <Modal
