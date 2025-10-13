@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import LayoutPage from './LayoutPage';
-import { Tabs, Form, Select, Button, Table, Divider, Tooltip, Upload, Spin, message, notification, Dropdown, Menu, Modal, Card, Row, Col, Statistic, Tag, Space } from 'antd';
+import { Form, Select, Button, Table, Divider, Tooltip, Upload, Spin, message, notification, Dropdown, Menu, Modal, Card, Row, Col, Statistic, Tag, Space } from 'antd';
 import { UploadOutlined, DeleteOutlined, PlayCircleOutlined, StopOutlined, SendOutlined } from '@ant-design/icons';
 import { Line } from '@ant-design/plots';
 import {
@@ -24,7 +24,7 @@ class PredictRuleBasedPage extends Component {
   constructor(props) {
     super(props);
     this.state = {
-      activeTab: 'online',
+      mode: 'offline', // 'online' or 'offline'
       // Online
       interfacesOptions: [],
       iface: null,
@@ -157,20 +157,16 @@ class PredictRuleBasedPage extends Component {
         }
       });
       return Array.from(map.values());
-    } catch (e) {
+    } catch {
       return Array.isArray(list) ? list : [];
     }
   }
 
-  tick = async () => {
-    try {
-      const { activeTab, onlineRunning } = this.state;
-      if (activeTab === 'online' && onlineRunning) {
-        await this.pollStatus();
-        await this.pollAlerts();
-      }
-    } catch (e) {
-      // ignore tick errors
+  tick = () => {
+    const { mode, onlineRunning } = this.state;
+    if (mode === 'online' && onlineRunning) {
+      this.pollStatus().catch(() => {});
+      this.pollAlerts().catch(() => {});
     }
   }
 
@@ -359,109 +355,102 @@ class PredictRuleBasedPage extends Component {
     }},
   ];
 
-  renderOnlineTab() {
+  renderOnlineSelector() {
     const { interfacesOptions, iface, onlineRunning } = this.state;
     return (
-      <Row gutter={4} align="middle" justify="center">
-        <Col flex="none">
-          <strong style={{ marginRight: 4 }}>Network Interface:</strong>
-        </Col>
-        <Col flex="none">
-          <Tooltip title="Select a network interface to run rule-based detection online.">
-            <Select
-              placeholder="Select a network interface ..."
-              options={interfacesOptions}
-              value={iface}
-              onChange={(v) => {
-                // Always clear existing alerts and charts when the interface changes or is cleared
-                this.setState(prev => ({
-                  iface: v,
-                  alerts: [],
-                  alertSeries: [],
-                  alertSeriesByRule: [],
-                  status: { ...(prev.status || {}), ruleVerdicts: [] },
-                }));
-              }}
-              showSearch allowClear
-              style={{ width: 280 }}
-            />
-          </Tooltip>
-        </Col>
-        
-        <Col flex="none" style={{ marginLeft: 12 }}>
-          <Space size="small">
-            <Button 
-              type="primary" 
-              icon={<PlayCircleOutlined />}
-              onClick={this.handleStartOnline} 
-              disabled={onlineRunning || !iface}
-            >
-              Start
-            </Button>
-            <Button 
-              danger
-              icon={<StopOutlined />}
-              onClick={this.handleStopOnline} 
-              disabled={!onlineRunning}
-            >
-              Stop
-            </Button>
-          </Space>
-        </Col>
-        
-        <Col flex="none" style={{ marginLeft: 24 }}>
-          <strong style={{ marginRight: 4 }}>Status:</strong>
-        </Col>
-        <Col flex="none">
-          <Tag color={onlineRunning ? 'green' : 'default'}>
-            {onlineRunning ? 'Running' : 'Stopped'}
-          </Tag>
-        </Col>
-      </Row>
-    );
-  }
-
-  renderOfflineTab() {
-    const { uploading, pcapFile } = this.state;
-    return (
-      <Row gutter={4} align="middle" justify="center">
-        <Col flex="none">
-          <strong style={{ marginRight: 4 }}>PCAP File:</strong>
-        </Col>
-        <Col flex="none">
-          <Upload
-            key={this.state.uploadResetKey}
-            beforeUpload={this.beforeUploadPcap}
-            action={`${SERVER_URL}/api/pcaps`}
-            customRequest={this.processUploadPcap}
-            onRemove={() => this.setState(prev => ({
-              pcapFile: null,
+      <Tooltip title="Select a network interface to run rule-based detection online.">
+        <Select
+          placeholder="Select a network interface ..."
+          options={interfacesOptions}
+          value={iface}
+          onChange={(v) => {
+            // Always clear existing alerts and charts when the interface changes or is cleared
+            this.setState(prev => ({
+              iface: v,
               alerts: [],
               alertSeries: [],
               alertSeriesByRule: [],
-              ruleCountsByCode: {},
               status: { ...(prev.status || {}), ruleVerdicts: [] },
-            }))}
-            maxCount={1}
-            itemRender={(originNode, file, fileList, actions) => (
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                <code>{file.name}</code>
-                <Button type="link" size="small" icon={<DeleteOutlined />} onClick={actions.remove} />
-              </div>
-            )}
-          >
-            <Button icon={<UploadOutlined />} loading={uploading} disabled={uploading} style={{ width: 280 }}>
-              Upload PCAP
-            </Button>
-          </Upload>
-        </Col>
-        
-        <Col flex="none" style={{ marginLeft: 12 }}>
-          <Button type="primary" onClick={this.handleOfflineDetect} loading={this.state.offlineLoading} disabled={!pcapFile || this.state.offlineLoading}>
-            Detect
-          </Button>
-        </Col>
-      </Row>
+            }));
+          }}
+          showSearch allowClear
+          style={{ width: 300 }}
+          disabled={onlineRunning}
+        />
+      </Tooltip>
+    );
+  }
+
+  renderOnlineActions() {
+    const { iface, onlineRunning } = this.state;
+    return (
+      <Space>
+        <Button 
+          type="primary" 
+          icon={<PlayCircleOutlined />}
+          onClick={this.handleStartOnline} 
+          disabled={onlineRunning || !iface}
+        >
+          Start
+        </Button>
+        <Button 
+          danger
+          icon={<StopOutlined />}
+          onClick={this.handleStopOnline} 
+          disabled={!onlineRunning}
+        >
+          Stop
+        </Button>
+        <strong style={{ marginLeft: 12, marginRight: 4 }}>Status:</strong>
+        <Tag color={onlineRunning ? 'green' : 'default'}>
+          {onlineRunning ? 'Running' : 'Stopped'}
+        </Tag>
+      </Space>
+    );
+  }
+
+  renderOfflineSelector() {
+    const { uploading, pcapFile } = this.state;
+    return (
+      <Upload
+        key={this.state.uploadResetKey}
+        beforeUpload={this.beforeUploadPcap}
+        action={`${SERVER_URL}/api/pcaps`}
+        customRequest={this.processUploadPcap}
+        onRemove={() => this.setState(prev => ({
+          pcapFile: null,
+          alerts: [],
+          alertSeries: [],
+          alertSeriesByRule: [],
+          ruleCountsByCode: {},
+          status: { ...(prev.status || {}), ruleVerdicts: [] },
+        }))}
+        maxCount={1}
+        itemRender={(originNode, file, fileList, actions) => (
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <code>{file.name}</code>
+            <Button type="link" size="small" icon={<DeleteOutlined />} onClick={actions.remove} />
+          </div>
+        )}
+      >
+        <Button icon={<UploadOutlined />} loading={uploading} disabled={uploading} style={{ width: 300 }}>
+          {pcapFile ? 'Change PCAP' : 'Upload PCAP'}
+        </Button>
+      </Upload>
+    );
+  }
+
+  renderOfflineActions() {
+    const { pcapFile, offlineLoading } = this.state;
+    return (
+      <Button 
+        type="primary" 
+        onClick={this.handleOfflineDetect} 
+        loading={offlineLoading} 
+        disabled={!pcapFile || offlineLoading}
+      >
+        Detect
+      </Button>
     );
   }
 
@@ -501,23 +490,42 @@ class PredictRuleBasedPage extends Component {
         </Divider>
         
         <Card style={{ marginBottom: 16 }}>
-          <Tabs
-            activeKey={this.state.activeTab}
-            onChange={(k) => this.setState(prev => ({
-              activeTab: k,
-              alerts: [],
-              alertSeries: [],
-              alertSeriesByRule: [],
-              ruleCountsByCode: {},
-              status: { ...(prev.status || {}), ruleVerdicts: [] },
-              ...(k === 'online' ? { pcapFile: null, uploading: false, offlineLoading: false, uploadResetKey: (prev.uploadResetKey || 0) + 1 } : {}),
-              ...(k === 'offline' ? { iface: null } : {}),
-            }))}
-            items={[
-              { key: 'online', label: 'Online', children: this.renderOnlineTab() },
-              { key: 'offline', label: 'Offline', children: this.renderOfflineTab() },
-            ]}
-          />
+          <Row gutter={16} align="middle" justify="center">
+            <Col flex="none">
+              <strong style={{ marginRight: 4 }}>Mode:</strong>
+            </Col>
+            <Col flex="none">
+              <Select
+                value={this.state.mode}
+                onChange={(value) => this.setState(prev => ({ 
+                  mode: value,
+                  alerts: [],
+                  alertSeries: [],
+                  alertSeriesByRule: [],
+                  ruleCountsByCode: {},
+                  status: { ...(prev.status || {}), ruleVerdicts: [] },
+                  ...(value === 'online' ? { pcapFile: null, uploading: false, offlineLoading: false, uploadResetKey: (prev.uploadResetKey || 0) + 1 } : {}),
+                  ...(value === 'offline' ? { iface: null, onlineRunning: false } : {}),
+                }))}
+                style={{ width: 200 }}
+                disabled={this.state.onlineRunning}
+              >
+                <Select.Option value="offline">Offline (PCAP)</Select.Option>
+                <Select.Option value="online">Online (Interface)</Select.Option>
+              </Select>
+            </Col>
+            
+            <Col flex="none">
+              <strong style={{ marginRight: 4 }}>{this.state.mode === 'offline' ? 'PCAP File:' : 'Interface:'}</strong>
+            </Col>
+            <Col flex="none">
+              {this.state.mode === 'offline' ? this.renderOfflineSelector() : this.renderOnlineSelector()}
+            </Col>
+            
+            <Col flex="none">
+              {this.state.mode === 'offline' ? this.renderOfflineActions() : this.renderOnlineActions()}
+            </Col>
+          </Row>
         </Card>
 
         <Card style={{ marginBottom: 16 }}>
@@ -549,7 +557,7 @@ class PredictRuleBasedPage extends Component {
         <Divider orientation="left">
           <h2 style={{ fontSize: '20px' }}>Rule-based Alerts</h2>
         </Divider>
-        {(this.state.activeTab === 'online') && (chartData && chartData.length > 0) && (
+        {(this.state.mode === 'online') && (chartData && chartData.length > 0) && (
           <Card style={{ marginBottom: 16 }}>
             <h3 style={{ fontSize: '16px', marginBottom: 16, fontWeight: 600 }}>Real-time Alert Distribution</h3>
             <Line
