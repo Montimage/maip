@@ -36,6 +36,8 @@ class DPIPage extends Component {
       loading: false,
       error: null,
       lastUpdate: null,
+      isOwner: false, // Track if current user is the session owner
+      ownerToken: null, // Store owner token for stop control
       
       // Tree state
       expandedKeys: [],
@@ -59,6 +61,14 @@ class DPIPage extends Component {
       // Only load status if NOT coming from Feature Extraction
       this.loadStatus();
     }
+    
+    // Start periodic status check (every 5 seconds) to detect session changes
+    this.statusCheckInterval = setInterval(() => {
+      // Only check status if not actively running (to detect when others start/stop)
+      if (!this.state.isRunning) {
+        this.loadStatus();
+      }
+    }, 5000);
     
     // If navigated from Feature Extraction page
     try {
@@ -101,30 +111,65 @@ class DPIPage extends Component {
             console.error('Error checking DPI status:', e);
           }
           
-          // No existing session, set up fresh state
-          this.setState({ 
-            selectedPcap: pendingPcap,
-            mode: 'offline',
-            loadedFromFeatureExtraction: true,
-            // Clear all previous DPI data
-            hierarchyData: [],
-            trafficData: [],
-            statistics: null,
-            conversations: [],
-            packetSizes: [],
-            selectedProtocols: ['ETHERNET'],
-            isRunning: false,
-            sessionId: null,
-            loading: false,
-            error: null,
-            lastUpdate: null,
-          });
-          localStorage.removeItem('pendingDPIPcap');
-          notification.info({
-            message: 'PCAP Loaded from Feature Extraction',
-            description: `Ready to analyze "${pendingPcap}" with DPI`,
-            placement: 'topRight',
-          });
+          // No existing session found, check if we have a saved sessionId for this PCAP
+          try {
+            const mapping = JSON.parse(localStorage.getItem('dpiPcapSessions') || '{}');
+            const savedSessionId = mapping[pendingPcap];
+            
+            if (savedSessionId) {
+              // We have a previous session for this PCAP!
+              this.setState({ 
+                selectedPcap: pendingPcap,
+                mode: 'offline',
+                loadedFromFeatureExtraction: true,
+                sessionId: savedSessionId,
+                loading: true,
+              });
+              localStorage.removeItem('pendingDPIPcap');
+              
+              // Try to load the data for this session
+              this.loadData().then(() => {
+                notification.success({
+                  message: 'DPI Results Restored',
+                  description: `Showing previous DPI analysis for "${pendingPcap}"`,
+                  placement: 'topRight',
+                });
+              }).catch(() => {
+                // Failed to load data, session might be expired
+                this.setState({
+                  loading: false,
+                  sessionId: null,
+                });
+                notification.warning({
+                  message: 'Previous Session Expired',
+                  description: `Ready to analyze "${pendingPcap}" with DPI. Click Start to begin.`,
+                  placement: 'topRight',
+                });
+              });
+            } else {
+              // No previous session found
+              this.setState({ 
+                selectedPcap: pendingPcap,
+                mode: 'offline',
+                loadedFromFeatureExtraction: true,
+                loading: false,
+                hierarchyData: [],
+                trafficData: [],
+                statistics: null,
+                conversations: [],
+                packetSizes: [],
+                selectedProtocols: ['ETHERNET'],
+              });
+              localStorage.removeItem('pendingDPIPcap');
+              notification.info({
+                message: 'PCAP Loaded',
+                description: `Ready to analyze "${pendingPcap}" with DPI. Click Start to begin.`,
+                placement: 'topRight',
+              });
+            }
+          } catch (e) {
+            console.error('Failed to restore DPI session:', e);
+          }
         }, 500);
       }
     } catch (e) {
@@ -135,6 +180,9 @@ class DPIPage extends Component {
   componentWillUnmount() {
     if (this.reloadInterval) {
       clearInterval(this.reloadInterval);
+    }
+    if (this.statusCheckInterval) {
+      clearInterval(this.statusCheckInterval);
     }
   }
 
@@ -173,14 +221,45 @@ class DPIPage extends Component {
       const response = await fetch(`${SERVER_URL}/api/dpi/status`);
       if (response.ok) {
         const data = await response.json();
+        
+        // Check if session ended (was running, now stopped)
+        const sessionEnded = this.state.isRunning && !data.isRunning && !data.mmtRunning;
+        
+        // Check if session just started (wasn't running, now is)
+        const sessionStarted = !this.state.isRunning && (data.isRunning || data.mmtRunning);
+        
         this.setState({
           isRunning: data.isRunning || data.mmtRunning,
           sessionId: data.sessionId,
           mode: data.mode || this.state.mode,
+          isOwner: data.isOwner || false, // Update ownership status
         });
         
+        // If session just ended, notify user and stop auto-reload
+        if (sessionEnded) {
+          console.log('[DPI Frontend] Session ended, stopping auto-reload');
+          this.stopAutoReload();
+          notification.info({
+            message: 'DPI Session Ended',
+            description: 'The DPI analysis has been stopped. You can start a new session.',
+            placement: 'topRight',
+          });
+        }
+        
+        // If session just started by another user, notify and start auto-reload
+        if (sessionStarted) {
+          console.log('[DPI Frontend] Session started by another user, joining as viewer');
+          notification.info({
+            message: 'DPI Session Active',
+            description: `${data.mode === 'online' ? 'Online' : 'Offline'} DPI analysis is running. Viewing live data...`,
+            placement: 'topRight',
+          });
+          // Start auto-reload for this viewer
+          this.startAutoReload();
+        }
+        
         // If running, load data
-        if (data.sessionId) {
+        if (data.sessionId && (data.isRunning || data.mmtRunning)) {
           this.loadData();
         }
       }
@@ -197,19 +276,29 @@ class DPIPage extends Component {
       this.setState({ loading: true, error: null });
     }
     
+    console.log('[DPI Frontend] loadData called, isInitialLoad:', isInitialLoad, 'mode:', this.state.mode, 'sessionId:', this.state.sessionId);
+    
     try {
-      console.log('[DPI Frontend] Fetching data from:', `${SERVER_URL}/api/dpi/data`);
-      const response = await fetch(`${SERVER_URL}/api/dpi/data`);
+      // Build URL with sessionId parameter for offline mode
+      const url = this.state.sessionId 
+        ? `${SERVER_URL}/api/dpi/data?sessionId=${this.state.sessionId}`
+        : `${SERVER_URL}/api/dpi/data`;
+      
+      console.log('[DPI Frontend] Fetching data from:', url);
+      const response = await fetch(url);
       
       if (response.ok) {
         const data = await response.json();
         console.log('[DPI Frontend] Received data:', {
           hierarchyCount: data.hierarchy ? data.hierarchy.length : 0,
           trafficCount: data.trafficData ? data.trafficData.length : 0,
+          conversationsCount: data.conversations ? data.conversations.length : 0,
+          packetSizesCount: data.packetSizes ? data.packetSizes.length : 0,
           mode: data.mode,
           csvFile: data.csvFile,
         });
-        console.log('[DPI Frontend] Sample traffic data:', data.trafficData ? data.trafficData.slice(0, 5) : []);
+        console.log('[DPI Frontend] Sample traffic data:', data.trafficData ? data.trafficData.slice(0, 3) : []);
+        console.log('[DPI Frontend] Current state trafficData length:', this.state.trafficData.length);
         
         // Convert hierarchy to tree data format
         const newTreeData = this.convertToTreeData(data.hierarchy || []);
@@ -219,15 +308,28 @@ class DPIPage extends Component {
         // So we just use the data directly without additional accumulation
         const finalHierarchyData = newTreeData.length > 0 ? newTreeData : this.state.hierarchyData;
         
-        // For traffic data, append new data points in online mode
+        // For traffic data, handle differently based on mode and initial load
         let finalTrafficData;
-        if (this.state.mode === 'online' && data.trafficData && data.trafficData.length > 0) {
-          // Append new traffic data to existing
-          finalTrafficData = [...this.state.trafficData, ...data.trafficData];
-          console.log('[DPI Frontend] Appended traffic data, total points:', finalTrafficData.length);
+        if (this.state.mode === 'online') {
+          if (data.trafficData && data.trafficData.length > 0) {
+            // In online mode, append new traffic data to existing (backend sends incremental data)
+            // But if this is the first load (state is empty), just use the new data
+            if (this.state.trafficData.length === 0) {
+              finalTrafficData = data.trafficData;
+              console.log('[DPI Frontend] First traffic data load:', finalTrafficData.length, 'points');
+            } else {
+              finalTrafficData = [...this.state.trafficData, ...data.trafficData];
+              console.log('[DPI Frontend] Appended traffic data, total points:', finalTrafficData.length);
+            }
+          } else {
+            // No new data, keep existing
+            finalTrafficData = this.state.trafficData;
+            console.log('[DPI Frontend] No new traffic data, keeping existing:', finalTrafficData.length, 'points');
+          }
         } else if (this.state.mode === 'offline' && data.trafficData) {
           // For offline mode, replace with new data
           finalTrafficData = data.trafficData;
+          console.log('[DPI Frontend] Offline mode, using new traffic data:', finalTrafficData.length, 'points');
         } else {
           finalTrafficData = this.state.trafficData;
         }
@@ -242,13 +344,30 @@ class DPIPage extends Component {
           }
         }
         
-        // Preserve existing data if new data is empty (to keep plots visible during updates)
-        const finalConversations = data.conversations && data.conversations.length > 0 
-          ? data.conversations 
-          : this.state.conversations;
-        const finalPacketSizes = data.packetSizes && data.packetSizes.length > 0 
-          ? data.packetSizes 
-          : this.state.packetSizes;
+        // For online mode: accumulate conversations and packet sizes
+        // For offline mode: replace with new data
+        let finalConversations, finalPacketSizes;
+        
+        if (this.state.mode === 'online') {
+          // In online mode, always use the latest data from backend (backend accumulates)
+          finalConversations = data.conversations && data.conversations.length > 0 
+            ? data.conversations 
+            : this.state.conversations;
+          finalPacketSizes = data.packetSizes && data.packetSizes.length > 0 
+            ? data.packetSizes 
+            : this.state.packetSizes;
+        } else {
+          // In offline mode, use new data or keep existing
+          finalConversations = data.conversations && data.conversations.length > 0 
+            ? data.conversations 
+            : this.state.conversations;
+          finalPacketSizes = data.packetSizes && data.packetSizes.length > 0 
+            ? data.packetSizes 
+            : this.state.packetSizes;
+        }
+        
+        // Check if session ended during data load
+        const sessionEnded = this.state.isRunning && !data.isRunning;
         
         this.setState({
           hierarchyData: finalHierarchyData,
@@ -261,6 +380,17 @@ class DPIPage extends Component {
           loading: false,
           error: null, // Clear error on successful load
         });
+        
+        // If session ended, stop auto-reload
+        if (sessionEnded) {
+          console.log('[DPI Frontend] Session ended during data load');
+          this.stopAutoReload();
+          notification.info({
+            message: 'DPI Session Ended',
+            description: 'The DPI analysis has been stopped.',
+            placement: 'topRight',
+          });
+        }
       } else {
         const errorData = await response.json();
         console.error('[DPI Frontend] Error response:', errorData);
@@ -427,7 +557,9 @@ class DPIPage extends Component {
   startAnalysis = async () => {
     const { mode, selectedPcap, selectedInterface } = this.state;
     
-    // Initialize with empty data to show empty plot/table
+    console.log('[DPI Frontend] Starting new analysis, clearing all data');
+    
+    // Clear all previous data to show only new traffic
     this.setState({ 
       loading: true, 
       error: null,
@@ -436,6 +568,8 @@ class DPIPage extends Component {
       statistics: null,
       conversations: [],
       packetSizes: [],
+      selectedProtocols: ['ETHERNET'], // Reset to default
+      lastUpdate: null,
     });
     
     try {
@@ -458,8 +592,21 @@ class DPIPage extends Component {
         this.setState({
           isRunning: true,
           sessionId: data.sessionId,
+          ownerToken: data.ownerToken || null, // Save owner token for stopping
+          isOwner: data.isOwner || false,
           loading: false,
         });
+        
+        // Save PCAP-to-sessionId mapping for later restoration
+        if (mode === 'offline' && selectedPcap && data.sessionId) {
+          try {
+            const mapping = JSON.parse(localStorage.getItem('dpiPcapSessions') || '{}');
+            mapping[selectedPcap] = data.sessionId;
+            localStorage.setItem('dpiPcapSessions', JSON.stringify(mapping));
+          } catch (e) {
+            console.error('Failed to save DPI session mapping:', e);
+          }
+        }
         
         // Start polling for data
         // For online mode, wait longer for first CSV file to be generated
@@ -532,9 +679,13 @@ class DPIPage extends Component {
     try {
       console.log('[DPI Frontend] Stopping analysis...');
       
+      // Get owner token from state
+      const { ownerToken } = this.state;
+      
       const response = await fetch(`${SERVER_URL}/api/dpi/stop`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ownerToken }), // Send owner token
       });
       
       if (response.ok) {
@@ -571,11 +722,16 @@ class DPIPage extends Component {
       clearInterval(this.reloadInterval);
     }
     
+    // Use shorter interval for online mode (3 seconds) for more responsive updates
+    const interval = this.state.mode === 'online' ? 3000 : 5000;
+    console.log('[DPI Frontend] Starting auto-reload with', interval, 'ms interval');
+    
     this.reloadInterval = setInterval(() => {
       if (this.state.isRunning) {
+        console.log('[DPI Frontend] Auto-reload triggered');
         this.loadData();
       }
-    }, 5000); // Reload every 5 seconds
+    }, interval);
   };
 
   stopAutoReload = () => {
@@ -1296,6 +1452,8 @@ class DPIPage extends Component {
 
   renderStackedAreaChart = () => {
     const { trafficData, metricType, isRunning, selectedProtocols, showDirectional } = this.state;
+    
+    console.log('[DPI Chart] renderStackedAreaChart - trafficData length:', trafficData ? trafficData.length : 0, 'isRunning:', isRunning);
     
     if (!trafficData || trafficData.length === 0) {
       if (isRunning) {
@@ -2416,6 +2574,7 @@ class DPIPage extends Component {
       trafficData,
       metricType,
       loadedFromFeatureExtraction,
+      isOwner,
     } = this.state;
 
     return (
@@ -2536,7 +2695,7 @@ class DPIPage extends Component {
               
               <Col flex="none" style={{ marginLeft: 12 }}>
                 <Space size="small">
-                  <Button
+                  <Button 
                     type="primary"
                     icon={<PlayCircleOutlined />}
                     onClick={this.startAnalysis}
@@ -2545,12 +2704,13 @@ class DPIPage extends Component {
                   >
                     Start
                   </Button>
-                  {mode === 'online' && (
+                  {isRunning && (
                     <Button
                       danger
                       icon={<StopOutlined />}
                       onClick={this.stopAnalysis}
-                      disabled={!isRunning}
+                      disabled={!isRunning || (mode === 'online' && !isOwner)}
+                      title={mode === 'online' && !isOwner ? 'Only the session owner can stop online DPI' : ''}
                     >
                       Stop
                     </Button>
@@ -2573,6 +2733,11 @@ class DPIPage extends Component {
                 <Tag color={isRunning ? 'green' : 'default'}>
                   {isRunning ? 'Running' : 'Stopped'}
                 </Tag>
+                {isRunning && mode === 'online' && (
+                  <Tag color={isOwner ? 'blue' : 'orange'} style={{ marginLeft: 4 }}>
+                    {isOwner ? 'Owner' : 'Viewer'}
+                  </Tag>
+                )}
               </Col>
               
               {lastUpdate && mode === 'online' && (

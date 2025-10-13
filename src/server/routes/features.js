@@ -67,9 +67,11 @@ router.post('/extract', async (req, res) => {
           if (status.status === 'completed') {
             console.log('[Features] Job completed:', jobId);
             // Return result in the format frontend expects
+            // Use the MMT sessionId from the worker result (actual directory name)
+            const actualSessionId = status.result?.sessionId || sessionId;
             return res.json({
               ok: true,
-              sessionId: sessionId,
+              sessionId: actualSessionId,
               csvFile: status.result?.csvFile || 'features.csv',
               csvContent: status.result?.csvContent || '',
               queued: true,

@@ -48,11 +48,24 @@ const predictionQueue = new Queue('prediction', REDIS_URL, {
   }
 });
 
+const ruleBasedQueue = new Queue('rule-based-detection', REDIS_URL, {
+  defaultJobOptions: {
+    attempts: 2,
+    backoff: {
+      type: 'exponential',
+      delay: 2000
+    },
+    removeOnComplete: 100,
+    removeOnFail: 50
+  }
+});
+
 // Configure concurrency (number of parallel workers)
 const CONCURRENCY = {
   featureExtraction: parseInt(process.env.FEATURE_WORKERS) || 3,
   modelTraining: parseInt(process.env.TRAINING_WORKERS) || 2,
-  prediction: parseInt(process.env.PREDICTION_WORKERS) || 3
+  prediction: parseInt(process.env.PREDICTION_WORKERS) || 3,
+  ruleBasedDetection: parseInt(process.env.RULEBASED_WORKERS) || 2
 };
 
 /**
@@ -131,6 +144,31 @@ const queuePrediction = async (data) => {
 };
 
 /**
+ * Add job to rule-based detection queue
+ */
+const queueRuleBasedDetection = async (data) => {
+  const job = await ruleBasedQueue.add('detect', data, {
+    priority: data.priority || 5,
+    timeout: 5 * 60 * 1000 // 5 minutes timeout
+  });
+  
+  // Get position - handle both Bull v3 and v4 API
+  let position = 0;
+  try {
+    position = typeof job.getPosition === 'function' ? await job.getPosition() : 0;
+  } catch (e) {
+    position = 0;
+  }
+  
+  return {
+    jobId: job.id,
+    queueName: 'rule-based-detection',
+    position: position,
+    estimatedWait: await estimateWaitTime(ruleBasedQueue, job)
+  };
+};
+
+/**
  * Estimate wait time based on queue position and average job duration
  */
 const estimateWaitTime = async (queue, job) => {
@@ -149,7 +187,8 @@ const estimateWaitTime = async (queue, job) => {
     const avgDuration = {
       'feature-extraction': 60,  // 1 minute
       'model-training': 300,     // 5 minutes
-      'prediction': 30           // 30 seconds
+      'prediction': 30,          // 30 seconds
+      'rule-based-detection': 45 // 45 seconds
     }[queue.name] || 60;
     
     // Calculate estimated wait
@@ -189,7 +228,8 @@ const getJobStatus = async (jobId, queueName) => {
   const queue = {
     'feature-extraction': featureQueue,
     'model-training': trainingQueue,
-    'prediction': predictionQueue
+    'prediction': predictionQueue,
+    'rule-based-detection': ruleBasedQueue
   }[queueName];
   
   if (!queue) {
@@ -233,10 +273,11 @@ const getJobStatus = async (jobId, queueName) => {
  * Get queue statistics
  */
 const getQueueStats = async () => {
-  const [featureStats, trainingStats, predictionStats] = await Promise.all([
+  const [featureStats, trainingStats, predictionStats, ruleBasedStats] = await Promise.all([
     featureQueue.getJobCounts(),
     trainingQueue.getJobCounts(),
-    predictionQueue.getJobCounts()
+    predictionQueue.getJobCounts(),
+    ruleBasedQueue.getJobCounts()
   ]);
   
   return {
@@ -252,11 +293,15 @@ const getQueueStats = async () => {
       ...predictionStats,
       workers: CONCURRENCY.prediction
     },
+    ruleBasedDetection: {
+      ...ruleBasedStats,
+      workers: CONCURRENCY.ruleBasedDetection
+    },
     total: {
-      waiting: (featureStats.waiting || 0) + (trainingStats.waiting || 0) + (predictionStats.waiting || 0),
-      active: (featureStats.active || 0) + (trainingStats.active || 0) + (predictionStats.active || 0),
-      completed: (featureStats.completed || 0) + (trainingStats.completed || 0) + (predictionStats.completed || 0),
-      failed: (featureStats.failed || 0) + (trainingStats.failed || 0) + (predictionStats.failed || 0)
+      waiting: (featureStats.waiting || 0) + (trainingStats.waiting || 0) + (predictionStats.waiting || 0) + (ruleBasedStats.waiting || 0),
+      active: (featureStats.active || 0) + (trainingStats.active || 0) + (predictionStats.active || 0) + (ruleBasedStats.active || 0),
+      completed: (featureStats.completed || 0) + (trainingStats.completed || 0) + (predictionStats.completed || 0) + (ruleBasedStats.completed || 0),
+      failed: (featureStats.failed || 0) + (trainingStats.failed || 0) + (predictionStats.failed || 0) + (ruleBasedStats.failed || 0)
     }
   };
 };
@@ -268,7 +313,8 @@ const cancelJob = async (jobId, queueName) => {
   const queue = {
     'feature-extraction': featureQueue,
     'model-training': trainingQueue,
-    'prediction': predictionQueue
+    'prediction': predictionQueue,
+    'rule-based-detection': ruleBasedQueue
   }[queueName];
   
   if (!queue) {
@@ -296,7 +342,9 @@ const cleanupOldJobs = async (olderThanHours = 24) => {
     trainingQueue.clean(olderThanHours * 60 * 60 * 1000, 'completed'),
     trainingQueue.clean(olderThanHours * 60 * 60 * 1000, 'failed'),
     predictionQueue.clean(olderThanHours * 60 * 60 * 1000, 'completed'),
-    predictionQueue.clean(olderThanHours * 60 * 60 * 1000, 'failed')
+    predictionQueue.clean(olderThanHours * 60 * 60 * 1000, 'failed'),
+    ruleBasedQueue.clean(olderThanHours * 60 * 60 * 1000, 'completed'),
+    ruleBasedQueue.clean(olderThanHours * 60 * 60 * 1000, 'failed')
   ]);
   
   console.log(`[Queue] Cleaned up jobs older than ${olderThanHours} hours`);
@@ -312,11 +360,13 @@ module.exports = {
   featureQueue,
   trainingQueue,
   predictionQueue,
+  ruleBasedQueue,
   
   // Queue operations
   queueFeatureExtraction,
   queueModelTraining,
   queuePrediction,
+  queueRuleBasedDetection,
   
   // Job operations
   getJobStatus,

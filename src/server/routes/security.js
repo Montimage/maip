@@ -17,6 +17,10 @@ const {
 const { LOCAL_NATS_URL, TRAINING_PATH, REPORT_PATH, PCAP_PATH } = require('../constants');
 // Output folder for mmt_security CSVs
 const SECURITY_OUT_DIR = path.join(__dirname, '../mmt/outputs');
+// Import unified session manager
+const sessionManager = require('../utils/sessionManager');
+// Import queue functions
+const { queueRuleBasedDetection, getJobStatus } = require('../queue/job-queue');
 
 // Default to sudo unless explicitly disabled; use non-interactive to avoid blocking
 const SUDO = USE_SUDO === 'false' ? '' : 'sudo -n ';
@@ -220,6 +224,22 @@ function dedupeAlerts(list) {
 
 router.get('/rule-based/status', async (req, res) => {
   try {
+    const { sessionId } = req.query;
+    
+    if (sessionId) {
+      // Get specific session status
+      const session = sessionManager.getSession('attacks', sessionId);
+      if (!session) {
+        return res.status(404).json({ error: 'Session not found', sessionId });
+      }
+      const lastFile = session.outputFile || findLatestSecurityCsv(session.outputDir);
+      if (lastFile && !session.outputFile) {
+        sessionManager.updateSession('attacks', sessionId, { outputFile: lastFile });
+      }
+      return res.send({ ok: true, ...session });
+    }
+    
+    // Legacy: return global secState (for backward compatibility)
     const lastFile = secState.outputFile || findLatestSecurityCsv(secState.outputDir);
     if (lastFile) secState.outputFile = lastFile;
     res.send({ ok: true, ...secState });
@@ -230,8 +250,24 @@ router.get('/rule-based/status', async (req, res) => {
 
 router.get('/rule-based/alerts', async (req, res) => {
   try {
-    const limit = req.query.limit ? Number(req.query.limit) : 500;
-    const file = secState.outputFile || findLatestSecurityCsv(secState.outputDir);
+    const { sessionId, limit: limitParam } = req.query;
+    const limit = limitParam ? Number(limitParam) : 500;
+    
+    let file, outputDir;
+    if (sessionId) {
+      // Get alerts for specific session
+      const session = sessionManager.getSession('attacks', sessionId);
+      if (!session) {
+        return res.status(404).json({ error: 'Session not found', sessionId });
+      }
+      file = session.outputFile || findLatestSecurityCsv(session.outputDir);
+      outputDir = session.outputDir;
+    } else {
+      // Legacy: use global secState
+      file = secState.outputFile || findLatestSecurityCsv(secState.outputDir);
+      outputDir = secState.outputDir;
+    }
+    
     if (!file) return res.send({ ok: true, alerts: [] });
     const alerts = parseSecurityCsv(file, limit);
     const uniqueAlerts = dedupeAlerts(alerts);
@@ -319,6 +355,9 @@ router.post('/rule-based/online/start', async (req, res) => {
         : Array.from(verdictMap.entries()).map(([rule, verdicts]) => ({ rule, verdicts }));
     });
 
+    // Generate unique session ID
+    const sessionId = `security_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
     secState = {
       running: true,
       mode: 'online',
@@ -331,9 +370,21 @@ router.post('/rule-based/online/start', async (req, res) => {
       startedAt: new Date().toISOString(),
       intervalSec: Number(intervalSec),
       ruleVerdicts: [],
+      sessionId,
     };
 
-    res.send({ ok: true, ...secState });
+    // Create session in session manager
+    sessionManager.createSession('attacks', sessionId, 'online', {
+      pid: child.pid,
+      iface,
+      pcapFile: null,
+      outputDir: runDir,
+      outputFile: null,
+      intervalSec: Number(intervalSec),
+      ruleVerdicts: [],
+    });
+
+    res.send({ ok: true, sessionId, ...secState });
   } catch (e) {
     console.error('rule-based online start error:', e);
     res.status(500).send(e.message || 'Failed to start mmt_security');
@@ -365,6 +416,16 @@ router.post('/rule-based/online/stop', async (req, res) => {
     secState.pid = null;
     const lastFile = findLatestSecurityCsv(secState.outputDir);
     if (lastFile) secState.outputFile = lastFile;
+    
+    // Update session manager
+    if (secState.sessionId) {
+      sessionManager.updateSession('attacks', secState.sessionId, {
+        isRunning: false,
+        outputFile: lastFile,
+        pid: null
+      });
+    }
+    
     res.send({ ok: true, stopped: true, ...secState });
   } catch (e) {
     res.status(500).send(e.message || 'Failed to stop mmt_security');
@@ -373,14 +434,104 @@ router.post('/rule-based/online/stop', async (req, res) => {
 
 router.post('/rule-based/offline', async (req, res) => {
   try {
-    const { pcapFile, filePath, verbose = false, excludeRules, cores } = req.body || {};
+    const { pcapFile, filePath, verbose = false, excludeRules, cores, useQueue } = req.body || {};
     let inputPath = null;
     if (filePath) inputPath = filePath;
     if (!inputPath && pcapFile) inputPath = path.join(PCAP_PATH, pcapFile);
     if (!inputPath) return res.status(400).send('Missing pcapFile or filePath');
     if (!fs.existsSync(inputPath)) return res.status(404).send(`PCAP not found: ${inputPath}`);
 
-    const outDir = SECURITY_OUT_DIR;
+    // Generate unique session ID for this offline detection
+    const sessionId = `security_offline_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Queue-based approach is ENABLED BY DEFAULT
+    const useQueueDefault = process.env.USE_QUEUE_BY_DEFAULT !== 'false';
+    const shouldUseQueue = useQueue !== undefined ? useQueue : useQueueDefault;
+    
+    if (shouldUseQueue) {
+      console.log('[SECURITY][rule-based][offline] Using queue-based processing for session:', sessionId);
+      
+      // Queue the job
+      const result = await queueRuleBasedDetection({
+        pcapFile,
+        filePath: inputPath,
+        sessionId,
+        verbose,
+        excludeRules,
+        cores,
+        priority: 5
+      });
+      
+      const jobId = result.jobId;
+      console.log('[SECURITY] Job queued:', jobId, 'Waiting for completion...');
+      
+      // Create session in session manager
+      sessionManager.createSession('attacks', sessionId, 'offline', {
+        pcapFile,
+        filePath: inputPath,
+        outputDir: null, // Will be set by worker
+        outputFile: null,
+        excludeRules,
+        cores,
+        queued: true,
+        jobId: jobId
+      });
+      
+      // Poll for job completion
+      const maxWaitTime = 5 * 60 * 1000; // 5 minutes max
+      const pollInterval = 2000; // 2 seconds
+      const startTime = Date.now();
+      
+      while (Date.now() - startTime < maxWaitTime) {
+        const status = await getJobStatus(jobId, 'rule-based-detection');
+        
+        if (status.status === 'completed') {
+          console.log('[SECURITY] Job completed:', jobId);
+          
+          // Update session with results
+          sessionManager.updateSession('attacks', sessionId, {
+            isRunning: false,
+            outputDir: status.result?.outputDir,
+            outputFile: status.result?.outputFile,
+            ruleVerdicts: status.result?.ruleVerdicts
+          });
+          
+          // Parse and return alerts
+          const file = status.result?.outputFile;
+          const alerts = file ? parseSecurityCsv(file, 2000) : [];
+          const uniqueAlerts = dedupeAlerts(alerts);
+          
+          return res.send({ 
+            ok: true, 
+            sessionId, 
+            file, 
+            count: uniqueAlerts.length, 
+            alerts: uniqueAlerts, 
+            ruleVerdicts: status.result?.ruleVerdicts || [],
+            queued: true,
+            jobId: jobId
+          });
+        } else if (status.status === 'failed') {
+          console.error('[SECURITY] Job failed:', jobId, status.failedReason);
+          sessionManager.updateSession('attacks', sessionId, {
+            isRunning: false,
+            error: status.failedReason
+          });
+          return res.status(500).send(status.failedReason || 'Rule-based detection failed');
+        }
+        
+        // Still processing, wait and check again
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+      }
+      
+      // Timeout
+      return res.status(408).send('Request timeout: Rule-based detection took too long');
+    }
+    
+    // OLD: Direct processing (blocking) - only if useQueue=false
+    console.log('[SECURITY][rule-based][offline] Using direct processing (blocking) for session:', sessionId);
+    
+    const outDir = path.join(SECURITY_OUT_DIR, `offline-${sessionId}`);
     ensureDir(outDir);
     const bin = resolveSecurityBin();
 
@@ -389,22 +540,50 @@ router.post('/rule-based/offline', async (req, res) => {
     if (verbose) args.push('-v');
     if (excludeRules) args.push('-x', String(excludeRules));
     if (cores) args.push('-c', String(cores));
-    // ensure trailing slash so files are created under outDir
-    args.push('-f', `${outDir}/`); // offline no rotation needed
+    args.push('-f', `${outDir}/`);
 
     const cmd = `${bin} ${args.map(a => (a.includes(' ') ? `"${a}"` : a)).join(' ')}`;
     console.log('[SECURITY][rule-based][offline] Executing:', cmd);
 
+    // Create session in session manager
+    sessionManager.createSession('attacks', sessionId, 'offline', {
+      pcapFile,
+      filePath: inputPath,
+      outputDir: outDir,
+      outputFile: null,
+      excludeRules,
+      cores,
+    });
+
     exec(cmd, (error, stdout, stderr) => {
       if (error) {
         console.error('mmt_security offline error:', stderr || error.message);
+        sessionManager.updateSession('attacks', sessionId, {
+          isRunning: false,
+          error: stderr || error.message
+        });
         return res.status(500).send(stderr || error.message);
       }
       const file = findLatestSecurityCsv(outDir);
       const alerts = parseSecurityCsv(file, 2000);
       const uniqueAlerts = dedupeAlerts(alerts);
       const ruleVerdicts = parseRuleVerdictsFromText(`${stdout}\n${stderr}`);
-      res.send({ ok: true, file, count: uniqueAlerts.length, alerts: uniqueAlerts, ruleVerdicts });
+      
+      sessionManager.updateSession('attacks', sessionId, {
+        isRunning: false,
+        outputFile: file,
+        ruleVerdicts,
+        alertCount: uniqueAlerts.length
+      });
+      
+      res.send({ 
+        ok: true, 
+        sessionId, 
+        file, 
+        count: uniqueAlerts.length, 
+        alerts: uniqueAlerts, 
+        ruleVerdicts 
+      });
     });
   } catch (e) {
     res.status(500).send(e.message || 'Failed to run offline rule-based detection');

@@ -60,6 +60,9 @@ const queueRouter = require('./routes/queue');
 const earlyPredictionRouter = require('./routes/early-prediction');
 const dpiRouter = require('./routes/dpi');
 
+// Initialize queue workers (this starts all background workers)
+require('./queue/workers');
+
 const app = express();
 var compression = require('compression');
 var helmet = require('helmet');
@@ -168,6 +171,19 @@ let server;
 if (PROTOCOL === 'HTTP') {
   server = app.listen(SERVER_PORT, SERVER_HOST, () => {
     console.log(`[HTTP SERVER] NDR server started on http://${SERVER_HOST}:${SERVER_PORT}`);
+    
+    // Start periodic cleanup of all sessions (every 15 minutes)
+    const sessionManager = require('./utils/sessionManager');
+    
+    setInterval(() => {
+      console.log('[SessionManager] Running periodic cleanup for all session types...');
+      const cleaned = sessionManager.cleanupOldSessions();
+      if (cleaned === 0) {
+        console.log('[SessionManager] No old sessions to clean up');
+      }
+    }, 15 * 60 * 1000); // 15 minutes
+    
+    console.log('[SessionManager] Periodic cleanup scheduled (every 15 minutes) for all session types (DPI, Prediction, XAI, Attacks)');
   });
 }
 

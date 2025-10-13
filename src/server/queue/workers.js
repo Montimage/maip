@@ -5,7 +5,7 @@
  * Just import existing functions and call them from workers
  */
 
-const { featureQueue, trainingQueue, predictionQueue } = require('./job-queue');
+const { featureQueue, trainingQueue, predictionQueue, ruleBasedQueue } = require('./job-queue');
 const path = require('path');
 const fs = require('fs');
 
@@ -25,7 +25,8 @@ const { startMMTOffline, getMMTStatus } = require('../mmt/mmt-connector');
 const CONCURRENCY = {
   featureExtraction: parseInt(process.env.FEATURE_WORKERS) || 3,
   modelTraining: parseInt(process.env.TRAINING_WORKERS) || 2,
-  prediction: parseInt(process.env.PREDICTION_WORKERS) || 3
+  prediction: parseInt(process.env.PREDICTION_WORKERS) || 3,
+  ruleBasedDetection: parseInt(process.env.RULEBASED_WORKERS) || 2
 };
 
 /**
@@ -54,6 +55,7 @@ featureQueue.process('extract', CONCURRENCY.featureExtraction, async (job) => {
     if (isDPIJob) {
       return new Promise((resolve, reject) => {
         // Pass custom sessionId to MMT so it uses our DPI session ID
+        // skipLockCheck=true allows concurrent processing with online DPI
         startMMTOffline(pcapFile, async (status) => {
           if (status && status.error) {
             return reject(new Error(status.error));
@@ -114,12 +116,13 @@ featureQueue.process('extract', CONCURRENCY.featureExtraction, async (job) => {
               });
             }
           }, intervalMs);
-        }, sessionId);  // Pass custom sessionId to MMT
+        }, sessionId, true);  // Pass custom sessionId and skipLockCheck=true
       });
     }
 
     // For feature extraction jobs, continue with full pipeline
     return new Promise((resolve, reject) => {
+      // skipLockCheck=true allows concurrent processing with online DPI
       startMMTOffline(pcapFile, async (status) => {
         if (status && status.error) {
           return reject(new Error(status.error));
@@ -246,7 +249,7 @@ featureQueue.process('extract', CONCURRENCY.featureExtraction, async (job) => {
             }
           }
         }, intervalMs);
-      });
+      }, sessionId, true);  // Pass custom sessionId from feature extraction, skipLockCheck=true
     });
     
   } catch (error) {
@@ -404,6 +407,123 @@ predictionQueue.process('predict', CONCURRENCY.prediction, async (job) => {
   }
 });
 
+/**
+ * Rule-based Detection Worker (mmt_security offline)
+ */
+ruleBasedQueue.process('detect', CONCURRENCY.ruleBasedDetection, async (job) => {
+  const { pcapFile, filePath, sessionId, verbose = false, excludeRules, cores } = job.data;
+  
+  console.log(`[Worker] Processing rule-based detection job ${job.id} for session ${sessionId}`);
+  
+  try {
+    const { exec } = require('child_process');
+    const { promisify } = require('util');
+    const execAsync = promisify(exec);
+    
+    // Resolve input path
+    let inputPath = filePath || path.join(PCAP_PATH, pcapFile);
+    if (!fs.existsSync(inputPath)) {
+      throw new Error(`PCAP not found: ${inputPath}`);
+    }
+    
+    // Create output directory for this session
+    const SECURITY_OUT_DIR = path.join(__dirname, '../mmt/outputs');
+    const outDir = path.join(SECURITY_OUT_DIR, `offline-${sessionId}`);
+    fs.mkdirSync(outDir, { recursive: true, mode: 0o777 });
+    
+    await job.progress(10);
+    
+    // Resolve mmt_security binary
+    const resolveSecurityBin = () => {
+      const candidates = [
+        '/opt/mmt/security/bin/mmt_security',
+        '/opt/mmt/security/bin/mmt-security',
+        'mmt_security',
+        'mmt-security',
+      ];
+      for (const p of candidates) {
+        try {
+          if (p.includes('/') && fs.existsSync(p)) return p;
+        } catch (e) {}
+      }
+      return candidates[0];
+    };
+    
+    const bin = resolveSecurityBin();
+    const args = [];
+    args.push('-t', inputPath);
+    if (verbose) args.push('-v');
+    if (excludeRules) args.push('-x', String(excludeRules));
+    if (cores) args.push('-c', String(cores));
+    args.push('-f', `${outDir}/`);
+    
+    const cmd = `${bin} ${args.map(a => (a.includes(' ') ? `"${a}"` : a)).join(' ')}`;
+    console.log(`[Worker] Executing rule-based detection: ${cmd}`);
+    
+    await job.progress(20);
+    
+    // Execute mmt_security
+    const { stdout, stderr } = await execAsync(cmd);
+    
+    await job.progress(80);
+    
+    // Find latest CSV file
+    const findLatestSecurityCsv = (dir) => {
+      try {
+        if (!dir || !fs.existsSync(dir)) return null;
+        const files = fs.readdirSync(dir)
+          .filter(f => f.endsWith('.csv'))
+          .map(f => ({ f, full: path.join(dir, f), st: fs.statSync(path.join(dir, f)) }))
+          .sort((a, b) => b.st.mtimeMs - a.st.mtimeMs);
+        return files.length > 0 ? files[0].full : null;
+      } catch (e) {
+        return null;
+      }
+    };
+    
+    const file = findLatestSecurityCsv(outDir);
+    
+    // Parse rule verdicts from stdout/stderr
+    const parseRuleVerdictsFromText = (text) => {
+      try {
+        const map = new Map();
+        String(text || '')
+          .split(/\r?\n/)
+          .forEach((line) => {
+            const m = line.match(/-\s*rule\s+(\d+)\s+generated\s+(\d+)\s+verdicts/i);
+            if (m) {
+              const rule = Number(m[1]);
+              const verdicts = Number(m[2]);
+              map.set(rule, verdicts);
+            }
+          });
+        return Array.from(map.entries()).map(([rule, verdicts]) => ({ rule, verdicts }));
+      } catch {
+        return [];
+      }
+    };
+    
+    const ruleVerdicts = parseRuleVerdictsFromText(`${stdout}\n${stderr}`);
+    
+    await job.progress(100);
+    
+    console.log(`[Worker] Rule-based detection job ${job.id} completed for session ${sessionId}`);
+    
+    return {
+      success: true,
+      sessionId,
+      outputDir: outDir,
+      outputFile: file,
+      ruleVerdicts,
+      message: 'Rule-based detection completed'
+    };
+    
+  } catch (error) {
+    console.error(`[Worker] Rule-based detection failed for job ${job.id}:`, error);
+    throw error;
+  }
+});
+
 // Event listeners for monitoring
 featureQueue.on('completed', (job, result) => {
   console.log(`[Queue] Feature extraction job ${job.id} completed`);
@@ -427,6 +547,14 @@ predictionQueue.on('completed', (job, result) => {
 
 predictionQueue.on('failed', (job, err) => {
   console.error(`[Queue] Prediction job ${job.id} failed:`, err.message);
+});
+
+ruleBasedQueue.on('completed', (job, result) => {
+  console.log(`[Queue] Rule-based detection job ${job.id} completed`);
+});
+
+ruleBasedQueue.on('failed', (job, err) => {
+  console.error(`[Queue] Rule-based detection job ${job.id} failed:`, err.message);
 });
 
 console.log('[Workers] Started with concurrency:', CONCURRENCY);

@@ -1,53 +1,55 @@
 const express = require('express');
+const router = express.Router();
 const fs = require('fs');
 const path = require('path');
-const router = express.Router();
-
-const {
-  PCAP_PATH,
-  MMT_PROBE_CONFIG_PATH,
-  REPORT_PATH,
-  LOG_PATH,
-} = require('../constants');
-const { createFolder, listFilesByTypeAsync } = require('../utils/file-utils');
-const { spawnCommand, getUniqueId, interfaceExist } = require('../utils/utils');
+const { REPORT_PATH, PCAP_PATH } = require('../constants');
 const { startMMTOffline, startMMTOnline, stopMMT, getMMTStatus } = require('../mmt/mmt-connector');
+const { listFilesByTypeAsync } = require('../utils/file-utils');
+const { interfaceExist } = require('../utils/utils');
+const { queueFeatureExtraction } = require('../queue/job-queue');
+const sessionManager = require('../utils/sessionManager');
 
-// Import queue functions for DPI processing
-const {
-  queueFeatureExtraction,
-  getJobStatus
-} = require('../queue/job-queue');
-
-// Store current DPI session state
+// DEPRECATED: Old global state - kept for backward compatibility with online mode
+// Offline mode now uses sessionManager
 let dpiState = {
   isRunning: false,
   sessionId: null,
-  mode: null, // 'offline' or 'online'
+  mode: null,
   pcapFile: null,
   interface: null,
   hierarchyData: null,
   trafficData: [],
   lastUpdate: null,
-  lastProcessedLine: 0, // For online mode: track how many lines we've already processed
-  cumulativeProtocols: {}, // For online mode: accumulated protocol counts
-  cumulativeConversations: {}, // For online mode: accumulated conversations
+  lastProcessedLine: 0,
+  cumulativeProtocols: {},
+  cumulativeConversations: {},
+  cumulativePacketSizes: [],
+  cumulativeStatistics: null,
+  viewers: 0,
+  startedBy: null,
+  ownerToken: null,
 };
 
 /**
  * Parse protocol hierarchy from mmt-probe CSV output
+{{ ... }}
+{{ ... }}
  * MMT-Probe format: event-based CSV with lines starting with report type ID
  * - Lines starting with "1000," are event reports (ipv4-event, tcp-event, etc.)
  * Format: 1000,probe_id,source,timestamp,event_type,...attributes
  */
-function parseProtocolHierarchy(csvFilePath, startLine = 0, isOnlineMode = false) {
+function parseProtocolHierarchy(csvFilePath, startLine = 0, session = null) {
   return new Promise((resolve, reject) => {
-    const protocols = isOnlineMode ? { ...dpiState.cumulativeProtocols } : {};
+    // Determine if this is online mode from session
+    const isOnlineMode = session && session.mode === 'online';
+    
+    // Use session's cumulative data if provided, otherwise start fresh
+    const protocols = session && session.cumulativeProtocols ? { ...session.cumulativeProtocols } : {};
     const trafficTimeSeries = [];
     const sessionProtocols = {}; // Track protocol hierarchy per session
-    const conversations = isOnlineMode ? { ...dpiState.cumulativeConversations } : {}; // Track conversations by 5-tuple key
+    const conversations = session && session.cumulativeConversations ? { ...session.cumulativeConversations } : {};
     const timestampIPMap = {}; // Map timestamp+ports to IP addresses
-    const packetSizes = []; // Track packet sizes for histogram
+    const packetSizes = session && session.cumulativePacketSizes ? [...session.cumulativePacketSizes] : [];
     
     fs.readFile(csvFilePath, 'utf8', (err, data) => {
       if (err) {
@@ -354,10 +356,13 @@ function parseProtocolHierarchy(csvFilePath, startLine = 0, isOnlineMode = false
       // Build hierarchy tree structure
       const hierarchy = buildHierarchyTree(protocols);
       console.log('[DPI Parse] Built hierarchy with', hierarchy.length, 'root nodes');
-      // Update cumulative protocols and conversations for online mode
-      if (isOnlineMode) {
-        dpiState.cumulativeProtocols = protocols;
-        dpiState.cumulativeConversations = conversations;
+      
+      // Update cumulative data in session (for both online and offline modes)
+      if (session) {
+        session.cumulativeProtocols = protocols;
+        session.cumulativeConversations = conversations;
+        session.cumulativePacketSizes = packetSizes;
+        console.log('[DPI Parse] Updated session cumulative state - packet sizes:', packetSizes.length);
       }
       
       // Convert conversations to array and sort by bytes
@@ -672,9 +677,16 @@ function aggregateTrafficData(trafficTimeSeries, windowSize = 1, isOnlineMode = 
 // GET /api/dpi/status - Get current DPI analysis status
 router.get('/status', (req, res) => {
   const mmtStatus = getMMTStatus();
+  const { ownerToken } = req.query;
+  
+  // Check if requester is the owner
+  const isOwner = dpiState.ownerToken && ownerToken === dpiState.ownerToken;
+  
   res.json({
     ...dpiState,
     mmtRunning: mmtStatus.isRunning,
+    isOwner: isOwner, // Tell frontend if this user is the owner
+    ownerToken: undefined, // Don't expose the actual token
   });
 });
 
@@ -714,23 +726,15 @@ router.post('/start/offline', async (req, res) => {
       const jobId = result.jobId;
       console.log('[DPI] Job queued:', jobId, 'Session:', sessionId);
       
-      // Update DPI state immediately
-      dpiState = {
-        isRunning: true,
-        sessionId: sessionId,
-        mode: 'offline',
+      // Create session in session manager
+      sessionManager.createSession('dpi', sessionId, 'offline', {
         pcapFile,
         interface: null,
         hierarchyData: null,
         trafficData: [],
-        lastUpdate: new Date().toISOString(),
-        lastProcessedLine: 0,
-        cumulativeProtocols: {},
-        cumulativeConversations: {},
-        cumulativeStatistics: null,
         queued: true,
         jobId: jobId
-      };
+      });
       
       // Return immediately with session ID (non-blocking)
       return res.json({ 
@@ -738,7 +742,7 @@ router.post('/start/offline', async (req, res) => {
         sessionId: sessionId,
         queued: true,
         jobId: jobId,
-        message: 'DPI analysis queued. Use /api/dpi/data to get results when ready.'
+        message: 'DPI analysis queued. Use /api/dpi/data?sessionId=' + sessionId + ' to get results when ready.'
       });
     }
     
@@ -749,20 +753,13 @@ router.post('/start/offline', async (req, res) => {
         return res.status(500).json({ error: status.error });
       }
       
-      dpiState = {
-        isRunning: true,
-        sessionId: status.sessionId,
-        mode: 'offline',
+      // Create session in session manager
+      sessionManager.createSession('dpi', status.sessionId, 'offline', {
         pcapFile,
         interface: null,
         hierarchyData: null,
         trafficData: [],
-        lastUpdate: new Date().toISOString(),
-        lastProcessedLine: 0,
-        cumulativeProtocols: {},
-        cumulativeConversations: {},
-        cumulativeStatistics: null,
-      };
+      });
       
       res.json({ success: true, sessionId: status.sessionId });
     });
@@ -785,11 +782,26 @@ router.post('/start/online', async (req, res) => {
       return res.status(404).json({ error: `Network interface not found: ${netInterface}` });
     }
     
+    // Check if online DPI is already running (only one session allowed)
+    if (dpiState.isRunning && dpiState.mode === 'online') {
+      return res.status(409).json({ 
+        error: 'Online DPI session already running',
+        message: 'Online DPI is already running. You can view the live data, but cannot start a new session.',
+        currentSession: dpiState.sessionId,
+        startedBy: dpiState.startedBy,
+        viewers: dpiState.viewers,
+        hint: 'Use GET /api/dpi/data to view live capture data'
+      });
+    }
+    
     // Start MMT online analysis
     startMMTOnline(netInterface, async (status) => {
       if (status.error) {
         return res.status(500).json({ error: status.error });
       }
+      
+      // Generate unique owner token for the session starter
+      const ownerToken = `owner_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
       dpiState = {
         isRunning: true,
@@ -803,10 +815,32 @@ router.post('/start/online', async (req, res) => {
         lastProcessedLine: 0,
         cumulativeProtocols: {},
         cumulativeConversations: {},
+        cumulativePacketSizes: [],
         cumulativeStatistics: null,
+        viewers: 1, // Start with 1 viewer (the one who started it)
+        startedBy: req.ip || 'unknown', // Track who started the session
+        ownerToken: ownerToken, // Unique token for the owner
       };
       
-      res.json({ success: true, sessionId: status.sessionId });
+      // Create session in session manager (for online mode)
+      sessionManager.createSession('dpi', status.sessionId, 'online', {
+        interface: netInterface,
+        pcapFile: null,
+        hierarchyData: null,
+        trafficData: [],
+        viewers: 1,
+        startedBy: req.ip || 'unknown',
+        ownerToken: ownerToken,
+      });
+      
+      res.json({ 
+        success: true, 
+        sessionId: status.sessionId,
+        ownerToken: ownerToken, // Return token to the owner
+        message: 'Online DPI started. Other users can view live data via GET /api/dpi/data',
+        viewers: 1,
+        isOwner: true
+      });
     });
   } catch (error) {
     console.error('[DPI] Error starting online analysis:', error);
@@ -814,15 +848,43 @@ router.post('/start/online', async (req, res) => {
   }
 });
 
-// POST /api/dpi/stop - Stop the running DPI analysis
+// POST /api/dpi/stop - Stop the running DPI analysis (only owner can stop)
 router.post('/stop', async (req, res) => {
   try {
+    const { ownerToken } = req.body;
+    
+    console.log('[DPI] Stop request received');
+    
+    // Check if this is an online session with an owner
+    if (dpiState.mode === 'online' && dpiState.ownerToken) {
+      // Verify ownership
+      if (!ownerToken || ownerToken !== dpiState.ownerToken) {
+        console.log('[DPI] Stop denied: Not the session owner');
+        return res.status(403).json({ 
+          error: 'Permission denied',
+          message: 'Only the user who started the online DPI session can stop it.',
+          startedBy: dpiState.startedBy
+        });
+      }
+      console.log('[DPI] Stop authorized: Owner token verified');
+    }
+    
     console.log('[DPI] Stopping analysis...');
     
     stopMMT((status) => {
       if (status) {
         console.log('[DPI] Analysis stopped successfully');
+        
+        // Update session manager
+        if (dpiState.sessionId) {
+          sessionManager.updateSession('dpi', dpiState.sessionId, {
+            isRunning: false,
+            ownerToken: null
+          });
+        }
+        
         dpiState.isRunning = false;
+        dpiState.ownerToken = null; // Clear owner token
         res.json({ success: true, message: 'DPI analysis stopped' });
       } else {
         console.log('[DPI] No analysis was running');
@@ -836,17 +898,53 @@ router.post('/stop', async (req, res) => {
 });
 
 // GET /api/dpi/data - Get protocol hierarchy and traffic data
+// Supports both session-based (offline) and global (online) modes
 router.get('/data', async (req, res) => {
   try {
+    const { sessionId } = req.query;
+    
+    // Get MMT status to check if analysis is still running
     const mmtStatus = getMMTStatus();
     
-    if (!dpiState.sessionId) {
-      console.log('[DPI] No active session');
-      return res.status(404).json({ error: 'No DPI session active' });
+    // Determine which session to use
+    let session;
+    if (sessionId) {
+      // Explicit sessionId provided - use session manager (offline mode)
+      session = sessionManager.getSession('dpi', sessionId);
+      if (!session) {
+        console.log('[DPI] Session not found:', sessionId);
+        return res.status(404).json({ 
+          error: 'Session not found',
+          message: `DPI session ${sessionId} not found. It may have expired or been deleted.`
+        });
+      }
+      console.log('[DPI] Using session from session manager:', sessionId);
+    } else {
+      // No sessionId - check for online session (backward compatibility)
+      const onlineSession = sessionManager.getOnlineSession('dpi');
+      if (onlineSession) {
+        session = onlineSession;
+        console.log('[DPI] Using online session:', session.sessionId);
+      } else if (dpiState.sessionId && dpiState.mode === 'online') {
+        // Fallback to old global state for online mode
+        session = dpiState;
+        console.log('[DPI] Using legacy online session from dpiState:', dpiState.sessionId);
+      } else {
+        console.log('[DPI] No active session');
+        return res.status(404).json({ 
+          error: 'No DPI session active',
+          message: 'No DPI analysis is currently running. Start one first, or provide sessionId parameter.'
+        });
+      }
     }
     
-    const outputDir = path.join(REPORT_PATH, `report-${dpiState.sessionId}`);
-    console.log('[DPI] Looking for data in:', outputDir);
+    // Increment viewer count for online sessions
+    if (session.mode === 'online') {
+      session.viewers = Math.max(session.viewers || 1, 1);
+    }
+    
+    const outputDir = path.join(REPORT_PATH, `report-${session.sessionId}`);
+    console.log('[DPI] Looking for data in:', outputDir, 'for session:', session.sessionId);
     
     if (!fs.existsSync(outputDir)) {
       console.log('[DPI] Output directory not found:', outputDir);
@@ -865,7 +963,7 @@ router.get('/data', async (req, res) => {
     // For online mode, use the most recent CSV file (sample files are timestamped)
     // For offline mode, use the main report file
     let csvFile;
-    if (dpiState.mode === 'online') {
+    if (session.mode === 'online') {
       // Sort by modification time and get files with content
       const filesWithStats = csvFiles.map(file => {
         const filePath = path.join(outputDir, file);
@@ -933,9 +1031,9 @@ router.get('/data', async (req, res) => {
     
     // Parse protocol hierarchy and traffic data
     // In online mode, only parse new lines since last request
-    const isOnlineMode = dpiState.mode === 'online';
-    const startLine = isOnlineMode ? dpiState.lastProcessedLine : 0;
-    const { hierarchy, trafficTimeSeries, conversations, packetSizes, totalLines, processedEvents } = await parseProtocolHierarchy(csvPath, startLine, isOnlineMode);
+    const isOnlineMode = session.mode === 'online';
+    const startLine = isOnlineMode ? session.lastProcessedLine : 0;
+    const { hierarchy, trafficTimeSeries, conversations, packetSizes, totalLines, processedEvents } = await parseProtocolHierarchy(csvPath, startLine, session);
     console.log('[DPI] Parsed hierarchy:', hierarchy ? hierarchy.length : 0, 'root nodes');
     console.log('[DPI] Traffic time series entries:', trafficTimeSeries.length);
     console.log('[DPI] Top conversations:', conversations.length);
@@ -943,7 +1041,11 @@ router.get('/data', async (req, res) => {
     
     // Update last processed line for online mode
     if (isOnlineMode) {
-      dpiState.lastProcessedLine = totalLines;
+      session.lastProcessedLine = totalLines;
+      // Also update in session manager if it's a managed session
+      if (sessionId) {
+        sessionManager.updateSession('dpi', sessionId, { lastProcessedLine: totalLines });
+      }
     }
     
     // Determine appropriate window size based on mode and traffic duration
@@ -976,16 +1078,26 @@ router.get('/data', async (req, res) => {
     console.log('[DPI] Statistics:', statistics);
     console.log('[DPI] Hierarchy top-level protocols:', hierarchy.map(p => `${p.name}: ${p.packets} packets, ${p.dataVolume} bytes`));
     
-    // Store cumulative statistics for online mode
+    // Store cumulative statistics
     if (isOnlineMode) {
-      dpiState.cumulativeStatistics = statistics;
+      session.cumulativeStatistics = statistics;
     }
     
-    // Update state
-    dpiState.hierarchyData = hierarchy;
-    dpiState.trafficData = aggregatedTraffic;
-    dpiState.lastUpdate = new Date().toISOString();
-    dpiState.isRunning = mmtStatus.isRunning;
+    // Update session with latest data
+    session.hierarchyData = hierarchy;
+    session.trafficData = aggregatedTraffic;
+    session.lastUpdate = new Date().toISOString();
+    session.isRunning = mmtStatus.isRunning;
+    
+    // Update in session manager if it's a managed session
+    if (sessionId) {
+      sessionManager.updateSession('dpi', sessionId, {
+        hierarchyData: hierarchy,
+        trafficData: aggregatedTraffic,
+        cumulativeStatistics: statistics,
+        isRunning: mmtStatus.isRunning
+      });
+    }
     
     res.json({
       hierarchy,
@@ -993,10 +1105,10 @@ router.get('/data', async (req, res) => {
       statistics,
       conversations,
       packetSizes,
-      sessionId: dpiState.sessionId,
-      isRunning: mmtStatus.isRunning,
-      lastUpdate: dpiState.lastUpdate,
-      mode: dpiState.mode,
+      sessionId: session.sessionId,
+      isRunning: session.isRunning,
+      lastUpdate: session.lastUpdate,
+      mode: session.mode,
       csvFile: csvFile,
     });
   } catch (error) {
