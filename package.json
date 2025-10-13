@@ -5,12 +5,15 @@
   "description": "MAIP",
   "scripts": {
     "start": "NODE_ENV=production node src/server/app.js",
-    "server": "nodemon src/server/app.js"
+    "server": "nodemon src/server/app.js",
+    "workers": "node src/server/queue/workers.js",
+    "dev": "concurrently \"npm run server\" \"npm run workers\""
   },
   "dependencies": {
     "@testing-library/jest-dom": "^5.16.5",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
+    "bull": "^4.11.5",
     "compression": "^1.7.4",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
@@ -19,6 +22,7 @@
     "express-csp-header": "^5.2.1",
     "express-fileupload": "^1.4.0",
     "helmet": "^6.2.0",
+    "ioredis": "^5.3.2",
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
     "nats": "^2.29.3",
@@ -32,5 +36,8 @@
     "web-vitals": "^2.1.4"
   },
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
 }

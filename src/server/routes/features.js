@@ -14,12 +14,19 @@ const { listFilesByTypeAsync } = require('../utils/file-utils');
 const { spawnCommand, getUniqueId } = require('../utils/utils');
 const { startMMTOffline, getMMTStatus } = require('../mmt/mmt-connector');
 
+// Import queue functions
+const {
+  queueFeatureExtraction,
+  getJobStatus
+} = require('../queue/job-queue');
+
 // POST /api/features/extract
-// Body: { pcapFile: string, isMalicious?: boolean }
-// Runs mmt-probe to generate report CSV, then trafficToFeature.py to get a PKL, then converts PKL to CSV and returns the CSV content
+// Body: { pcapFile: string, isMalicious?: boolean, useQueue?: boolean }
+// NEW: Queue-based approach (non-blocking) - returns job ID immediately
+// OLD: Direct processing (blocking) - waits for completion
 router.post('/extract', async (req, res) => {
   try {
-    const { pcapFile, isMalicious } = req.body || {};
+    const { pcapFile, isMalicious, useQueue } = req.body || {};
     if (!pcapFile || typeof pcapFile !== 'string') {
       return res.status(400).send('Missing pcapFile');
     }
@@ -28,7 +35,69 @@ router.post('/extract', async (req, res) => {
       return res.status(400).send(`PCAP not found: ${pcapFile}`);
     }
 
-    // Reuse existing MMT offline pipeline and poll until completion
+    // Queue-based approach is ENABLED BY DEFAULT for better performance with 30+ users
+    // Can be disabled via: USE_QUEUE_BY_DEFAULT=false in .env or useQueue:false in request
+    const useQueueDefault = process.env.USE_QUEUE_BY_DEFAULT !== 'false'; // Default: true
+    const shouldUseQueue = useQueue !== undefined ? useQueue : useQueueDefault;
+    
+    if (shouldUseQueue) {
+      console.log('[Features] Using queue-based processing for:', pcapFile);
+      
+      const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const result = await queueFeatureExtraction({
+        pcapFile,
+        sessionId,
+        isMalicious: isMalicious !== undefined ? isMalicious : null,
+        priority: 5
+      });
+      
+      const jobId = result.jobId;
+      console.log('[Features] Job queued:', jobId, 'Waiting for completion...');
+      
+      // Poll for job completion (non-blocking for other users, but waits for this request)
+      const maxWaitTime = 5 * 60 * 1000; // 5 minutes max
+      const pollInterval = 2000; // 2 seconds
+      const startTime = Date.now();
+      
+      const pollJob = async () => {
+        while (Date.now() - startTime < maxWaitTime) {
+          const status = await getJobStatus(jobId, 'feature-extraction');
+          
+          if (status.status === 'completed') {
+            console.log('[Features] Job completed:', jobId);
+            // Return result in the format frontend expects
+            return res.json({
+              ok: true,
+              sessionId: sessionId,
+              csvFile: status.result?.csvFile || 'features.csv',
+              csvContent: status.result?.csvContent || '',
+              queued: true,
+              jobId: jobId
+            });
+          } else if (status.status === 'failed') {
+            console.error('[Features] Job failed:', jobId, status.failedReason);
+            return res.status(500).send(status.failedReason || 'Feature extraction failed');
+          }
+          
+          // Still processing, wait and check again
+          await new Promise(resolve => setTimeout(resolve, pollInterval));
+        }
+        
+        // Timeout
+        return res.status(408).json({
+          ok: false,
+          error: 'Feature extraction timeout',
+          jobId: jobId,
+          message: 'Job is still processing. Check status with /api/features/status/' + jobId
+        });
+      };
+      
+      return pollJob();
+    }
+
+    // OLD: Direct processing (blocking) - only if useQueue=false
+    console.log('[Features] Using direct processing (blocking) for:', pcapFile);
     startMMTOffline(pcapFile, (status) => {
       if (status && status.error) {
         return res.status(401).send(status.error);
@@ -120,6 +189,28 @@ router.post('/extract', async (req, res) => {
   } catch (e) {
     console.error('[features] unexpected error:', e);
     res.status(500).send(e.message || 'Unexpected error');
+  }
+});
+
+// GET /api/features/status/:jobId
+// Check the status of a queued feature extraction job
+router.get('/status/:jobId', async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    
+    const status = await getJobStatus(jobId, 'feature-extraction');
+    
+    res.json({
+      ok: true,
+      ...status
+    });
+    
+  } catch (error) {
+    console.error('[Features] Error checking job status:', error);
+    res.status(500).json({
+      ok: false,
+      error: error.message
+    });
   }
 });
 

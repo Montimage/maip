@@ -13,6 +13,12 @@ const { createFolder, listFilesByTypeAsync } = require('../utils/file-utils');
 const { spawnCommand, getUniqueId, interfaceExist } = require('../utils/utils');
 const { startMMTOffline, startMMTOnline, stopMMT, getMMTStatus } = require('../mmt/mmt-connector');
 
+// Import queue functions for DPI processing
+const {
+  queueFeatureExtraction,
+  getJobStatus
+} = require('../queue/job-queue');
+
 // Store current DPI session state
 let dpiState = {
   isRunning: false,
@@ -675,7 +681,7 @@ router.get('/status', (req, res) => {
 // POST /api/dpi/start/offline - Start DPI analysis on a PCAP file
 router.post('/start/offline', async (req, res) => {
   try {
-    const { pcapFile } = req.body;
+    const { pcapFile, useQueue } = req.body;
     
     if (!pcapFile) {
       return res.status(400).json({ error: 'Missing pcapFile parameter' });
@@ -686,7 +692,58 @@ router.post('/start/offline', async (req, res) => {
       return res.status(404).json({ error: `PCAP file not found: ${pcapFile}` });
     }
     
-    // Start MMT analysis
+    // Queue-based approach is ENABLED BY DEFAULT for better performance with 30+ users
+    // Can be disabled via: USE_QUEUE_BY_DEFAULT=false in .env or useQueue:false in request
+    const useQueueDefault = process.env.USE_QUEUE_BY_DEFAULT !== 'false'; // Default: true
+    const shouldUseQueue = useQueue !== undefined ? useQueue : useQueueDefault;
+    
+    if (shouldUseQueue) {
+      console.log('[DPI] Using queue-based processing for:', pcapFile);
+      
+      const sessionId = `dpi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Queue the DPI job (reuse feature extraction queue for now)
+      const result = await queueFeatureExtraction({
+        pcapFile,
+        sessionId,
+        isMalicious: null,
+        priority: 5,
+        jobType: 'dpi' // Mark as DPI job
+      });
+      
+      const jobId = result.jobId;
+      console.log('[DPI] Job queued:', jobId, 'Session:', sessionId);
+      
+      // Update DPI state immediately
+      dpiState = {
+        isRunning: true,
+        sessionId: sessionId,
+        mode: 'offline',
+        pcapFile,
+        interface: null,
+        hierarchyData: null,
+        trafficData: [],
+        lastUpdate: new Date().toISOString(),
+        lastProcessedLine: 0,
+        cumulativeProtocols: {},
+        cumulativeConversations: {},
+        cumulativeStatistics: null,
+        queued: true,
+        jobId: jobId
+      };
+      
+      // Return immediately with session ID (non-blocking)
+      return res.json({ 
+        success: true, 
+        sessionId: sessionId,
+        queued: true,
+        jobId: jobId,
+        message: 'DPI analysis queued. Use /api/dpi/data to get results when ready.'
+      });
+    }
+    
+    // OLD: Direct processing (blocking) - only if useQueue=false
+    console.log('[DPI] Using direct processing (blocking) for:', pcapFile);
     startMMTOffline(pcapFile, async (status) => {
       if (status.error) {
         return res.status(500).json({ error: status.error });
