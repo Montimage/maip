@@ -1,64 +1,279 @@
 import React, { Component } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import LayoutPage from './LayoutPage';
-import { getLastPath, getQuery } from "../utils";
-import { Tooltip, message, Upload, Spin, Button, Form, Select, Checkbox } from 'antd';
-import { UploadOutlined } from "@ant-design/icons";
+import { Table, Tooltip, message, notification, Upload, Spin, Button, Form, Select, Menu, Modal, Divider, Card, Row, Col, Statistic, Tag, Space, InputNumber } from 'antd';
+import { UploadOutlined, CheckCircleOutlined, WarningOutlined, ClockCircleOutlined, PlayCircleOutlined, StopOutlined } from "@ant-design/icons";
 import { connect } from "react-redux";
+import { Pie, RingProgress } from '@ant-design/plots';
 import {
   FORM_LAYOUT,
   SERVER_URL,
 } from "../constants";
 import {
-  requestMMTStatus,
+  requestApp,
+  requestBuildConfigModel,
   requestAllReports,
   requestAllModels,
+  requestPredict,
+  requestPredictStatus,
+  requestRunLime,
 } from "../actions";
+import {
+  requestMMTStatus,
+  requestMMTOffline,
+  requestCsvReports,
+  requestPredictStats,
+  requestPredictionAttack,
+  requestAssistantExplainFlow,
+  requestPredictStatus as apiRequestPredictStatus,
+} from "../api";
+import {
+  getFilteredModelsOptions,
+  getLastPath,
+} from "../utils";
+import { handleMitigationAction, handleBulkMitigationAction } from '../utils/mitigation';
+import { buildAttackTable } from '../utils/attacksTable';
+
+let isModelIdPresent = getLastPath() !== "offline" && getLastPath() !== "online" && getLastPath() !== "predict";
 
 class PredictPage extends Component {
   constructor(props) {
     super(props);
     this.state = {
-      model: null,
+      // Mode selection
+      mode: 'offline', // 'offline' or 'online'
+      
+      // Offline mode
+      modelId: null,
       testingPcapFile: null,
       testingDataset: null,
+      
+      // Online mode
+      interface: null,
+      interfacesOptions: [],
+      windowSec: 10,
+      totalDurationSec: null,
+      isCapturing: false,
+      status: null,
+      lastProcessedFile: null,
+      processedFiles: [],
+      isProcessingSlice: false,
+      sessionDir: null,
+      processedCsvs: [],
+      
+      // Shared state
+      isRunning: (props.predictStatus && props.predictStatus.isRunning) ? props.predictStatus.isRunning : false,
+      isMMTRunning: (props.mmtStatus && props.mmtStatus.isRunning) ? props.mmtStatus.isRunning : false,
+      predictStats: null,
+      attackCsv: null,
+      attackRows: [],
+      attackColumns: [],
+      attackFlowColumns: [],
+      mitigationColumns: [],
+      attackPagination: { current: 1, pageSize: 10 },
+      
+      // Online aggregation
+      aggregateNormal: 0,
+      aggregateMalicious: 0,
+      lastSliceStats: null,
+      hasResultsShown: false,
+      lastShownPredictionId: null,
+      lastStatsSignature: null,
+      loadedPredictionIds: [],
+      
+      // Modals
+      limeModalVisible: false,
+      limeValues: [],
+      assistantModalVisible: false,
+      assistantText: '',
+      assistantLoading: false,
     };
-    this.handleButtonPredict = this.handleButtonPredict.bind(this);
+    this.handleButtonStart = this.handleButtonStart.bind(this);
+    this.handleButtonStop = this.handleButtonStop.bind(this);
+    this.pollStatus = this.pollStatus.bind(this);
+  }
+
+  // Extract flow details (IPs, ports, rates, sessionId) from a record
+  computeFlowDetails = (record) => {
+    const keyList = Object.keys(record).filter(k => k !== 'key');
+    const findKey = (patterns) => keyList.find(k => patterns.some(p => p.test(k)));
+    const srcKey = findKey([
+      /src.*ip/i, /source.*ip/i, /^ip[_-]?src$/i, /^src[_-]?ip$/i, /(src|source).*addr/i, /^saddr$/i
+    ]);
+    const dstKey = findKey([
+      /dst.*ip/i, /dest.*ip/i, /destination.*ip/i, /^ip[_-]?dst$/i, /^dst[_-]?ip$/i, /(dst|dest|destination).*addr/i, /^daddr$/i
+    ]);
+    const combinedIpKey = (!srcKey && !dstKey) ? findKey([/^ip$/i, /ip.*pair/i, /ip.*addr/i, /address/i]) : null;
+    const deriveIps = (rec) => {
+      if (!combinedIpKey) return { srcIp: null, dstIp: null };
+      const text = String(rec[combinedIpKey] || '');
+      const ipv4s = text.match(/(?:\d{1,3}\.){3}\d{1,3}/g) || [];
+      return { srcIp: ipv4s[0] || null, dstIp: ipv4s[1] || null };
+    };
+    const derived = deriveIps(record);
+    const srcIp = srcKey ? record[srcKey] : (derived?.srcIp || null);
+    const dstIp = dstKey ? record[dstKey] : (derived?.dstIp || null);
+    const sessionId = record['ip.session_id'] || record['session_id'] || null;
+    const dport = record['dport_g'] ?? record['dport_le'] ?? record['dport'] ?? null;
+    const pktsRate = record['pkts_rate'] ?? null;
+    const byteRate = record['byte_rate'] ?? null;
+    return { srcIp, dstIp, sessionId, dport, pktsRate, byteRate };
+  }
+
+  // Strict IPv4 validation (each octet 0-255)
+  isValidIPv4(ip) {
+    if (typeof ip !== 'string') return false;
+    const m = ip.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (!m) return false;
+    return m.slice(1).every(o => {
+      const n = Number(o);
+      return n >= 0 && n <= 255 && String(n) === String(Number(o));
+    });
   }
 
   componentDidMount() {
+    let modelId = getLastPath();
+    const path = getLastPath();
+    
+    // Determine initial mode from URL
+    if (path === 'online') {
+      this.setState({ mode: 'online' });
+    } else if (path === 'offline') {
+      this.setState({ mode: 'offline' });
+    }
+    
+    if (isModelIdPresent) {
+      this.setState({ modelId });
+    }
+    this.props.fetchApp();
     this.props.fetchAllReports();
-    this.props.fetchAllModels(); 
+    this.props.fetchAllModels();
+    this.fetchInterfacesAndSetOptions();
+    
+    // Load previously uploaded PCAPs for reuse
+    try {
+      const raw = localStorage.getItem('uploadedPcaps');
+      const list = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(list)) {
+        this.setState({ uploadedPcaps: list });
+      }
+    } catch (e) {
+      // ignore storage errors
+    }
+    // If navigated from Feature Extraction with a pending PCAP/report, pre-select it and avoid re-running analysis
+    try {
+      const pending = localStorage.getItem('pendingPredictOfflinePcap');
+      const pendingReportId = localStorage.getItem('pendingPredictOfflineReportId');
+      if (pending) {
+        this.setState({ mode: 'offline', testingPcapFile: pending, testingDataset: pendingReportId || null, predictStats: null }, async () => {
+          if (pendingReportId) {
+            // Also cache mapping for future reuse
+            try {
+              const raw = localStorage.getItem('pcapToReport');
+              let map = raw ? JSON.parse(raw) : {};
+              if (!map || typeof map !== 'object' || Array.isArray(map)) map = {};
+              map[pending] = pendingReportId;
+              localStorage.setItem('pcapToReport', JSON.stringify(map));
+            } catch (_) {}
+          } else {
+            const cached = this.getCachedReportForPcap(pending);
+            if (cached) {
+              this.setState({ testingDataset: cached });
+            } else {
+              await this.startAnalysisForPcap(pending);
+            }
+          }
+        });
+        localStorage.removeItem('pendingPredictOfflinePcap');
+        if (pendingReportId) localStorage.removeItem('pendingPredictOfflineReportId');
+      }
+    } catch (e) {
+      // ignore storage errors
+    }
+  }
+  
+  componentWillUnmount() {
+    if (this.statusTimer) clearInterval(this.statusTimer);
+    if (this.predictTimer) clearInterval(this.predictTimer);
+    if (this.intervalId) clearInterval(this.intervalId);
+  }
+  
+  async fetchInterfacesAndSetOptions() {
+    let interfacesOptions = [];
+    try {
+      const url = `${SERVER_URL}/api/predict/interfaces`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data.error) throw data.error;
+      const interfaces = data.interfaces;
+      interfacesOptions = interfaces.map(i => {
+        const dev = String(i).split(/\s*-\s*/)[0];
+        return { label: i, value: dev };
+      });
+    } catch (error) {
+      console.error('Error:', error);
+    }
+    this.setState({ interfacesOptions });
   }
 
-  async requestMMTStatus() {
-    const url = `${SERVER_URL}/api/mmt`;
-    const response = await fetch(url);
-    const data = await response.json();
-    if (data.error) {
-      throw data.error;
+  // Retrieve cached report id mapped to a given PCAP filename from localStorage
+  getCachedReportForPcap = (pcapName) => {
+    try {
+      const raw = localStorage.getItem('pcapToReport');
+      const map = raw ? JSON.parse(raw) : {};
+      if (map && typeof map === 'object' && !Array.isArray(map)) {
+        return map[pcapName] || null;
+      }
+    } catch (e) {
+      // ignore
     }
-    console.log(data.mmtStatus);
-    return data.mmtStatus;
-  };
+    return null;
+  }
 
-  async requestMMTOffline(file) {
-    console.log(`Uploaded file ${file.name}`);
-    const url = `${SERVER_URL}/api/mmt/offline`;
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ fileName: file.name }),
-    });
-    const data = await response.json();
-    console.log(`MMT offline analysis of pcap file ${file.name}`);
-    return data;
+  // Start MMT offline analysis for a given PCAP and set testingDataset to the resulting report id
+  startAnalysisForPcap = async (pcapName) => {
+    if (!pcapName) return null;
+    const delay = (ms) => new Promise(res => setTimeout(res, ms));
+    try {
+      const startStatus = await requestMMTOffline(pcapName);
+      if (startStatus && startStatus.sessionId) {
+        const targetSessionId = startStatus.sessionId;
+        const maxAttempts = 60; // ~2 minutes
+        const intervalMs = 2000;
+        let attempt = 0;
+        while (attempt < maxAttempts) {
+          const status = await requestMMTStatus();
+          if (!status.isRunning && status.sessionId === targetSessionId) break;
+          await delay(intervalMs);
+          attempt += 1;
+        }
+        const reportId = `report-${targetSessionId}`;
+        this.setState({ testingDataset: reportId });
+        // Cache mapping for reuse later
+        try {
+          const raw = localStorage.getItem('pcapToReport');
+          let map = raw ? JSON.parse(raw) : {};
+          if (!map || typeof map !== 'object' || Array.isArray(map)) map = {};
+          map[pcapName] = reportId;
+          localStorage.setItem('pcapToReport', JSON.stringify(map));
+        } catch (e) {
+          // ignore storage errors
+        }
+        // Refresh reports list so the dataset appears in options
+        this.props.fetchAllReports && this.props.fetchAllReports();
+        notification.success({ message: 'Report ready', description: `Generated ${reportId} for ${pcapName}`, placement: 'topRight' });
+        return reportId;
+      }
+    } catch (e) {
+      console.error('Failed to start offline analysis:', e);
+      notification.error({ message: 'Analysis failed', description: e.message || String(e), placement: 'topRight' });
+    }
+    return null;
   }
 
   beforeUploadPcap = (file) => {
-    const isPCAP = file.name.endsWith('.pcap');
-    console.log(file.name.endsWith('.pcap'));
+    const isPCAP = file.name.endsWith('.pcap') || file.name.endsWith('.pcapng') || file.name.endsWith('.cap');
     if (!isPCAP) {
       message.error(`${file.name} is not a pcap file`);
     }
@@ -68,11 +283,13 @@ class PredictPage extends Component {
   handleUploadPcap = async (info, typePcap) => {
     const { status, response, name } = info.file;
     console.log({ status, response, name });
-  
+
     if (status === 'uploading') {
       console.log(`Uploading ${name}`);
     } else if (status === 'done') {
-      this.setState({ testingPcapFile: info.file.originFileObj });
+      // Use the filename returned by the server (e.g., { pcapFile: 'file.pcap' })
+      const uploadedPcapName = (response && response.pcapFile) || (info.file.response && info.file.response.pcapFile) || null;
+      this.setState({ testingPcapFile: uploadedPcapName });
     } else if (status === 'error') {
       console.error('Pcap file upload failed');
     }
@@ -103,113 +320,982 @@ class PredictPage extends Component {
     }
   }
 
-  async handleButtonPredict() {
-    const { 
-      model,
+  handlePredictOffline = async () => {
+    const delay = ms => new Promise(res => setTimeout(res, ms));
+    const {
+      modelId,
       testingPcapFile,
       testingDataset,
+      isRunning,
     } = this.state;
+
+    let fetchModelId = isModelIdPresent ? getLastPath() : modelId;
+    let csvReports = [];
+    let updatedTestingDataset = null;
+
+    if (!isRunning) {
+      if (testingDataset) {
+        updatedTestingDataset = testingDataset;
+      } else if (testingPcapFile) {
+        // Prefer existing mapping to avoid re-running analysis
+        const cached = this.getCachedReportForPcap(testingPcapFile);
+        if (cached) {
+          updatedTestingDataset = cached;
+          this.setState({ testingDataset: updatedTestingDataset });
+        } else {
+          // Start offline analysis and get the sessionId immediately
+          const startStatus = await requestMMTOffline(testingPcapFile);
+          if (startStatus && startStatus.sessionId) {
+            const targetSessionId = startStatus.sessionId;
+            // Poll MMT status until analysis completes (isRunning becomes false)
+            const maxAttempts = 60; // ~2 minutes
+            const intervalMs = 2000;
+            let attempt = 0;
+            while (attempt < maxAttempts) {
+              const status = await requestMMTStatus();
+              if (!status.isRunning && status.sessionId === targetSessionId) {
+                break;
+              }
+              await delay(intervalMs);
+              attempt += 1;
+            }
+            updatedTestingDataset = `report-${targetSessionId}`;
+            this.setState({ testingDataset: updatedTestingDataset });
+            // Cache mapping for future use
+            try {
+              const raw = localStorage.getItem('pcapToReport');
+              let map = raw ? JSON.parse(raw) : {};
+              if (!map || typeof map !== 'object' || Array.isArray(map)) map = {};
+              map[testingPcapFile] = updatedTestingDataset;
+              localStorage.setItem('pcapToReport', JSON.stringify(map));
+            } catch (_) {}
+          } else {
+            console.error('Failed to start MMT offline analysis or missing sessionId');
+            return;
+          }
+        }
+      }
+
+      if (updatedTestingDataset) {
+        try {
+          csvReports = await requestCsvReports(updatedTestingDataset);
+          if (csvReports.length === 0) {
+            console.error(`Testing dataset is not valid!`);
+          } else {
+            // Suppose that there is at most one csv report in each report folder
+            console.log(csvReports[0]);
+            console.log(fetchModelId);
+            console.log(updatedTestingDataset);
+            this.props.fetchPredict(fetchModelId, updatedTestingDataset, csvReports[0]);
+            console.log("update isRunning state!");
+            this.setState({ isRunning: true });
+            this.intervalId = setInterval(() => { // start interval when button is clicked
+              this.props.fetchPredictStatus();
+            }, 2000);
+          }
+        } catch (error) {
+          console.error('Error in requestCsvReports:', error);
+        }
+      }
+    }
+  }
+
+  handleTablePredictStats = (csvData) => {
+    const values = csvData.trim().split('\n')[1].split(',');
+    const normalFlows = parseInt(values[0], 10);
+    const maliciousFlows = parseInt(values[1], 10);
+    const dataSource = [
+      {
+        key: 'data',
+        "Normal flows": values[0],
+        "Malicious flows": values[1],
+        "Total flows": values[2]
+      }
+    ];
+    const columns = [
+      {
+        title: 'Normal flows',
+        dataIndex: 'Normal flows',
+        align: 'center',
+      },
+      {
+        title: 'Malicious flows',
+        dataIndex: 'Malicious flows',
+        align: 'center',
+      },
+      {
+        title: 'Total flows',
+        dataIndex: 'Total flows',
+        align: 'center',
+      }
+    ];
+    const tableConfig = {
+      dataSource: dataSource,
+      columns: columns,
+      pagination: false
+    };
+
+    return { tableConfig, normalFlows, maliciousFlows };
+  }
+
+  async componentDidUpdate(prevProps, prevState) {
+    if (this.props.app !== prevProps.app && !isModelIdPresent) {
+      this.setState({ modelId: null });
+    }
+
+    const prevPS = prevProps && prevProps.predictStatus ? prevProps.predictStatus : {};
+    const currPS = this.props && this.props.predictStatus ? this.props.predictStatus : {};
+    if ((prevPS.isRunning || false) !== (currPS.isRunning || false)) {
+      console.log('isRunning has been changed');
+      this.setState({ isRunning: !!currPS.isRunning });
+      if (!currPS.isRunning) {
+        clearInterval(this.intervalId);
+        
+        const { mode } = this.state;
+        if (mode === 'offline') {
+          notification.success({
+            message: 'Success',
+            description: 'Make predictions successfully!',
+            placement: 'topRight',
+          });
+          this.setState({
+            testingDataset: null,
+            testingPcapFile: null,
+          });
+        } else {
+          message.success('Online window prediction completed');
+        }
+        
+        const lastPredictId = currPS.lastPredictedId || '';
+        if (lastPredictId) {
+          if (mode === 'online') {
+            await this.appendAttackRowsFromPredictionId(lastPredictId);
+          } else {
+            // Offline mode: Fetch stats and attacks
+            const predictStats = await requestPredictStats(lastPredictId);
+            let attackCsv = null;
+            try {
+              attackCsv = await requestPredictionAttack(lastPredictId);
+            } catch (e) {
+              console.warn('No attack CSV available:', e.message);
+            }
+            let attackRows = [];
+            let attackFlowColumns = [];
+            let mitigationColumns = [];
+            if (attackCsv) {
+              const built = buildAttackTable({
+                csvString: attackCsv,
+                onAction: (key, record) => this.onMitigationAction(key, record),
+                buildMenu: (record, onAction) => {
+                  const { srcIp, dstIp, dport } = this.computeFlowDetails(record);
+                  const validSrc = this.isValidIPv4(srcIp);
+                  const validDst = this.isValidIPv4(dstIp);
+                  return (
+                    <Menu onClick={({ key }) => onAction && onAction(key, record)}>
+                      <Menu.Item key="explain-gpt">Ask Assistant</Menu.Item>
+                      <Menu.Item key="explain-shap">Explain (XAI SHAP)</Menu.Item>
+                      <Menu.Item key="explain-lime">Explain (XAI LIME)</Menu.Item>
+                      <Menu.Divider />
+                      <Menu.Item key="block-src-ip" disabled={!validSrc}>
+                        {`Block source IP${validSrc ? ` ${srcIp}` : ''}`}
+                      </Menu.Item>
+                      <Menu.Item key="block-dst-ip" disabled={!validDst}>
+                        {`Block destination IP${validDst ? ` ${dstIp}` : ''}`}
+                      </Menu.Item>
+                      <Menu.Divider />
+                      <Menu.Item key="block-dst-port" disabled={!dport}>
+                        {`Block destination port${dport ? ` ${dport}/tcp` : ''}`}
+                      </Menu.Item>
+                      <Menu.Item key="block-ip-port-src" disabled={!(validSrc && dport)}>
+                        {`Block${validSrc && dport ? ` ${srcIp}:${dport}/tcp` : ' srcIP:dstPort/tcp'}`}
+                      </Menu.Item>
+                      <Menu.Item key="block-ip-port-dst" disabled={!(validDst && dport)}>
+                        {`Block${validDst && dport ? ` ${dstIp}:${dport}/tcp` : ' dstIP:dstPort/tcp'}`}
+                      </Menu.Item>
+                      <Menu.Divider />
+                      <Menu.Item key="drop-session" disabled={!(validSrc || validDst)}>
+                        {`Drop session${validDst ? ` ${dstIp}` : validSrc ? ` ${srcIp}` : ''}`}
+                      </Menu.Item>
+                      <Menu.Item key="rate-limit-src" disabled={!(validSrc && dport)}>
+                        {`Rate-limit source${validSrc && dport ? ` ${srcIp}:${dport}/tcp` : ''}`}
+                      </Menu.Item>
+                      <Menu.Divider />
+                      <Menu.Item key="send-nats">Send flow to NATS</Menu.Item>
+                    </Menu>
+                  );
+                }
+              });
+              attackRows = built.rows;
+              attackFlowColumns = built.flowColumns;
+              mitigationColumns = built.mitigationColumns;
+            }
+            this.setState({ predictStats, attackCsv, attackRows, attackFlowColumns, mitigationColumns });
+          }
+        }
+      }
+    }
+    
+    // Online mode: append rows whenever a new prediction id is produced
+    if (this.state.mode === 'online') {
+      const prevLastId = prevProps.predictStatus && prevProps.predictStatus.lastPredictedId;
+      const currLastId = this.props.predictStatus && this.props.predictStatus.lastPredictedId;
+      if (currLastId && currLastId !== prevLastId) {
+        await this.appendAttackRowsFromPredictionId(currLastId);
+      }
+    }
+  }
+  
+  // Online mode: Append malicious rows for a finished prediction id
+  appendAttackRowsFromPredictionId = async (predictionId) => {
+    if (!predictionId) return;
+    // Avoid duplicate loads
+    if ((this.state.loadedPredictionIds || []).includes(predictionId)) return;
+    try {
+      const predictStats = await requestPredictStats(predictionId);
+      const values = predictStats.trim().split('\n')[1].split(',');
+      const normal = parseInt(values[0], 10) || 0;
+      const malicious = parseInt(values[1], 10) || 0;
+      const nextSignature = String(predictStats || '').trim();
+      let attackCsv = null;
+      try {
+        attackCsv = await requestPredictionAttack(predictionId);
+      } catch (e) {
+        // ignore
+      }
+      let built = null;
+      if (attackCsv) {
+        built = buildAttackTable({
+          csvString: attackCsv,
+          onAction: (key, record) => this.onMitigationAction(key, record),
+          buildMenu: (record, onAction) => {
+            const { srcIp, dstIp, dport } = this.computeFlowDetails(record);
+            const validSrc = this.isValidIPv4(srcIp);
+            const validDst = this.isValidIPv4(dstIp);
+            return (
+              <Menu onClick={({ key }) => onAction && onAction(key, record)}>
+                <Menu.Item key="explain-gpt">Ask Assistant</Menu.Item>
+                <Menu.Item key="explain-shap" disabled>Explain (XAI SHAP)</Menu.Item>
+                <Menu.Item key="explain-lime" disabled>Explain (XAI LIME)</Menu.Item>
+                <Menu.Divider />
+                <Menu.Item key="block-src-ip" disabled={!validSrc}>{`Block source IP${validSrc ? ` ${srcIp}` : ''}`}</Menu.Item>
+                <Menu.Item key="block-dst-ip" disabled={!validDst}>{`Block destination IP${validDst ? ` ${dstIp}` : ''}`}</Menu.Item>
+                <Menu.Divider />
+                <Menu.Item key="block-dst-port" disabled={!dport}>{`Block destination port${dport ? ` ${dport}/tcp` : ''}`}</Menu.Item>
+                <Menu.Item key="block-ip-port-src" disabled={!(validSrc && dport)}>{`Block${validSrc && dport ? ` ${srcIp}:${dport}/tcp` : ' srcIP:dstPort/tcp'}`}</Menu.Item>
+                <Menu.Item key="block-ip-port-dst" disabled={!(validDst && dport)}>{`Block${validDst && dport ? ` ${dstIp}:${dport}/tcp` : ' dstIP:dstPort/tcp'}`}</Menu.Item>
+                <Menu.Divider />
+                <Menu.Item key="drop-session" disabled={!(validSrc || validDst)}>{`Drop session${validDst ? ` ${dstIp}` : validSrc ? ` ${srcIp}` : ''}`}</Menu.Item>
+                <Menu.Item key="rate-limit-src" disabled={!(validSrc && dport)}>{`Rate-limit source${validSrc && dport ? ` ${srcIp}:${dport}/tcp` : ''}`}</Menu.Item>
+                <Menu.Divider />
+                <Menu.Item key="send-nats">Send flow to NATS</Menu.Item>
+              </Menu>
+            );
+          }
+        });
+        if (built && Array.isArray(built.rows)) {
+          built.rows = built.rows.map((r, idx) => ({
+            ...r,
+            __predictionId: predictionId,
+            __rowUid: `${predictionId}-${r.key || (idx + 1)}`,
+          }));
+        }
+        if (built && Array.isArray(built.flowColumns)) {
+          built.flowColumns = built.flowColumns.filter(col => {
+            const di = String(col.dataIndex || '').toLowerCase();
+            const isSessionCol = (di === 'ip.session_id' || di === 'session_id' || di.endsWith('session_id'));
+            const isInternal = di.startsWith('__');
+            const isMalwareCol = di.includes('malware') || di.includes('malicious');
+            return !(isSessionCol || isInternal || isMalwareCol);
+          });
+        }
+      }
+      this.setState(prev => {
+        const newRows = built?.rows || [];
+        const nextAttackRows = newRows.length > 0 ? [...prev.attackRows, ...newRows] : prev.attackRows;
+        const attackFlowColumns = (prev.attackFlowColumns && prev.attackFlowColumns.length > 0) ? prev.attackFlowColumns : (built?.flowColumns || []);
+        const mitigationColumns = (prev.mitigationColumns && prev.mitigationColumns.length > 0) ? prev.mitigationColumns : (built?.mitigationColumns || []);
+        const canUpdateCharts = (predictionId !== prev.lastShownPredictionId) && (nextSignature !== prev.lastStatsSignature);
+        return {
+          predictStats: canUpdateCharts ? predictStats : prev.predictStats,
+          lastSliceStats: canUpdateCharts ? predictStats : prev.lastSliceStats,
+          aggregateNormal: canUpdateCharts ? (prev.aggregateNormal + normal) : prev.aggregateNormal,
+          aggregateMalicious: canUpdateCharts ? (prev.aggregateMalicious + malicious) : prev.aggregateMalicious,
+          attackCsv,
+          attackRows: nextAttackRows,
+          attackFlowColumns,
+          mitigationColumns,
+          hasResultsShown: prev.hasResultsShown || (!!predictStats),
+          lastShownPredictionId: canUpdateCharts ? predictionId : prev.lastShownPredictionId,
+          lastStatsSignature: canUpdateCharts ? nextSignature : prev.lastStatsSignature,
+          loadedPredictionIds: [...(prev.loadedPredictionIds || []), predictionId],
+        };
+      });
+    } catch (e) {
+      console.error('Failed to append rows for prediction:', predictionId, e);
+    }
+  }
+
+  onMitigationAction = (key, record) => {
+    // Derive common fields similar to PredictOnlinePage
+    const { srcIp, dstIp, sessionId, dport, pktsRate, byteRate } = this.computeFlowDetails(record);
+
+    if (key === 'explain-gpt') {
+      const modelId = this.state.modelId;
+      const predictionId = this.props.predictStatus?.lastPredictedId || '';
+      if (!modelId) return;
+      this.setState({ assistantModalVisible: true, assistantLoading: true, assistantText: '' });
+      requestAssistantExplainFlow({
+        flowRecord: record,
+        modelId,
+        predictionId,
+        extra: { srcIp, dstIp, sessionId, dport, pktsRate, byteRate }
+      }).then(({ text }) => {
+        this.setState({ assistantText: text || '', assistantLoading: false });
+      }).catch((e) => {
+        this.setState({ assistantText: `Error: ${e.message || String(e)}`, assistantLoading: false });
+      });
+      return;
+    }
+
+    if (key === 'explain-lime' || key === 'explain-shap') {
+      const modelId = this.state.modelId;
+      const predictionId = this.props.predictStatus?.lastPredictedId || '';
+      if (modelId && sessionId) {
+        const qp = new URLSearchParams({ sampleId: String(sessionId) });
+        if (predictionId) qp.set('predictionId', predictionId);
+        const base = key === 'explain-lime' ? '/xai/lime/' : '/xai/shap/';
+        const target = `${base}${encodeURIComponent(modelId)}?${qp.toString()}`;
+        window.location.href = target;
+      }
+      return;
+    }
+
+    handleMitigationAction({
+      actionKey: key,
+      srcIp,
+      dstIp,
+      sessionId,
+      dport,
+      pktsRate,
+      byteRate,
+      isValidIPv4: this.isValidIPv4,
+      flowRecord: record,
+      natsSubject: 'ndr.malicious.flow'
+    });
+  }
+
+  // Online mode: Poll status and process slices
+  async pollStatus() {
+    try {
+      const res = await fetch(`${SERVER_URL}/api/online/status`);
+      const status = await res.json();
+      const prev = this.state.status || {};
+      const hasChanged = (
+        prev.running !== status.running ||
+        prev.pid !== status.pid ||
+        prev.lastFile !== status.lastFile ||
+        prev.prevFile !== status.prevFile
+      );
+      if (hasChanged) {
+        this.setState({ status, isCapturing: status.running, sessionDir: status.sessionDir || this.state.sessionDir });
+      }
+      const { isRunning, modelId, isProcessingSlice, processedFiles } = this.state;
+      const filesRes = await fetch(`${SERVER_URL}/api/online/files`);
+      const filesData = await filesRes.json();
+      const filesAsc = Array.isArray(filesData.files) ? filesData.files : [];
+      if (!isRunning && !isProcessingSlice && modelId && filesAsc.length > 0) {
+        const next = filesAsc.find(f => {
+          const base = String(f.file).split('/').pop();
+          return processedFiles.indexOf(base) === -1 && (f.ageMs === null || f.ageMs >= 1500);
+        });
+        if (next) {
+          const base = String(next.file).split('/').pop();
+          this.setState({ lastProcessedFile: next.file, processedFiles: [...processedFiles, base], isProcessingSlice: true });
+          await this.processSlice(next.file);
+        }
+      }
+      const remaining = filesAsc.some(f => processedFiles.indexOf(String(f.file).split('/').pop()) === -1);
+      if (!status.running && !remaining && this.statusTimer) {
+        clearInterval(this.statusTimer);
+        this.statusTimer = null;
+      }
+    } catch (e) {
+      console.warn('Failed to poll online status:', e.message);
+    }
+  }
+
+  async requestMMTOfflineByPath(filePath, outputSessionId) {
+    const url = `${SERVER_URL}/api/mmt/offline`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filePath, outputSessionId })
+    });
+    const data = await response.json();
+    return data;
+  }
+
+  async processSlice(filePath) {
+    try {
+      const outputSessionId = this.state.status && this.state.status.outputSessionId ? this.state.status.outputSessionId : null;
+      await this.requestMMTOfflineByPath(filePath, outputSessionId);
+      const groupedReportId = outputSessionId ? `report-${outputSessionId}` : null;
+      let csvList = [];
+      for (let i = 0; i < 10; i++) {
+        const res = await fetch(`${SERVER_URL}/api/reports/${groupedReportId || ''}`);
+        const data = await res.json();
+        csvList = (data && data.csvFiles) ? data.csvFiles : [];
+        if (Array.isArray(csvList) && csvList.length > 0) break;
+        await new Promise(r => setTimeout(r, 1000));
+      }
+      if (!Array.isArray(csvList) || csvList.length === 0) {
+        console.error('No CSV reports found for', groupedReportId || 'latest');
+        this.setState({ isProcessingSlice: false });
+        return;
+      }
+      const sortedCsv = [...csvList].sort();
+      const nextCsv = sortedCsv.find(name => this.state.processedCsvs.indexOf(name) === -1);
+      if (!nextCsv) {
+        this.setState({ isProcessingSlice: false });
+        return;
+      }
+      this.props.fetchPredict(this.state.modelId, groupedReportId, nextCsv);
+      this.setState(prev => ({ processedCsvs: [...prev.processedCsvs, nextCsv] }));
+      if (!this.state.isRunning) {
+        this.setState({ isRunning: true });
+        if (this.predictTimer) clearInterval(this.predictTimer);
+        this.predictTimer = setInterval(() => {
+          this.props.fetchPredictStatus();
+        }, 2000);
+      }
+      for (let i = 0; i < 20; i++) {
+        try {
+          const st = await apiRequestPredictStatus();
+          if (st && !st.isRunning && st.lastPredictedId) {
+            await this.appendAttackRowsFromPredictionId(st.lastPredictedId);
+            break;
+          }
+        } catch (_) {}
+        await new Promise(r => setTimeout(r, 1500));
+      }
+    } catch (e) {
+      console.error('processSlice error:', e);
+    } finally {
+      this.setState({ isProcessingSlice: false });
+    }
+  }
+
+  async handleButtonStart() {
+    const { modelId, interface: iface, windowSec, totalDurationSec } = this.state;
+    if (!modelId || !iface) return;
+    try {
+      const payload = { iface, windowSec };
+      if (totalDurationSec !== null && totalDurationSec !== undefined) {
+        payload.totalDurationSec = totalDurationSec;
+      }
+      const res = await fetch(`${SERVER_URL}/api/online/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      message.success(`Started capture on ${iface} (pid ${data.pid})`);
+      this.setState({ isCapturing: true, status: data, sessionDir: data.sessionDir, lastProcessedFile: null, processedFiles: [], processedCsvs: [], predictStats: null, aggregateNormal: 0, aggregateMalicious: 0, lastSliceStats: null, attackCsv: null, attackRows: [], attackFlowColumns: [], mitigationColumns: [], hasResultsShown: false, lastShownPredictionId: null });
+      if (this.statusTimer) clearInterval(this.statusTimer);
+      this.statusTimer = setInterval(this.pollStatus, 2000);
+    } catch (e) {
+      message.error(`Failed to start capture: ${e.message}`);
+    }
+  }
+
+  async handleButtonStop() {
+    try {
+      const res = await fetch(`${SERVER_URL}/api/online/stop`, { method: 'POST' });
+      const data = await res.json();
+      this.setState({ isCapturing: false, status: { ...(this.state.status || {}), running: false }, hasResultsShown: true });
+      if (!this.statusTimer) {
+        this.statusTimer = setInterval(this.pollStatus, 2000);
+      }
+      this.pollStatus();
+      message.success('Stopped capture. Finishing remaining files...');
+    } catch (e) {
+      message.error(`Failed to stop capture: ${e.message}`);
+    }
+  }
+
+  _relPath(path, base) {
+    if (!path) return '-';
+    const p = String(path);
+    const b = base ? String(base) : null;
+    if (b && p.startsWith(b)) return p.slice(b.length).replace(/^\//, '') || '.';
+    const idx = p.indexOf('/src/');
+    if (idx >= 0) return p.slice(idx + 1);
+    const parts = p.split('/').filter(Boolean);
+    if (parts.length <= 4) return parts.join('/');
+    return '…/' + parts.slice(parts.length - 4).join('/');
   }
 
   render() {
-    let modelId = getLastPath();
-    const { models, mmtStatus, reports } = this.props;
-    console.log(models);
+    const { app, models, reports } = this.props;
+    const { mode, modelId, isRunning, predictStats, isCapturing, aggregateNormal, aggregateMalicious, lastSliceStats } = this.state;
 
     const reportsOptions = reports ? reports.map(report => ({
       value: report,
       label: report,
     })) : [];
 
-    const modelsOptions = models ? models.map(model => ({
-      value: model.modelId,
-      label: model.modelId,
-    })) : []; 
+    const modelsOptions = getFilteredModelsOptions(app, models);
+
+    const subTitle = mode === 'offline' 
+      ? (isModelIdPresent ? `Offline prediction using the model ${modelId}` : 'Offline prediction using models')
+      : (isModelIdPresent ? `Online prediction using the model ${modelId}` : 'Online prediction using models');
+
+    let tableConfig, maliciousFlows, predictOutput;
+    let normalFlows = 0;
+    let totalFlows = 0;
+    
+    // Handle both offline and online modes
+    if (mode === 'online' && (aggregateNormal > 0 || aggregateMalicious > 0)) {
+      normalFlows = aggregateNormal;
+      maliciousFlows = aggregateMalicious;
+      totalFlows = normalFlows + maliciousFlows;
+      const dataSource = [{ key: 'agg', "Normal flows": String(normalFlows), "Malicious flows": String(maliciousFlows), "Total flows": String(totalFlows) }];
+      const columns = [
+        { title: 'Normal flows', dataIndex: 'Normal flows', align: 'center' },
+        { title: 'Malicious flows', dataIndex: 'Malicious flows', align: 'center' },
+        { title: 'Total flows', dataIndex: 'Total flows', align: 'center' },
+      ];
+      tableConfig = { dataSource, columns, pagination: false };
+    } else if (mode === 'online' && lastSliceStats) {
+      const values = lastSliceStats.trim().split('\n')[1].split(',');
+      const n = parseInt(values[0], 10) || 0;
+      const m = parseInt(values[1], 10) || 0;
+      normalFlows = n; maliciousFlows = m; totalFlows = n + m;
+      const dataSource = [{ key: 'last', "Normal flows": values[0], "Malicious flows": values[1], "Total flows": values[2] }];
+      const columns = [
+        { title: 'Normal flows', dataIndex: 'Normal flows', align: 'center' },
+        { title: 'Malicious flows', dataIndex: 'Malicious flows', align: 'center' },
+        { title: 'Total flows', dataIndex: 'Total flows', align: 'center' },
+      ];
+      tableConfig = { dataSource, columns, pagination: false };
+    } else if (mode === 'offline' && predictStats) {
+      const predictResult = this.handleTablePredictStats(predictStats);
+      tableConfig = predictResult.tableConfig;
+      maliciousFlows = predictResult.maliciousFlows;
+      normalFlows = predictResult.normalFlows;
+      totalFlows = normalFlows + maliciousFlows;
+    }
+    
+    if (maliciousFlows > 0) {
+      predictOutput = "The model predicts that the given network traffic contains Malicious activity";
+    } else if (totalFlows > 0) {
+      predictOutput = "The model predicts that the given network traffic is Normal";
+    }
+
+    const donutData = [
+      { type: 'Normal', value: normalFlows },
+      { type: 'Malicious', value: maliciousFlows || 0 },
+    ];
+    const donutConfig = {
+      data: donutData,
+      angleField: 'value',
+      colorField: 'type',
+      radius: 1,
+      innerRadius: 0.64,
+      legend: { position: 'right' },
+      label: {
+        type: 'inner',
+        offset: '-50%',
+        content: ({ percent }) => `${(percent * 100).toFixed(0)}%`,
+        style: { fontSize: 14, textAlign: 'center' },
+      },
+      color: ['#5B8FF9', '#F4664A'],
+      interactions: [{ type: 'element-active' }],
+      statistic: {
+        title: false,
+        content: {
+          content: totalFlows ? `${totalFlows}` : '',
+          style: { fontSize: 16 },
+        },
+      },
+    };
+
+    const maliciousRate = totalFlows > 0 ? maliciousFlows / totalFlows : 0;
+    const ringConfig = {
+      height: 140,
+      width: 140,
+      autoFit: false,
+      percent: maliciousRate,
+      color: ['#F4664A', '#E8EDF3'],
+      statistic: {
+        title: {
+          formatter: () => 'Malicious',
+          style: { fontSize: 12 },
+        },
+        content: {
+          formatter: () => `${(maliciousRate * 100).toFixed(1)}%`,
+          style: { fontSize: 16 },
+        },
+      },
+    };
+
+    const onSyncPaginate = (pagination) => {
+      this.setState({ attackPagination: { current: pagination.current, pageSize: pagination.pageSize } });
+    };
 
     return (
-      <LayoutPage pageTitle="Predict Page" pageSubTitle={`Make predictions using the model ${modelId}`}>
-        <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 700 }}>
-          <Form.Item name="model" label="Model" 
-            style={{ flex: 'none', marginBottom: 10 }}
-            rules={[
-              {
-                required: true,
-                message: 'Please select a model!',
-              },
-            ]}
-          > 
-            <Tooltip title="Select a model to make predictions.">
+      <LayoutPage pageTitle="Predict" pageSubTitle={subTitle}>
+        
+        {/* Prediction Summary Banner for Online Mode */}
+        {mode === 'online' && totalFlows > 0 && (
+          <Card size="small" style={{ marginBottom: 16, backgroundColor: maliciousFlows > 0 ? '#fff2f0' : '#f6ffed' }}>
+            <div style={{ textAlign: 'center', marginBottom: 8 }}>
+              <strong style={{ fontSize: 14 }}>Live Prediction Summary</strong>
+            </div>
+            <Row gutter={12}>
+              <Col flex={1}>
+                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                  <Statistic
+                    title="Total Flows"
+                    value={totalFlows}
+                    prefix={<ClockCircleOutlined />}
+                    valueStyle={{ fontSize: 16 }}
+                  />
+                </Card>
+              </Col>
+              <Col flex={1}>
+                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                  <Statistic
+                    title="Normal Flows"
+                    value={normalFlows}
+                    prefix={<CheckCircleOutlined />}
+                    valueStyle={{ fontSize: 16, color: '#52c41a' }}
+                  />
+                </Card>
+              </Col>
+              <Col flex={1}>
+                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                  <Statistic
+                    title="Malicious Flows"
+                    value={maliciousFlows}
+                    prefix={<WarningOutlined />}
+                    valueStyle={{ fontSize: 16, color: maliciousFlows > 0 ? '#ff4d4f' : '#52c41a' }}
+                  />
+                </Card>
+              </Col>
+              <Col flex={1}>
+                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                  <Statistic
+                    title="Malicious Rate"
+                    value={(totalFlows > 0 ? (maliciousFlows / totalFlows * 100) : 0).toFixed(1)}
+                    suffix="%"
+                    valueStyle={{ fontSize: 16, color: (maliciousFlows / totalFlows) > 0.1 ? '#ff4d4f' : '#52c41a' }}
+                  />
+                </Card>
+              </Col>
+            </Row>
+          </Card>
+        )}
+        
+        <Divider orientation="left">
+          <h2 style={{ fontSize: '20px' }}>Configuration</h2>
+        </Divider>
+        
+        <Card style={{ marginBottom: 16 }}>
+          <Row gutter={16} align="middle" style={{ marginBottom: 16 }}>
+            <Col flex="none">
+              <strong style={{ marginRight: 8 }}>Mode:</strong>
+            </Col>
+            <Col flex="none">
               <Select
-                style={{ width: '100%' }}
-                allowClear showSearch
-                onChange={(value) => {
-                  this.setState({ model: value });
-                  console.log(`Select model ${value}`);
-                }}
-                //optionLabelProp="label"
-                options={modelsOptions}
-              />
-            </Tooltip>
-          </Form.Item>
-          <Form.Item
-            label="Testing Dataset"
-            name="testingDataset"
-            rules={[
-              {
-                required: true,
-                message: 'Please select a testing dataset!',
-              },
-            ]}
-          >
-            <Tooltip title="Select MMT's analyzing reports of testing traffic.">
-              <Select
-                /*placeholder="Select a testing dataset"*/
-                showSearch allowClear
-                onChange={(value) => {
-                  this.setState({ testingDataset: value });
-                }}
-                options={reportsOptions}
-                disabled={this.state.testingPcapFile !== null}
-              />
-            </Tooltip>
-            <Upload
-              beforeUpload={this.beforeUploadPcap}
-              action={`${SERVER_URL}/api/pcaps`}
-              onChange={(info) => this.handleUploadPcap(info)} 
-              customRequest={this.processUploadPcap}
-              onRemove={() => {
-                this.setState({ testingPcapFile: null });
-              }}
+                value={mode}
+                onChange={(value) => this.setState({ 
+                  mode: value,
+                  predictStats: null,
+                  attackRows: [],
+                  aggregateNormal: 0,
+                  aggregateMalicious: 0,
+                  lastSliceStats: null,
+                  hasResultsShown: false,
+                })}
+                style={{ width: 180 }}
+                disabled={isRunning || isCapturing}
+              >
+                <Select.Option value="offline">Offline (PCAP/Dataset)</Select.Option>
+                <Select.Option value="online">Online (Live Capture)</Select.Option>
+              </Select>
+            </Col>
+          </Row>
+          
+          <Divider style={{ margin: '16px 0' }} />
+        
+        {mode === 'offline' ? (
+          <>
+            <Row gutter={16} align="middle" style={{ marginBottom: 16 }}>
+              <Col span={6} style={{ textAlign: 'right', paddingRight: 16 }}>
+                <strong>Model:</strong>
+              </Col>
+              <Col span={18}>
+                <Select placeholder="Select a model ..."
+                  style={{ width: '100%', maxWidth: 500 }}
+                  allowClear showSearch
+                  value={this.state.modelId}
+                  disabled={isModelIdPresent}
+                  onChange={(value) => {
+                    this.setState({ modelId: value, predictStats: null });
+                    console.log(`Select model ${value}`);
+                  }}
+                  options={modelsOptions}
+                />
+              </Col>
+            </Row>
+            
+            <Row gutter={16} align="top" style={{ marginBottom: 16 }}>
+              <Col span={6} style={{ textAlign: 'right', paddingRight: 16 }}>
+                <strong>Dataset:</strong>
+              </Col>
+              <Col span={18}>
+                <Select
+                  placeholder="Select testing MMT reports ..."
+                  showSearch allowClear
+                  style={{ width: '100%', maxWidth: 500, display: 'block' }}
+                  value={this.state.testingDataset}
+                  onChange={(value) => {
+                    this.setState({ testingDataset: value, predictStats: null });
+                  }}
+                  options={reportsOptions}
+                  disabled={this.state.testingPcapFile !== null}
+                />
+                <Upload
+                  beforeUpload={this.beforeUploadPcap}
+                  action={`${SERVER_URL}/api/pcaps`}
+                  onChange={(info) => this.handleUploadPcap(info)}
+                  customRequest={this.processUploadPcap}
+                  disabled={!!this.state.testingPcapFile || !!this.state.testingDataset}
+                  onRemove={() => {
+                    this.setState({ testingPcapFile: null, predictStats: null });
+                  }}
+                  maxCount={1}
+                >
+                  <Button icon={<UploadOutlined />} style={{ marginTop: '5px' }}
+                    disabled={!!this.state.testingPcapFile || !!this.state.testingDataset}>
+                    Upload pcaps only
+                  </Button>
+                </Upload>
+              </Col>
+            </Row>
+            
+            <Row gutter={16} align="middle" style={{ marginTop: 24 }}>
+              <Col span={6}></Col>
+              <Col span={18}>
+                <Button type="primary"
+                  icon={<PlayCircleOutlined />}
+                  onClick={this.handlePredictOffline}
+                  disabled={ isRunning || !this.state.modelId || !(this.state.testingDataset || this.state.testingPcapFile) }
+                  loading={isRunning}
+                >
+                  Predict
+                </Button>
+              </Col>
+            </Row>
+          </>
+        ) : (
+          <>
+            <Row gutter={16} align="middle" style={{ marginBottom: 16 }}>
+              <Col span={6} style={{ textAlign: 'right', paddingRight: 16 }}>
+                <strong>Model:</strong>
+              </Col>
+              <Col span={18}>
+                <Select placeholder="Select a model ..."
+                  style={{ width: '100%', maxWidth: 500 }}
+                  allowClear showSearch
+                  value={this.state.modelId}
+                  disabled={isModelIdPresent}
+                  onChange={(value) => {
+                    this.setState({ modelId: value });
+                    console.log(`Select model ${value}`);
+                  }}
+                  options={modelsOptions}
+                />
+              </Col>
+            </Row>
+            
+            <Row gutter={16} align="middle" style={{ marginBottom: 16 }}>
+              <Col span={6} style={{ textAlign: 'right', paddingRight: 16 }}>
+                <strong>Interface:</strong>
+              </Col>
+              <Col span={18}>
+                <Select placeholder="Select a network interface ..."
+                  style={{ width: '100%', maxWidth: 500 }}
+                  allowClear showSearch
+                  value={this.state.interface}
+                  onChange={v => this.setState({ interface: v })}
+                  options={this.state.interfacesOptions}
+                />
+              </Col>
+            </Row>
+            
+            <Row gutter={16} align="middle" style={{ marginBottom: 16 }}>
+              <Col span={6} style={{ textAlign: 'right', paddingRight: 16 }}>
+                <strong>Window (s):</strong>
+              </Col>
+              <Col span={18}>
+                <InputNumber 
+                  min={3} 
+                  max={60} 
+                  value={this.state.windowSec} 
+                  defaultValue={10} 
+                  onChange={(v) => this.setState({ windowSec: v || 10 })}
+                  style={{ width: 100 }}
+                />
+              </Col>
+            </Row>
+            
+            <Row gutter={16} align="middle" style={{ marginBottom: 16 }}>
+              <Col span={6} style={{ textAlign: 'right', paddingRight: 16 }}>
+                <strong>Duration (s):</strong>
+              </Col>
+              <Col span={18}>
+                <InputNumber
+                  min={this.state.windowSec}
+                  max={3600}
+                  value={this.state.totalDurationSec}
+                  placeholder="Until Stop"
+                  onChange={(v) => this.setState({ totalDurationSec: (v === undefined || v === null) ? null : v })}
+                  style={{ width: 150 }}
+                />
+              </Col>
+            </Row>
+            
+            <Row gutter={16} align="middle" style={{ marginTop: 24 }}>
+              <Col span={6}></Col>
+              <Col span={18}>
+                <Space size="small">
+                  <Button
+                    type="primary"
+                    icon={<PlayCircleOutlined />}
+                    onClick={this.handleButtonStart}
+                    disabled={ isCapturing || !this.state.modelId || !this.state.interface }
+                  >
+                    Start
+                  </Button>
+                  <Button
+                    icon={<StopOutlined />}
+                    onClick={this.handleButtonStop}
+                    disabled={!isCapturing}
+                  >
+                    Stop
+                  </Button>
+                </Space>
+              </Col>
+            </Row>
+          </>
+        )}
+        </Card>
+
+        <Divider orientation="left">
+          <h2 style={{ fontSize: '20px' }}>Prediction Results</h2>
+        </Divider>
+        { ((mode === 'offline' && predictStats && modelId) || (mode === 'online' && (this.state.hasResultsShown || aggregateNormal > 0 || aggregateMalicious > 0 || lastSliceStats || (this.state.attackRows && this.state.attackRows.length > 0)))) && (
+          <>
+            <div style={{ marginTop: '10px' }}>
+              <h3 style={{ fontSize: '22px' }}>{predictOutput}</h3>
+              <div style={{ display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
+                <div>
+                  <Pie {...donutConfig} style={{ width: 320, height: 220 }} />
+                </div>
+                <div>
+                  <RingProgress {...ringConfig} />
+                </div>
+                <div>
+              <Table {...tableConfig} style={{ width: '500px' }} />
+                </div>
+              </div>
+            </div>
+            {this.state.attackRows && this.state.attackRows.length > 0 && (
+              <div style={{ marginTop: '30px' }}>
+                <h3 style={{ fontSize: '20px' }}>Malicious Flows</h3>
+                {/* Bulk actions for all malicious flows */}
+                <div style={{ marginBottom: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <Button
+                    onClick={() => handleBulkMitigationAction({ actionKey: 'send-nats-bulk', rows: this.state.attackRows, isValidIPv4: this.isValidIPv4 })}
+                    disabled={!(this.state.attackRows && this.state.attackRows.length > 0)}
+                  >
+                    Send all flows to NATS
+                  </Button>
+                </div>
+                <Table
+                  dataSource={this.state.attackRows}
+                  columns={[...this.state.attackFlowColumns, ...this.state.mitigationColumns]}
+                  size="small"
+                  bordered
+                  style={{ width: '100%' }}
+                  scroll={{ x: 'max-content' }}
+                  pagination={{ ...this.state.attackPagination, showSizeChanger: true }}
+                  onChange={(pagination) => onSyncPaginate(pagination)}
+                />
+              </div>
+            )}
+            <Modal
+              title="LIME Explanation"
+              open={this.state.limeModalVisible}
+              onCancel={() => this.setState({ limeModalVisible: false })}
+              footer={<Button onClick={() => this.setState({ limeModalVisible: false })}>Close</Button>}
+              width={700}
             >
-              <Button icon={<UploadOutlined />} style={{ marginTop: '5px' }} 
-                disabled={!!this.state.testingDataset}>
-                Upload pcaps only
-              </Button>
-            </Upload>
-          </Form.Item>
-          <div style={{ display: 'flex', justifyContent: 'center', }}>
-            <Button
-              type="primary"
-              onClick={this.handleButtonPredict}
-              disabled={ !(this.state.model || this.state.testingDataset || this.state.testingPcapFile) }
+              <Table
+                dataSource={(this.state.limeValues || []).map((row, idx) => ({ key: idx + 1, ...row }))}
+                columns={[
+                  { title: 'Feature', dataIndex: 'feature' },
+                  { title: 'Value', dataIndex: 'value' },
+                ]}
+                size="small"
+                pagination={{ pageSize: 10 }}
+              />
+            </Modal>
+            <Modal
+              title="Assistant Explanation"
+              open={this.state.assistantModalVisible}
+              onCancel={() => this.setState({ assistantModalVisible: false })}
+              footer={<Button onClick={() => this.setState({ assistantModalVisible: false })}>Close</Button>}
+              width={800}
             >
-              Predict
-            </Button>
-          </div>
-        </Form>
+              {this.state.assistantLoading ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
+                  <Spin size="large" />
+                </div>
+              ) : (
+                <div className="assistant-markdown" style={{ maxHeight: 500, overflowY: 'auto' }}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {this.state.assistantText || ''}
+                  </ReactMarkdown>
+                </div>
+              )}
+            </Modal>
+          </>
+        )}
+
       </LayoutPage>
     );
   }
 }
 
-const mapPropsToStates = ({ models, mmtStatus, reports }) => ({
-  models, mmtStatus, reports,
+const mapPropsToStates = ({ app, models, mmtStatus, reports, predictStatus }) => ({
+  app, models, mmtStatus, reports, predictStatus,
 });
 
 const mapDispatchToProps = (dispatch) => ({
+  fetchApp: () => dispatch(requestApp()),
   fetchAllModels: () => dispatch(requestAllModels()),
+  fetchBuildConfigModel: (modelId) => dispatch(requestBuildConfigModel(modelId)),
   fetchMMTStatus: () => dispatch(requestMMTStatus()),
   fetchAllReports: () => dispatch(requestAllReports()),
+  fetchPredict: (modelId, reportId, reportFileName) =>
+    dispatch(requestPredict({modelId, reportId, reportFileName})),
+  fetchPredictStatus: () => dispatch(requestPredictStatus()),
+  fetchRunLime: (modelId, sampleId, numberFeatures) =>
+    dispatch(requestRunLime({ modelId, sampleId, numberFeatures })),
 });
 
 export default connect(mapPropsToStates, mapDispatchToProps)(PredictPage);

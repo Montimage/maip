@@ -450,7 +450,7 @@ class XAILimePage extends Component {
         
         <Card style={{ marginBottom: 16 }}>
           <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 600 }}>
-          <Form.Item name="model" label="Model"
+          <Form.Item name="model" label={<strong>Model</strong>}
             style={{ flex: 'none', marginBottom: 10 }}
             rules={[
               {
@@ -485,7 +485,7 @@ class XAILimePage extends Component {
               />
             </Tooltip>
           </Form.Item>
-          <Form.Item label="Sample ID" style={{ marginBottom: 10 }}>
+          <Form.Item label={<strong>Sample ID</strong>} style={{ marginBottom: 10 }}>
             <div style={{ display: 'inline-flex' }}>
               <Form.Item label="id" name="id" noStyle>
                 <Tooltip title="Select a sample to be explained.">
@@ -504,7 +504,7 @@ class XAILimePage extends Component {
               </Form.Item>
             </div>
           </Form.Item>
-          <Form.Item name="slider" label="Features to display"
+          <Form.Item name="slider" label={<strong>Features to display</strong>}
             style={{ marginBottom: -5 }}>
             <Slider
               marks={XAI_SLIDER_MARKS}
@@ -513,7 +513,7 @@ class XAILimePage extends Component {
               onChange={v => this.setState({ maxDisplay: v })}
             />
           </Form.Item>
-          <Form.Item name="checkbox" label="Contributions to display"
+          <Form.Item name="checkbox" label={<strong>Contributions to display</strong>}
             valuePropName="checked"
             style={{ flex: 'none', marginBottom: 10 }}>
             <Checkbox.Group
@@ -522,7 +522,7 @@ class XAILimePage extends Component {
               onChange={this.handleContributionsChange}
             />
           </Form.Item>
-          <Form.Item name="select" label="Feature(s) to mask"
+          <Form.Item name="select" label={<strong>Feature(s) to mask</strong>}
             style={{ flex: 'none', marginBottom: 10 }}>
             <Select
               mode="multiple"

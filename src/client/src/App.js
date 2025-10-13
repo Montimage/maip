@@ -21,9 +21,8 @@ import RetrainPage from "./pages/RetrainPage";
 import AttacksPage from "./pages/AttacksPage";
 //import PredictPage from "./pages/PredictPage";
 import PredictModelPage from "./pages/PredictModelPage";
-import PredictOnlinePage from "./pages/PredictOnlinePage";
-import PredictOfflinePage from "./pages/PredictOfflinePage";
 import PredictRuleBasedPage from "./pages/PredictRuleBasedPage";
+import PredictPage from "./pages/PredictPage";
 import XAILimePage from "./pages/XAILimePage";
 import XAIShapPage from "./pages/XAIShapPage";
 import MetricsPage from "./pages/MetricsPage";
@@ -66,10 +65,11 @@ function App() {
             <Route path="/metrics/resilience/:modelId" element={<ResilienceMetricsPage />}/>
             <Route path="/attacks" element={<AttacksPage />}/>
             <Route path="/attacks/:modelId" element={<AttacksPage />}/>
-            <Route path="/predict/online" element={<PredictOnlinePage />}/>
-            <Route path="/predict/online/:modelId" element={<PredictOnlinePage />}/>
-            <Route path="/predict/offline" element={<PredictOfflinePage />}/>
-            <Route path="/predict/offline/:modelId" element={<PredictOfflinePage />}/>
+            <Route path="/predict" element={<PredictPage />}/>
+            <Route path="/predict/online" element={<PredictPage />}/>
+            <Route path="/predict/online/:modelId" element={<PredictPage />}/>
+            <Route path="/predict/offline" element={<PredictPage />}/>
+            <Route path="/predict/offline/:modelId" element={<PredictPage />}/>
             <Route path="/predict/rule-based" element={<PredictRuleBasedPage />}/>
             <Route path="/predict/early" element={<EarlyPredictionPage />}/>
             <Route path="/predict/:modelId" element={<PredictModelPage />}/>

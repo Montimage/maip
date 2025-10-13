@@ -25,10 +25,21 @@ class MAIPHeader extends Component {
   getMenuItems() {
     return [
       {
-        key: MENU_OPTIONS[17].key,
-        label: 'Features',
-        icon: <FolderOpenOutlined />,
-        link: '/features',
+        key: 'traffic-analysis',
+        label: 'Traffic Analysis',
+        icon: <ApartmentOutlined />,
+        children: [
+          {
+            key: MENU_OPTIONS[20].key,
+            label: 'Deep Packet Inspection',
+            link: MENU_OPTIONS[20].link,
+          },
+          {
+            key: MENU_OPTIONS[17].key,
+            label: 'Feature Extraction',
+            link: '/features',
+          },
+        ],
       },
       {
         key: MENU_OPTIONS[0].key,
@@ -75,14 +86,9 @@ class MAIPHeader extends Component {
             link: MENU_OPTIONS[18].link,
           },
           {
-            key: MENU_OPTIONS[6].key,
-            label: 'Predict Offline',
-            link: MENU_OPTIONS[6].link,
-          },
-          {
-            key: MENU_OPTIONS[5].key,
-            label: 'Predict Online',
-            link: MENU_OPTIONS[5].link,
+            key: 'predict-unified',
+            label: 'Predict',
+            link: '/predict',
           },
           {
             key: MENU_OPTIONS[19].key,
@@ -90,12 +96,6 @@ class MAIPHeader extends Component {
             link: MENU_OPTIONS[19].link,
           },
         ],
-      },
-      {
-        key: MENU_OPTIONS[20].key,
-        label: 'DPI',
-        icon: <ApartmentOutlined />,
-        link: MENU_OPTIONS[20].link,
       },
       {
         key: MENU_OPTIONS[7].key,

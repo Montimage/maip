@@ -123,4 +123,44 @@ router.post('/extract', async (req, res) => {
   }
 });
 
+// GET /api/features/retrieve/:reportId
+// Retrieves previously extracted features from a report directory
+router.get('/retrieve/:reportId', async (req, res) => {
+  try {
+    const { reportId } = req.params;
+    if (!reportId || typeof reportId !== 'string') {
+      return res.status(400).json({ error: 'Missing reportId parameter' });
+    }
+    
+    const reportDir = path.join(REPORT_PATH, reportId);
+    if (!fs.existsSync(reportDir)) {
+      return res.status(404).json({ error: `Report directory not found: ${reportId}` });
+    }
+    
+    // Find the features CSV file
+    const files = fs.readdirSync(reportDir);
+    const featuresCsv = files.find(f => f.endsWith('.features.csv'));
+    
+    if (!featuresCsv) {
+      return res.status(404).json({ error: 'No features CSV found in report directory' });
+    }
+    
+    const csvPath = path.join(reportDir, featuresCsv);
+    const csvContent = fs.readFileSync(csvPath, 'utf8');
+    
+    // Extract sessionId from reportId (format: report-{sessionId})
+    const sessionId = reportId.replace('report-', '');
+    
+    res.json({
+      ok: true,
+      sessionId,
+      csvFile: featuresCsv,
+      csvContent,
+    });
+  } catch (e) {
+    console.error('[features] Error retrieving features:', e);
+    res.status(500).json({ error: e.message || 'Failed to retrieve features' });
+  }
+});
+
 module.exports = router;

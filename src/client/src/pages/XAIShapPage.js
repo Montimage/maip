@@ -328,7 +328,7 @@ class XAIShapPage extends Component {
         
         <Card style={{ marginBottom: 16 }}>
           <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 600 }}>
-          <Form.Item name="model" label="Model"
+          <Form.Item name="model" label={<strong>Model</strong>}
               style={{ flex: 'none', marginBottom: 10 }}
               rules={[
                 {
@@ -362,7 +362,7 @@ class XAIShapPage extends Component {
             </Form.Item>
           {!isFlowBased && (
             <>
-              <Form.Item label="Background samples" style={{ marginBottom: 10 }} >
+              <Form.Item label={<strong>Background samples</strong>} style={{ marginBottom: 10 }} >
                 <div style={{ display: 'inline-flex' }}>
                   <Form.Item label="bg" name="bg" noStyle>
                     <Tooltip title="Select number of samples used for producing explanations (maximum is the length of the training dataset).">
@@ -378,7 +378,7 @@ class XAIShapPage extends Component {
                   </Form.Item>
                 </div>
               </Form.Item>
-              <Form.Item label="Explained samples" style={{ marginBottom: 10 }} >
+              <Form.Item label={<strong>Explained samples</strong>} style={{ marginBottom: 10 }} >
                 <div style={{ display: 'inline-flex' }}>
                   <Form.Item label="ex" name="ex" noStyle>
                     <Tooltip title="Select number of samples to be explained (maximum is the length of the testing dataset).">
@@ -396,7 +396,7 @@ class XAIShapPage extends Component {
               </Form.Item>
             </>
           )}
-          <Form.Item name="slider" label="Features to display"
+          <Form.Item name="slider" label={<strong>Features to display</strong>}
             style={{ marginBottom: -5 }}
           >
             <Slider
@@ -406,7 +406,7 @@ class XAIShapPage extends Component {
               onChange={v => this.setState({ maxDisplay: v })}
             />
           </Form.Item>
-          <Form.Item name="checkbox" label="Contributions to display"
+          <Form.Item name="checkbox" label={<strong>Contributions to display</strong>}
             valuePropName="checked"
             style={{ flex: 'none', marginBottom: 10 }}
           >
@@ -417,7 +417,7 @@ class XAIShapPage extends Component {
               onChange={this.handleContributionsChange}
             />
           </Form.Item>
-          <Form.Item name="select" label="Feature(s) to mask"
+          <Form.Item name="select" label={<strong>Feature(s) to mask</strong>}
             style={{ flex: 'none', marginBottom: 10 }}
           >
             <Select

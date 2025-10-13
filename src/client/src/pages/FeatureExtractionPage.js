@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
-import { Button, Divider, Form, Table, Tooltip, Upload, message, Spin, notification, Checkbox, Space, Card, Row, Col, Statistic } from 'antd';
-import { UploadOutlined, DownloadOutlined, SendOutlined, FileTextOutlined, DatabaseOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { Button, Divider, Form, Table, Tooltip, Upload, message, Spin, notification, Checkbox, Space, Card, Row, Col, Statistic, Tag } from 'antd';
+import { UploadOutlined, DownloadOutlined, SendOutlined, FileTextOutlined, DatabaseOutlined, CheckCircleOutlined, ApartmentOutlined } from '@ant-design/icons';
 import Papa from 'papaparse';
 import { connect } from 'react-redux';
 import {
@@ -33,8 +33,120 @@ class FeatureExtractionPage extends Component {
       featuresSessionId: null,
       // When navigating to Predict Offline, disable upload to avoid changes mid-navigation
       disableUpload: false,
+      // Track if loaded from DPI
+      loadedFromDPI: false,
     };
   }
+
+  async componentDidMount() {
+    // Check if navigated from DPI page
+    try {
+      const pendingPcap = localStorage.getItem('pendingFeatureExtractionPcap');
+      const fromDPI = localStorage.getItem('pendingFeatureExtractionFromDPI');
+      if (pendingPcap) {
+        // Check if there are previously extracted features for this PCAP
+        try {
+          const pcapToReportRaw = localStorage.getItem('pcapToReport');
+          const pcapToReport = pcapToReportRaw ? JSON.parse(pcapToReportRaw) : {};
+          const reportId = pcapToReport[pendingPcap];
+          
+          if (reportId) {
+            // Try to retrieve previously extracted features
+            const response = await fetch(`${SERVER_URL}/api/features/retrieve/${reportId}`);
+            if (response.ok) {
+              const result = await response.json();
+              
+              if (result && result.csvContent) {
+                // Restore the features data
+                const csvText = result.csvContent;
+                const { rows, flowColumns } = buildAttackTable({ csvString: csvText });
+                
+                // Detect label choice based on presence of malware column
+                let detectedLabelChoice = 'none';
+                if (flowColumns && flowColumns.length > 0) {
+                  const hasMalwareColumn = flowColumns.some(col => 
+                    String(col.title || '').trim().toLowerCase().startsWith('malware')
+                  );
+                  // If malware column exists, we can't determine if it was 'normal' or 'malicious'
+                  // Default to 'normal' as it's the safer choice
+                  if (hasMalwareColumn) {
+                    detectedLabelChoice = 'normal';
+                  }
+                }
+                
+                this.setState({ 
+                  uploadedPcapName: pendingPcap,
+                  loadedFromDPI: fromDPI === 'true',
+                  disableUpload: true,
+                  featuresCsvText: csvText,
+                  featuresData: rows,
+                  featuresColumns: flowColumns,
+                  featuresFileName: result.csvFile || `${pendingPcap}.features.csv`,
+                  featuresSessionId: result.sessionId || null,
+                  featuresLoading: false,
+                  labelChoice: detectedLabelChoice,
+                });
+                
+                localStorage.removeItem('pendingFeatureExtractionPcap');
+                localStorage.removeItem('pendingFeatureExtractionFromDPI');
+                
+                // Calculate actual feature count (excluding 'key' field)
+                const actualFeatureCount = flowColumns.filter(col => col.dataIndex !== 'key').length;
+                
+                notification.success({
+                  message: 'Features Restored',
+                  description: `Loaded previously extracted features for "${pendingPcap}" (${rows.length} flows, ${actualFeatureCount} features)`,
+                  placement: 'topRight',
+                });
+                
+                return;
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Error retrieving previous features:', e);
+          // Fall through to default behavior
+        }
+        
+        // No previous features found, just load the PCAP
+        this.setState({ 
+          uploadedPcapName: pendingPcap,
+          loadedFromDPI: fromDPI === 'true',
+          disableUpload: true  // Disable upload when loaded from DPI
+        });
+        localStorage.removeItem('pendingFeatureExtractionPcap');
+        localStorage.removeItem('pendingFeatureExtractionFromDPI');
+        notification.info({
+          message: 'PCAP Loaded from DPI',
+          description: `Ready to extract features from "${pendingPcap}"`,
+          placement: 'topRight',
+        });
+      }
+    } catch (e) {
+      // ignore storage errors
+    }
+  }
+
+  handleViewDPI = () => {
+    const { uploadedPcapName } = this.state;
+    if (uploadedPcapName) {
+      try {
+        localStorage.setItem('pendingDPIPcap', uploadedPcapName);
+        notification.success({
+          message: 'Navigating to DPI',
+          description: `PCAP file "${uploadedPcapName}" will be loaded for deep packet inspection.`,
+          placement: 'topRight',
+        });
+        window.location.href = '/dpi';
+      } catch (e) {
+        notification.error({
+          message: 'Navigation failed',
+          description: e.message || String(e),
+          placement: 'topRight',
+        });
+      }
+    }
+  };
 
   beforeUploadPcap = (file) => {
     const ok = file.name.endsWith('.pcap') || file.name.endsWith('.pcapng') || file.name.endsWith('.cap');
@@ -117,7 +229,15 @@ class FeatureExtractionPage extends Component {
           localStorage.setItem('pcapToReport', JSON.stringify(map));
         }
       } catch (e) { /* ignore storage errors */ }
-      notification.success({ message: 'Feature extraction completed' });
+      
+      // Calculate actual feature count (excluding 'key' field)
+      const actualFeatureCount = finalColumns.filter(col => col.dataIndex !== 'key').length;
+      
+      notification.success({ 
+        message: 'Feature extraction completed',
+        description: `Extracted ${finalRows.length} flows with ${actualFeatureCount} features from "${uploadedPcapName}"`,
+        placement: 'topRight',
+      });
     } catch (e) {
       console.error(e);
       message.error(e.message || 'Feature extraction failed');
@@ -206,12 +326,15 @@ class FeatureExtractionPage extends Component {
   };
 
   render() {
-    const { uploadedPcapName, featuresLoading, featuresData, featuresCsvText, featuresColumns } = this.state;
+    const { uploadedPcapName, featuresLoading, featuresData, featuresCsvText, featuresColumns, loadedFromDPI } = this.state;
 
     // Only allow Predict Offline after feature extraction has produced results
     const featuresReady = !featuresLoading && (((featuresData || []).length > 0) || !!featuresCsvText);
 
     const featureColumns = (featuresColumns && featuresColumns.length > 0) ? featuresColumns : this.buildColumns(featuresData);
+    
+    // Calculate actual feature count (excluding 'key' field which is just for React rendering)
+    const actualFeatureCount = featureColumns.filter(col => col.dataIndex !== 'key').length;
 
     // Compute categorical feature options for bar plot using AD/AC definitions present in data
     const barCategoricalOptions = (() => {
@@ -235,29 +358,59 @@ class FeatureExtractionPage extends Component {
         </Divider>
         
         <Card style={{ marginBottom: 16 }}>
+          {loadedFromDPI && uploadedPcapName && (
+            <div style={{ marginBottom: 12 }}>
+              <Tag color="blue" icon={<ApartmentOutlined />}>
+                Loaded from DPI Analysis
+              </Tag>
+            </div>
+          )}
           <Row gutter={4} align="middle" justify="space-between">
             <Col flex="none">
               <strong style={{ marginRight: 4 }}><span style={{ color: 'red' }}>* </span>PCAP File:</strong>
             </Col>
             <Col flex="none">
-              <Upload
-                beforeUpload={this.beforeUploadPcap}
-                action={`${SERVER_URL}/api/pcaps`}
-                onChange={this.handleUploadChange}
-                customRequest={this.processUploadPcap}
-                maxCount={1}
-                disabled={this.state.disableUpload}
-                onRemove={() => this.setState({
-                  uploadedPcapName: null,
-                  featuresCsvText: '',
-                  featuresData: [],
-                  featuresColumns: [],
-                  featuresFileName: null,
-                  featuresSessionId: null,
-                })}
-              >
-                <Button icon={<UploadOutlined />} disabled={this.state.disableUpload} style={{ width: 280 }}>Upload PCAP</Button>
-              </Upload>
+              {uploadedPcapName && loadedFromDPI ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Tag color="green" style={{ margin: 0, padding: '4px 12px', fontSize: '14px' }}>
+                    {uploadedPcapName}
+                  </Tag>
+                  <Button 
+                    size="small" 
+                    onClick={() => this.setState({
+                      uploadedPcapName: null,
+                      loadedFromDPI: false,
+                      disableUpload: false,
+                      featuresCsvText: '',
+                      featuresData: [],
+                      featuresColumns: [],
+                      featuresFileName: null,
+                      featuresSessionId: null,
+                    })}
+                  >
+                    Clear
+                  </Button>
+                </div>
+              ) : (
+                <Upload
+                  beforeUpload={this.beforeUploadPcap}
+                  action={`${SERVER_URL}/api/pcaps`}
+                  onChange={this.handleUploadChange}
+                  customRequest={this.processUploadPcap}
+                  maxCount={1}
+                  disabled={this.state.disableUpload}
+                  onRemove={() => this.setState({
+                    uploadedPcapName: null,
+                    featuresCsvText: '',
+                    featuresData: [],
+                    featuresColumns: [],
+                    featuresFileName: null,
+                    featuresSessionId: null,
+                  })}
+                >
+                  <Button icon={<UploadOutlined />} disabled={this.state.disableUpload} style={{ width: 280 }}>Upload PCAP</Button>
+                </Upload>
+              )}
             </Col>
             
             <Col flex="none" style={{ marginLeft: 12 }}>
@@ -288,6 +441,14 @@ class FeatureExtractionPage extends Component {
             
             <Col flex="none" style={{ marginLeft: 12 }}>
               <Space size={4}>
+                <Button
+                  type="default"
+                  icon={<ApartmentOutlined />}
+                  onClick={this.handleViewDPI}
+                  disabled={!uploadedPcapName}
+                >
+                  View DPI
+                </Button>
                 <Button 
                   type="primary" 
                   onClick={this.handleExtractFeatures} 
@@ -348,7 +509,7 @@ class FeatureExtractionPage extends Component {
                 <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
                   <Statistic
                     title="Features"
-                    value={featureColumns.length}
+                    value={actualFeatureCount}
                     prefix={<CheckCircleOutlined />}
                     valueStyle={{ fontSize: 16 }}
                   />
