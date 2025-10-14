@@ -11,6 +11,7 @@ import {
 import ErrorBoundary from "antd/lib/alert/ErrorBoundary";
 import MAIPHeader from "./components/MAIPHeader";
 import MAIPFooter from "./components/MAIPFooter";
+import ProtectedRoute from "./components/ProtectedRoute";
 import ModelListPage from "./pages/ModelListPage";
 import ModelsComparisonPage from "./pages/ModelsComparisonPage";
 //import DatasetListPage from "./pages/DatasetListPage";
@@ -32,6 +33,8 @@ import AboutPage from "./pages/AboutPage";
 import FeatureExtractionPage from "./pages/FeatureExtractionPage";
 import EarlyPredictionPage from "./pages/EarlyPredictionPage";
 import DPIPage from "./pages/DPIPage";
+import SignInPage from "./pages/SignInPage";
+import SignUpPage from "./pages/SignUpPage";
 //import MetricsTestPage from "./pages/MetricsTestPage";
 //import ScatterPage from "./pages/ScatterPage";
 
@@ -42,39 +45,99 @@ function App() {
         <Layout className="layout" style={{ minHeight: "100vh", paddingBottom: 64 }}>
           <MAIPHeader />
           <Routes>
-            <Route
-              path="/"
-              element={<Navigate to="/models/all" replace />}
+            {/* Public routes */}
+            <Route path="/" element={<Navigate to="/models/all" replace />} />
+            <Route path="/sign-in" element={<SignInPage />} />
+            <Route path="/sign-up" element={<SignUpPage />} />
+            <Route path="/about" element={<AboutPage />} />
+            
+            {/* Public read-only routes */}
+            <Route path="/features" element={<FeatureExtractionPage />} />
+            <Route path="/models/all" element={<ModelListPage />} />
+            <Route path="/models/comparison" element={<ModelsComparisonPage />} />
+            <Route path="/dpi" element={<DPIPage />} />
+            
+            {/* Protected routes - require authentication */}
+            <Route 
+              path="/models/retrain" 
+              element={<ProtectedRoute><RetrainPage /></ProtectedRoute>} 
             />
-            <Route path="/features" element={<FeatureExtractionPage />}/>
-            <Route path="/models/all" element={<ModelListPage />}/>
-            <Route path="/models/comparison" element={<ModelsComparisonPage />}/>
-            <Route path="/models/retrain" element={<RetrainPage />}/>
-            <Route path="/models/retrain/:modelId" element={<RetrainPage />}/>
-            <Route path="/build/ad" element={<BuildADPage app="ad" />} />
-            <Route path="/build/ac" element={<BuildACPage app="ac" />} />
-            <Route path="/models/datasets/:modelId/:datasetType" element={<DatasetPage />}/>
-            <Route path="/xai/shap" element={<XAIShapPage />}/>
-            <Route path="/xai/shap/:modelId" element={<XAIShapPage />}/>
-            <Route path="/xai/lime" element={<XAILimePage />}/>
-            <Route path="/xai/lime/:modelId" element={<XAILimePage />}/>
-            <Route path="/metrics/:modelId" element={<MetricsPage />}/>
-            <Route path="/metrics/accountability" element={<AccountabilityMetricsPage />}/>
-            <Route path="/metrics/accountability/:modelId" element={<AccountabilityMetricsPage />}/>
-            <Route path="/metrics/resilience" element={<ResilienceMetricsPage />}/>
-            <Route path="/metrics/resilience/:modelId" element={<ResilienceMetricsPage />}/>
-            <Route path="/attacks" element={<AttacksPage />}/>
-            <Route path="/attacks/:modelId" element={<AttacksPage />}/>
-            <Route path="/predict" element={<PredictPage />}/>
-            <Route path="/predict/online" element={<PredictPage />}/>
-            <Route path="/predict/online/:modelId" element={<PredictPage />}/>
-            <Route path="/predict/offline" element={<PredictPage />}/>
-            <Route path="/predict/offline/:modelId" element={<PredictPage />}/>
-            <Route path="/predict/rule-based" element={<PredictRuleBasedPage />}/>
-            <Route path="/predict/early" element={<EarlyPredictionPage />}/>
-            <Route path="/predict/:modelId" element={<PredictModelPage />}/>
-            <Route path="/dpi" element={<DPIPage />}/>
-            <Route path="/about" element={<AboutPage />}/>
+            <Route 
+              path="/models/retrain/:modelId" 
+              element={<ProtectedRoute><RetrainPage /></ProtectedRoute>} 
+            />
+            <Route 
+              path="/build/ad" 
+              element={<ProtectedRoute><BuildADPage app="ad" /></ProtectedRoute>} 
+            />
+            <Route 
+              path="/build/ac" 
+              element={<ProtectedRoute><BuildACPage app="ac" /></ProtectedRoute>} 
+            />
+            <Route 
+              path="/models/datasets/:modelId/:datasetType" 
+              element={<ProtectedRoute><DatasetPage /></ProtectedRoute>} 
+            />
+            
+            {/* XAI routes - protected */}
+            <Route 
+              path="/xai/shap" 
+              element={<ProtectedRoute><XAIShapPage /></ProtectedRoute>} 
+            />
+            <Route 
+              path="/xai/shap/:modelId" 
+              element={<ProtectedRoute><XAIShapPage /></ProtectedRoute>} 
+            />
+            <Route 
+              path="/xai/lime" 
+              element={<ProtectedRoute><XAILimePage /></ProtectedRoute>} 
+            />
+            <Route 
+              path="/xai/lime/:modelId" 
+              element={<ProtectedRoute><XAILimePage /></ProtectedRoute>} 
+            />
+            
+            {/* Metrics routes - protected */}
+            <Route 
+              path="/metrics/:modelId" 
+              element={<ProtectedRoute><MetricsPage /></ProtectedRoute>} 
+            />
+            <Route 
+              path="/metrics/accountability" 
+              element={<ProtectedRoute><AccountabilityMetricsPage /></ProtectedRoute>} 
+            />
+            <Route 
+              path="/metrics/accountability/:modelId" 
+              element={<ProtectedRoute><AccountabilityMetricsPage /></ProtectedRoute>} 
+            />
+            <Route 
+              path="/metrics/resilience" 
+              element={<ProtectedRoute><ResilienceMetricsPage /></ProtectedRoute>} 
+            />
+            <Route 
+              path="/metrics/resilience/:modelId" 
+              element={<ProtectedRoute><ResilienceMetricsPage /></ProtectedRoute>} 
+            />
+            
+            {/* Attack routes - protected */}
+            <Route 
+              path="/attacks" 
+              element={<ProtectedRoute><AttacksPage /></ProtectedRoute>} 
+            />
+            <Route 
+              path="/attacks/:modelId" 
+              element={<ProtectedRoute><AttacksPage /></ProtectedRoute>} 
+            />
+            
+            {/* Prediction routes - public access (online mode restricted to admins within page) */}
+            <Route path="/predict" element={<PredictPage />} />
+            <Route path="/predict/online" element={<PredictPage />} />
+            <Route path="/predict/online/:modelId" element={<PredictPage />} />
+            <Route path="/predict/offline" element={<PredictPage />} />
+            <Route path="/predict/offline/:modelId" element={<PredictPage />} />
+            <Route path="/predict/rule-based" element={<PredictRuleBasedPage />} />
+            <Route path="/predict/early" element={<EarlyPredictionPage />} />
+            <Route path="/predict/:modelId" element={<PredictModelPage />} />
           </Routes>
           <MAIPFooter />
         </Layout>

@@ -48,14 +48,17 @@ const runOnDataset = (pcapFiles, datasetPath, outputDir, logFilePath, onFinishCa
  * Start analysing a traffic in given pcap file
  * @param {String} pcapFileName absoluted path of the pcap file
  */
-const startMMTOffline = (pcapFileName, callback, overrideOutputSessionId = null) => {
+const startMMTOffline = (pcapFileName, callback, overrideOutputSessionId = null, skipLockCheck = false) => {
   console.log(mmtStatus);
-  if (mmtStatus.isRunning) {
-    console.warn('An analysing process is on going. Only one process can be run at a time');
+  
+  // Skip lock check if called from queue worker (allows concurrent processing)
+  if (!skipLockCheck && mmtStatus.isRunning && mmtStatus.isOnlineMode) {
+    console.warn('An online analysis process is on going. Cannot start offline analysis.');
     return callback({
-      error: 'An analysis process is on going',
+      error: 'An online analysis process is on going',
     });
   }
+  
   const inputPcapFilePath = PCAP_PATH + pcapFileName;
   if (!fs.existsSync(inputPcapFilePath)) {
     return callback({

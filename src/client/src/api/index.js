@@ -632,15 +632,22 @@ export const requestAssistantExplainFlow = async ({ flowRecord, modelId, predict
   return response.json(); // { text }
 };
 // Rule-based detection (mmt_security)
-export const requestRuleStatus = async () => {
-  const url = `${SERVER_URL}/api/security/rule-based/status`;
+export const requestRuleStatus = async ({ ownerToken, sessionId } = {}) => {
+  let url = `${SERVER_URL}/api/security/rule-based/status`;
+  const params = [];
+  if (ownerToken) params.push(`ownerToken=${encodeURIComponent(ownerToken)}`);
+  if (sessionId) params.push(`sessionId=${encodeURIComponent(sessionId)}`);
+  if (params.length > 0) url += `?${params.join('&')}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 };
 
-export const requestRuleAlerts = async (limit = 500) => {
-  const url = `${SERVER_URL}/api/security/rule-based/alerts?limit=${encodeURIComponent(limit)}`;
+export const requestRuleAlerts = async (limit = 500, sessionId) => {
+  let url = `${SERVER_URL}/api/security/rule-based/alerts?limit=${encodeURIComponent(limit)}`;
+  if (sessionId) {
+    url += `&sessionId=${encodeURIComponent(sessionId)}`;
+  }
   const res = await fetch(url);
   if (!res.ok) throw new Error(await res.text());
   return res.json(); // { ok, file, count, alerts }
@@ -656,14 +663,46 @@ export const requestRuleOnlineStart = async ({ iface, intervalSec = 5, verbose =
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    const errorText = await res.text();
+    // Try to parse as JSON for better error handling (especially 409)
+    try {
+      const errorData = JSON.parse(errorText);
+      // For 409, include the error data in the message so frontend can extract sessionId
+      if (res.status === 409) {
+        const error = new Error(errorData.message || errorData.error || 'Online detection already running');
+        error.code = 409;
+        error.data = errorData;
+        throw error;
+      }
+      throw new Error(errorData.message || errorData.error || errorText);
+    } catch (e) {
+      if (e.code === 409) throw e; // Re-throw 409 errors
+      throw new Error(errorText);
+    }
+  }
   return res.json();
 };
 
-export const requestRuleOnlineStop = async () => {
+export const requestRuleOnlineStop = async ({ ownerToken } = {}) => {
   const url = `${SERVER_URL}/api/security/rule-based/online/stop`;
-  const res = await fetch(url, { method: 'POST' });
-  if (!res.ok) throw new Error(await res.text());
+  const payload = {};
+  if (ownerToken) payload.ownerToken = ownerToken;
+  const res = await fetch(url, { 
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    // Try to parse as JSON for better error handling
+    try {
+      const errorData = JSON.parse(errorText);
+      throw new Error(errorData.message || errorData.error || errorText);
+    } catch (e) {
+      throw new Error(errorText);
+    }
+  }
   return res.json();
 };
 

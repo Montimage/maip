@@ -4,7 +4,7 @@ import { Layout, Menu, Row, Col } from "antd";
 import {
   DeploymentUnitOutlined, FolderOpenOutlined, BlockOutlined, LineChartOutlined,
   SolutionOutlined, BugOutlined, SafetyOutlined, ExperimentOutlined, FilePdfOutlined,
-  InfoCircleOutlined, ApartmentOutlined,
+  InfoCircleOutlined, ApartmentOutlined, LoginOutlined,
 } from "@ant-design/icons";
 // import {
 //   setNotification,
@@ -15,6 +15,10 @@ import "./styles.css";
 import {
   MENU_OPTIONS,
 } from "../../constants";
+import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react';
+
+// Determine if Clerk is configured at build time
+const HAS_CLERK_KEY = !!(process.env.REACT_APP_CLERK_PUBLISHABLE_KEY || process.env.VITE_CLERK_PUBLISHABLE_KEY);
 
 const { Header } = Layout;
 const { SubMenu } = Menu;
@@ -194,7 +198,7 @@ class MAIPHeader extends Component {
 
           {/* Removed the app selection dropdown */}
 
-          <Col span={17} style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <Col span={17} style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
             <Menu
               theme="dark"
               mode="horizontal"
@@ -220,7 +224,34 @@ class MAIPHeader extends Component {
                   </Menu.Item>
                 )
               )}
+              
+              {/* Clerk Authentication - Sign in button */}
+              {HAS_CLERK_KEY && (
+                <SignedOut>
+                  <Menu.Item key="sign-in" icon={<LoginOutlined />} style={{ fontSize: '16px' }}>
+                    <SignInButton mode="modal">
+                      <span style={{ cursor: 'pointer' }}>Sign in</span>
+                    </SignInButton>
+                  </Menu.Item>
+                </SignedOut>
+              )}
             </Menu>
+            
+            {/* User avatar when signed in */}
+            {HAS_CLERK_KEY && (
+              <SignedIn>
+                <div style={{ marginLeft: '16px', display: 'flex', alignItems: 'center' }}>
+                  <UserButton 
+                    afterSignOutUrl="/"
+                    appearance={{
+                      elements: {
+                        avatarBox: "width-32 height-32"
+                      }
+                    }}
+                  />
+                </div>
+              </SignedIn>
+            )}
           </Col>
         </Row>
       </Header>

@@ -21,6 +21,8 @@ const SECURITY_OUT_DIR = path.join(__dirname, '../mmt/outputs');
 const sessionManager = require('../utils/sessionManager');
 // Import queue functions
 const { queueRuleBasedDetection, getJobStatus } = require('../queue/job-queue');
+// Import admin check middleware (optional - only if ADMIN_MODE is configured)
+const { requireAdminForOnline, checkAdmin, ADMIN_ENABLED } = require('../middleware/adminCheck');
 
 // Default to sudo unless explicitly disabled; use non-interactive to avoid blocking
 const SUDO = USE_SUDO === 'false' ? '' : 'sudo -n ';
@@ -62,6 +64,10 @@ let secState = {
   startedAt: null,
   intervalSec: null,
   ruleVerdicts: [], // [{ rule: 56, verdicts: 8 }]
+  sessionId: null,
+  viewers: 0,
+  startedBy: null,
+  ownerToken: null,
 };
 
 function ensureDir(dir) {
@@ -222,9 +228,10 @@ function dedupeAlerts(list) {
   }
 }
 
-router.get('/rule-based/status', async (req, res) => {
+router.get('/rule-based/status', checkAdmin, async (req, res) => {
   try {
-    const { sessionId } = req.query;
+    const { sessionId, ownerToken } = req.query;
+    const isAdmin = req.isAdmin || false;
     
     if (sessionId) {
       // Get specific session status
@@ -236,13 +243,31 @@ router.get('/rule-based/status', async (req, res) => {
       if (lastFile && !session.outputFile) {
         sessionManager.updateSession('attacks', sessionId, { outputFile: lastFile });
       }
-      return res.send({ ok: true, ...session });
+      // Check if requester is the owner
+      const isOwner = session.ownerToken && ownerToken === session.ownerToken;
+      return res.send({ 
+        ok: true, 
+        ...session, 
+        isOwner, 
+        isAdmin,
+        canStartOnline: isAdmin,
+        ownerToken: undefined 
+      });
     }
     
     // Legacy: return global secState (for backward compatibility)
     const lastFile = secState.outputFile || findLatestSecurityCsv(secState.outputDir);
     if (lastFile) secState.outputFile = lastFile;
-    res.send({ ok: true, ...secState });
+    // Check if requester is the owner
+    const isOwner = secState.ownerToken && ownerToken === secState.ownerToken;
+    res.send({ 
+      ok: true, 
+      ...secState, 
+      isOwner, 
+      isAdmin,
+      canStartOnline: isAdmin,
+      ownerToken: undefined 
+    });
   } catch (e) {
     res.status(500).send(e.message || 'Failed to get status');
   }
@@ -277,11 +302,23 @@ router.get('/rule-based/alerts', async (req, res) => {
   }
 });
 
-router.post('/rule-based/online/start', async (req, res) => {
+router.post('/rule-based/online/start', requireAdminForOnline, async (req, res) => {
   try {
     const { iface, intervalSec = 5, verbose = true, excludeRules, cores } = req.body || {};
     if (!iface) return res.status(400).send('Missing iface');
-    if (secState.running) return res.status(409).send('mmt_security already running');
+    
+    // Check if online rule-based detection is already running (multi-user viewer support)
+    if (secState.running && secState.mode === 'online') {
+      return res.status(409).json({ 
+        error: 'Online rule-based detection already running',
+        message: 'Rule-based detection is already running. You can view the live alerts, but cannot start a new session.',
+        currentSession: secState.sessionId,
+        sessionId: secState.sessionId,
+        startedBy: secState.startedBy,
+        viewers: secState.viewers || 1,
+        isOwner: false
+      });
+    }
 
     // If sudo is enabled, verify non-interactive sudo works; otherwise return guidance
     if (SUDO && SUDO.trim().length > 0) {
@@ -355,8 +392,9 @@ router.post('/rule-based/online/start', async (req, res) => {
         : Array.from(verdictMap.entries()).map(([rule, verdicts]) => ({ rule, verdicts }));
     });
 
-    // Generate unique session ID
+    // Generate unique session ID and owner token
     const sessionId = `security_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const ownerToken = `owner_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     secState = {
       running: true,
@@ -371,6 +409,9 @@ router.post('/rule-based/online/start', async (req, res) => {
       intervalSec: Number(intervalSec),
       ruleVerdicts: [],
       sessionId,
+      viewers: 1, // Start with 1 viewer (the one who started it)
+      startedBy: req.ip || 'unknown', // Track who started the session
+      ownerToken: ownerToken, // Unique token for the owner
     };
 
     // Create session in session manager
@@ -382,9 +423,27 @@ router.post('/rule-based/online/start', async (req, res) => {
       outputFile: null,
       intervalSec: Number(intervalSec),
       ruleVerdicts: [],
+      viewers: 1,
+      startedBy: req.ip || 'unknown',
+      ownerToken: ownerToken,
     });
 
-    res.send({ ok: true, sessionId, ...secState });
+    res.send({ 
+      ok: true, 
+      sessionId, 
+      ownerToken: ownerToken, // Return token to the owner
+      message: 'Online rule-based detection started. Other users can view live alerts.',
+      viewers: 1,
+      isOwner: true,
+      running: true, // Important: tell frontend it's running
+      mode: 'online',
+      iface,
+      pid: child.pid,
+      outputDir: runDir,
+      startedAt: secState.startedAt,
+      intervalSec: secState.intervalSec,
+      ruleVerdicts: secState.ruleVerdicts
+    });
   } catch (e) {
     console.error('rule-based online start error:', e);
     res.status(500).send(e.message || 'Failed to start mmt_security');
@@ -393,7 +452,22 @@ router.post('/rule-based/online/start', async (req, res) => {
 
 router.post('/rule-based/online/stop', async (req, res) => {
   try {
+    const { ownerToken } = req.body;
+    
     if (!secState.running) return res.send({ ok: true, stopped: false });
+    
+    // Check if this is an online session with an owner
+    if (secState.mode === 'online' && secState.ownerToken) {
+      // Verify ownership
+      if (!ownerToken || ownerToken !== secState.ownerToken) {
+        console.log('[SECURITY] Stop denied: Not the session owner');
+        return res.status(403).json({ 
+          error: 'Permission denied',
+          message: 'Only the session owner can stop online rule-based detection'
+        });
+      }
+    }
+    
     const stoppedPid = secState.pid;
     const child = secState.child;
     try {
@@ -414,6 +488,7 @@ router.post('/rule-based/online/stop', async (req, res) => {
     }
     secState.running = false;
     secState.pid = null;
+    secState.ownerToken = null; // Clear owner token
     const lastFile = findLatestSecurityCsv(secState.outputDir);
     if (lastFile) secState.outputFile = lastFile;
     
@@ -421,6 +496,7 @@ router.post('/rule-based/online/stop', async (req, res) => {
     if (secState.sessionId) {
       sessionManager.updateSession('attacks', secState.sessionId, {
         isRunning: false,
+        ownerToken: null,
         outputFile: lastFile,
         pid: null
       });

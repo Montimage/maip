@@ -2,8 +2,9 @@ import React, { Component } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import LayoutPage from './LayoutPage';
-import { Form, Select, Button, Table, Divider, Tooltip, Upload, Spin, message, notification, Dropdown, Menu, Modal, Card, Row, Col, Statistic, Tag, Space } from 'antd';
-import { UploadOutlined, DeleteOutlined, PlayCircleOutlined, StopOutlined, SendOutlined } from '@ant-design/icons';
+import { Form, Select, Button, Table, Divider, Tooltip, Upload, Spin, message, notification, Dropdown, Menu, Modal, Card, Row, Col, Statistic, Tag, Space, Alert } from 'antd';
+import { UploadOutlined, DeleteOutlined, PlayCircleOutlined, StopOutlined, SendOutlined, LockOutlined } from '@ant-design/icons';
+import { useUserRole } from '../hooks/useUserRole';
 import { Line } from '@ant-design/plots';
 import {
   FORM_LAYOUT,
@@ -31,6 +32,10 @@ class PredictRuleBasedPage extends Component {
       intervalSec: 5,
       onlineRunning: false,
       status: null,
+      sessionId: null,
+      ownerToken: null, // Owner token for online mode
+      isOwner: false, // Is current user the owner
+      canStartOnline: true, // Can current user start online mode (admin check)
       // Offline
       pcapFile: null,
       offlineLoading: false,
@@ -74,6 +79,26 @@ class PredictRuleBasedPage extends Component {
 
   componentDidMount() {
     this.fetchInterfaces();
+    
+    // Check if there's an existing session in localStorage
+    const savedOwnerToken = localStorage.getItem('ruleBasedOwnerToken');
+    if (savedOwnerToken) {
+      console.log('[RuleBased] Found saved owner token, checking for existing session...');
+      this.pollStatus().then(() => {
+        if (this.state.onlineRunning) {
+          console.log('[RuleBased] Restored existing session');
+          this.pollAlerts();
+        } else {
+          // Session expired, clear token
+          console.log('[RuleBased] Session expired, clearing token');
+          localStorage.removeItem('ruleBasedOwnerToken');
+        }
+      });
+    } else {
+      // Fetch initial status to get canStartOnline flag
+      this.pollStatus();
+    }
+    
     // Start a single conditional polling loop
     this.tick();
     this.timer = setInterval(this.tick, 3000);
@@ -100,16 +125,39 @@ class PredictRuleBasedPage extends Component {
 
   pollStatus = async () => {
     try {
-      const st = await requestRuleStatus();
-      this.setState({ status: st, onlineRunning: !!st.running });
+      const ownerToken = this.state.ownerToken || localStorage.getItem('ruleBasedOwnerToken');
+      const st = await requestRuleStatus({ ownerToken, sessionId: this.state.sessionId });
+      console.log('[RuleBased] pollStatus received:', JSON.stringify(st, null, 2));
+      
+      // Update state with current status
+      const newState = { 
+        status: st, 
+        onlineRunning: !!(st.running || st.isRunning), // Backend uses 'isRunning' when from sessionManager
+        isOwner: st.isOwner || false,
+        canStartOnline: st.canStartOnline !== false // Default to true if not specified
+      };
+      
+      console.log('[RuleBased] pollStatus computed newState:', newState);
+      
+      // If session is running, restore session info
+      if ((st.running || st.isRunning) && st.sessionId) {
+        newState.sessionId = st.sessionId;
+        if (!this.state.ownerToken && ownerToken) {
+          newState.ownerToken = ownerToken;
+        }
+      }
+      
+      this.setState(newState);
+      console.log('[RuleBased] pollStatus setState done, onlineRunning:', this.state.onlineRunning);
     } catch (e) {
-      // ignore
+      console.error('[RuleBased] pollStatus error:', e);
     }
   }
 
   pollAlerts = async () => {
     try {
-      const { alerts } = await requestRuleAlerts(500);
+      const sessionId = this.state.sessionId;
+      const { alerts } = await requestRuleAlerts(500, sessionId);
       const unique = this.dedupeAlerts(alerts || []);
       this.setState(prev => {
         const now = Date.now();
@@ -164,6 +212,7 @@ class PredictRuleBasedPage extends Component {
 
   tick = () => {
     const { mode, onlineRunning } = this.state;
+    console.log('[RuleBased] Tick - mode:', mode, 'running:', onlineRunning);
     if (mode === 'online' && onlineRunning) {
       this.pollStatus().catch(() => {});
       this.pollAlerts().catch(() => {});
@@ -185,22 +234,96 @@ class PredictRuleBasedPage extends Component {
 
   handleStartOnline = async () => {
     const { iface, intervalSec } = this.state;
-    if (!iface) return;
+    
+    // Security check: Prevent online detection for non-admin users
+    if (!this.props.canPerformOnlineActions) {
+      message.error('Administrator privileges required for online rule-based detection');
+      this.setState({ mode: 'offline' });
+      return;
+    }
+    
+    console.log('[RuleBased] Start clicked, iface:', iface);
+    if (!iface) {
+      notification.warning({
+        message: 'No Interface Selected',
+        description: 'Please select a network interface first',
+        placement: 'topRight',
+      });
+      return;
+    }
     try {
+      console.log('[RuleBased] Starting online detection...');
       // Clear previous alerts for a fresh run
       this.setState({ alerts: [], alertSeries: [], alertSeriesByRule: [] });
       const data = await requestRuleOnlineStart({ iface, intervalSec });
-      notification.success({
-        message: 'Success',
-        description: `Started rule-based detection on ${iface}`,
-        placement: 'topRight',
+      console.log('[RuleBased] Start response received:', JSON.stringify(data, null, 2));
+      
+      // Validate response
+      if (!data || !data.sessionId) {
+        console.error('[RuleBased] Invalid response - missing sessionId:', data);
+        notification.error({
+          message: 'Error',
+          description: 'Invalid response from server',
+          placement: 'topRight',
+        });
+        return;
+      }
+      
+      // Save owner token if provided
+      if (data.ownerToken) {
+        console.log('[RuleBased] Saving owner token to localStorage');
+        localStorage.setItem('ruleBasedOwnerToken', data.ownerToken);
+      }
+      
+      console.log('[RuleBased] Setting state with:', {
+        onlineRunning: true,
+        sessionId: data.sessionId,
+        ownerToken: data.ownerToken,
+        isOwner: data.isOwner
       });
-      this.setState({ onlineRunning: true, status: data }, () => {
+      
+      this.setState({ 
+        onlineRunning: true, 
+        status: data,
+        sessionId: data.sessionId,
+        ownerToken: data.ownerToken,
+        isOwner: data.isOwner !== false // Default to true if not specified
+      }, () => {
+        console.log('[RuleBased] State updated, new state:', {
+          onlineRunning: this.state.onlineRunning,
+          sessionId: this.state.sessionId,
+          isOwner: this.state.isOwner
+        });
+        
+        notification.success({
+          message: 'Success',
+          description: `Started rule-based detection on ${iface}`,
+          placement: 'topRight',
+        });
+        
         // Kick an immediate refresh after starting
         this.pollStatus();
         this.pollAlerts();
       });
     } catch (e) {
+      // Check if it's a 409 (already running) - join as viewer
+      if (e.code === 409 && e.data && e.data.sessionId) {
+        notification.info({
+          message: 'Joining Session',
+          description: 'Rule-based detection is already running. Joining as viewer...',
+          placement: 'topRight',
+        });
+        this.setState({ 
+          onlineRunning: true,
+          sessionId: e.data.sessionId,
+          isOwner: false,
+          ownerToken: null
+        }, () => {
+          this.pollStatus();
+          this.pollAlerts();
+        });
+        return;
+      }
       notification.error({
         message: 'Error',
         description: `Failed to start: ${e.message}`,
@@ -211,13 +334,23 @@ class PredictRuleBasedPage extends Component {
 
   handleStopOnline = async () => {
     try {
-      await requestRuleOnlineStop();
+      const ownerToken = this.state.ownerToken || localStorage.getItem('ruleBasedOwnerToken');
+      await requestRuleOnlineStop({ ownerToken });
+      
+      // Clear owner token
+      localStorage.removeItem('ruleBasedOwnerToken');
+      
       notification.success({
         message: 'Success',
         description: 'Stopped rule-based detection',
         placement: 'topRight',
       });
-      this.setState({ onlineRunning: false });
+      this.setState({ 
+        onlineRunning: false,
+        ownerToken: null,
+        isOwner: false,
+        sessionId: null
+      });
       // Wait briefly for rule verdicts to be finalized by the server, then refresh alerts
       await this.waitForVerdicts(5000);
       await this.pollAlerts();
@@ -382,14 +515,16 @@ class PredictRuleBasedPage extends Component {
   }
 
   renderOnlineActions() {
-    const { iface, onlineRunning } = this.state;
+    const { iface, onlineRunning, isOwner, canStartOnline } = this.state;
+    console.log('[RuleBased] Button state:', { iface, onlineRunning, isOwner, canStartOnline, disabled: onlineRunning || !iface || !canStartOnline });
     return (
       <Space>
         <Button 
           type="primary" 
           icon={<PlayCircleOutlined />}
           onClick={this.handleStartOnline} 
-          disabled={onlineRunning || !iface}
+          disabled={onlineRunning || !iface || !canStartOnline}
+          title={!canStartOnline ? 'Only administrators can start online detection' : ''}
         >
           Start
         </Button>
@@ -397,7 +532,8 @@ class PredictRuleBasedPage extends Component {
           danger
           icon={<StopOutlined />}
           onClick={this.handleStopOnline} 
-          disabled={!onlineRunning}
+          disabled={!onlineRunning || !isOwner}
+          title={!isOwner && onlineRunning ? 'Only the session owner can stop online detection' : ''}
         >
           Stop
         </Button>
@@ -405,6 +541,14 @@ class PredictRuleBasedPage extends Component {
         <Tag color={onlineRunning ? 'green' : 'default'}>
           {onlineRunning ? 'Running' : 'Stopped'}
         </Tag>
+        {onlineRunning && (
+          <Tag color={isOwner ? 'blue' : 'orange'} style={{ marginLeft: 4 }}>
+            {isOwner ? 'Owner' : 'Viewer'}
+          </Tag>
+        )}
+        {canStartOnline && !onlineRunning && (
+          <Tag color="gold" style={{ marginLeft: 4 }}>Admin</Tag>
+        )}
       </Space>
     );
   }
@@ -497,23 +641,42 @@ class PredictRuleBasedPage extends Component {
             <Col flex="none">
               <Select
                 value={this.state.mode}
-                onChange={(value) => this.setState(prev => ({ 
-                  mode: value,
-                  alerts: [],
-                  alertSeries: [],
-                  alertSeriesByRule: [],
-                  ruleCountsByCode: {},
-                  status: { ...(prev.status || {}), ruleVerdicts: [] },
-                  ...(value === 'online' ? { pcapFile: null, uploading: false, offlineLoading: false, uploadResetKey: (prev.uploadResetKey || 0) + 1 } : {}),
-                  ...(value === 'offline' ? { iface: null, onlineRunning: false } : {}),
-                }))}
+                onChange={(value) => {
+                  // Prevent switching to online if user doesn't have permission
+                  if (value === 'online' && !this.props.canPerformOnlineActions) {
+                    message.warning('Administrator privileges required for online rule-based detection');
+                    return;
+                  }
+                  this.setState(prev => ({ 
+                    mode: value,
+                    alerts: [],
+                    alertSeries: [],
+                    alertSeriesByRule: [],
+                    ruleCountsByCode: {},
+                    status: { ...(prev.status || {}), ruleVerdicts: [] },
+                    ...(value === 'online' ? { pcapFile: null, uploading: false, offlineLoading: false, uploadResetKey: (prev.uploadResetKey || 0) + 1 } : {}),
+                    ...(value === 'offline' ? { iface: null, onlineRunning: false } : {}),
+                  }));
+                }}
                 style={{ width: 200 }}
                 disabled={this.state.onlineRunning}
               >
                 <Select.Option value="offline">Offline (PCAP)</Select.Option>
-                <Select.Option value="online">Online (Interface)</Select.Option>
+                <Select.Option value="online" disabled={!this.props.canPerformOnlineActions}>
+                  Online (Interface) {!this.props.canPerformOnlineActions && <LockOutlined />}
+                </Select.Option>
               </Select>
             </Col>
+            {!this.props.canPerformOnlineActions && this.state.mode === 'offline' && (
+              <Col flex="auto" style={{ marginLeft: 16 }}>
+                <Alert
+                  message="Online rule-based detection requires administrator access"
+                  type="info"
+                  showIcon
+                  closable
+                />
+              </Col>
+            )}
             
             <Col flex="none">
               <strong style={{ marginRight: 4 }}>{this.state.mode === 'offline' ? 'PCAP File:' : 'Interface:'}</strong>
@@ -621,4 +784,10 @@ class PredictRuleBasedPage extends Component {
   }
 }
 
-export default PredictRuleBasedPage;
+// Wrap with role check
+const PredictRuleBasedPageWithRole = (props) => {
+  const { canPerformOnlineActions, isSignedIn, isLoaded } = useUserRole();
+  return <PredictRuleBasedPage {...props} canPerformOnlineActions={canPerformOnlineActions} isSignedIn={isSignedIn} isAuthLoaded={isLoaded} />;
+};
+
+export default PredictRuleBasedPageWithRole;

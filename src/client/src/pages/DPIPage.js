@@ -1,9 +1,10 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
-import { Button, Card, Select, Alert, Spin, Row, Col, Divider, Tree, Space, Tag, Table, Statistic, notification } from 'antd';
-import { PlayCircleOutlined, StopOutlined, DownOutlined, FolderOpenOutlined } from '@ant-design/icons';
+import { Button, Card, Select, Alert, Spin, Row, Col, Divider, Tree, Space, Tag, Table, Statistic, notification, message } from 'antd';
+import { PlayCircleOutlined, StopOutlined, DownOutlined, FolderOpenOutlined, LockOutlined } from '@ant-design/icons';
 import { Line, Pie, Column, Area, Histogram } from '@ant-design/plots';
 import { SERVER_URL } from '../constants';
+import { useUserRole } from '../hooks/useUserRole';
 
 const { Option } = Select;
 
@@ -556,6 +557,13 @@ class DPIPage extends Component {
 
   startAnalysis = async () => {
     const { mode, selectedPcap, selectedInterface } = this.state;
+    
+    // Security check: Prevent online DPI for non-admin users
+    if (mode === 'online' && !this.props.canPerformOnlineActions) {
+      message.error('Administrator privileges required for online DPI analysis');
+      this.setState({ mode: 'offline' });
+      return;
+    }
     
     console.log('[DPI Frontend] Starting new analysis, clearing all data');
     
@@ -2602,23 +2610,42 @@ class DPIPage extends Component {
               <Col flex="none">
                 <Select
                   value={mode}
-                  onChange={(value) => this.setState({ 
-                    mode: value,
-                    hierarchyData: [],
-                    trafficData: [],
-                    statistics: null,
-                    conversations: [],
-                    packetSizes: [],
-                    selectedProtocols: ['ETHERNET'],
-                    lastUpdate: null,
-                  })}
+                  onChange={(value) => {
+                    // Prevent switching to online if user doesn't have permission
+                    if (value === 'online' && !this.props.canPerformOnlineActions) {
+                      message.warning('Administrator privileges required for online DPI analysis');
+                      return;
+                    }
+                    this.setState({ 
+                      mode: value,
+                      hierarchyData: [],
+                      trafficData: [],
+                      statistics: null,
+                      conversations: [],
+                      packetSizes: [],
+                      selectedProtocols: ['ETHERNET'],
+                      lastUpdate: null,
+                    });
+                  }}
                   style={{ width: 180 }}
                   disabled={isRunning}
                 >
                   <Option value="offline">Offline (PCAP)</Option>
-                  <Option value="online">Online (Interface)</Option>
+                  <Option value="online" disabled={!this.props.canPerformOnlineActions}>
+                    Online (Interface) {!this.props.canPerformOnlineActions && <LockOutlined />}
+                  </Option>
                 </Select>
               </Col>
+              {!this.props.canPerformOnlineActions && mode === 'offline' && (
+                <Col flex="auto" style={{ marginLeft: 12 }}>
+                  <Alert
+                    message="Online DPI requires administrator access"
+                    type="info"
+                    showIcon
+                    closable
+                  />
+                </Col>
+              )}
               
               <Col flex="none" style={{ marginLeft: 12 }}>
                 <strong style={{ marginRight: 4 }}>{mode === 'offline' ? 'PCAP File:' : 'Interface:'}</strong>
@@ -2900,4 +2927,10 @@ class DPIPage extends Component {
   }
 }
 
-export default DPIPage;
+// Wrap with role check
+const DPIPageWithRole = (props) => {
+  const { canPerformOnlineActions, isSignedIn, isLoaded } = useUserRole();
+  return <DPIPage {...props} canPerformOnlineActions={canPerformOnlineActions} isSignedIn={isSignedIn} isAuthLoaded={isLoaded} />;
+};
+
+export default DPIPageWithRole;

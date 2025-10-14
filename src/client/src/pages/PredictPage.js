@@ -2,9 +2,10 @@ import React, { Component } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import LayoutPage from './LayoutPage';
-import { Table, Tooltip, message, notification, Upload, Spin, Button, Form, Select, Menu, Modal, Divider, Card, Row, Col, Statistic, Tag, Space, InputNumber } from 'antd';
-import { UploadOutlined, CheckCircleOutlined, WarningOutlined, ClockCircleOutlined, PlayCircleOutlined, StopOutlined } from "@ant-design/icons";
+import { Table, Tooltip, message, notification, Upload, Spin, Button, Form, Select, Menu, Modal, Divider, Card, Row, Col, Statistic, Tag, Space, InputNumber, Alert } from 'antd';
+import { UploadOutlined, CheckCircleOutlined, WarningOutlined, ClockCircleOutlined, PlayCircleOutlined, StopOutlined, LockOutlined } from "@ant-design/icons";
 import { connect } from "react-redux";
+import { useUserRole } from '../hooks/useUserRole';
 import { Pie, RingProgress } from '@ant-design/plots';
 import {
   FORM_LAYOUT,
@@ -136,9 +137,15 @@ class PredictPage extends Component {
     let modelId = getLastPath();
     const path = getLastPath();
     
-    // Determine initial mode from URL
+    // Determine initial mode from URL (with permission check)
     if (path === 'online') {
-      this.setState({ mode: 'online' });
+      // Only allow online mode if user has permission
+      if (this.props.canPerformOnlineActions) {
+        this.setState({ mode: 'online' });
+      } else {
+        this.setState({ mode: 'offline' });
+        message.warning('Online predictions require administrator access. Switched to offline mode.');
+      }
     } else if (path === 'offline') {
       this.setState({ mode: 'offline' });
     }
@@ -787,6 +794,14 @@ class PredictPage extends Component {
 
   async handleButtonStart() {
     const { modelId, interface: iface, windowSec, totalDurationSec } = this.state;
+    
+    // Security check: Prevent online predictions for non-admin users
+    if (!this.props.canPerformOnlineActions) {
+      message.error('Administrator privileges required for online predictions');
+      this.setState({ mode: 'offline' });
+      return;
+    }
+    
     if (!modelId || !iface) return;
     try {
       const payload = { iface, windowSec };
@@ -1010,22 +1025,44 @@ class PredictPage extends Component {
             <Col flex="none">
               <Select
                 value={mode}
-                onChange={(value) => this.setState({ 
-                  mode: value,
-                  predictStats: null,
-                  attackRows: [],
-                  aggregateNormal: 0,
-                  aggregateMalicious: 0,
-                  lastSliceStats: null,
-                  hasResultsShown: false,
-                })}
+                onChange={(value) => {
+                  // Prevent switching to online if user doesn't have permission
+                  if (value === 'online' && !this.props.canPerformOnlineActions) {
+                    message.warning('Administrator privileges required for online predictions');
+                    return;
+                  }
+                  this.setState({ 
+                    mode: value,
+                    predictStats: null,
+                    attackRows: [],
+                    aggregateNormal: 0,
+                    aggregateMalicious: 0,
+                    lastSliceStats: null,
+                    hasResultsShown: false,
+                  });
+                }}
                 style={{ width: 180 }}
                 disabled={isRunning || isCapturing}
               >
                 <Select.Option value="offline">Offline (PCAP/Dataset)</Select.Option>
-                <Select.Option value="online">Online (Live Capture)</Select.Option>
+                <Select.Option value="online" disabled={!this.props.canPerformOnlineActions}>
+                  <Tooltip title={!this.props.canPerformOnlineActions ? "Admin privileges required" : ""}>
+                    Online (Live Capture) {!this.props.canPerformOnlineActions && <LockOutlined />}
+                  </Tooltip>
+                </Select.Option>
               </Select>
             </Col>
+            {!this.props.canPerformOnlineActions && mode === 'offline' && (
+              <Col flex="auto">
+                <Alert
+                  message="Online predictions require administrator access"
+                  type="info"
+                  showIcon
+                  closable
+                  style={{ marginLeft: 16 }}
+                />
+              </Col>
+            )}
           </Row>
           
           <Divider style={{ margin: '16px 0' }} />
@@ -1298,4 +1335,10 @@ const mapDispatchToProps = (dispatch) => ({
     dispatch(requestRunLime({ modelId, sampleId, numberFeatures })),
 });
 
-export default connect(mapPropsToStates, mapDispatchToProps)(PredictPage);
+// Wrap with role check
+const PredictPageWithRole = (props) => {
+  const { canPerformOnlineActions, isSignedIn, isLoaded } = useUserRole();
+  return <PredictPage {...props} canPerformOnlineActions={canPerformOnlineActions} isSignedIn={isSignedIn} isAuthLoaded={isLoaded} />;
+};
+
+export default connect(mapPropsToStates, mapDispatchToProps)(PredictPageWithRole);
