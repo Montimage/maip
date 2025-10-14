@@ -118,6 +118,54 @@ const AD_FEATURES_DESCRIPTIONS = {
     description: 'Sequence of Packet Time (STP) of bin 11',
     type: 'categorical',
   },
+  '(450, 600]': {
+    description: 'Sequence of Packet Time (STP) of bin 12',
+    type: 'categorical',
+  },
+  '(600, 750]': {
+    description: 'Sequence of Packet Time (STP) of bin 13',
+    type: 'categorical',
+  },
+  '(750, 900]': {
+    description: 'Sequence of Packet Time (STP) of bin 14',
+    type: 'categorical',
+  },
+  '(0, 50]': {
+    description: 'Sequence of Packet Time (STP) of bin 1',
+    type: 'categorical',
+  },
+  '(50, 100]': {
+    description: 'Sequence of Packet Time (STP) of bin 2',
+    type: 'categorical',
+  },
+  '(100, 150]': {
+    description: 'Sequence of Packet Time (STP) of bin 3',
+    type: 'categorical',
+  },
+  '(150, 200]': {
+    description: 'Sequence of Packet Time (STP) of bin 4',
+    type: 'categorical',
+  },
+  '(200, 250]': {
+    description: 'Sequence of Packet Time (STP) of bin 5',
+    type: 'categorical',
+  },
+  '(250, 300]': {
+    description: 'Sequence of Packet Time (STP) of bin 6',
+    type: 'categorical',
+  },
+  '(300, 350]': {
+    description: 'Sequence of Packet Time (STP) of bin 7',
+    type: 'categorical',
+  },
+  '(350, 400]': {
+    description: 'Sequence of Packet Time (STP) of bin 8',
+    type: 'categorical',
+  },
+  '(400, 450]': {
+    description: 'Sequence of Packet Time (STP) of bin 9',
+    type: 'categorical',
+  },
   'tcp_pkts_per_flow': {
     description: 'Total number of TCP packets',
     type: 'numerical',
@@ -184,6 +232,74 @@ const AD_FEATURES_DESCRIPTIONS = {
   },
   '(1500.0, 10000.0]': {
     description: 'Sequence of Packet Length (STL) of bin 11',
+    type: 'categorical',
+  },
+  '(0, 150]': {
+    description: 'Sequence of Packet Length (STL) of bin 1',
+    type: 'categorical',
+  },
+  '(150, 300]': {
+    description: 'Sequence of Packet Length (STL) of bin 2',
+    type: 'categorical',
+  },
+  '(300, 450]': {
+    description: 'Sequence of Packet Length (STL) of bin 3',
+    type: 'categorical',
+  },
+  '(450, 600]': {
+    description: 'Sequence of Packet Length (STL) of bin 4',
+    type: 'categorical',
+  },
+  '(600, 750]': {
+    description: 'Sequence of Packet Length (STL) of bin 5',
+    type: 'categorical',
+  },
+  '(750, 900]': {
+    description: 'Sequence of Packet Length (STL) of bin 6',
+    type: 'categorical',
+  },
+  '(900, 1050]': {
+    description: 'Sequence of Packet Length (STL) of bin 7',
+    type: 'categorical',
+  },
+  '(1050, 1200]': {
+    description: 'Sequence of Packet Length (STL) of bin 8',
+    type: 'categorical',
+  },
+  '(1200, 1350]': {
+    description: 'Sequence of Packet Length (STL) of bin 9',
+    type: 'categorical',
+  },
+  '(1350, 1500]': {
+    description: 'Sequence of Packet Length (STL) of bin 10',
+    type: 'categorical',
+  },
+  '(1500, 10000]': {
+    description: 'Sequence of Packet Length (STL) of bin 11',
+    type: 'categorical',
+  },
+  '(450, 500]': {
+    description: 'Sequence of Packet Time (STP) of bin 10',
+    type: 'categorical',
+  },
+  '(500, 550]': {
+    description: 'Sequence of Packet Time (STP) of bin 11',
+    type: 'categorical',
+  },
+  '(550, 600]': {
+    description: 'Sequence of Packet Time (STP) of bin 12',
+    type: 'categorical',
+  },
+  '(550.0, 600.0]': {
+    description: 'Sequence of Packet Time (STP) of bin 12',
+    type: 'categorical',
+  },
+  '(900, 1800]': {
+    description: 'Sequence of Packet Time (STP) of bin 15',
+    type: 'categorical',
+  },
+  '(900.0, 1800.0]': {
+    description: 'Sequence of Packet Time (STP) of bin 15',
     type: 'categorical',
   },
   'tcp.fin': {

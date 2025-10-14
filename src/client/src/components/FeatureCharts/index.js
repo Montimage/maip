@@ -195,7 +195,10 @@ export default function FeatureCharts({ data = [], scatterConfigBuilder, barFeat
       <Row gutter={16}>
         <Col span={12}>
           <Card style={{ marginBottom: 16 }} id="histogram_plot">
-            <h3 style={{ fontSize: '16px', marginBottom: 16, fontWeight: 600 }}>Histogram Plot</h3>
+            <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Histogram Plot</h3>
+            <div style={{ marginBottom: 12, fontSize: '13px', color: '#8c8c8c' }}>
+              Distribution of values for a single feature across all flows
+            </div>
             <div style={{ marginBottom: 16 }}>
               <Tooltip title="Select the feature to plot on the histogram">
                 <Select
@@ -235,9 +238,12 @@ export default function FeatureCharts({ data = [], scatterConfigBuilder, barFeat
         </Col>
         <Col span={12}>
           <Card style={{ marginBottom: 16 }} id="box_plot">
-            <h3 style={{ fontSize: '16px', marginBottom: 16, fontWeight: 600 }}>
+            <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>
               Box Plot Comparison
             </h3>
+            <div style={{ marginBottom: 12, fontSize: '13px', color: '#8c8c8c' }}>
+              Compare statistical distributions (quartiles, median, outliers) across multiple features
+            </div>
             <div style={{ marginBottom: 16 }}>
               <Tooltip title="Select features to compare (max 5)">
                 <Select
@@ -296,14 +302,12 @@ export default function FeatureCharts({ data = [], scatterConfigBuilder, barFeat
                 }}
               />
             )}
-            {boxPlotData.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '40px 0', color: '#999' }}>
-                Select features to visualize their distributions
-              </div>
-            )}
           </Card>
           <Card style={{ marginBottom: 16 }} id="bar_plot">
-            <h3 style={{ fontSize: '16px', marginBottom: 16, fontWeight: 600 }}>Bar Plot (Categorical)</h3>
+            <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Bar Plot (Categorical)</h3>
+            <div style={{ marginBottom: 12, fontSize: '13px', color: '#8c8c8c' }}>
+              Frequency distribution of categorical feature values
+            </div>
             <div style={{ marginBottom: 16 }}>
               <Tooltip title="Select a categorical feature">
                 <Select

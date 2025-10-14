@@ -868,14 +868,7 @@ class DPIPage extends Component {
     
     if (!hierarchyData || hierarchyData.length === 0) {
       if (!isRunning) {
-        return (
-          <Alert
-            message="No Data"
-            description="Start an analysis to view protocol hierarchy"
-            type="info"
-            showIcon
-          />
-        );
+        return null;
       }
       // Show empty table with loading overlay when running
       return (
@@ -1034,14 +1027,7 @@ class DPIPage extends Component {
 
     if (!conversations || conversations.length === 0) {
       if (!isRunning) {
-        return (
-          <Alert
-            message="No Data"
-            description="Start an analysis to view conversations"
-            type="info"
-            showIcon
-          />
-        );
+        return null;
       }
       return (
         <div style={{ position: 'relative', minHeight: '200px' }}>
@@ -1177,14 +1163,7 @@ class DPIPage extends Component {
 
     if (!conversations || conversations.length === 0) {
       if (!isRunning) {
-        return (
-          <Alert
-            message="No Data"
-            description="Start an analysis to view port distribution"
-            type="info"
-            showIcon
-          />
-        );
+        return null;
       }
       return (
         <div style={{ position: 'relative', minHeight: '300px' }}>
@@ -1336,14 +1315,7 @@ class DPIPage extends Component {
 
     if (!conversations || conversations.length === 0) {
       if (!isRunning) {
-        return (
-          <Alert
-            message="No Data"
-            description="Start an analysis to view top talkers"
-            type="info"
-            showIcon
-          />
-        );
+        return null;
       }
       return (
         <div style={{ position: 'relative', minHeight: '300px' }}>
@@ -1517,14 +1489,7 @@ class DPIPage extends Component {
           </div>
         );
       }
-      return (
-        <Alert
-          message="No Data"
-          description="Start an analysis to view protocol timeline"
-          type="info"
-          showIcon
-        />
-      );
+      return null;
     }
 
     // Filter data by selected protocols
@@ -1783,14 +1748,7 @@ class DPIPage extends Component {
 
     if (!packetSizes || packetSizes.length === 0) {
       if (!isRunning) {
-        return (
-          <Alert
-            message="No Data"
-            description="Start an analysis to view packet size distribution"
-            type="info"
-            showIcon
-          />
-        );
+        return null;
       }
       return (
         <div style={{ position: 'relative', minHeight: '300px' }}>
@@ -1864,14 +1822,7 @@ class DPIPage extends Component {
 
     if (!hierarchyData || hierarchyData.length === 0) {
       if (!isRunning) {
-        return (
-          <Alert
-            message="No Data"
-            description="Start an analysis to view application protocols"
-            type="info"
-            showIcon
-          />
-        );
+        return null;
       }
       return (
         <div style={{ position: 'relative', minHeight: '300px' }}>
@@ -2004,14 +1955,7 @@ class DPIPage extends Component {
 
     if (!conversations || conversations.length === 0) {
       if (!isRunning) {
-        return (
-          <Alert
-            message="No Data"
-            description="Start an analysis to view bidirectional flows"
-            type="info"
-            showIcon
-          />
-        );
+        return null;
       }
       return (
         <div style={{ position: 'relative', minHeight: '300px' }}>
@@ -2182,14 +2126,7 @@ class DPIPage extends Component {
 
     if (!hierarchyData || hierarchyData.length === 0) {
       if (!isRunning) {
-        return (
-          <Alert
-            message="No Data"
-            description="Start an analysis to view protocol distribution"
-            type="info"
-            showIcon
-          />
-        );
+        return null;
       }
       return (
         <div style={{ position: 'relative', minHeight: '300px' }}>
@@ -2348,22 +2285,6 @@ class DPIPage extends Component {
     const { statistics, isRunning, selectedPcap, selectedInterface, mode } = this.state;
 
     if (!statistics) {
-      // Check if we should show "No Data" based on mode and selection
-      const hasSelection = mode === 'offline' ? selectedPcap : selectedInterface;
-      
-      if (!isRunning && !hasSelection) {
-        return (
-          <Card style={{ marginBottom: 24 }}>
-            <Alert
-              message="No Data"
-              description="Start an analysis to view traffic statistics"
-              type="info"
-              showIcon
-            />
-          </Card>
-        );
-      }
-      
       // Show placeholder when running but no stats yet
       if (isRunning) {
         return (
@@ -2377,64 +2298,70 @@ class DPIPage extends Component {
         );
       }
       
-      // If we have a selection but no stats yet and not running, show "No Data"
-      return (
-        <Card style={{ marginBottom: 24 }}>
-          <Alert
-            message="No Data"
-            description="Start an analysis to view traffic statistics"
-            type="info"
-            showIcon
-          />
-        </Card>
-      );
+      // If not running, hide the card entirely
+      return null;
     }
 
     return (
       <Card style={{ marginBottom: 24 }}>
+        <div style={{ textAlign: 'center', marginBottom: 12 }}>
+          <strong style={{ fontSize: 16 }}>Traffic Statistics</strong>
+        </div>
         <Row gutter={16}>
-          <Col span={4} style={{ textAlign: 'center' }}>
-            <Statistic
-              title="Total Packets"
-              value={statistics.totalPackets}
-              valueStyle={{ color: '#1890ff' }}
-            />
+          <Col span={4}>
+            <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+              <Statistic
+                title="Total Packets"
+                value={statistics.totalPackets}
+                valueStyle={{ fontSize: 16, fontWeight: 'bold', color: '#1890ff' }}
+              />
+            </Card>
           </Col>
-          <Col span={4} style={{ textAlign: 'center' }}>
-            <Statistic
-              title="Total Data"
-              value={this.formatBytes(statistics.totalBytes)}
-              valueStyle={{ color: '#52c41a' }}
-            />
+          <Col span={4}>
+            <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+              <Statistic
+                title="Total Data"
+                value={this.formatBytes(statistics.totalBytes)}
+                valueStyle={{ fontSize: 16, fontWeight: 'bold', color: '#52c41a' }}
+              />
+            </Card>
           </Col>
-          <Col span={4} style={{ textAlign: 'center' }}>
-            <Statistic
-              title="Avg Packet Size"
-              value={this.formatBytes(statistics.avgPacketSize)}
-              valueStyle={{ color: '#722ed1' }}
-            />
+          <Col span={4}>
+            <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+              <Statistic
+                title="Avg Packet Size"
+                value={this.formatBytes(statistics.avgPacketSize)}
+                valueStyle={{ fontSize: 16, fontWeight: 'bold', color: '#722ed1' }}
+              />
+            </Card>
           </Col>
-          <Col span={4} style={{ textAlign: 'center' }}>
-            <Statistic
-              title="Duration"
-              value={this.formatDuration(statistics.duration)}
-              valueStyle={{ color: '#fa8c16' }}
-            />
+          <Col span={4}>
+            <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+              <Statistic
+                title="Duration"
+                value={this.formatDuration(statistics.duration)}
+                valueStyle={{ fontSize: 16, fontWeight: 'bold', color: '#fa8c16' }}
+              />
+            </Card>
           </Col>
-          <Col span={4} style={{ textAlign: 'center' }}>
-            <Statistic
-              title="Throughput"
-              value={this.formatBitsPerSecond(statistics.bitsPerSecond)}
-              valueStyle={{ color: '#eb2f96' }}
-            />
+          <Col span={4}>
+            <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+              <Statistic
+                title="Throughput"
+                value={this.formatBitsPerSecond(statistics.bitsPerSecond)}
+                valueStyle={{ fontSize: 16, fontWeight: 'bold', color: '#eb2f96' }}
+              />
+            </Card>
           </Col>
-          <Col span={4} style={{ textAlign: 'center' }}>
-            <Statistic
-              title="Packet Rate"
-              value={this.formatPacketsPerSecond(statistics.packetsPerSecond)}
-              suffix="pps"
-              valueStyle={{ color: '#13c2c2' }}
-            />
+          <Col span={4}>
+            <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+              <Statistic
+                title="Packet Rate"
+                value={this.formatPacketsPerSecond(statistics.packetsPerSecond)}
+                suffix="pps"
+                valueStyle={{ fontSize: 16, fontWeight: 'bold', color: '#13c2c2' }}
+              />
+            </Card>
           </Col>
         </Row>
       </Card>
@@ -2456,14 +2383,7 @@ class DPIPage extends Component {
           </div>
         );
       }
-      return (
-        <Alert
-          message="No Data"
-          description="Select protocols from the table to view their traffic"
-          type="info"
-          showIcon
-        />
-      );
+      return null;
     }
     
     // Get the unit for Y-axis label
@@ -2867,14 +2787,10 @@ class DPIPage extends Component {
           {(selectedPcap || selectedInterface || hierarchyData.length > 0 || trafficData.length > 0) && (
             <>
               <Divider orientation="left">
-                <h2 style={{ fontSize: '20px' }}>Traffic Statistics</h2>
+                <h2 style={{ fontSize: '20px' }}>Traffic Analysis</h2>
               </Divider>
               
               {this.renderStatisticsSummary()}
-              
-              <Divider orientation="left">
-                <h2 style={{ fontSize: '20px' }}>Protocol Analysis</h2>
-              </Divider>
               
               <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>

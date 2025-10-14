@@ -17,13 +17,24 @@ export default function FeatureDescriptions({ data = [], modelId, app, title = '
   // If modelId/app is provided, a more advanced selection could be used; for now, infer from data.
   const featuresDescriptions = React.useMemo(() => inferDescriptionsFromData(data), [data]);
   const allFeatures = React.useMemo(() => {
-    return Object.keys(featuresDescriptions).map((feature, index) => ({
-      key: index + 1,
-      name: feature,
-      description: featuresDescriptions[feature].description,
-      type: featuresDescriptions[feature].type,
-    }));
-  }, [featuresDescriptions]);
+    // Get actual features present in the data
+    if (!Array.isArray(data) || data.length === 0) return [];
+    const actualFeatureNames = Object.keys(data[0] || {}).filter(k => k !== 'key');
+    
+    // Map features to their descriptions, only including those actually present in data
+    return actualFeatureNames.map((feature, index) => {
+      const featureInfo = featuresDescriptions[feature] || {
+        description: 'No description available',
+        type: 'unknown',
+      };
+      return {
+        key: index + 1,
+        name: feature,
+        description: featureInfo.description,
+        type: featureInfo.type,
+      };
+    });
+  }, [featuresDescriptions, data]);
 
   // Enhanced columns with improved styling (matching EarlyPredictionPage format)
   const enhancedColumns = [

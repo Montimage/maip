@@ -20,8 +20,8 @@ import {
 } from "../api";
 import Papa from "papaparse";
 import { Column } from '@ant-design/plots';
-import { Spin, message, Col, Row, Divider, Slider, Form, Button, Checkbox, Select, Tooltip, Card, Statistic } from 'antd';
-import { QuestionOutlined, WarningOutlined, ExperimentOutlined, PercentageOutlined } from "@ant-design/icons";
+import { Spin, message, Col, Row, Divider, Slider, Form, Button, Checkbox, Select, Tooltip, Card, Statistic, Space, Alert } from 'antd';
+import { WarningOutlined, ExperimentOutlined, PercentageOutlined, PlayCircleOutlined } from "@ant-design/icons";
 import {
   FORM_LAYOUT, BOX_STYLE,
   ATTACK_OPTIONS, ATTACKS_SLIDER_MARKS, 
@@ -233,154 +233,203 @@ class AttacksPage extends Component {
     return (
       <LayoutPage pageTitle="Adversarial Attacks" pageSubTitle={subTitle}>
         
-        {/* Attack Summary Banner */}
-        {csvDataPoisoned && csvDataPoisoned.length > 0 && (
-          <Card size="small" style={{ marginBottom: 16, backgroundColor: '#fff2f0' }}>
-            <div style={{ textAlign: 'center', marginBottom: 8 }}>
-              <strong style={{ fontSize: 14 }}>Attack Summary</strong>
+        <Divider orientation="left">
+          <h2 style={{ fontSize: '20px' }}>Configuration</h2>
+        </Divider>
+        
+        {/* Attack Configuration Card */}
+        <Card
+          bordered={false}
+          style={{ marginBottom: 24 }}
+        >
+          <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 700 }}>
+            <Form.Item 
+              name="model" 
+              label={<strong>Model</strong>}
+              style={{ marginBottom: 16 }}
+              rules={[
+                {
+                  required: true,
+                  message: 'Please select a model!',
+                },
+              ]}
+            > 
+              <Tooltip title="Select a model to perform attacks.">
+                <Select
+                  placeholder="Select a model ..."
+                  style={{ width: '100%' }}
+                  allowClear 
+                  showSearch
+                  value={this.state.modelId}
+                  disabled={isModelIdPresent}
+                  onClear={() => this.setState({ csvDataOriginal: [], csvDataPoisoned: [] })}
+                  onChange={(value) => {
+                    this.setState({ modelId: value });
+                    console.log(`Select model ${value}`);
+                  }}
+                  options={modelsOptions}
+                />
+              </Tooltip>
+            </Form.Item>
+            
+            <Form.Item 
+              name="slider" 
+              label={<strong>Poisoning Rate</strong>}
+              style={{ marginBottom: 16 }}
+            >
+              <Slider
+                marks={ATTACKS_SLIDER_MARKS}
+                min={0} 
+                max={100} 
+                defaultValue={poisoningRate}
+                value={poisoningRate}
+                onChange={value => this.setState({ poisoningRate: value })}
+              />
+            </Form.Item>
+
+            <Form.Item 
+              name="attack" 
+              label={<strong>Attack Type</strong>}
+              style={{ marginBottom: 16 }}
+              rules={[
+                {
+                  required: true,
+                  message: 'Please select an attack!',
+                },
+              ]}
+            >
+              <Tooltip title="Select an adversarial attack to be performed against the model.">
+                <Select
+                  style={{ width: '100%' }}
+                  allowClear
+                  placeholder="Select an attack ..."
+                  onChange={this.handleChangeSelectedAttack}
+                  onClear={() => this.setState({ csvDataPoisoned: [] })}
+                  optionLabelProp="label"
+                  options={ATTACK_OPTIONS}
+                />
+              </Tooltip>
+            </Form.Item>
+            
+            <Form.Item 
+              name="checkbox" 
+              label={<strong>Target Class</strong>}
+              valuePropName="checked"
+              style={{ marginBottom: 24 }}
+            >
+              <Checkbox.Group 
+                options={targetOptions}
+                value={this.state.checkboxValues}
+                disabled={this.state.selectedAttack !== 'tlf'}
+                onChange={this.handleTargetClass}
+              />
+            </Form.Item>
+            
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}>
+              <Button 
+                type="primary"
+                icon={<PlayCircleOutlined />}
+                loading={isRunning}
+                onClick={() => {
+                  console.log({ modelId, selectedAttack, poisoningRate, targetClass });
+                  this.handlePerformAttackClick(modelId, selectedAttack, poisoningRate, targetClass);
+                }}
+                disabled={ isRunning || !this.state.modelId || !this.state.selectedAttack || 
+                  (this.state.selectedAttack === 'tlf' && this.state.targetClass === null) }
+              >
+                Perform Attack
+              </Button>
             </div>
-            <Row gutter={12}>
-              <Col flex={1}>
-                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+          </Form>
+        </Card>
+
+        {/* Results Section */}
+        <Divider orientation="left">
+          <h2 style={{ fontSize: '20px' }}>Results</h2>
+        </Divider>
+        {csvDataPoisoned && csvDataPoisoned.length > 0 && (
+          <>
+            {/* Attack Summary Statistics */}
+            <Card 
+            bordered={false} 
+            style={{ marginBottom: 24 }}
+          >
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <strong style={{ fontSize: 16 }}>Attack Summary</strong>
+            </div>
+            <Row gutter={16}>
+              <Col xs={24} sm={24} md={8}>
+                <Card hoverable style={{ textAlign: 'center' }}>
                   <Statistic
                     title="Attack Type"
                     value={ATTACK_OPTIONS.find(a => a.value === selectedAttack)?.label || selectedAttack}
-                    prefix={<WarningOutlined />}
-                    valueStyle={{ fontSize: 14 }}
+                    prefix={<WarningOutlined style={{ color: '#ff4d4f' }} />}
+                    valueStyle={{ fontSize: 16, fontWeight: 'bold' }}
                   />
                 </Card>
               </Col>
-              <Col flex={1}>
-                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+              <Col xs={24} sm={24} md={8}>
+                <Card hoverable style={{ textAlign: 'center' }}>
                   <Statistic
                     title="Poisoning Rate"
                     value={poisoningRate.toFixed(1)}
                     prefix={<PercentageOutlined />}
-                    valueStyle={{ fontSize: 16, color: poisoningRate > 30 ? '#ff4d4f' : '#faad14' }}
+                    valueStyle={{ 
+                      fontSize: 16, 
+                      fontWeight: 'bold',
+                      color: poisoningRate > 50 ? '#ff4d4f' : poisoningRate > 30 ? '#faad14' : '#52c41a' 
+                    }}
                   />
                 </Card>
               </Col>
-              <Col flex={1}>
-                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+              <Col xs={24} sm={24} md={8}>
+                <Card hoverable style={{ textAlign: 'center' }}>
                   <Statistic
                     title="Poisoned Samples"
                     value={Math.round(csvDataOriginal.length * (poisoningRate / 100))}
-                    prefix={<ExperimentOutlined />}
-                    valueStyle={{ fontSize: 16 }}
+                    suffix={`/ ${csvDataOriginal.length}`}
+                    prefix={<ExperimentOutlined style={{ color: '#1890ff' }} />}
+                    valueStyle={{ fontSize: 16, fontWeight: 'bold' }}
                   />
                 </Card>
               </Col>
             </Row>
           </Card>
-        )}
 
-        <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 700 }}>
-          <Form.Item name="model" label="Model" 
-            style={{ flex: 'none', marginBottom: 10 }}
-            rules={[
-              {
-                required: true,
-                message: 'Please select a model!',
-              },
-            ]}
-          > 
-            <Tooltip title="Select a model to perform attacks.">
-              <Select
-                placeholder="Select a model ..."
-                style={{ width: '100%' }}
-                allowClear showSearch
-                value={this.state.modelId}
-                disabled={isModelIdPresent}
-                onClear={() => this.setState({ csvDataOriginal: [], csvDataPoisoned: [] })}
-                onChange={(value) => {
-                  this.setState({ modelId: value });
-                  console.log(`Select model ${value}`);
-                }}
-                options={modelsOptions}
-              />
-            </Tooltip>
-          </Form.Item>
-          <Form.Item name="slider" label="Poisoning percentage"
-            style={{ marginBottom: 0 }}
+          {/* Dataset Comparison */}
+          <Card
+            bordered={false}
+            style={{ marginBottom: 24 }}
           >
-            <Slider
-              marks={ATTACKS_SLIDER_MARKS}
-              min={0} max={100} defaultValue={poisoningRate}
-              value={poisoningRate}
-              onChange={value => this.setState({ poisoningRate: value })}
-            />
-          </Form.Item>
-
-          <Form.Item name="attack" label="Adversarial attack" 
-            style={{ flex: 'none', marginBottom: 10 }}
-            rules={[
-              {
-                required: true,
-                message: 'Please select an attack!',
-              },
-            ]}
-          >
-            <Tooltip title="Select an adversarial attack to be performed against the model.">
-              <Select
-                style={{
-                  width: '100%',
-                }}
-                allowClear
-                placeholder="Select an attack ..."
-                onChange={this.handleChangeSelectedAttack}
-                onClear={() => this.setState({ csvDataPoisoned: [] })}
-                optionLabelProp="label"
-                options={ATTACK_OPTIONS}
-              />
-            </Tooltip>
-          </Form.Item>
-          <Form.Item name="checkbox" label="Target class" 
-            valuePropName="checked"
-            style={{ flex: 'none', marginBottom: 10 }}
-          >
-            <Checkbox.Group 
-              options={targetOptions}
-              value={this.state.checkboxValues}
-              disabled={this.state.selectedAttack !== 'tlf'}
-              onChange={this.handleTargetClass}
-            />
-          </Form.Item>
-          <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <Button type="primary"
-              onClick={() => {
-                console.log({ modelId, selectedAttack, poisoningRate, targetClass });
-                this.handlePerformAttackClick(modelId, selectedAttack, poisoningRate, targetClass);
-              }}
-              disabled={ isRunning || !this.state.modelId || !this.state.selectedAttack || 
-                (this.state.selectedAttack === 'tlf' && this.state.targetClass === null) }
-              >
-                Perform Attack
-                {isRunning && (
-                  <Spin size="small" style={{ marginLeft: 8 }} />
-                )}
-            </Button>
-          </div>
-        </Form>
-
-        {csvDataOriginal.length > 0 && csvDataPoisoned.length > 0 &&
-          <>
-            <Divider orientation="left">
-              <h1 style={{ fontSize: '24px' }}>Compare Original and Poisoned Training Datasets</h1>
-            </Divider>
+            <div style={{ color: '#666', marginBottom: 16, fontSize: '14px' }}>
+              The plot displays the frequency of output labels before and after an attack, represented as percentages. It provides a visual comparison of the distribution of labels in the original and poisoned training datasets.
+            </div>
             <Row gutter={24}>
-              <Col className="gutter-row" span={12}>
-                <div style={BOX_STYLE}>          
-                  <div style={{ position: 'absolute', top: 10, right: 10 }}>
-                    <Tooltip title="The plot displays the frequency of output labels before and after an attack, represented as percentages. It provides a visual comparison of the distribution of labels in the original and poisoned training datasets.">
-                      <Button type="link" icon={<QuestionOutlined />} />
-                    </Tooltip>
-                  </div>
-                  <Column {...configLabelsColumn} style={{ margin: '20px' }}/>
+              <Col xs={24} lg={16}>
+                <div style={{ padding: '20px' }}>
+                  <Column {...configLabelsColumn} />
                 </div>
               </Col>
+              <Col xs={24} lg={8}>
+                <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                  <Alert
+                    message="Dataset Statistics"
+                    description={
+                      <div>
+                        <p><strong>Original Dataset:</strong> {csvDataOriginal.length} samples</p>
+                        <p><strong>Poisoned Dataset:</strong> {csvDataPoisoned.length} samples</p>
+                        <p><strong>Modified Samples:</strong> {Math.round(csvDataOriginal.length * (poisoningRate / 100))} samples</p>
+                      </div>
+                    }
+                    type="info"
+                    showIcon
+                  />
+                </Space>
+              </Col>
             </Row>
+          </Card>
           </>
-        }
+        )}
       </LayoutPage>
     );
   }

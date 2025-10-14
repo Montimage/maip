@@ -479,6 +479,10 @@ class FeatureExtractionPage extends Component {
           </Row>
         </Card>
         
+        <Divider orientation="left">
+          <h2 style={{ fontSize: '20px' }}>Extracted Features</h2>
+        </Divider>
+
         {featuresData && featuresData.length > 0 && (
           <Card style={{ marginBottom: 16 }}>
             <div style={{ textAlign: 'center', marginBottom: 12 }}>
@@ -486,45 +490,44 @@ class FeatureExtractionPage extends Component {
             </div>
             <Row gutter={16}>
               <Col span={8}>
-                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
                   <Statistic
                     title="PCAP File"
                     value={uploadedPcapName || 'N/A'}
-                    prefix={<FileTextOutlined />}
-                    valueStyle={{ fontSize: 14 }}
+                    prefix={<FileTextOutlined style={{ color: '#722ed1' }} />}
+                    valueStyle={{ fontSize: 16, fontWeight: 'bold', color: '#722ed1' }}
                   />
                 </Card>
               </Col>
               <Col span={8}>
-                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
                   <Statistic
                     title="Extracted Flows"
                     value={featuresData.length}
-                    prefix={<DatabaseOutlined />}
-                    valueStyle={{ fontSize: 16 }}
+                    prefix={<DatabaseOutlined style={{ color: '#1890ff' }} />}
+                    valueStyle={{ fontSize: 16, fontWeight: 'bold', color: '#1890ff' }}
                   />
                 </Card>
               </Col>
               <Col span={8}>
-                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
                   <Statistic
                     title="Features"
                     value={actualFeatureCount}
-                    prefix={<CheckCircleOutlined />}
-                    valueStyle={{ fontSize: 16 }}
+                    prefix={<CheckCircleOutlined style={{ color: '#52c41a' }} />}
+                    valueStyle={{ fontSize: 16, fontWeight: 'bold', color: '#52c41a' }}
                   />
                 </Card>
               </Col>
             </Row>
           </Card>
         )}
-
-        <Divider orientation="left">
-          <h2 style={{ fontSize: '20px' }}>Extracted Features</h2>
-        </Divider>
         
         <Card style={{ marginBottom: 16 }}>
-          <h3 style={{ fontSize: '16px', marginBottom: 16, fontWeight: 600 }}>Features Table</h3>
+          <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Features Table</h3>
+          <div style={{ marginBottom: 12, fontSize: '13px', color: '#8c8c8c' }}>
+            Tabular view of all extracted features for each network flow
+          </div>
           <div style={{ marginBottom: 12 }}>
             <Space size={8}>
               <Tooltip title="Download extracted features CSV">
@@ -553,7 +556,10 @@ class FeatureExtractionPage extends Component {
         {featuresData && featuresData.length > 0 && (
           <>
             <Card style={{ marginBottom: 16 }}>
-              <h3 style={{ fontSize: '16px', marginBottom: 16, fontWeight: 600 }}>Feature Descriptions</h3>
+              <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Feature Descriptions</h3>
+              <div style={{ marginBottom: 12, fontSize: '13px', color: '#8c8c8c' }}>
+                Detailed metadata and explanations for each extracted feature
+              </div>
               <FeatureDescriptions data={featuresData} showTitle={false} />
             </Card>
             
