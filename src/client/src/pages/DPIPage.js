@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
-import { Button, Card, Select, Alert, Spin, Row, Col, Divider, Tree, Space, Tag, Table, Statistic, notification, message } from 'antd';
-import { PlayCircleOutlined, StopOutlined, DownOutlined, FolderOpenOutlined, LockOutlined } from '@ant-design/icons';
+import { Button, Card, Select, Alert, Spin, Row, Col, Divider, Tree, Space, Tag, Table, Statistic, notification, message, Upload } from 'antd';
+import { PlayCircleOutlined, StopOutlined, DownOutlined, FolderOpenOutlined, LockOutlined, UploadOutlined } from '@ant-design/icons';
 import { Line, Pie, Column, Area, Histogram } from '@ant-design/plots';
 import { SERVER_URL } from '../constants';
 import { useUserRole } from '../hooks/useUserRole';
@@ -46,6 +46,9 @@ class DPIPage extends Component {
       
       // Track if loaded from Feature Extraction
       loadedFromFeatureExtraction: false,
+      
+      // Track uploaded PCAP
+      uploadedPcapName: null,
     };
     
     this.reloadInterval = null;
@@ -194,11 +197,52 @@ class DPIPage extends Component {
         const data = await response.json();
         this.setState({ 
           pcapFiles: data.pcaps || [],
-          selectedPcap: data.pcaps && data.pcaps.length > 0 ? data.pcaps[0] : null
+          selectedPcap: this.state.uploadedPcapName || (data.pcaps && data.pcaps.length > 0 ? data.pcaps[0] : null)
         });
       }
     } catch (error) {
       console.error('Error loading PCAP files:', error);
+    }
+  };
+
+  beforeUploadPcap = (file) => {
+    const ok = file.name.endsWith('.pcap') || file.name.endsWith('.pcapng') || file.name.endsWith('.cap');
+    if (!ok) message.error(`${file.name} is not a pcap file`);
+    return ok ? true : Upload.LIST_IGNORE;
+  };
+
+  processUploadPcap = async ({ file, onSuccess, onError }) => {
+    try {
+      const formData = new FormData();
+      formData.append('pcapFile', file);
+      const res = await fetch(`${SERVER_URL}/api/pcaps`, { method: 'POST', body: formData });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      onSuccess(data, res);
+    } catch (e) {
+      onError(e);
+    }
+  };
+
+  handleUploadChange = (info) => {
+    const { status, response, name } = info.file;
+    if (status === 'uploading') {
+      // no-op
+    } else if (status === 'done') {
+      const uploaded = (response && response.pcapFile) || (info.file.response && info.file.response.pcapFile) || null;
+      this.setState({ 
+        uploadedPcapName: uploaded,
+        selectedPcap: uploaded,
+      });
+      notification.success({
+        message: 'PCAP Uploaded',
+        description: `File "${uploaded}" uploaded successfully and ready for DPI analysis.`,
+        placement: 'topRight',
+      });
+      // Reload the PCAP list to include the newly uploaded file
+      this.loadPcapFiles();
+    } else if (status === 'error') {
+      message.error('Upload failed');
     }
   };
 
@@ -2583,6 +2627,7 @@ class DPIPage extends Component {
       metricType,
       loadedFromFeatureExtraction,
       isOwner,
+      uploadedPcapName,
     } = this.state;
 
     return (
@@ -2652,7 +2697,30 @@ class DPIPage extends Component {
               </Col>
               <Col flex="none">
                 {mode === 'offline' ? (
-                  loadedFromFeatureExtraction && selectedPcap ? (
+                  uploadedPcapName ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Tag color="green" style={{ margin: 0, padding: '4px 12px', fontSize: '14px' }}>
+                        {uploadedPcapName}
+                      </Tag>
+                      <Button 
+                        size="small" 
+                        disabled={isRunning}
+                        onClick={() => {
+                          this.setState({
+                            uploadedPcapName: null,
+                            selectedPcap: pcapFiles.length > 0 ? pcapFiles[0] : null,
+                          });
+                          notification.info({
+                            message: 'Upload Cleared',
+                            description: 'Switched back to PCAP file selection mode.',
+                            placement: 'topRight',
+                          });
+                        }}
+                      >
+                        Clear Upload
+                      </Button>
+                    </div>
+                  ) : loadedFromFeatureExtraction && selectedPcap ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <Tag color="green" style={{ margin: 0, padding: '4px 12px', fontSize: '14px' }}>
                         {selectedPcap}
@@ -2671,30 +2739,43 @@ class DPIPage extends Component {
                           lastUpdate: null,
                         })}
                       >
-                        Clear
+                        Clear Selection
                       </Button>
                     </div>
                   ) : (
-                    <Select
-                      value={selectedPcap}
-                      onChange={(value) => this.setState({ 
-                        selectedPcap: value,
-                        hierarchyData: value ? this.state.hierarchyData : [],
-                        trafficData: value ? this.state.trafficData : [],
-                        statistics: value ? this.state.statistics : null,
-                        conversations: value ? this.state.conversations : [],
-                        packetSizes: value ? this.state.packetSizes : [],
-                        lastUpdate: value ? this.state.lastUpdate : null
-                      })}
-                      style={{ width: 280 }}
-                      disabled={isRunning}
-                      allowClear
-                      placeholder="Select a PCAP file..."
-                    >
-                      {pcapFiles.map(file => (
-                        <Option key={file} value={file}>{file}</Option>
-                      ))}
-                    </Select>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Select
+                        value={selectedPcap}
+                        onChange={(value) => this.setState({ 
+                          selectedPcap: value,
+                          hierarchyData: value ? this.state.hierarchyData : [],
+                          trafficData: value ? this.state.trafficData : [],
+                          statistics: value ? this.state.statistics : null,
+                          conversations: value ? this.state.conversations : [],
+                          packetSizes: value ? this.state.packetSizes : [],
+                        })}
+                        style={{ width: 250 }}
+                        disabled={isRunning}
+                        placeholder="Select a PCAP file..."
+                      >
+                        {pcapFiles.map(file => (
+                          <Option key={file} value={file}>{file}</Option>
+                        ))}
+                      </Select>
+                      <Upload
+                        beforeUpload={this.beforeUploadPcap}
+                        action={`${SERVER_URL}/api/pcaps`}
+                        onChange={this.handleUploadChange}
+                        customRequest={this.processUploadPcap}
+                        maxCount={1}
+                        disabled={isRunning}
+                        showUploadList={false}
+                      >
+                        <Button icon={<UploadOutlined />} disabled={isRunning}>
+                          Upload PCAP
+                        </Button>
+                      </Upload>
+                    </div>
                   )
                 ) : (
                   <Select
