@@ -24,7 +24,6 @@ import PredictRuleBasedPage from "./pages/PredictRuleBasedPage";
 import PredictPage from "./pages/PredictPage";
 import XAILimePage from "./pages/XAILimePage";
 import XAIShapPage from "./pages/XAIShapPage";
-import MetricsPage from "./pages/MetricsPage";
 import AccountabilityMetricsPage from "./pages/AccountabilityMetricsPage";
 import ResilienceMetricsPage from "./pages/ResilienceMetricsPage";
 import AboutPage from "./pages/AboutPage";
@@ -96,10 +95,6 @@ function App() {
             />
             
             {/* Metrics routes - protected */}
-            <Route 
-              path="/metrics/:modelId" 
-              element={<ProtectedRoute><MetricsPage /></ProtectedRoute>} 
-            />
             <Route 
               path="/metrics/accountability" 
               element={<ProtectedRoute><AccountabilityMetricsPage /></ProtectedRoute>} 

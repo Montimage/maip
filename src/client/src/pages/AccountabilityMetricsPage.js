@@ -1,9 +1,8 @@
 import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
-import { Select, Menu, Form, Slider, Table, Col, Row, Button, Tooltip } from 'antd';
-import { QuestionOutlined } from "@ant-design/icons";
-import { Line, Heatmap, Column } from '@ant-design/plots';
+import { Select, Slider, Table, Col, Row, Card, Divider, Statistic, Alert, Spin } from 'antd';
+import { Heatmap, Column } from '@ant-design/plots';
 import {
   requestApp,
   requestAllModels,
@@ -11,8 +10,7 @@ import {
   requestMetricCurrentness,
 } from "../actions";
 import {
-  BOX_STYLE,
-  ACC_METRICS_MENU_ITEMS, COLUMNS_CURRENTNESS_METRICS,
+  COLUMNS_CURRENTNESS_METRICS,
 } from "../constants";
 import {
   getFilteredModelsOptions,
@@ -50,6 +48,8 @@ class AccountabilityMetricsPage extends Component {
       cutoffProb: 0.5,
       cutoffPercentile: 0.5,
       dataPrecision: null,
+      loading: false,
+      error: null,
     }
   }
 
@@ -75,15 +75,24 @@ class AccountabilityMetricsPage extends Component {
         cutoffProb: 0.5,
         cutoffPercentile: 0.5,
         dataPrecision: null,
+        loading: false,
+        error: null,
       });
     }
     if (modelId !== prevState.modelId) {
       if (modelId) {
-        this.props.fetchModel(modelId);
-        this.loadPredictions(modelId);
-        this.props.fetchMetricCurrentness(modelId);
-        const buildConfig = await requestBuildConfigModel(modelId);
-        console.log(buildConfig);
+        this.setState({ loading: true, error: null });
+        try {
+          this.props.fetchModel(modelId);
+          await this.loadPredictions(modelId);
+          this.props.fetchMetricCurrentness(modelId);
+          const buildConfig = await requestBuildConfigModel(modelId);
+          console.log(buildConfig);
+          this.setState({ loading: false });
+        } catch (error) {
+          console.error('Error loading model data:', error);
+          this.setState({ loading: false, error: 'Failed to load model data' });
+        }
       } else {
         // reset states once modelId is cleared
         this.setState({
@@ -95,6 +104,8 @@ class AccountabilityMetricsPage extends Component {
           cutoffProb: 0.5,
           cutoffPercentile: 0.5,
           dataPrecision: null,
+          loading: false,
+          error: null,
         });
       }
     }
@@ -147,20 +158,18 @@ class AccountabilityMetricsPage extends Component {
     this.handleCutoffProbChange(cutoffProb);
   }
 
-  render() {
-    const { app, models, metrics } = this.props;
-
+  renderMetricsCards() {
+    const { app, metrics } = this.props;
     const {
       modelId,
-      cutoffProb,
-      cutoffPercentile,
       confusionMatrix,
       stats,
       classificationData,
       dataPrecision,
+      loading,
+      error
     } = this.state;
 
-    const modelsOptions = getFilteredModelsOptions(app, models);
     const columnsPerfStats = getColumnsPerfStats(app);
     const dataStats = getTablePerformanceStats(modelId, stats, confusionMatrix);
     const configCM = getConfigConfusionMatrix(modelId, confusionMatrix);
@@ -173,158 +182,213 @@ class AccountabilityMetricsPage extends Component {
       return { method: method, score: parseFloat(score).toFixed(2) };
     });
 
-    const subTitle = isModelIdPresent ?
-      `Accountability metrics of the model ${modelId}` :
-      'Accountability metrics of models';
+    if (error) {
+      return (
+        <Alert
+          message="Error Loading Data"
+          description={error}
+          type="error"
+          showIcon
+          style={{ marginBottom: 24 }}
+        />
+      );
+    }
 
     return (
-      <LayoutPage pageTitle="Accountability Metrics" pageSubTitle={subTitle}>
-        <Menu mode="horizontal" style={{ backgroundColor: 'transparent', fontSize: '18px' }}>
-          {ACC_METRICS_MENU_ITEMS.map(item => (
-            <Menu.Item key={item.key}>
-              <a href={item.link}>{item.label}</a>
-            </Menu.Item>
-          ))}
-        </Menu>
-        <Row type="flex" justify="center">
-          <Col>
-            <Form name="control-hooks" style={{ maxWidth: 700 }}>
-              <Form.Item name="model" label="Model"
-                style={{ flex: 'none', marginTop: 20, marginBottom: 10 }}
-                rules={[
-                  {
-                    required: true,
-                    message: 'Please select a model!',
-                  },
-                ]}
-              >
-                <Tooltip title="Select a model to perform attacks.">
-                  <Select
-                    placeholder="Select a model ..."
-                    style={{ width: '350px' }}
-                    allowClear showSearch
-                    value={this.state.modelId}
-                    disabled={isModelIdPresent}
-                    onChange={(value) => {
-                      this.setState({ modelId: value });
-                      console.log(`Select model ${value}`);
-                    }}
-                    options={modelsOptions}
-                  />
-                </Tooltip>
-              </Form.Item>
-            </Form>
+      <Spin spinning={loading} tip="Loading model data...">
+        <Row gutter={[24, 24]}>
+          <Col span={12}>
+            <Card style={{ marginBottom: 16, height: '100%' }}>
+              <div style={{ marginBottom: 16 }}>
+                <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Model Performance</h3>
+                <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+                  Performance metrics per class for the selected model
+                </span>
+              </div>
+              {modelId && dataStats && dataStats.length > 0 && (
+                <Table 
+                  columns={columnsPerfStats} 
+                  dataSource={dataStats} 
+                  pagination={false}
+                  size="small"
+                />
+              )}
+            </Card>
           </Col>
-        </Row>
 
-        <div style={{ padding: '0 0', marginTop: '20px' }}>
-          <div style={{ top: 1 }}>
-            <Tooltip title={"Cutoff prediction probability is a fixed probability value above which the model will classify a sample as positive. For example, if the cutoff prediction probability is set to 0.5, the model will classify any sample with a predicted probability of belonging to the positive class greater than 0.5 as positive. Cutoff percentile is defined as the point on the predicted probability distribution above which the model will classify a sample as positive. For example, if the cutoff percentile is set to 90%, the model will classify any sample with a predicted probability of belonging to the positive class greater than the 90th percentile as positive."}>
-              <Button type="link" icon={<QuestionOutlined />} />
-            </Tooltip>
-          </div>
-          <Form.Item name="slider" label="Cutoff prediction probability" style={{ marginLeft: '50px', marginRight: '50px', marginBottom: '10px' }}>
-            <div style={{ width: '100%', display: 'inline-block', alignItems: 'center' }}>
-              <Slider
-                marks={{
-                  0.01: '0.01',
-                  0.25: '0.25',
-                  0.50: '0.50',
-                  0.75: '0.75',
-                  0.99: '0.99',
-                }}
-                min={0.01}
-                max={0.99}
-                step={0.01}
-                value={cutoffProb}
-                defaultValue={cutoffProb}
-                onChange={(value) => this.handleCutoffProbChange(value)}
-              />
-            </div>
-          </Form.Item>
-          <Form.Item name="slider" label="Cutoff percentile of samples" style={{ marginLeft: '50px', marginRight: '50px', marginBottom: '10px' }}>
-            <div style={{ width: '100%', display: 'inline-block', alignItems: 'center' }}>
-              <Slider
-                marks={{
-                  0.01: '0.01',
-                  0.25: '0.25',
-                  0.50: '0.50',
-                  0.75: '0.75',
-                  0.99: '0.99',
-                }}
-                min={0.01}
-                max={0.99}
-                step={0.01}
-                value={cutoffPercentile}
-                defaultValue={cutoffPercentile}
-                onChange={(value) => this.handleCutoffPercentileChange(value)}
-              />
-            </div>
-          </Form.Item>
-        </div>
-        <Row gutter={24}>
-          <Col className="gutter-row" span={12} id="performance">
-            <div style={{ ...BOX_STYLE, marginTop: '100px' }}>
-              <h2>&nbsp;&nbsp;&nbsp;Model Performance</h2>
-              <div style={{ position: 'absolute', top: 110, right: 10 }}>
-                <Tooltip title={`Shows a list of various model performance metrics for each class.`}>
-                  <Button type="link" icon={<QuestionOutlined />} />
-                </Tooltip>
+          <Col span={12}>
+            <Card style={{ marginBottom: 16, height: '100%' }}>
+              <div style={{ marginBottom: 16 }}>
+                <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Confusion Matrix</h3>
+                <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+                  True/False Positives/Negatives for the current threshold
+                </span>
               </div>
-              {dataStats && <Table columns={columnsPerfStats} dataSource={dataStats} pagination={false}
-                style={{ marginTop: '20px' }} />}
-            </div>
-          </Col>
-          <Col className="gutter-row" span={12} id="confusion_matrix">
-            <div style={{ ...BOX_STYLE, marginTop: '100px' }}>
-              <h2>&nbsp;&nbsp;&nbsp;Confusion Matrix</h2>
-              <div style={{ position: 'absolute', top: 110, right: 10 }}>
-                <Tooltip title="The confusion matrix shows the number of True Negatives (predicted negative, observed negative), True Positives (predicted positive, observed positive), False Negatives (predicted negative, but observed positive) and False Positives (predicted positive, but observed negative). For different cutoff values, you will get a different number of False Positives and False Negatives. This plot allows you to find the optimal cutoff.">
-                  <Button type="link" icon={<QuestionOutlined />} />
-                </Tooltip>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'center', width: '100%', flex: 1, flexWrap: 'wrap', marginTop: '20px' }}>
-                <div className={cmStyle}>
-                  <Heatmap {...configCM} />
+              {modelId && configCM && configCM.data && (
+                <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+                  <div className={cmStyle}>
+                    <Heatmap {...configCM} />
+                  </div>
                 </div>
-              </div>
-            </div>
+              )}
+            </Card>
           </Col>
-          <Col className="gutter-row" span={12} style={{ marginTop: "24px" }} id="classification_plot">
-            <div style={{ ...BOX_STYLE, marginTop: '100px' }}>
-              <h2>&nbsp;&nbsp;&nbsp;Classification Plot</h2>
-              <div style={{ position: 'absolute', top: 110, right: 10 }}>
-                <Tooltip title="This plot shows the fraction of each class above and below the cutoff.">
-                  <Button type="link" icon={<QuestionOutlined />} />
-                </Tooltip>
+
+          <Col span={12}>
+            <Card style={{ marginBottom: 16, height: '100%' }}>
+              <div style={{ marginBottom: 16 }}>
+                <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Classification Distribution</h3>
+                <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+                  Fraction of each class above and below the current cutoff
+                </span>
               </div>
-              <Column {...configClassification} style={{ margin: '20px', marginTop: '40px' }}/>
-            </div>
+              {modelId && configClassification && configClassification.data && configClassification.data.length > 0 && (
+                <div style={{ height: 300 }}>
+                  <Column {...configClassification} />
+                </div>
+              )}
+            </Card>
           </Col>
-          {/* <Col className="gutter-row" span={12} style={{ marginTop: "24px" }} id="precision_plot">
-            <div style={{ ...BOX_STYLE, marginTop: '100px' }}>
-              <h2>&nbsp;&nbsp;&nbsp;Precision Plot</h2>
-              <div style={{ position: 'absolute', top: 110, right: 10 }}>
-                <Tooltip title={"The precision plot shows the precision values binned by equal prediction probabilities. It provides an overview of how precision changes as the prediction probability increases."}>
-                  <Button type="link" icon={<QuestionOutlined />} />
-                </Tooltip>
+
+          <Col span={12}>
+            <Card style={{ marginBottom: 16, height: '100%' }}>
+              <div style={{ marginBottom: 16 }}>
+                <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Currentness Metrics</h3>
+                <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+                  XAI method execution time compared to base model inference
+                </span>
               </div>
-              {configPrecision && <Line {...configPrecision} style={{ margin: '20px', marginTop: '40px' }}/>}
-            </div>
-          </Col> */}
-          <Col className="gutter-row" span={12} style={{ marginTop: "24px" }} id="currentness">
-            <div style={{ ...BOX_STYLE, marginTop: '100px' }}>
-              <h2>&nbsp;&nbsp;&nbsp;Currentness Metric</h2>
-              <div style={{ position: 'absolute', top: 110, right: 10 }}>
-                <Tooltip title="Currentness metric measures the time of executing different XAI methods compared to the time of executing AI models.">
-                  <Button type="link" icon={<QuestionOutlined />} />
-                </Tooltip>
-              </div>
-              <Table columns={COLUMNS_CURRENTNESS_METRICS} dataSource={dataCurrentnessMetric}
-                pagination={false} style={{ marginTop: '20px' }}/>
-            </div>
+              {modelId && dataCurrentnessMetric && dataCurrentnessMetric.length > 0 && (
+                <Table 
+                  columns={COLUMNS_CURRENTNESS_METRICS} 
+                  dataSource={dataCurrentnessMetric}
+                  pagination={false} 
+                  size="small"
+                />
+              )}
+            </Card>
           </Col>
         </Row>
+      </Spin>
+    );
+  }
+
+  render() {
+    const { modelId } = this.state;
+
+    const subTitle = isModelIdPresent ?
+      `Accountability metrics for model ${modelId}` :
+      'Analyze model accountability and performance metrics';
+
+    return (
+      <LayoutPage 
+        pageTitle="Accountability Metrics" 
+        pageSubTitle={subTitle}
+      >
+        <Divider orientation="left">
+          <h2 style={{ fontSize: '20px' }}>Configuration</h2>
+        </Divider>
+
+        <Card style={{ marginBottom: 16 }}>
+          <Row gutter={16} align="middle" justify="center">
+            <Col flex="none">
+              <strong style={{ marginRight: 4 }}>Model:</strong>
+            </Col>
+            <Col>
+              <Select
+                placeholder="Select a model ..."
+                style={{ width: 400 }}
+                allowClear
+                showSearch
+                loading={this.state.loading}
+                value={modelId}
+                disabled={isModelIdPresent}
+                onChange={(value) => {
+                  this.setState({ modelId: value });
+                  console.log(`Select model ${value}`);
+                }}
+                options={getFilteredModelsOptions(this.props.app, this.props.models)}
+              />
+            </Col>
+          </Row>
+
+          <div style={{ marginTop: 24 }}>
+            <Row gutter={24} style={{ marginBottom: 20 }}>
+              <Col span={12}>
+                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#f8f9fa' }}>
+                  <Statistic
+                    title="Probability Threshold"
+                    value={this.state.cutoffProb}
+                    precision={2}
+                    valueStyle={{ color: '#1890ff', fontSize: '20px' }}
+                  />
+                </Card>
+              </Col>
+              <Col span={12}>
+                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#f8f9fa' }}>
+                  <Statistic
+                    title="Percentile Threshold"
+                    value={this.state.cutoffPercentile * 100}
+                    precision={1}
+                    suffix="%"
+                    valueStyle={{ color: '#52c41a', fontSize: '20px' }}
+                  />
+                </Card>
+              </Col>
+            </Row>
+
+            <Row gutter={24} style={{ marginTop: 24 }}>
+              <Col span={12}>
+                <div style={{ marginBottom: 8 }}>
+                  <strong>Prediction Probability Cutoff</strong>
+                </div>
+                <Slider
+                  marks={{
+                    0.01: '0.01',
+                    0.25: '0.25',
+                    0.50: '0.50',
+                    0.75: '0.75',
+                    0.99: '0.99',
+                  }}
+                  min={0.01}
+                  max={0.99}
+                  step={0.01}
+                  value={this.state.cutoffProb}
+                  onChange={(value) => this.handleCutoffProbChange(value)}
+                  tooltip={{ formatter: (value) => `${value.toFixed(2)}` }}
+                  disabled={this.state.loading}
+                />
+              </Col>
+              <Col span={12}>
+                <div style={{ marginBottom: 8 }}>
+                  <strong>Sample Percentile Cutoff</strong>
+                </div>
+                <Slider
+                  marks={{
+                    0.01: '0.01',
+                    0.25: '0.25',
+                    0.50: '0.50',
+                    0.75: '0.75',
+                    0.99: '0.99',
+                  }}
+                  min={0.01}
+                  max={0.99}
+                  step={0.01}
+                  value={this.state.cutoffPercentile}
+                  onChange={(value) => this.handleCutoffPercentileChange(value)}
+                  tooltip={{ formatter: (value) => `${(value * 100).toFixed(1)}%` }}
+                  disabled={this.state.loading}
+                />
+              </Col>
+            </Row>
+          </div>
+        </Card>
+
+        <Divider orientation="left">
+          <h2 style={{ fontSize: '20px' }}>Accountability Metrics</h2>
+        </Divider>
+        
+        {this.renderMetricsCards()}
       </LayoutPage>
     );
   }

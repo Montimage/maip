@@ -578,18 +578,76 @@ export const getConfigClassification = (classificationData) => {
       value: {
         min: 0,
         max: 1,
+        alias: 'Fraction',
+      },
+      cutoffProb: {
+        alias: 'Cutoff Probability',
+      },
+    },
+    xAxis: {
+      title: {
+        text: 'Cutoff Probability',
+        style: {
+          fontSize: 13,
+          fontWeight: 600,
+        },
+      },
+      label: {
+        style: {
+          fontSize: 11,
+        },
+      },
+    },
+    yAxis: {
+      title: {
+        text: 'Fraction of Samples',
+        style: {
+          fontSize: 13,
+          fontWeight: 600,
+        },
+      },
+      label: {
+        formatter: (v) => `${(parseFloat(v) * 100).toFixed(0)}%`,
+        style: {
+          fontSize: 11,
+        },
       },
     },
     label: {
       position: 'middle',
       content: (item) => {
-        return `${(item.value * 100).toFixed(2)}%`;
+        const percentage = (item.value * 100).toFixed(1);
+        return percentage > 5 ? `${percentage}%` : '';
       },
       style: {
         fill: '#fff',
+        fontSize: 11,
+        fontWeight: 600,
+        textAlign: 'center',
       },
     },
-    tooltip: false,
+    tooltip: {
+      shared: true,
+      showTitle: true,
+      formatter: (datum) => {
+        return {
+          name: datum.class,
+          value: `${(datum.value * 100).toFixed(2)}%`,
+        };
+      },
+    },
+    legend: {
+      position: 'top-right',
+      itemName: {
+        style: {
+          fontSize: 12,
+        },
+      },
+    },
+    color: ['#1890ff', '#52c41a', '#faad14', '#f5222d'],
+    columnStyle: {
+      radius: [2, 2, 0, 0],
+    },
     interactions: [
       {
         type: 'element-highlight-by-color',
@@ -598,6 +656,12 @@ export const getConfigClassification = (classificationData) => {
         type: 'element-link',
       },
     ],
+    animation: {
+      appear: {
+        animation: 'scale-in-y',
+        duration: 500,
+      },
+    },
   };
 
   return configClassification;
