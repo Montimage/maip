@@ -27,7 +27,6 @@ let dpiState = {
   cumulativeStatistics: null,
   viewers: 0,
   startedBy: null,
-  ownerToken: null,
 };
 
 /**
@@ -517,8 +516,37 @@ function calculateTrafficStatistics(hierarchy, trafficTimeSeries, isOnlineMode =
     stats.endTime = dpiState.cumulativeStatistics.endTime;
   }
   
-  if (stats.startTime && stats.endTime) {
-    stats.duration = stats.endTime - stats.startTime;
+  // Calculate duration based on mode and available data
+  if (isOnlineMode) {
+    // For online mode, calculate duration only when we have NEW data (endTime present)
+    // This keeps duration stable between batch updates
+    if (stats.endTime && stats.startTime) {
+      // We have new data - calculate duration from packet timestamps
+      stats.duration = stats.endTime - stats.startTime;
+      console.log(`[DPI Stats] Online mode - Updated duration: ${stats.duration.toFixed(2)}s (from packet timestamps)`);
+    } else if (dpiState.cumulativeStatistics) {
+      // No new data - reuse ALL previous timing stats
+      if (dpiState.cumulativeStatistics.duration) {
+        stats.duration = dpiState.cumulativeStatistics.duration;
+      }
+      if (dpiState.cumulativeStatistics.startTime) {
+        stats.startTime = dpiState.cumulativeStatistics.startTime;
+      }
+      if (dpiState.cumulativeStatistics.endTime) {
+        stats.endTime = dpiState.cumulativeStatistics.endTime;
+      }
+      console.log(`[DPI Stats] Online mode - Keeping previous duration: ${stats.duration}s (no new traffic data)`);
+    } else {
+      console.log(`[DPI Stats] Online mode - No timestamps available yet (first request)`);
+    }
+  } else {
+    // For offline mode, use timestamp span from packets
+    if (stats.startTime && stats.endTime) {
+      stats.duration = stats.endTime - stats.startTime;
+      console.log(`[DPI Stats] Offline mode - Duration: ${stats.duration.toFixed(2)}s (from packet timestamps)`);
+    } else {
+      console.log(`[DPI Stats] Offline mode - No timestamps available`);
+    }
   }
   
   // Calculate derived metrics
@@ -526,10 +554,13 @@ function calculateTrafficStatistics(hierarchy, trafficTimeSeries, isOnlineMode =
     stats.avgPacketSize = stats.totalBytes / stats.totalPackets;
   }
   
-  if (stats.duration > 0) {
-    stats.packetsPerSecond = stats.totalPackets / stats.duration;
-    stats.bytesPerSecond = stats.totalBytes / stats.duration;
-    stats.bitsPerSecond = (stats.totalBytes * 8) / stats.duration;
+  // For rate calculations, use minimum duration of 1 second if duration is 0 or very small
+  // This happens when all packets have the same timestamp or are within milliseconds
+  const durationForRates = stats.duration > 0 ? stats.duration : 1;
+  if (stats.totalPackets > 0) {
+    stats.packetsPerSecond = stats.totalPackets / durationForRates;
+    stats.bytesPerSecond = stats.totalBytes / durationForRates;
+    stats.bitsPerSecond = (stats.totalBytes * 8) / durationForRates;
   }
   
   // Count distinct protocols (recursively)
@@ -623,19 +654,23 @@ function aggregateTrafficData(trafficTimeSeries, windowSize = 1, isOnlineMode = 
     aggregated[key].packetCount += entry.packetCount;
   });
   
-  // Get all unique time windows and protocols
-  const allTimeWindows = new Set();
+  // Get all unique protocols
   const allProtocols = new Set();
-  
   Object.values(aggregated).forEach(entry => {
-    allTimeWindows.add(entry.time);
     allProtocols.add(entry.protocol);
   });
   
-  // Fill in missing time windows with zero values for each protocol
-  // This ensures all protocols have the same time intervals
+  // Create continuous timeline: fill ALL time windows from first to last packet
+  // This eliminates white gaps in the chart
+  const times = Object.values(aggregated).map(e => e.time);
+  const minTime = Math.min(...times);
+  const maxTime = Math.max(...times);
+  
+  console.log(`[DPI Aggregate] Creating continuous timeline from ${new Date(minTime * 1000).toISOString()} to ${new Date(maxTime * 1000).toISOString()}`);
+  
   const filledData = {};
-  allTimeWindows.forEach(timeWindow => {
+  // Generate all time windows between min and max
+  for (let timeWindow = minTime; timeWindow <= maxTime; timeWindow += windowSize) {
     allProtocols.forEach(protocol => {
       const key = `${timeWindow}_${protocol}`;
       if (aggregated[key]) {
@@ -651,14 +686,15 @@ function aggregateTrafficData(trafficTimeSeries, windowSize = 1, isOnlineMode = 
         };
       }
     });
-  });
+  }
   
   // Sort by time
   const result = Object.values(filledData);
   result.sort((a, b) => a.time - b.time || a.protocol.localeCompare(b.protocol));
   
   console.log('[DPI Aggregate] Output entries:', result.length);
-  console.log('[DPI Aggregate] Time windows:', allTimeWindows.size, 'Protocols:', allProtocols.size);
+  const numTimeWindows = Math.floor((maxTime - minTime) / windowSize) + 1;
+  console.log('[DPI Aggregate] Time windows:', numTimeWindows, 'Protocols:', allProtocols.size);
   if (result.length > 0) {
     const startTime = new Date(result[0].time * 1000);
     const endTime = new Date(result[result.length-1].time * 1000);
@@ -677,16 +713,10 @@ function aggregateTrafficData(trafficTimeSeries, windowSize = 1, isOnlineMode = 
 // GET /api/dpi/status - Get current DPI analysis status
 router.get('/status', (req, res) => {
   const mmtStatus = getMMTStatus();
-  const { ownerToken } = req.query;
-  
-  // Check if requester is the owner
-  const isOwner = dpiState.ownerToken && ownerToken === dpiState.ownerToken;
   
   res.json({
     ...dpiState,
     mmtRunning: mmtStatus.isRunning,
-    isOwner: isOwner, // Tell frontend if this user is the owner
-    ownerToken: undefined, // Don't expose the actual token
   });
 });
 
@@ -800,9 +830,6 @@ router.post('/start/online', async (req, res) => {
         return res.status(500).json({ error: status.error });
       }
       
-      // Generate unique owner token for the session starter
-      const ownerToken = `owner_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
       dpiState = {
         isRunning: true,
         sessionId: status.sessionId,
@@ -817,9 +844,8 @@ router.post('/start/online', async (req, res) => {
         cumulativeConversations: {},
         cumulativePacketSizes: [],
         cumulativeStatistics: null,
-        viewers: 1, // Start with 1 viewer (the one who started it)
-        startedBy: req.ip || 'unknown', // Track who started the session
-        ownerToken: ownerToken, // Unique token for the owner
+        viewers: 1,
+        startedBy: req.ip || 'unknown',
       };
       
       // Create session in session manager (for online mode)
@@ -830,16 +856,12 @@ router.post('/start/online', async (req, res) => {
         trafficData: [],
         viewers: 1,
         startedBy: req.ip || 'unknown',
-        ownerToken: ownerToken,
       });
       
       res.json({ 
         success: true, 
         sessionId: status.sessionId,
-        ownerToken: ownerToken, // Return token to the owner
-        message: 'Online DPI started. Other users can view live data via GET /api/dpi/data',
-        viewers: 1,
-        isOwner: true
+        message: 'Online DPI started',
       });
     });
   } catch (error) {
@@ -848,27 +870,10 @@ router.post('/start/online', async (req, res) => {
   }
 });
 
-// POST /api/dpi/stop - Stop the running DPI analysis (only owner can stop)
+// POST /api/dpi/stop - Stop the running DPI analysis
 router.post('/stop', async (req, res) => {
   try {
-    const { ownerToken } = req.body;
-    
     console.log('[DPI] Stop request received');
-    
-    // Check if this is an online session with an owner
-    if (dpiState.mode === 'online' && dpiState.ownerToken) {
-      // Verify ownership
-      if (!ownerToken || ownerToken !== dpiState.ownerToken) {
-        console.log('[DPI] Stop denied: Not the session owner');
-        return res.status(403).json({ 
-          error: 'Permission denied',
-          message: 'Only the user who started the online DPI session can stop it.',
-          startedBy: dpiState.startedBy
-        });
-      }
-      console.log('[DPI] Stop authorized: Owner token verified');
-    }
-    
     console.log('[DPI] Stopping analysis...');
     
     stopMMT((status) => {
@@ -878,13 +883,11 @@ router.post('/stop', async (req, res) => {
         // Update session manager
         if (dpiState.sessionId) {
           sessionManager.updateSession('dpi', dpiState.sessionId, {
-            isRunning: false,
-            ownerToken: null
+            isRunning: false
           });
         }
         
         dpiState.isRunning = false;
-        dpiState.ownerToken = null; // Clear owner token
         res.json({ success: true, message: 'DPI analysis stopped' });
       } else {
         console.log('[DPI] No analysis was running');
@@ -1081,6 +1084,7 @@ router.get('/data', async (req, res) => {
     // Store cumulative statistics
     if (isOnlineMode) {
       session.cumulativeStatistics = statistics;
+      dpiState.cumulativeStatistics = statistics; // Also update global state for duration preservation
     }
     
     // Update session with latest data

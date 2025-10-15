@@ -20,8 +20,6 @@ import BuildADPage from "./pages/BuildADPage";
 import BuildACPage from "./pages/BuildACPage";
 import RetrainPage from "./pages/RetrainPage";
 import AttacksPage from "./pages/AttacksPage";
-//import PredictPage from "./pages/PredictPage";
-import PredictModelPage from "./pages/PredictModelPage";
 import PredictRuleBasedPage from "./pages/PredictRuleBasedPage";
 import PredictPage from "./pages/PredictPage";
 import XAILimePage from "./pages/XAILimePage";
@@ -137,7 +135,7 @@ function App() {
             <Route path="/predict/offline/:modelId" element={<PredictPage />} />
             <Route path="/predict/rule-based" element={<PredictRuleBasedPage />} />
             <Route path="/predict/early" element={<EarlyPredictionPage />} />
-            <Route path="/predict/:modelId" element={<PredictModelPage />} />
+            <Route path="/predict/:modelId" element={<PredictPage />} />
           </Routes>
           <MAIPFooter />
         </Layout>

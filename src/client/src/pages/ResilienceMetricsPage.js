@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
-import { Spin, Menu, Select, Col, Row, Button, Tooltip, Form } from 'antd';
+import { Spin, Menu, Select, Col, Row, Button, Tooltip, Form, Card, Statistic } from 'antd';
 import { QuestionOutlined } from "@ant-design/icons";
 import { Heatmap } from '@ant-design/plots';
 import {
@@ -235,7 +235,7 @@ class ResilienceMetricsPage extends Component {
         <Row type="flex" justify="center">
           <Col>
             <Form name="control-hooks" style={{ maxWidth: 700 }}>
-              <Form.Item name="model" label="Model"
+              <Form.Item name="model" label={<span style={{ fontWeight: 600 }}>Model</span>}
                 style={{ flex: 'none', marginTop: 20, marginBottom: 10 }}
                 rules={[
                   {
@@ -277,16 +277,18 @@ class ResilienceMetricsPage extends Component {
         </Row>
         <Row gutter={24} style={{ marginTop: '10px' }}>
           <Col className="gutter-row" span={24} id="impact">
-            <div style={{ position: 'absolute', top: 110, right: 10 }}>
-              <Tooltip title="Impact metric shows difference between the original accuracy of a benign model compared to the accuracy of the compromised model after a successful poisoning attack.">
-                <Button type="link" icon={<QuestionOutlined />} />
-              </Tooltip>
-            </div>
-            <div style={{ ...BOX_STYLE, marginTop: '100px' }}>
-              <h2>&nbsp;&nbsp;&nbsp;Impact Metric</h2>
-              &nbsp;&nbsp;&nbsp;
+            <Card>
+              <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Impact Metric</h3>
+              <p style={{ marginTop: 4, marginBottom: 12, color: '#595959' }}>
+                Measures the difference between original model accuracy and the accuracy after the selected adversarial poisoning attack. Lower impact indicates a more resilient model.
+              </p>
+              <div style={{ position: 'absolute', top: 10, right: 10 }}>
+                <Tooltip title="Impact metric shows difference between the original accuracy of a benign model compared to the accuracy of the compromised model after a successful poisoning attack.">
+                  <Button type="link" icon={<QuestionOutlined />} />
+                </Tooltip>
+              </div>
               <Form name="control-hooks" style={{ maxWidth: 700 }}>
-                <Form.Item name="attack" label="Attack"
+                <Form.Item name="attack" label={<span style={{ fontWeight: 600 }}>Attack</span>}
                   rules={[
                     {
                       required: true,
@@ -316,28 +318,29 @@ class ResilienceMetricsPage extends Component {
                     <Col>
                       <Button
                         type="primary"
-                        disabled={ isRunning || !this.state.modelId || !this.state.selectedAttack }
+                        loading={isRunning}
+                        disabled={!this.state.modelId || !this.state.selectedAttack}
                         onClick={() => this.handleButtonComputeMetric(this.state.selectedAttack)}
                       >
                         Compute Impact Metric
-                        {isRunning && (
-                          <Spin size="small" style={{ marginLeft: 8 }} />
-                        )}
                       </Button>
                     </Col>
                   </Row>
                 </Form.Item>
               </Form>
 
-              { attacksConfusionMatrix &&
-                <h3>&nbsp;&nbsp;&nbsp;Score: {impact}</h3>
-              }
+              { attacksConfusionMatrix && (
+                <Row justify="start" style={{ marginTop: 8, marginBottom: 12 }}>
+                  <Col>
+                    <Statistic title="Score (Δ accuracy)" value={impact} precision={2} />
+                  </Col>
+                </Row>
+              )}
               <Row gutter={24} style={{height: '400px'}}>
-
                 <Col className="gutter-row" span={12} style={{ display: 'flex', justifyContent: 'center' }}>
                   <div style={{ display: 'flex', justifyContent: 'center', width: '100%', flex: 1, flexWrap: 'wrap', marginTop: '20px' }}>
                     <div className={cmStyle}>
-                      <h3> Model before attack </h3>
+                      <h4 style={{ textAlign: 'center', fontWeight: 600, marginBottom: 8 }}>Model before attack</h4>
                       { attacksConfusionMatrix &&
                         <Heatmap {...configCM} />
                       }
@@ -347,7 +350,7 @@ class ResilienceMetricsPage extends Component {
                 <Col className="gutter-row" span={12} style={{ display: 'flex', justifyContent: 'center' }}>
                   <div style={{ display: 'flex', justifyContent: 'center', width: '100%', flex: 1, flexWrap: 'wrap', marginTop: '20px' }}>
                     <div className={cmStyle}>
-                      <h3> Model after attack </h3>
+                      <h4 style={{ textAlign: 'center', fontWeight: 600, marginBottom: 8 }}>Model after attack</h4>
                       { attacksConfusionMatrix &&
                         <Heatmap {...configAttacksCM} />
                       }
@@ -355,7 +358,7 @@ class ResilienceMetricsPage extends Component {
                   </div>
                 </Col>
               </Row>
-            </div>
+            </Card>
           </Col>
         </Row>
       </LayoutPage>

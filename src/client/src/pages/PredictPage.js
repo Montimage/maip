@@ -6,7 +6,7 @@ import { Table, Tooltip, message, notification, Upload, Spin, Button, Form, Sele
 import { UploadOutlined, CheckCircleOutlined, WarningOutlined, ClockCircleOutlined, PlayCircleOutlined, StopOutlined, LockOutlined } from "@ant-design/icons";
 import { connect } from "react-redux";
 import { useUserRole } from '../hooks/useUserRole';
-import { Pie, RingProgress } from '@ant-design/plots';
+import { Pie, RingProgress, Bar } from '@ant-design/plots';
 import {
   FORM_LAYOUT,
   SERVER_URL,
@@ -204,6 +204,7 @@ class PredictPage extends Component {
     if (this.statusTimer) clearInterval(this.statusTimer);
     if (this.predictTimer) clearInterval(this.predictTimer);
     if (this.intervalId) clearInterval(this.intervalId);
+    if (this.chartRefreshTimer) clearInterval(this.chartRefreshTimer);
   }
   
   async fetchInterfacesAndSetOptions() {
@@ -456,7 +457,15 @@ class PredictPage extends Component {
       console.log('isRunning has been changed');
       this.setState({ isRunning: !!currPS.isRunning });
       if (!currPS.isRunning) {
-        clearInterval(this.intervalId);
+        // Clear all prediction polling timers
+        if (this.intervalId) {
+          clearInterval(this.intervalId);
+          this.intervalId = null;
+        }
+        if (this.predictTimer) {
+          clearInterval(this.predictTimer);
+          this.predictTimer = null;
+        }
         
         const { mode } = this.state;
         if (mode === 'offline') {
@@ -465,10 +474,8 @@ class PredictPage extends Component {
             description: 'Make predictions successfully!',
             placement: 'topRight',
           });
-          this.setState({
-            testingDataset: null,
-            testingPcapFile: null,
-          });
+          // Don't clear dataset/pcap - keep them to show results
+          // User can manually clear them if they want to run another prediction
         } else {
           message.success('Online window prediction completed');
         }
@@ -480,6 +487,7 @@ class PredictPage extends Component {
           } else {
             // Offline mode: Fetch stats and attacks
             const predictStats = await requestPredictStats(lastPredictId);
+            console.log('[componentDidUpdate] Fetched predictStats:', predictStats);
             let attackCsv = null;
             try {
               attackCsv = await requestPredictionAttack(lastPredictId);
@@ -536,6 +544,7 @@ class PredictPage extends Component {
               attackFlowColumns = built.flowColumns;
               mitigationColumns = built.mitigationColumns;
             }
+            console.log('[componentDidUpdate] Setting state with predictStats:', predictStats);
             this.setState({ predictStats, attackCsv, attackRows, attackFlowColumns, mitigationColumns });
           }
         }
@@ -723,8 +732,15 @@ class PredictPage extends Component {
       }
       const remaining = filesAsc.some(f => processedFiles.indexOf(String(f.file).split('/').pop()) === -1);
       if (!status.running && !remaining && this.statusTimer) {
+        console.log('[PollStatus] Capture complete - stopping status polling');
         clearInterval(this.statusTimer);
         this.statusTimer = null;
+        
+        // Also clear chart refresh timer
+        if (this.chartRefreshTimer) {
+          clearInterval(this.chartRefreshTimer);
+          this.chartRefreshTimer = null;
+        }
       }
     } catch (e) {
       console.warn('Failed to poll online status:', e.message);
@@ -819,6 +835,13 @@ class PredictPage extends Component {
       this.setState({ isCapturing: true, status: data, sessionDir: data.sessionDir, lastProcessedFile: null, processedFiles: [], processedCsvs: [], predictStats: null, aggregateNormal: 0, aggregateMalicious: 0, lastSliceStats: null, attackCsv: null, attackRows: [], attackFlowColumns: [], mitigationColumns: [], hasResultsShown: false, lastShownPredictionId: null });
       if (this.statusTimer) clearInterval(this.statusTimer);
       this.statusTimer = setInterval(this.pollStatus, 2000);
+      
+      // Start chart refresh timer for online mode (force re-render every 5 seconds)
+      if (this.chartRefreshTimer) clearInterval(this.chartRefreshTimer);
+      this.chartRefreshTimer = setInterval(() => {
+        // Force component update to refresh charts
+        this.forceUpdate();
+      }, 5000);
     } catch (e) {
       message.error(`Failed to start capture: ${e.message}`);
     }
@@ -828,12 +851,34 @@ class PredictPage extends Component {
     try {
       const res = await fetch(`${SERVER_URL}/api/online/stop`, { method: 'POST' });
       const data = await res.json();
-      this.setState({ isCapturing: false, status: { ...(this.state.status || {}), running: false }, hasResultsShown: true });
+      
+      // Stop all timers immediately
+      if (this.predictTimer) {
+        clearInterval(this.predictTimer);
+        this.predictTimer = null;
+      }
+      if (this.intervalId) {
+        clearInterval(this.intervalId);
+        this.intervalId = null;
+      }
+      if (this.chartRefreshTimer) {
+        clearInterval(this.chartRefreshTimer);
+        this.chartRefreshTimer = null;
+      }
+      
+      this.setState({ 
+        isCapturing: false, 
+        isRunning: false,
+        status: { ...(this.state.status || {}), running: false }, 
+        hasResultsShown: true 
+      });
+      
+      // Keep status timer only to finish remaining files, then it will auto-stop
       if (!this.statusTimer) {
         this.statusTimer = setInterval(this.pollStatus, 2000);
       }
       this.pollStatus();
-      message.success('Stopped capture. Finishing remaining files...');
+      message.success('Stopped capture. Processing remaining files...');
     } catch (e) {
       message.error(`Failed to stop capture: ${e.message}`);
     }
@@ -862,9 +907,7 @@ class PredictPage extends Component {
 
     const modelsOptions = getFilteredModelsOptions(app, models);
 
-    const subTitle = mode === 'offline' 
-      ? (isModelIdPresent ? `Offline prediction using the model ${modelId}` : 'Offline prediction using models')
-      : (isModelIdPresent ? `Online prediction using the model ${modelId}` : 'Online prediction using models');
+    const subTitle = 'Offline prediction using models';
 
     let tableConfig, maliciousFlows, predictOutput;
     let normalFlows = 0;
@@ -938,19 +981,19 @@ class PredictPage extends Component {
 
     const maliciousRate = totalFlows > 0 ? maliciousFlows / totalFlows : 0;
     const ringConfig = {
-      height: 140,
-      width: 140,
+      height: 200,
+      width: 200,
       autoFit: false,
       percent: maliciousRate,
       color: ['#F4664A', '#E8EDF3'],
       statistic: {
         title: {
           formatter: () => 'Malicious',
-          style: { fontSize: 12 },
+          style: { fontSize: 14 },
         },
         content: {
           formatter: () => `${(maliciousRate * 100).toFixed(1)}%`,
-          style: { fontSize: 16 },
+          style: { fontSize: 20 },
         },
       },
     };
@@ -959,59 +1002,147 @@ class PredictPage extends Component {
       this.setState({ attackPagination: { current: pagination.current, pageSize: pagination.pageSize } });
     };
 
+    // Analyze malicious flows for top sources
+    const analyzeTopSources = () => {
+      const { attackRows } = this.state;
+      if (!attackRows || attackRows.length === 0) return null;
+
+      const srcIpCounts = {};
+      const dstIpCounts = {};
+      const dstPortCounts = {};
+      const protocolCounts = {};
+
+      console.log('[Top Sources] Analyzing', attackRows.length, 'malicious flows');
+      
+      // Log first row to see structure
+      if (attackRows.length > 0) {
+        console.log('[Top Sources] First row columns:', Object.keys(attackRows[0]));
+        console.log('[Top Sources] First row sample:', attackRows[0]);
+      }
+      
+      attackRows.forEach((row, idx) => {
+        // Extract IPs from ip.pkts_per_flow column which has format: "['ip1', 'ip2']"
+        const pktsPerFlow = row['ip.pkts_per_flow'];
+        let srcIp = null;
+        let dstIp = null;
+        
+        if (pktsPerFlow && typeof pktsPerFlow === 'string') {
+          // Parse the Python list string format: "['222.25.140.255', '222.25.140.74']"
+          const matches = pktsPerFlow.match(/\['([^']+)',\s*'([^']+)'\]/);
+          if (matches && matches.length === 3) {
+            srcIp = matches[1];
+            dstIp = matches[2];
+          }
+        }
+        
+        // Extract ports from feature columns (dport_g, dport_le are part of the 83 features)
+        // Note: For online mode, port extraction may not be meaningful as features are aggregated
+        const dportG = row['dport_g'];
+        const dportLe = row['dport_le'];
+        const sportG = row['sport_g'];
+        const sportLe = row['sport_le'];
+        
+        // Log first few extractions
+        if (idx < 3) {
+          console.log(`[Top Sources] Row ${idx}:`, { srcIp, dstIp, dportG, dportLe, sportG, sportLe });
+        }
+        
+        // Count source IPs
+        if (srcIp && this.isValidIPv4(srcIp)) {
+          srcIpCounts[srcIp] = (srcIpCounts[srcIp] || 0) + 1;
+        }
+        
+        // Count destination IPs
+        if (dstIp && this.isValidIPv4(dstIp)) {
+          dstIpCounts[dstIp] = (dstIpCounts[dstIp] || 0) + 1;
+        }
+        
+        // Count destination ports - try both columns
+        [dportG, dportLe].forEach(dport => {
+          if (dport) {
+            const portNum = parseFloat(dport);
+            if (!isNaN(portNum) && portNum > 0 && portNum <= 65535 && portNum === Math.floor(portNum)) {
+              const portStr = String(Math.floor(portNum));
+              dstPortCounts[portStr] = (dstPortCounts[portStr] || 0) + 1;
+            }
+          }
+        });
+        
+        // Extract protocols from multiple possible columns
+        Object.keys(row).forEach(key => {
+          const keyLower = key.toLowerCase();
+          // Look for protocol-related columns
+          if ((keyLower.includes('proto') || keyLower.includes('protocol') || 
+               keyLower === 'l4' || keyLower === 'l7') && 
+              !key.startsWith('_')) {
+            const proto = row[key];
+            if (proto && String(proto).trim() !== '' && String(proto).trim() !== '0') {
+              const protoStr = String(proto).trim();
+              protocolCounts[protoStr] = (protocolCounts[protoStr] || 0) + 1;
+            }
+          }
+        });
+      });
+
+      console.log('[Top Sources] Found:', {
+        srcIPs: Object.keys(srcIpCounts).length,
+        dstIPs: Object.keys(dstIpCounts).length,
+        ports: Object.keys(dstPortCounts).length,
+        protocols: Object.keys(protocolCounts).length
+      });
+      console.log('[Top Sources] srcIpCounts:', srcIpCounts);
+      console.log('[Top Sources] dstPortCounts:', dstPortCounts);
+      console.log('[Top Sources] protocolCounts:', protocolCounts);
+
+      // Convert to sorted arrays (top 10)
+      const topSrcIPs = Object.entries(srcIpCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([ip, count]) => ({ name: ip, value: count }));
+
+      // Use destination IPs if no source IPs found
+      const topDstIPs = topSrcIPs.length === 0 
+        ? Object.entries(dstIpCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 10)
+            .map(([ip, count]) => ({ name: ip, value: count }))
+        : [];
+
+      const topDstPorts = Object.entries(dstPortCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([port, count]) => ({ name: `Port ${port}`, value: count }));
+
+      const topProtocols = Object.entries(protocolCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([proto, count]) => ({ name: proto, value: count }));
+
+      const result = { 
+        topSrcIPs: topSrcIPs.length > 0 ? topSrcIPs : topDstIPs, 
+        topDstPorts, 
+        topProtocols 
+      };
+      
+      console.log('[Top Sources] Final result:', result);
+      return result;
+    };
+
+    const topSourcesData = this.state.attackRows && this.state.attackRows.length > 0 ? analyzeTopSources() : null;
+    
+    console.log('[Render] attackRows count:', this.state.attackRows ? this.state.attackRows.length : 0);
+    console.log('[Render] topSourcesData:', topSourcesData);
+    console.log('[Render] State check:', {
+      mode,
+      predictStats,
+      modelId,
+      testingDataset: this.state.testingDataset,
+      testingPcapFile: this.state.testingPcapFile,
+      shouldShowResults: ((mode === 'offline' && predictStats && modelId && (this.state.testingDataset || this.state.testingPcapFile)))
+    });
+
     return (
       <LayoutPage pageTitle="Predict" pageSubTitle={subTitle}>
-        
-        {/* Prediction Summary Banner for Online Mode */}
-        {mode === 'online' && totalFlows > 0 && (
-          <Card size="small" style={{ marginBottom: 16, backgroundColor: maliciousFlows > 0 ? '#fff2f0' : '#f6ffed' }}>
-            <div style={{ textAlign: 'center', marginBottom: 8 }}>
-              <strong style={{ fontSize: 14 }}>Live Prediction Summary</strong>
-            </div>
-            <Row gutter={12}>
-              <Col flex={1}>
-                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
-                  <Statistic
-                    title="Total Flows"
-                    value={totalFlows}
-                    prefix={<ClockCircleOutlined />}
-                    valueStyle={{ fontSize: 16 }}
-                  />
-                </Card>
-              </Col>
-              <Col flex={1}>
-                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
-                  <Statistic
-                    title="Normal Flows"
-                    value={normalFlows}
-                    prefix={<CheckCircleOutlined />}
-                    valueStyle={{ fontSize: 16, color: '#52c41a' }}
-                  />
-                </Card>
-              </Col>
-              <Col flex={1}>
-                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
-                  <Statistic
-                    title="Malicious Flows"
-                    value={maliciousFlows}
-                    prefix={<WarningOutlined />}
-                    valueStyle={{ fontSize: 16, color: maliciousFlows > 0 ? '#ff4d4f' : '#52c41a' }}
-                  />
-                </Card>
-              </Col>
-              <Col flex={1}>
-                <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
-                  <Statistic
-                    title="Malicious Rate"
-                    value={(totalFlows > 0 ? (maliciousFlows / totalFlows * 100) : 0).toFixed(1)}
-                    suffix="%"
-                    valueStyle={{ fontSize: 16, color: (maliciousFlows / totalFlows) > 0.1 ? '#ff4d4f' : '#52c41a' }}
-                  />
-                </Card>
-              </Col>
-            </Row>
-          </Card>
-        )}
         
         <Divider orientation="left">
           <h2 style={{ fontSize: '20px' }}>Configuration</h2>
@@ -1099,7 +1230,19 @@ class PredictPage extends Component {
                   style={{ width: '100%', maxWidth: 500, display: 'block' }}
                   value={this.state.testingDataset}
                   onChange={(value) => {
-                    this.setState({ testingDataset: value, predictStats: null });
+                    // Clear all results when dataset is cleared
+                    if (!value) {
+                      this.setState({ 
+                        testingDataset: null, 
+                        predictStats: null,
+                        attackRows: [],
+                        attackFlowColumns: [],
+                        mitigationColumns: [],
+                        attackCsv: null
+                      });
+                    } else {
+                      this.setState({ testingDataset: value, predictStats: null });
+                    }
                   }}
                   options={reportsOptions}
                   disabled={this.state.testingPcapFile !== null}
@@ -1111,7 +1254,15 @@ class PredictPage extends Component {
                   customRequest={this.processUploadPcap}
                   disabled={!!this.state.testingPcapFile || !!this.state.testingDataset}
                   onRemove={() => {
-                    this.setState({ testingPcapFile: null, predictStats: null });
+                    // Clear all results when PCAP file is removed
+                    this.setState({ 
+                      testingPcapFile: null, 
+                      predictStats: null,
+                      attackRows: [],
+                      attackFlowColumns: [],
+                      mitigationColumns: [],
+                      attackCsv: null
+                    });
                   }}
                   maxCount={1}
                 >
@@ -1234,46 +1385,201 @@ class PredictPage extends Component {
         <Divider orientation="left">
           <h2 style={{ fontSize: '20px' }}>Prediction Results</h2>
         </Divider>
-        { ((mode === 'offline' && predictStats && modelId) || (mode === 'online' && (this.state.hasResultsShown || aggregateNormal > 0 || aggregateMalicious > 0 || lastSliceStats || (this.state.attackRows && this.state.attackRows.length > 0)))) && (
+        
+        { ((mode === 'offline' && predictStats && modelId && (this.state.testingDataset || this.state.testingPcapFile)) || (mode === 'online' && (this.state.hasResultsShown || aggregateNormal > 0 || aggregateMalicious > 0 || lastSliceStats || (this.state.attackRows && this.state.attackRows.length > 0)))) ? (
           <>
-            <div style={{ marginTop: '10px' }}>
-              <h3 style={{ fontSize: '22px' }}>{predictOutput}</h3>
-              <div style={{ display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
-                <div>
-                  <Pie {...donutConfig} style={{ width: 320, height: 220 }} />
+            {/* Prediction Status Banner */}
+            <Alert
+              message={
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+                  <span style={{ fontSize: 16, fontWeight: 'bold' }}>{predictOutput}</span>
+                  {maliciousFlows > 0 ? (
+                    <Tag color="error" icon={<WarningOutlined />}>MALICIOUS DETECTED</Tag>
+                  ) : (
+                    <Tag color="success" icon={<CheckCircleOutlined />}>NORMAL TRAFFIC</Tag>
+                  )}
                 </div>
-                <div>
-                  <RingProgress {...ringConfig} />
-                </div>
-                <div>
-              <Table {...tableConfig} style={{ width: '500px' }} />
-                </div>
+              }
+              type={maliciousFlows > 0 ? "error" : "success"}
+              showIcon
+              style={{ marginBottom: 24 }}
+            />
+
+            {/* Flow Statistics - DPI Style */}
+            <Card style={{ marginBottom: 24 }}>
+              <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                <strong style={{ fontSize: 16 }}>Prediction Summary</strong>
               </div>
-            </div>
+              <Row gutter={16}>
+                <Col xs={24} sm={12} md={6}>
+                  <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                    <Statistic
+                      title="Total Flows"
+                      value={totalFlows}
+                      valueStyle={{ fontSize: 20, fontWeight: 'bold', color: '#1890ff' }}
+                    />
+                  </Card>
+                </Col>
+                <Col xs={24} sm={12} md={6}>
+                  <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                    <Statistic
+                      title="Normal Flows"
+                      value={normalFlows}
+                      valueStyle={{ fontSize: 20, fontWeight: 'bold', color: '#52c41a' }}
+                      prefix={<CheckCircleOutlined />}
+                    />
+                  </Card>
+                </Col>
+                <Col xs={24} sm={12} md={6}>
+                  <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                    <Statistic
+                      title="Malicious Flows"
+                      value={maliciousFlows}
+                      valueStyle={{ fontSize: 20, fontWeight: 'bold', color: maliciousFlows > 0 ? '#ff4d4f' : '#52c41a' }}
+                      prefix={<WarningOutlined />}
+                    />
+                  </Card>
+                </Col>
+                <Col xs={24} sm={12} md={6}>
+                  <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                    <Statistic
+                      title="Malicious Rate"
+                      value={(maliciousRate * 100).toFixed(1)}
+                      suffix="%"
+                      valueStyle={{ fontSize: 20, fontWeight: 'bold', color: '#ff4d4f' }}
+                    />
+                  </Card>
+                </Col>
+              </Row>
+            </Card>
+            
+            {/* Visualizations */}
+            <Row gutter={16} style={{ marginBottom: 24 }}>
+              <Col xs={24} lg={12}>
+                <Card style={{ height: '100%' }}>
+                  <div style={{ marginBottom: 16 }}>
+                    <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Flow Distribution</h3>
+                    <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+                      Proportion of normal vs malicious flows detected by the model
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300 }}>
+                    <Pie {...donutConfig} style={{ height: 280 }} />
+                  </div>
+                </Card>
+              </Col>
+              <Col xs={24} lg={12}>
+                <Card style={{ height: '100%' }}>
+                  <div style={{ marginBottom: 16 }}>
+                    <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Top IP Addresses</h3>
+                    <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+                      IP addresses most frequently involved in malicious flows
+                    </span>
+                  </div>
+                  {topSourcesData && topSourcesData.topSrcIPs && topSourcesData.topSrcIPs.length > 0 ? (
+                    <Bar
+                      data={topSourcesData.topSrcIPs}
+                      xField="value"
+                      yField="name"
+                      seriesField="name"
+                      legend={false}
+                      color="#ff4d4f"
+                      label={{
+                        position: 'right',
+                        formatter: (datum) => datum.value,
+                      }}
+                      height={Math.max(topSourcesData.topSrcIPs.length * 40, 280)}
+                    />
+                  ) : (
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300, color: '#8c8c8c' }}>
+                      No malicious flows detected yet
+                    </div>
+                  )}
+                </Card>
+              </Col>
+            </Row>
+            
             {this.state.attackRows && this.state.attackRows.length > 0 && (
-              <div style={{ marginTop: '30px' }}>
-                <h3 style={{ fontSize: '20px' }}>Malicious Flows</h3>
-                {/* Bulk actions for all malicious flows */}
-                <div style={{ marginBottom: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <Button
-                    onClick={() => handleBulkMitigationAction({ actionKey: 'send-nats-bulk', rows: this.state.attackRows, isValidIPv4: this.isValidIPv4 })}
-                    disabled={!(this.state.attackRows && this.state.attackRows.length > 0)}
-                  >
-                    Send all flows to NATS
-                  </Button>
-                </div>
-                <Table
-                  dataSource={this.state.attackRows}
-                  columns={[...this.state.attackFlowColumns, ...this.state.mitigationColumns]}
-                  size="small"
-                  bordered
-                  style={{ width: '100%' }}
-                  scroll={{ x: 'max-content' }}
-                  pagination={{ ...this.state.attackPagination, showSizeChanger: true }}
-                  onChange={(pagination) => onSyncPaginate(pagination)}
-                />
-              </div>
+              <>
+                <Divider orientation="left">
+                  <h2 style={{ fontSize: '20px' }}>Malicious Flows</h2>
+                </Divider>
+                <Card>
+                  <Table
+                    dataSource={this.state.attackRows}
+                    columns={[...this.state.attackFlowColumns, ...this.state.mitigationColumns]}
+                    size="small"
+                    style={{ width: '100%' }}
+                    scroll={{ x: 'max-content' }}
+                    pagination={{ ...this.state.attackPagination, showSizeChanger: true, showTotal: (total) => `Total ${total} flows` }}
+                    onChange={(pagination) => onSyncPaginate(pagination)}
+                  />
+                </Card>
+              </>
             )}
+            
+            {/* Additional Attack Analysis */}
+            {topSourcesData && (topSourcesData.topDstPorts.length > 0 || topSourcesData.topProtocols.length > 0) && (
+              <>
+                <Divider orientation="left">
+                  <h2 style={{ fontSize: '20px' }}>Attack Pattern Analysis</h2>
+                </Divider>
+                <Row gutter={16} style={{ marginBottom: 24 }}>
+                  {topSourcesData.topDstPorts.length > 0 && (
+                    <Col xs={24} lg={topSourcesData.topProtocols.length > 0 ? 12 : 24}>
+                      <Card>
+                        <div style={{ marginBottom: 16 }}>
+                          <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Top Destination Ports</h3>
+                          <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+                            Most frequently targeted ports in malicious flows
+                          </span>
+                        </div>
+                        <Bar
+                          data={topSourcesData.topDstPorts}
+                          xField="value"
+                          yField="name"
+                          seriesField="name"
+                          legend={false}
+                          color="#fa8c16"
+                          label={{
+                            position: 'right',
+                            formatter: (datum) => datum.value,
+                          }}
+                          height={Math.max(topSourcesData.topDstPorts.length * 40, 280)}
+                        />
+                      </Card>
+                    </Col>
+                  )}
+                  
+                  {topSourcesData.topProtocols.length > 0 && (
+                    <Col xs={24} lg={topSourcesData.topDstPorts.length > 0 ? 12 : 24}>
+                      <Card>
+                        <div style={{ marginBottom: 16 }}>
+                          <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Top Protocols</h3>
+                          <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+                            Protocols most frequently exploited in attacks
+                          </span>
+                        </div>
+                        <Bar
+                          data={topSourcesData.topProtocols}
+                          xField="value"
+                          yField="name"
+                          seriesField="name"
+                          legend={false}
+                          color="#722ed1"
+                          label={{
+                            position: 'right',
+                            formatter: (datum) => datum.value,
+                          }}
+                          height={Math.max(topSourcesData.topProtocols.length * 40, 280)}
+                        />
+                      </Card>
+                    </Col>
+                  )}
+                </Row>
+              </>
+            )}
+            
             <Modal
               title="LIME Explanation"
               open={this.state.limeModalVisible}
@@ -1311,7 +1617,7 @@ class PredictPage extends Component {
               )}
             </Modal>
           </>
-        )}
+        ) : null}
 
       </LayoutPage>
     );

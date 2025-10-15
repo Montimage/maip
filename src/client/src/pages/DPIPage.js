@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
 import { Button, Card, Select, Alert, Spin, Row, Col, Divider, Tree, Space, Tag, Table, Statistic, notification, message, Upload } from 'antd';
-import { PlayCircleOutlined, StopOutlined, DownOutlined, FolderOpenOutlined, LockOutlined, UploadOutlined } from '@ant-design/icons';
+import { PlayCircleOutlined, StopOutlined, DownOutlined, FolderOpenOutlined, LockOutlined, UploadOutlined, FileTextOutlined } from '@ant-design/icons';
 import { Line, Pie, Column, Area, Histogram } from '@ant-design/plots';
 import { SERVER_URL } from '../constants';
 import { useUserRole } from '../hooks/useUserRole';
@@ -37,8 +37,6 @@ class DPIPage extends Component {
       loading: false,
       error: null,
       lastUpdate: null,
-      isOwner: false, // Track if current user is the session owner
-      ownerToken: null, // Store owner token for stop control
       
       // Tree state
       expandedKeys: [],
@@ -66,13 +64,14 @@ class DPIPage extends Component {
       this.loadStatus();
     }
     
-    // Start periodic status check (every 5 seconds) to detect session changes
+    // Start periodic status check (every 10 seconds) to detect session changes
+    // This will be stopped when user manually stops DPI, and restarted when starting new session
     this.statusCheckInterval = setInterval(() => {
-      // Only check status if not actively running (to detect when others start/stop)
+      // Only check status if not actively running
       if (!this.state.isRunning) {
-        this.loadStatus();
+        this.loadStatus(true); // Silent check to avoid duplicate notifications
       }
-    }, 5000);
+    }, 10000);
     
     // If navigated from Feature Extraction page
     try {
@@ -197,7 +196,8 @@ class DPIPage extends Component {
         const data = await response.json();
         this.setState({ 
           pcapFiles: data.pcaps || [],
-          selectedPcap: this.state.uploadedPcapName || (data.pcaps && data.pcaps.length > 0 ? data.pcaps[0] : null)
+          // Do not auto-select a PCAP; keep current selection as-is
+          selectedPcap: this.state.selectedPcap || null,
         });
       }
     } catch (error) {
@@ -261,7 +261,7 @@ class DPIPage extends Component {
     }
   };
 
-  loadStatus = async () => {
+  loadStatus = async (silentCheck = false) => {
     try {
       const response = await fetch(`${SERVER_URL}/api/dpi/status`);
       if (response.ok) {
@@ -273,37 +273,38 @@ class DPIPage extends Component {
         // Check if session just started (wasn't running, now is)
         const sessionStarted = !this.state.isRunning && (data.isRunning || data.mmtRunning);
         
-        this.setState({
-          isRunning: data.isRunning || data.mmtRunning,
-          sessionId: data.sessionId,
-          mode: data.mode || this.state.mode,
-          isOwner: data.isOwner || false, // Update ownership status
-        });
+        // Only update state if there's an actual change
+        if (sessionEnded || sessionStarted || this.state.sessionId !== data.sessionId) {
+          this.setState({
+            isRunning: data.isRunning || data.mmtRunning,
+            sessionId: data.sessionId,
+            mode: data.mode || this.state.mode,
+          });
+        }
         
         // If session just ended, notify user and stop auto-reload
-        if (sessionEnded) {
+        if (sessionEnded && !silentCheck) {
           console.log('[DPI Frontend] Session ended, stopping auto-reload');
           this.stopAutoReload();
           notification.info({
             message: 'DPI Session Ended',
-            description: 'The DPI analysis has been stopped. You can start a new session.',
+            description: 'The DPI analysis has been stopped.',
             placement: 'topRight',
           });
         }
         
-        // If session just started by another user, notify and start auto-reload
+        // If session just started, start auto-reload
         if (sessionStarted) {
-          console.log('[DPI Frontend] Session started by another user, joining as viewer');
+          console.log('[DPI Frontend] Session started, auto-reload enabled');
           notification.info({
             message: 'DPI Session Active',
-            description: `${data.mode === 'online' ? 'Online' : 'Offline'} DPI analysis is running. Viewing live data...`,
+            description: `${data.mode === 'online' ? 'Online' : 'Offline'} DPI analysis is running.`,
             placement: 'topRight',
           });
-          // Start auto-reload for this viewer
           this.startAutoReload();
         }
         
-        // If running, load data
+        // Only load data if session is running (don't load when stopped)
         if (data.sessionId && (data.isRunning || data.mmtRunning)) {
           this.loadData();
         }
@@ -644,8 +645,6 @@ class DPIPage extends Component {
         this.setState({
           isRunning: true,
           sessionId: data.sessionId,
-          ownerToken: data.ownerToken || null, // Save owner token for stopping
-          isOwner: data.isOwner || false,
           loading: false,
         });
         
@@ -668,6 +667,16 @@ class DPIPage extends Component {
         
         // Always start auto-reload for live updates
         this.startAutoReload();
+        
+        // Restart status polling if it was stopped
+        if (!this.statusCheckInterval) {
+          this.statusCheckInterval = setInterval(() => {
+            if (!this.state.isRunning) {
+              this.loadStatus(true);
+            }
+          }, 10000);
+          console.log('[DPI Frontend] Status polling restarted');
+        }
       } else {
         const errorData = await response.json();
         this.setState({ 
@@ -685,10 +694,10 @@ class DPIPage extends Component {
   };
 
   handleExtractFeatures = () => {
-    const { mode, selectedPcap, sessionId } = this.state;
+    const { mode, selectedPcap } = this.state;
     
+    // Only works for offline mode with a selected PCAP
     if (mode === 'offline' && selectedPcap) {
-      // Offline mode: forward the selected PCAP
       try {
         localStorage.setItem('pendingFeatureExtractionPcap', selectedPcap);
         localStorage.setItem('pendingFeatureExtractionFromDPI', 'true');
@@ -705,39 +714,19 @@ class DPIPage extends Component {
           placement: 'topRight',
         });
       }
-    } else if (mode === 'online' && sessionId) {
-      // Online mode: forward the captured PCAP (session-based)
-      try {
-        const capturedPcap = `capture-${sessionId}.pcap`;
-        localStorage.setItem('pendingFeatureExtractionPcap', capturedPcap);
-        localStorage.setItem('pendingFeatureExtractionFromDPI', 'true');
-        notification.success({
-          message: 'Navigating to Feature Extraction',
-          description: 'Captured traffic will be loaded for feature extraction.',
-          placement: 'topRight',
-        });
-        window.location.href = '/features';
-      } catch (e) {
-        notification.error({
-          message: 'Navigation failed',
-          description: e.message || String(e),
-          placement: 'topRight',
-        });
-      }
+    } else if (mode === 'offline') {
+      message.warning('Please select a PCAP file first');
     }
+    // Online mode: button is disabled, so this won't be called
   };
 
   stopAnalysis = async () => {
     try {
       console.log('[DPI Frontend] Stopping analysis...');
       
-      // Get owner token from state
-      const { ownerToken } = this.state;
-      
       const response = await fetch(`${SERVER_URL}/api/dpi/stop`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ownerToken }), // Send owner token
       });
       
       if (response.ok) {
@@ -750,10 +739,23 @@ class DPIPage extends Component {
           this.reloadInterval = null;
         }
         
-        // Update state
+        // Stop status checking - no need to poll after manual stop
+        if (this.statusCheckInterval) {
+          clearInterval(this.statusCheckInterval);
+          this.statusCheckInterval = null;
+          console.log('[DPI Frontend] Status polling stopped after manual stop');
+        }
+        
+        // Update state and show notification
         this.setState({
           isRunning: false,
           error: null,
+        });
+        
+        notification.success({
+          message: 'DPI Stopped',
+          description: 'The DPI analysis has been stopped successfully.',
+          placement: 'topRight',
         });
       } else {
         const errorData = await response.json();
@@ -1639,6 +1641,13 @@ class DPIPage extends Component {
       smooth: true,
       padding: 'auto',
       appendPadding: [10, 80, 10, 10],
+      connectNulls: true, // Connect across null values instead of showing gaps
+      areaStyle: {
+        fillOpacity: 0.7, // Make areas slightly transparent
+      },
+      line: {
+        size: 2,
+      },
       animation: {
         appear: {
           animation: 'wave-in',
@@ -2310,11 +2319,20 @@ class DPIPage extends Component {
         <Row gutter={16}>
           <Col span={4}>
             <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
-              <Statistic
-                title="Total Packets"
-                value={statistics.totalPackets}
-                valueStyle={{ fontSize: 16, fontWeight: 'bold', color: '#1890ff' }}
-              />
+              {mode === 'offline' && selectedPcap ? (
+                <Statistic
+                  title="PCAP File"
+                  value={selectedPcap}
+                  prefix={<FileTextOutlined style={{ color: '#722ed1' }} />}
+                  valueStyle={{ fontSize: 14, fontWeight: 'bold', color: '#722ed1', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                />
+              ) : (
+                <Statistic
+                  title="Total Packets"
+                  value={statistics.totalPackets}
+                  valueStyle={{ fontSize: 16, fontWeight: 'bold', color: '#1890ff' }}
+                />
+              )}
             </Card>
           </Col>
           <Col span={4}>
@@ -2408,6 +2426,10 @@ class DPIPage extends Component {
       smooth: true,
       padding: 'auto',
       appendPadding: [10, 80, 10, 10], // [top, right, bottom, left] - extra padding on right for last tick label
+      connectNulls: true, // Connect across null values instead of showing gaps
+      point: {
+        size: 0, // Hide points for cleaner look
+      },
       animation: {
         appear: {
           animation: 'path-in',
@@ -2546,7 +2568,6 @@ class DPIPage extends Component {
       trafficData,
       metricType,
       loadedFromFeatureExtraction,
-      isOwner,
       uploadedPcapName,
     } = this.state;
 
@@ -2628,7 +2649,7 @@ class DPIPage extends Component {
                         onClick={() => {
                           this.setState({
                             uploadedPcapName: null,
-                            selectedPcap: pcapFiles.length > 0 ? pcapFiles[0] : null,
+                            selectedPcap: null,
                           });
                           notification.info({
                             message: 'Upload Cleared',
@@ -2640,34 +2661,14 @@ class DPIPage extends Component {
                         Clear Upload
                       </Button>
                     </div>
-                  ) : loadedFromFeatureExtraction && selectedPcap ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Tag color="green" style={{ margin: 0, padding: '4px 12px', fontSize: '14px' }}>
-                        {selectedPcap}
-                      </Tag>
-                      <Button 
-                        size="small" 
-                        disabled={isRunning}
-                        onClick={() => this.setState({
-                          selectedPcap: null,
-                          loadedFromFeatureExtraction: false,
-                          hierarchyData: [],
-                          trafficData: [],
-                          statistics: null,
-                          conversations: [],
-                          packetSizes: [],
-                          lastUpdate: null,
-                        })}
-                      >
-                        Clear Selection
-                      </Button>
-                    </div>
                   ) : (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <Select
-                        value={selectedPcap}
+                        value={selectedPcap || undefined}
                         onChange={(value) => this.setState({ 
-                          selectedPcap: value,
+                          selectedPcap: value || null,
+                          uploadedPcapName: null,
+                          loadedFromFeatureExtraction: false,
                           hierarchyData: value ? this.state.hierarchyData : [],
                           trafficData: value ? this.state.trafficData : [],
                           statistics: value ? this.state.statistics : null,
@@ -2677,24 +2678,27 @@ class DPIPage extends Component {
                         style={{ width: 250 }}
                         disabled={isRunning}
                         placeholder="Select a PCAP file..."
+                        allowClear
                       >
                         {pcapFiles.map(file => (
                           <Option key={file} value={file}>{file}</Option>
                         ))}
                       </Select>
-                      <Upload
-                        beforeUpload={this.beforeUploadPcap}
-                        action={`${SERVER_URL}/api/pcaps`}
-                        onChange={this.handleUploadChange}
-                        customRequest={this.processUploadPcap}
-                        maxCount={1}
-                        disabled={isRunning}
-                        showUploadList={false}
-                      >
-                        <Button icon={<UploadOutlined />} disabled={isRunning}>
-                          Upload PCAP
-                        </Button>
-                      </Upload>
+                      {this.props.isSignedIn && (
+                        <Upload
+                          beforeUpload={this.beforeUploadPcap}
+                          action={`${SERVER_URL}/api/pcaps`}
+                          onChange={this.handleUploadChange}
+                          customRequest={this.processUploadPcap}
+                          maxCount={1}
+                          disabled={isRunning}
+                          showUploadList={false}
+                        >
+                          <Button icon={<UploadOutlined />} disabled={isRunning}>
+                            Upload PCAP
+                          </Button>
+                        </Upload>
+                      )}
                     </div>
                   )
                 ) : (
@@ -2737,8 +2741,7 @@ class DPIPage extends Component {
                       danger
                       icon={<StopOutlined />}
                       onClick={this.stopAnalysis}
-                      disabled={!isRunning || (mode === 'online' && !isOwner)}
-                      title={mode === 'online' && !isOwner ? 'Only the session owner can stop online DPI' : ''}
+                      disabled={!isRunning}
                     >
                       Stop
                     </Button>
@@ -2747,7 +2750,8 @@ class DPIPage extends Component {
                     type="default"
                     icon={<FolderOpenOutlined />}
                     onClick={this.handleExtractFeatures}
-                    disabled={(mode === 'offline' && !selectedPcap) || (mode === 'online' && !sessionId)}
+                    disabled={mode === 'online' || (mode === 'offline' && !selectedPcap)}
+                    title={mode === 'online' ? 'Feature extraction is only available for offline PCAP analysis' : ''}
                   >
                     Extract Features
                   </Button>
@@ -2761,11 +2765,6 @@ class DPIPage extends Component {
                 <Tag color={isRunning ? 'green' : 'default'}>
                   {isRunning ? 'Running' : 'Stopped'}
                 </Tag>
-                {isRunning && mode === 'online' && (
-                  <Tag color={isOwner ? 'blue' : 'orange'} style={{ marginLeft: 4 }}>
-                    {isOwner ? 'Owner' : 'Viewer'}
-                  </Tag>
-                )}
               </Col>
               
               {lastUpdate && mode === 'online' && (

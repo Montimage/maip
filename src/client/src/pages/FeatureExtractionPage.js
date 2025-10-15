@@ -1,9 +1,10 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
-import { Button, Divider, Form, Table, Tooltip, Upload, message, Spin, notification, Checkbox, Space, Card, Row, Col, Statistic, Tag } from 'antd';
+import { Button, Divider, Form, Table, Tooltip, Upload, message, Spin, notification, Checkbox, Space, Card, Row, Col, Statistic, Tag, Select } from 'antd';
 import { UploadOutlined, DownloadOutlined, SendOutlined, FileTextOutlined, DatabaseOutlined, CheckCircleOutlined, ApartmentOutlined } from '@ant-design/icons';
 import Papa from 'papaparse';
 import { connect } from 'react-redux';
+import { useUserRole } from '../hooks/useUserRole';
 import {
   FORM_LAYOUT,
   SERVER_URL,
@@ -22,6 +23,9 @@ class FeatureExtractionPage extends Component {
     super(props);
     this.state = {
       uploadedPcapName: null,
+      pcapFiles: [],
+      // Track if current PCAP was uploaded (vs selected from list or loaded from DPI)
+      wasUploaded: false,
       // Optional label selection: 'none' | 'normal' | 'malicious'
       labelChoice: 'none',
       // Feature extraction results
@@ -59,7 +63,7 @@ class FeatureExtractionPage extends Component {
               if (result && result.csvContent) {
                 // Restore the features data
                 const csvText = result.csvContent;
-                const { rows, flowColumns } = buildAttackTable({ csvString: csvText });
+                const { rows, flowColumns } = buildAttackTable({ csvString: csvText, sortColumns: true });
                 
                 // Detect label choice based on presence of malware column
                 let detectedLabelChoice = 'none';
@@ -85,6 +89,7 @@ class FeatureExtractionPage extends Component {
                   featuresSessionId: result.sessionId || null,
                   featuresLoading: false,
                   labelChoice: detectedLabelChoice,
+                  wasUploaded: false, // Explicitly set to false for DPI-loaded files
                 });
                 
                 localStorage.removeItem('pendingFeatureExtractionPcap');
@@ -112,7 +117,8 @@ class FeatureExtractionPage extends Component {
         this.setState({ 
           uploadedPcapName: pendingPcap,
           loadedFromDPI: fromDPI === 'true',
-          disableUpload: true  // Disable upload when loaded from DPI
+          disableUpload: true,  // Disable upload when loaded from DPI
+          wasUploaded: false, // Explicitly set to false for DPI-loaded files
         });
         localStorage.removeItem('pendingFeatureExtractionPcap');
         localStorage.removeItem('pendingFeatureExtractionFromDPI');
@@ -124,6 +130,24 @@ class FeatureExtractionPage extends Component {
       }
     } catch (e) {
       // ignore storage errors
+    }
+    // Load available PCAP files from server (similar to DPI page)
+    await this.loadPcapFiles();
+  }
+
+  loadPcapFiles = async () => {
+    try {
+      const res = await fetch(`${SERVER_URL}/api/dpi/pcaps`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const pcaps = (data && data.pcaps) ? data.pcaps : [];
+      // Do NOT auto-select a PCAP here; keep uploadedPcapName as-is so dropdown shows when null
+      this.setState((prev) => ({
+        pcapFiles: pcaps,
+        uploadedPcapName: prev.uploadedPcapName,
+      }));
+    } catch (e) {
+      // silent
     }
   }
 
@@ -182,7 +206,7 @@ class FeatureExtractionPage extends Component {
       }
       const csvText = result.csvContent;
       // Build rows and columns using the same logic as malicious flows table
-      const { rows, flowColumns } = buildAttackTable({ csvString: csvText });
+      const { rows, flowColumns } = buildAttackTable({ csvString: csvText, sortColumns: true });
       let finalColumns = flowColumns;
       let finalRows = rows;
       let finalCsvText = csvText;
@@ -285,7 +309,18 @@ class FeatureExtractionPage extends Component {
       // no-op
     } else if (status === 'done') {
       const uploaded = (response && response.pcapFile) || (info.file.response && info.file.response.pcapFile) || null;
-      this.setState({ uploadedPcapName: uploaded });
+      this.setState({ 
+        uploadedPcapName: uploaded,
+        loadedFromDPI: false, // Reset DPI flag when uploading new file
+        wasUploaded: true,
+      });
+      notification.success({
+        message: 'PCAP Uploaded',
+        description: `File "${uploaded}" uploaded successfully and ready for feature extraction.`,
+        placement: 'topRight',
+      });
+      // Reload the PCAP list to include the newly uploaded file
+      this.loadPcapFiles();
       try {
         if (uploaded) localStorage.setItem('lastUploadedPcap', uploaded);
         if (uploaded) {
@@ -301,7 +336,6 @@ class FeatureExtractionPage extends Component {
       } catch (e) {
         // ignore storage errors
       }
-      // Removed success notification
     } else if (status === 'error') {
       message.error('Upload failed');
     }
@@ -326,7 +360,7 @@ class FeatureExtractionPage extends Component {
   };
 
   render() {
-    const { uploadedPcapName, featuresLoading, featuresData, featuresCsvText, featuresColumns, loadedFromDPI } = this.state;
+    const { uploadedPcapName, pcapFiles, featuresLoading, featuresData, featuresCsvText, featuresColumns, loadedFromDPI } = this.state;
 
     // Only allow Predict Offline after feature extraction has produced results
     const featuresReady = !featuresLoading && (((featuresData || []).length > 0) || !!featuresCsvText);
@@ -365,81 +399,161 @@ class FeatureExtractionPage extends Component {
               </Tag>
             </div>
           )}
-          <Row gutter={4} align="middle" justify="space-between">
-            <Col flex="none">
-              <strong style={{ marginRight: 4 }}><span style={{ color: 'red' }}>* </span>PCAP File:</strong>
+          <Row gutter={8} align="middle" justify="space-between">
+            <Col flex="auto">
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'nowrap' }}>
+                <strong style={{ marginRight: 4 }}><span style={{ color: 'red' }}>* </span>PCAP File:</strong>
+                {this.state.wasUploaded ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Tag color="green" style={{ margin: 0, padding: '4px 12px', fontSize: '14px' }}>
+                      {uploadedPcapName}
+                    </Tag>
+                    <Button 
+                      size="small" 
+                      onClick={async () => {
+                        await new Promise(resolve => {
+                          this.setState({
+                            uploadedPcapName: null,
+                            wasUploaded: false,
+                            featuresCsvText: '',
+                            featuresData: [],
+                            featuresColumns: [],
+                            featuresFileName: null,
+                            featuresSessionId: null,
+                          }, resolve);
+                        });
+                        // Reload PCAP files to repopulate dropdown
+                        await this.loadPcapFiles();
+                      }}
+                    >
+                      Clear Upload
+                    </Button>
+                  </div>
+                ) : uploadedPcapName ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Tag color="green" style={{ margin: 0, padding: '4px 12px', fontSize: '14px' }}>
+                      {uploadedPcapName}
+                    </Tag>
+                    <Button 
+                      size="small" 
+                      onClick={async () => {
+                        await new Promise(resolve => {
+                          this.setState({
+                            uploadedPcapName: null,
+                            loadedFromDPI: false,
+                            disableUpload: false,
+                            wasUploaded: false,
+                            featuresCsvText: '',
+                            featuresData: [],
+                            featuresColumns: [],
+                            featuresFileName: null,
+                            featuresSessionId: null,
+                          }, resolve);
+                        });
+                        // Reload PCAP files to repopulate dropdown
+                        await this.loadPcapFiles();
+                      }}
+                    >
+                      Clear Selection
+                    </Button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Select
+                      showSearch
+                      placeholder="Select a PCAP ..."
+                      style={{ width: 250 }}
+                      value={uploadedPcapName || undefined}
+                      allowClear
+                      onChange={(value) => {
+                        this.setState({
+                          uploadedPcapName: value || null,
+                          loadedFromDPI: false,
+                          disableUpload: false,
+                          wasUploaded: false,
+                          featuresCsvText: '',
+                          featuresData: [],
+                          featuresColumns: [],
+                          featuresFileName: null,
+                          featuresSessionId: null,
+                        });
+                      }}
+                      onClear={async () => {
+                        await new Promise(resolve => {
+                          this.setState({
+                            uploadedPcapName: null,
+                            loadedFromDPI: false,
+                            disableUpload: false,
+                            wasUploaded: false,
+                            featuresCsvText: '',
+                            featuresData: [],
+                            featuresColumns: [],
+                            featuresFileName: null,
+                            featuresSessionId: null,
+                          }, resolve);
+                        });
+                        await this.loadPcapFiles();
+                      }}
+                      options={(pcapFiles || []).map(f => ({ value: f, label: f }))}
+                      filterOption={(input, option) => (option?.label || '').toLowerCase().includes(input.toLowerCase())}
+                    />
+                    {this.props.isSignedIn && (
+                      <Upload
+                        beforeUpload={this.beforeUploadPcap}
+                        action={`${SERVER_URL}/api/pcaps`}
+                        onChange={this.handleUploadChange}
+                        customRequest={this.processUploadPcap}
+                        maxCount={1}
+                        disabled={this.state.featuresLoading}
+                        showUploadList={false}
+                        onRemove={() => {
+                          this.setState({
+                            uploadedPcapName: null,
+                            featuresCsvText: '',
+                            featuresData: [],
+                            featuresColumns: [],
+                            featuresFileName: null,
+                            featuresSessionId: null,
+                          }, async () => {
+                            await this.loadPcapFiles();
+                          });
+                        }}
+                      >
+                        <Button icon={<UploadOutlined />} disabled={this.state.featuresLoading}>Upload PCAP</Button>
+                      </Upload>
+                    )}
+                  </div>
+                )}
+              </div>
             </Col>
-            <Col flex="none">
-              {uploadedPcapName && loadedFromDPI ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Tag color="green" style={{ margin: 0, padding: '4px 12px', fontSize: '14px' }}>
-                    {uploadedPcapName}
-                  </Tag>
-                  <Button 
-                    size="small" 
-                    onClick={() => this.setState({
-                      uploadedPcapName: null,
-                      loadedFromDPI: false,
-                      disableUpload: false,
-                      featuresCsvText: '',
-                      featuresData: [],
-                      featuresColumns: [],
-                      featuresFileName: null,
-                      featuresSessionId: null,
-                    })}
+            
+            <Col flex="auto" style={{ display: 'flex', justifyContent: 'center' }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <strong style={{ marginRight: 4 }}>Label:</strong>
+                <Space size={6}>
+                  <Checkbox
+                    checked={this.state.labelChoice === 'normal'}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      this.setState({ labelChoice: checked ? 'normal' : (this.state.labelChoice === 'normal' ? 'none' : this.state.labelChoice) });
+                    }}
                   >
-                    Clear
-                  </Button>
-                </div>
-              ) : (
-                <Upload
-                  beforeUpload={this.beforeUploadPcap}
-                  action={`${SERVER_URL}/api/pcaps`}
-                  onChange={this.handleUploadChange}
-                  customRequest={this.processUploadPcap}
-                  maxCount={1}
-                  disabled={this.state.disableUpload}
-                  onRemove={() => this.setState({
-                    uploadedPcapName: null,
-                    featuresCsvText: '',
-                    featuresData: [],
-                    featuresColumns: [],
-                    featuresFileName: null,
-                    featuresSessionId: null,
-                  })}
-                >
-                  <Button icon={<UploadOutlined />} disabled={this.state.disableUpload} style={{ width: 280 }}>Upload PCAP</Button>
-                </Upload>
-              )}
+                    Normal
+                  </Checkbox>
+                  <Checkbox
+                    checked={this.state.labelChoice === 'malicious'}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      this.setState({ labelChoice: checked ? 'malicious' : (this.state.labelChoice === 'malicious' ? 'none' : this.state.labelChoice) });
+                    }}
+                  >
+                    Malicious
+                  </Checkbox>
+                </Space>
+              </div>
             </Col>
             
-            <Col flex="none" style={{ marginLeft: 12 }}>
-              <strong style={{ marginRight: 4 }}>Label:</strong>
-            </Col>
             <Col flex="none">
-              <Space size={4}>
-                <Checkbox
-                  checked={this.state.labelChoice === 'normal'}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
-                    this.setState({ labelChoice: checked ? 'normal' : (this.state.labelChoice === 'normal' ? 'none' : this.state.labelChoice) });
-                  }}
-                >
-                  Normal
-                </Checkbox>
-                <Checkbox
-                  checked={this.state.labelChoice === 'malicious'}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
-                    this.setState({ labelChoice: checked ? 'malicious' : (this.state.labelChoice === 'malicious' ? 'none' : this.state.labelChoice) });
-                  }}
-                >
-                  Malicious
-                </Checkbox>
-              </Space>
-            </Col>
-            
-            <Col flex="none" style={{ marginLeft: 12 }}>
               <Space size={4}>
                 <Button
                   type="default"
@@ -575,4 +689,17 @@ class FeatureExtractionPage extends Component {
   }
 }
 
-export default connect(() => ({}), () => ({}))(FeatureExtractionPage);
+const ConnectedFeatureExtractionPage = connect(() => ({}), () => ({}))(FeatureExtractionPage);
+
+const FeatureExtractionPageWithRole = (props) => {
+  const { isSignedIn, isLoaded } = useUserRole();
+  return (
+    <ConnectedFeatureExtractionPage
+      {...props}
+      isSignedIn={isSignedIn}
+      isAuthLoaded={isLoaded}
+    />
+  );
+};
+
+export default FeatureExtractionPageWithRole;

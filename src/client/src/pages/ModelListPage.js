@@ -244,27 +244,12 @@ class ModelListPage extends Component {
               }
             },
             {
-              label: (
-                <span style={{ fontSize: '16px' }}>Predict</span>
-              ),
-              options: [
-                {
-                  label: 'Online',
-                  icon: <LineChartOutlined />,
-                  url: `/predict/online/${model.modelId}`,
-                  onClick: () => {
-                    window.location.href = `/predict/online/${model.modelId}`;
-                  }
-                },
-                {
-                  label: 'Offline',
-                  icon: <LineChartOutlined />,
-                  url: `/predict/offline/${model.modelId}`,
-                  onClick: () => {
-                    window.location.href = `/predict/offline/${model.modelId}`;
-                  }
-                },
-              ]
+              label: 'Predict',
+              icon: <LineChartOutlined />,
+              url: `/predict/${model.modelId}`,
+              onClick: () => {
+                window.location.href = `/predict/${model.modelId}`;
+              }
             },
             {
               label: (

@@ -691,13 +691,17 @@ class PredictRuleBasedPage extends Component {
           </Row>
         </Card>
 
+        <Divider orientation="left">
+          <h2 style={{ fontSize: '20px' }}>Rule-based Alerts</h2>
+        </Divider>
+
         <Card style={{ marginBottom: 16 }}>
           <div style={{ textAlign: 'center', marginBottom: 12 }}>
             <strong style={{ fontSize: 16 }}>Detection Statistics</strong>
           </div>
           <Row gutter={16}>
             <Col span={12}>
-              <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+              <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
                 <Statistic
                   title="Rules Triggered"
                   value={rulesCount}
@@ -706,7 +710,7 @@ class PredictRuleBasedPage extends Component {
               </Card>
             </Col>
             <Col span={12}>
-              <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+              <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
                 <Statistic
                   title="Total Alerts"
                   value={verdictsTotal}
@@ -717,9 +721,6 @@ class PredictRuleBasedPage extends Component {
           </Row>
         </Card>
 
-        <Divider orientation="left">
-          <h2 style={{ fontSize: '20px' }}>Rule-based Alerts</h2>
-        </Divider>
         {(this.state.mode === 'online') && (chartData && chartData.length > 0) && (
           <Card style={{ marginBottom: 16 }}>
             <h3 style={{ fontSize: '16px', marginBottom: 16, fontWeight: 600 }}>Real-time Alert Distribution</h3>

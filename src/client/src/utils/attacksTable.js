@@ -4,7 +4,8 @@ import Papa from 'papaparse';
 
 // Build malicious flows table data and an actions column menu
 // onAction signature: (key, record) => void
-export function buildAttackTable({ csvString, onAction, buildMenu }) {
+// sortColumns: if true, sorts columns alphabetically by title
+export function buildAttackTable({ csvString, onAction, buildMenu, sortColumns = false }) {
   // Parse CSV as arrays to manage duplicate headers ourselves
   const results = Papa.parse((csvString || '').trim(), {
     header: false,
@@ -53,7 +54,7 @@ export function buildAttackTable({ csvString, onAction, buildMenu }) {
 
   // Build columns with unique, user-friendly titles even when CSV headers contain duplicates
   const titleCounts = {};
-  const flowColumns = keyList.map((key) => {
+  let flowColumns = keyList.map((key) => {
     const baseTitle = sanitizeHeader(key);
     const nextCount = (titleCounts[baseTitle] || 0) + 1;
     titleCounts[baseTitle] = nextCount;
@@ -69,6 +70,13 @@ export function buildAttackTable({ csvString, onAction, buildMenu }) {
       },
     };
   });
+
+  // Sort columns alphabetically by title if requested
+  if (sortColumns) {
+    flowColumns = [...flowColumns].sort((a, b) => 
+      String(a.title || '').localeCompare(String(b.title || ''))
+    );
+  }
 
   const actionsMenu = (record) => {
     if (typeof buildMenu === 'function') return buildMenu(record, onAction);

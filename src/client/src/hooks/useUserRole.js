@@ -7,25 +7,10 @@ import { useAuth, useUser } from '@clerk/clerk-react';
 export const useUserRole = () => {
   const { isLoaded, isSignedIn, userId, orgRole, orgId } = useAuth();
   const { user } = useUser();
+  // Vite env (fallback to empty object if not available)
+  const viteEnv = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env : {};
 
-  // Check if Clerk is configured
-  const hasClerkKey = !!(
-    process.env.REACT_APP_CLERK_PUBLISHABLE_KEY || 
-    process.env.VITE_CLERK_PUBLISHABLE_KEY
-  );
-
-  // If Clerk not configured, NO ONE can perform online actions (secure by default)
-  if (!hasClerkKey) {
-    return {
-      isLoaded: true,
-      isSignedIn: false,
-      isAdmin: false,
-      canPerformOnlineActions: false, // Require authentication for online actions
-      canPerformOfflineActions: true, // Allow offline actions for everyone
-      userId: null,
-      userEmail: null,
-    };
-  }
+  // Proceed regardless of env presence; rely on Clerk's actual loaded state
 
   if (!isLoaded) {
     return {
@@ -51,31 +36,51 @@ export const useUserRole = () => {
     };
   }
 
-  // CUSTOMIZE THIS: Define who is an admin
-  // Priority 1: Check Clerk organization admin role (if user is in an org)
-  const isOrgAdmin = orgRole === 'org:admin' || orgRole === 'admin';
-  
-  // Priority 2: Hardcode admin user IDs (optional, for users not in org)
-  const adminUserIds = [
-    // Add your Clerk user ID here (optional)
-    // Find it in: Clerk Dashboard → Users → Click your account
-    // Example: 'user_2xxxxxxxxxxxxxxxxxxxxx'
-  ];
-  
-  // Priority 3: Use email addresses (optional)
-  const adminEmails = [
-    // Add your Gmail here (optional)
-    // 'your.email@gmail.com'
-  ];
+  // ADMIN DETERMINATION (secure-by-default)
+  // 1) Allowlist via environment variables (recommended)
+  const rawAdminEmails = (
+    viteEnv.VITE_ADMIN_EMAILS || process.env.VITE_ADMIN_EMAILS || process.env.REACT_APP_ADMIN_EMAILS || ''
+  )
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
 
-  // Priority 4: Use Clerk public metadata role (optional)
-  const isMetadataAdmin = user?.publicMetadata?.role === 'admin';
+  const rawAdminUserIds = (
+    viteEnv.VITE_ADMIN_USER_IDS || process.env.VITE_ADMIN_USER_IDS || process.env.REACT_APP_ADMIN_USER_IDS || ''
+  )
+    .split(',')
+    .map((e) => e.trim())
+    .filter(Boolean);
 
-  // Check if user is admin (any method)
-  const isAdminById = adminUserIds.includes(userId);
-  const isAdminByEmail = user?.primaryEmailAddress?.emailAddress && 
-                          adminEmails.includes(user.primaryEmailAddress.emailAddress);
-  const isAdmin = isOrgAdmin || isAdminById || isAdminByEmail || isMetadataAdmin;
+  // 2) Optional: specific Clerk Organization ID treated as admin org
+  const adminOrgId = (
+    viteEnv.VITE_ADMIN_ORG_ID || process.env.VITE_ADMIN_ORG_ID || process.env.REACT_APP_ADMIN_ORG_ID || ''
+  ).trim();
+
+  const userEmail = (user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || '')?.toLowerCase();
+  const allUserEmails = Array.isArray(user?.emailAddresses)
+    ? user.emailAddresses.map((e) => (e?.emailAddress || '').toLowerCase()).filter(Boolean)
+    : (userEmail ? [userEmail] : []);
+  const isAdminByEmail = allUserEmails.some((em) => rawAdminEmails.includes(em));
+  const isAdminById = !!(userId && rawAdminUserIds.includes(userId));
+  const isAdminByOrg = !!(
+    adminOrgId && orgId === adminOrgId && (orgRole === 'org:admin' || orgRole === 'admin')
+  );
+
+  // NOTE: Avoid trusting user-editable publicMetadata for admin.
+  // If you want to use metadata, set it from a trusted backend and verify server-side.
+  const isAdmin = isAdminByEmail || isAdminById || isAdminByOrg;
+
+  // Debug the final admin determination
+  console.debug('[useUserRole] Admin check result:', {
+    allUserEmails,
+    rawAdminEmails,
+    isAdminByEmail,
+    isAdminById,
+    isAdminByOrg,
+    isAdmin,
+    canPerformOnlineActions: isAdmin
+  });
 
   return {
     isLoaded: true,
