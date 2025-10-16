@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import LayoutPage from './LayoutPage';
 import { connect } from "react-redux";
 import { Row, Col, Tooltip, message, notification, Upload, Spin, Button, InputNumber, Space, Form, Input, Select, Checkbox } from 'antd';
-import { UploadOutlined } from "@ant-design/icons";
+import { UploadOutlined, RocketOutlined } from "@ant-design/icons";
 import { Collapse } from 'antd';
 import {
   requestMMTStatus,
@@ -85,6 +85,11 @@ class BuildADPage extends Component {
     let datasets = null;
     if (!isRunning) {
       console.log("update isRunning state!");
+      
+      // Disable button and show spinner immediately
+      this.setState({ isRunning: true });
+      
+      try {
 
       if (attackDataset && normalDataset) {
         datasets = [
@@ -141,13 +146,17 @@ class BuildADPage extends Component {
         ];
       }
 
-      if (!datasets) {
-        console.error('No valid datasets or pcap files provided');
-        return;
-      } else {
-        this.intervalId = setInterval(() => { // start interval when button is clicked
+        if (!datasets) {
+          console.error('No valid datasets or pcap files provided');
+          this.setState({ isRunning: false });
+          return;
+        }
+        
+        // Start polling for build status
+        this.intervalId = setInterval(() => {
           this.props.fetchBuildStatus();
         }, 5000);
+        
         const buildConfig = {
           buildConfig: {
             datasets,
@@ -157,8 +166,21 @@ class BuildADPage extends Component {
         };
         console.log(buildConfig);
 
+        // Dispatch build model action
         this.props.fetchBuildModel(datasets, training_ratio, training_parameters);
-        this.setState({ isRunning: true });
+        // isRunning is already set to true at the beginning
+        
+      } catch (error) {
+        console.error('Error during model building:', error);
+        notification.error({
+          message: 'Build Failed',
+          description: error.message || 'An error occurred while building the model.',
+          placement: 'topRight',
+        });
+        this.setState({ isRunning: false });
+        if (this.intervalId) {
+          clearInterval(this.intervalId);
+        }
       }
     }
   }
@@ -426,7 +448,9 @@ class BuildADPage extends Component {
           <div style={{ textAlign: 'center' }}>
             <Button
               type="primary"
+              icon={<RocketOutlined />}
               style={{ marginTop: '16px' }}
+              loading={isRunning}
               disabled={ isRunning ||
                 !((this.state.attackDataset && this.state.normalDataset) ||
                 (this.state.attackPcapFile && this.state.normalPcapFile))
@@ -434,9 +458,6 @@ class BuildADPage extends Component {
               onClick={this.handleButtonBuild}
             >
               Build Model
-              {isRunning && (
-                <Spin size="small" style={{ marginLeft: 8 }} />
-              )}
             </Button>
           </div>
         </Form>
