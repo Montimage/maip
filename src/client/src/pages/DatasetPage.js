@@ -16,16 +16,12 @@ import {
 import {
   requestApp,
 } from "../actions";
-import { Menu, Button, Col, Row, Table, Divider, Card, Statistic } from 'antd';
+import { Col, Row, Table, Card, Statistic } from 'antd';
 import { ClockCircleOutlined, DatabaseOutlined } from '@ant-design/icons';
 import Papa from "papaparse";
 import FeatureCharts from '../components/FeatureCharts';
 import FeatureDescriptions from '../components/FeatureDescriptions';
 
-const {
-  BOX_STYLE,
-  DATASET_MENU_ITEMS,
-} = require('../constants');
 // const { Option } = Select;
 
 let featuresDescriptions = {};
@@ -140,76 +136,68 @@ class DatasetPage extends Component {
       <LayoutPage pageTitle="Dataset" 
         pageSubTitle={`${datasetType.charAt(0).toUpperCase() + datasetType.slice(1)}ing dataset of the model ${modelId}`}>
 
-        <Menu mode="horizontal" style={{ backgroundColor: 'transparent', fontSize: '18px' }}>
-          {DATASET_MENU_ITEMS.map(item => (
-            <Menu.Item key={item.key}>
-              <a href={item.link}>{item.label}</a>
-            </Menu.Item>
-          ))}
-        </Menu>
-
-        {/* Dataset Summary Banner */}
-        <Card size="small" style={{ marginBottom: 16, backgroundColor: '#f0f5ff' }}>
-          <div style={{ textAlign: 'center', marginBottom: 8 }}>
-            <strong style={{ fontSize: 14 }}>Dataset Summary</strong>
+        {/* Dataset Summary */}
+        <Card style={{ marginBottom: 24 }}>
+          <div style={{ textAlign: 'center', marginBottom: 12 }}>
+            <strong style={{ fontSize: 16 }}>Dataset Summary</strong>
           </div>
           <Row gutter={16}>
             <Col span={12}>
-              <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+              <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
                 <Statistic
                   title="Total Samples"
-                  value={csvData.length}
+                  value={csvData.length.toLocaleString()}
                   prefix={<ClockCircleOutlined />}
-                  valueStyle={{ fontSize: 18 }}
+                  valueStyle={{ fontSize: 24, fontWeight: 'bold', color: '#1890ff' }}
                 />
               </Card>
             </Col>
             <Col span={12}>
-              <Card size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+              <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
                 <Statistic
                   title="Total Features"
                   value={numberFeatures}
                   prefix={<DatabaseOutlined />}
-                  valueStyle={{ fontSize: 18 }}
+                  valueStyle={{ fontSize: 24, fontWeight: 'bold', color: '#52c41a' }}
                 />
               </Card>
             </Col>
           </Row>
         </Card>
 
-        {/* TODO: Fix "ResizeObserver loop limit exceeded", fixed header ? */}    
-        <Row gutter={24} style={{ marginTop: '20px' }} id="data">
-          <Divider orientation="left" style={{ marginTop: 24 }}>
-            <h2 style={{ fontSize: '20px' }}>Dataset</h2>
-          </Divider>
-          <Col className="gutter-row" span={24}>
-          <div style={{ ...BOX_STYLE, marginTop: '20px' }} >
-            <div style={{ maxWidth: '100vw', overflowX: 'auto', marginTop: '20px', height: 490 }}>
-              <Table columns={columns} 
-                dataSource={csvData} 
-                size="small" bordered
-                scroll={{ x: 'max-content', /* y: 400 */ }}
-                pagination={{ pageSize: 10, showTotal: (total) => `Total ${total} records` }}
-              />
-            </div>
+        {/* Dataset Table */}    
+        <Card style={{ marginBottom: 16 }} id="data">
+          <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Dataset</h3>
+          <div style={{ marginBottom: 12, fontSize: '13px', color: '#8c8c8c' }}>
+            Complete dataset with all features and samples
           </div>
-          </Col>
-        </Row>
+          <div style={{ overflow: 'auto' }}>
+            <Table 
+              columns={columns} 
+              dataSource={csvData} 
+              size="small" 
+              scroll={{ x: 'max-content' }}
+              pagination={{ 
+                pageSize: 10, 
+                showTotal: (total) => `Total ${total} records`,
+                showSizeChanger: true,
+                pageSizeOptions: ['10', '20', '50', '100']
+              }}
+            />
+          </div>
+        </Card>
 
-        <Row gutter={24} style={{ marginTop: '20px' }} id="feature_descriptions">
-          <Divider orientation="left" style={{ marginTop: 24 }}>
-            <h1 style={{ fontSize: '24px' }}>Feature Descriptions</h1>
-          </Divider>
-          <Col className="gutter-row" span={24}>
-            <FeatureDescriptions data={csvData} showTitle={false} />
-          </Col>
-        </Row>
+        {/* Feature Descriptions */}
+        <Card style={{ marginBottom: 16 }} id="feature_descriptions">
+          <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Feature Descriptions</h3>
+          <div style={{ marginBottom: 12, fontSize: '13px', color: '#8c8c8c' }}>
+            Detailed metadata and explanations for each extracted feature
+          </div>
+          <FeatureDescriptions data={csvData} showTitle={false} />
+        </Card>
 
-        <Row gutter={24} style={{ marginTop: '20px' }}>
-          <Col className="gutter-row" span={24}>
-            <FeatureCharts data={csvData} scatterConfigBuilder={scatterBuilder} sectionTitle="Feature Extraction" />
-          </Col>
-        </Row>
+        {/* Feature Charts */}
+        <FeatureCharts data={csvData} scatterConfigBuilder={scatterBuilder} showSectionTitle={false} />
         
       </LayoutPage>
     );

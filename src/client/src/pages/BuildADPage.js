@@ -463,8 +463,8 @@ class BuildADPage extends Component {
         </Form>
         </Col>
         <Col span={12} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-          <Tooltip title="This is the description of the image">
-            <img src="../../img/architecture.png" style={{ width: '40%' }} />
+          <Tooltip title="Model Training Architecture: Dataset preparation, feature extraction, model training, and evaluation pipeline">
+            <img src="../../img/architecture.png" style={{ width: '40%', cursor: 'help' }} alt="Model Architecture Diagram" />
           </Tooltip>
         </Col>
         </Row>

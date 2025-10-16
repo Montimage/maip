@@ -238,9 +238,7 @@ export default function FeatureCharts({ data = [], scatterConfigBuilder, barFeat
         </Col>
         <Col span={12}>
           <Card style={{ marginBottom: 16 }} id="box_plot">
-            <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>
-              Box Plot Comparison
-            </h3>
+            <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Box Plot Comparison</h3>
             <div style={{ marginBottom: 12, fontSize: '13px', color: '#8c8c8c' }}>
               Compare statistical distributions (quartiles, median, outliers) across multiple features
             </div>
