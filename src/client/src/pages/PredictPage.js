@@ -144,7 +144,7 @@ class PredictPage extends Component {
         this.setState({ mode: 'online' });
       } else {
         this.setState({ mode: 'offline' });
-        message.warning('Online predictions require administrator access. Switched to offline mode.');
+        message.warning('Administrator privileges required for online predictions. Switched to offline mode.');
       }
     } else if (path === 'offline') {
       this.setState({ mode: 'offline' });
@@ -1172,28 +1172,17 @@ class PredictPage extends Component {
                     hasResultsShown: false,
                   });
                 }}
-                style={{ width: 180 }}
+                style={{ width: 200 }}
                 disabled={isRunning || isCapturing}
               >
-                <Select.Option value="offline">Offline (PCAP/Dataset)</Select.Option>
+                <Select.Option value="offline">Offline (PCAP)</Select.Option>
                 <Select.Option value="online" disabled={!this.props.canPerformOnlineActions}>
-                  <Tooltip title={!this.props.canPerformOnlineActions ? "Admin privileges required" : ""}>
-                    Online (Live Capture) {!this.props.canPerformOnlineActions && <LockOutlined />}
+                  <Tooltip title={!this.props.canPerformOnlineActions ? "Admin access required" : ""}>
+                    Online (Interface) {!this.props.canPerformOnlineActions && <LockOutlined />}
                   </Tooltip>
                 </Select.Option>
               </Select>
             </Col>
-            {!this.props.canPerformOnlineActions && mode === 'offline' && (
-              <Col flex="auto">
-                <Alert
-                  message="Online predictions require administrator access"
-                  type="info"
-                  showIcon
-                  closable
-                  style={{ marginLeft: 16 }}
-                />
-              </Col>
-            )}
           </Row>
           
           <Divider style={{ margin: '16px 0' }} />

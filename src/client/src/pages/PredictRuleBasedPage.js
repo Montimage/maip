@@ -663,20 +663,12 @@ class PredictRuleBasedPage extends Component {
               >
                 <Select.Option value="offline">Offline (PCAP)</Select.Option>
                 <Select.Option value="online" disabled={!this.props.canPerformOnlineActions}>
-                  Online (Interface) {!this.props.canPerformOnlineActions && <LockOutlined />}
+                  <Tooltip title={!this.props.canPerformOnlineActions ? "Admin access required" : ""}>
+                    Online (Interface) {!this.props.canPerformOnlineActions && <LockOutlined />}
+                  </Tooltip>
                 </Select.Option>
               </Select>
             </Col>
-            {!this.props.canPerformOnlineActions && this.state.mode === 'offline' && (
-              <Col flex="auto" style={{ marginLeft: 16 }}>
-                <Alert
-                  message="Online rule-based detection requires administrator access"
-                  type="info"
-                  showIcon
-                  closable
-                />
-              </Col>
-            )}
             
             <Col flex="none">
               <strong style={{ marginRight: 4 }}>{this.state.mode === 'offline' ? 'PCAP File:' : 'Interface:'}</strong>

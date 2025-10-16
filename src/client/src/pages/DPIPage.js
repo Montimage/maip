@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
-import { Button, Card, Select, Alert, Spin, Row, Col, Divider, Tree, Space, Tag, Table, Statistic, notification, message, Upload } from 'antd';
+import { Button, Card, Select, Alert, Spin, Row, Col, Divider, Tree, Space, Tag, Table, Statistic, notification, message, Upload, Tooltip } from 'antd';
 import { PlayCircleOutlined, StopOutlined, DownOutlined, FolderOpenOutlined, LockOutlined, UploadOutlined, FileTextOutlined, ApartmentOutlined } from '@ant-design/icons';
 import { Line, Pie, Column, Area, Histogram } from '@ant-design/plots';
 import { SERVER_URL } from '../constants';
@@ -2618,20 +2618,12 @@ class DPIPage extends Component {
                 >
                   <Option value="offline">Offline (PCAP)</Option>
                   <Option value="online" disabled={!this.props.canPerformOnlineActions}>
-                    Online (Interface) {!this.props.canPerformOnlineActions && <LockOutlined />}
+                    <Tooltip title={!this.props.canPerformOnlineActions ? "Admin access required" : ""}>
+                      Online (Interface) {!this.props.canPerformOnlineActions && <LockOutlined />}
+                    </Tooltip>
                   </Option>
                 </Select>
               </Col>
-              {!this.props.canPerformOnlineActions && mode === 'offline' && (
-                <Col flex="auto" style={{ marginLeft: 12 }}>
-                  <Alert
-                    message="Online DPI requires administrator access"
-                    type="info"
-                    showIcon
-                    closable
-                  />
-                </Col>
-              )}
               
               <Col flex="none" style={{ marginLeft: 12 }}>
                 <strong style={{ marginRight: 4 }}>{mode === 'offline' ? 'PCAP File:' : 'Interface:'}</strong>

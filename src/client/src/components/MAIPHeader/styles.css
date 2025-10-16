@@ -19,7 +19,7 @@ header {
 /* Increase brightness of menu items */
 .ant-menu-dark .ant-menu-item,
 .ant-menu-dark .ant-menu-submenu-title {
-    color: rgba(255, 255, 255, 0.95) !important;
+    color: rgba(255, 255, 255, 0.9) !important;
 }
 
 /* Increase brightness of selected items */
@@ -30,8 +30,10 @@ header {
 
 /* Ensure disabled items are still visible */
 .ant-menu-dark .ant-menu-item-disabled,
-.ant-menu-dark .ant-menu-submenu-disabled > .ant-menu-submenu-title {
-    color: rgba(255, 255, 255, 0.75) !important;
+.ant-menu-dark .ant-menu-submenu-disabled > .ant-menu-submenu-title,
+.ant-menu-submenu-popup .ant-menu-item-disabled {
+    color: rgba(255, 255, 255, 0.7) !important;
+    opacity: 0.75 !important;
 }
 
 .selectApp .ant-select-selector {
