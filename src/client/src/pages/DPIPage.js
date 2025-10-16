@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
 import { Button, Card, Select, Alert, Spin, Row, Col, Divider, Tree, Space, Tag, Table, Statistic, notification, message, Upload } from 'antd';
-import { PlayCircleOutlined, StopOutlined, DownOutlined, FolderOpenOutlined, LockOutlined, UploadOutlined, FileTextOutlined } from '@ant-design/icons';
+import { PlayCircleOutlined, StopOutlined, DownOutlined, FolderOpenOutlined, LockOutlined, UploadOutlined, FileTextOutlined, ApartmentOutlined } from '@ant-design/icons';
 import { Line, Pie, Column, Area, Histogram } from '@ant-design/plots';
 import { SERVER_URL } from '../constants';
 import { useUserRole } from '../hooks/useUserRole';
@@ -2650,6 +2650,13 @@ class DPIPage extends Component {
                           this.setState({
                             uploadedPcapName: null,
                             selectedPcap: null,
+                            hierarchyData: [],
+                            trafficData: [],
+                            statistics: null,
+                            conversations: [],
+                            packetSizes: [],
+                            sessionId: null,
+                            lastUpdate: null,
                           });
                           notification.info({
                             message: 'Upload Cleared',
@@ -2729,12 +2736,12 @@ class DPIPage extends Component {
                 <Space size="small">
                   <Button 
                     type="primary"
-                    icon={<PlayCircleOutlined />}
+                    icon={<ApartmentOutlined />}
                     onClick={this.startAnalysis}
                     loading={loading}
                     disabled={isRunning || (!selectedPcap && !selectedInterface)}
                   >
-                    Start
+                    View DPI
                   </Button>
                   {isRunning && (
                     <Button

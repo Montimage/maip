@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
-import { Button, Divider, Form, Table, Tooltip, Upload, message, Spin, notification, Checkbox, Space, Card, Row, Col, Statistic, Tag, Select } from 'antd';
-import { UploadOutlined, DownloadOutlined, SendOutlined, FileTextOutlined, DatabaseOutlined, CheckCircleOutlined, ApartmentOutlined } from '@ant-design/icons';
+import { Button, Card, Row, Col, Divider, Space, Alert, Spin, Upload, Tag, message, notification, Checkbox, Select, Statistic, Tooltip, Table } from 'antd';
+import { UploadOutlined, DownloadOutlined, ApartmentOutlined, FolderOpenOutlined, FileTextOutlined, DatabaseOutlined, CheckCircleOutlined, SendOutlined } from '@ant-design/icons';
 import Papa from 'papaparse';
 import { connect } from 'react-redux';
 import { useUserRole } from '../hooks/useUserRole';
@@ -205,8 +205,8 @@ class FeatureExtractionPage extends Component {
         throw new Error('No features CSV returned');
       }
       const csvText = result.csvContent;
-      // Build rows and columns using the same logic as malicious flows table
-      const { rows, flowColumns } = buildAttackTable({ csvString: csvText, sortColumns: true });
+      // Build rows and columns preserving backend feature order (AD_FEATURES from constants.py)
+      const { rows, flowColumns } = buildAttackTable({ csvString: csvText, sortColumns: false });
       let finalColumns = flowColumns;
       let finalRows = rows;
       let finalCsvText = csvText;
@@ -345,6 +345,7 @@ class FeatureExtractionPage extends Component {
 
   buildColumns = (rows) => {
     if (!rows || rows.length === 0) return [];
+    // Object.keys() preserves insertion order (ES2015+), so columns appear in backend order
     return Object.keys(rows[0]).map((key) => ({
       title: key,
       dataIndex: key,
@@ -427,34 +428,6 @@ class FeatureExtractionPage extends Component {
                       }}
                     >
                       Clear Upload
-                    </Button>
-                  </div>
-                ) : uploadedPcapName ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Tag color="green" style={{ margin: 0, padding: '4px 12px', fontSize: '14px' }}>
-                      {uploadedPcapName}
-                    </Tag>
-                    <Button 
-                      size="small" 
-                      onClick={async () => {
-                        await new Promise(resolve => {
-                          this.setState({
-                            uploadedPcapName: null,
-                            loadedFromDPI: false,
-                            disableUpload: false,
-                            wasUploaded: false,
-                            featuresCsvText: '',
-                            featuresData: [],
-                            featuresColumns: [],
-                            featuresFileName: null,
-                            featuresSessionId: null,
-                          }, resolve);
-                        });
-                        // Reload PCAP files to repopulate dropdown
-                        await this.loadPcapFiles();
-                      }}
-                    >
-                      Clear Selection
                     </Button>
                   </div>
                 ) : (
@@ -554,7 +527,16 @@ class FeatureExtractionPage extends Component {
             </Col>
             
             <Col flex="none">
-              <Space size={4}>
+              <Space size="small">
+                <Button 
+                  type="primary" 
+                  icon={<FolderOpenOutlined />}
+                  onClick={this.handleExtractFeatures} 
+                  disabled={!uploadedPcapName || featuresLoading}
+                  loading={featuresLoading}
+                >
+                  Extract Features
+                </Button>
                 <Button
                   type="default"
                   icon={<ApartmentOutlined />}
@@ -563,16 +545,9 @@ class FeatureExtractionPage extends Component {
                 >
                   View DPI
                 </Button>
-                <Button 
-                  type="primary" 
-                  onClick={this.handleExtractFeatures} 
-                  disabled={!uploadedPcapName || featuresLoading}
-                  loading={featuresLoading}
-                >
-                  Extract Features
-                </Button>
                 <Button
                   type={featuresReady ? 'primary' : 'default'}
+                  icon={<SendOutlined />}
                   disabled={!featuresReady}
                   onClick={() => {
                     this.setState({ disableUpload: true }, () => {
