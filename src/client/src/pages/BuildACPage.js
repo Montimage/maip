@@ -1,6 +1,7 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
 import { Row, Col, Tooltip, notification, Spin, Button, InputNumber, Form, Select } from 'antd';
+import { RocketOutlined } from '@ant-design/icons';
 import {
   requestApp,
   requestDatasetsAC,
@@ -28,27 +29,48 @@ class BuildACPage extends Component {
   }
 
   componentDidMount() {
-    this.props.fetchApp();
     this.props.fetchDatasetsAC();
   }
 
   async handleButtonBuild() {
     const { modelType, dataset, featureList, trainingRatio, isRunning } = this.state;
-    const buildACConfig = {
-      buildACConfig: {
-        modelType, dataset, featureList, trainingRatio
-      }
-    };
-    console.log(buildACConfig);
-
+    
     if (!isRunning) {
-      console.log("update isRunning state!");
-      this.setState({ isRunning: true });        
-      this.intervalId = setInterval(() => { // start interval when button is clicked
-        this.props.fetchBuildStatusAC();
-      }, 3000);   
+      // Disable button and show spinner immediately
+      this.setState({ isRunning: true });
+      
+      try {
+        const buildACConfig = {
+          buildACConfig: {
+            modelType,
+            dataset,
+            features: featureList,
+            training_ratio: trainingRatio,
+          }
+        };
+        console.log(buildACConfig);
+        
+        // Start polling for build status
+        this.intervalId = setInterval(() => {
+          this.props.fetchBuildACStatus();
+        }, 5000);
 
-      this.props.fetchBuildModelAC(modelType, dataset, featureList, trainingRatio);
+        // Dispatch build model action
+        this.props.fetchBuildModelAC(modelType, dataset, featureList, trainingRatio);
+        // isRunning is already set to true at the beginning
+        
+      } catch (error) {
+        console.error('Error during model building:', error);
+        notification.error({
+          message: 'Build Failed',
+          description: error.message || 'An error occurred while building the model.',
+          placement: 'topRight',
+        });
+        this.setState({ isRunning: false });
+        if (this.intervalId) {
+          clearInterval(this.intervalId);
+        }
+      }
     }
   }
 
@@ -158,13 +180,12 @@ class BuildACPage extends Component {
           <div style={{ textAlign: 'center' }}>
             <Button
               type="primary"
+              icon={<RocketOutlined />}
+              loading={isRunning}
               disabled={ isRunning || !this.state.modelType || !this.state.dataset }
               onClick={this.handleButtonBuild}
             >
               Build Model
-              {isRunning && (
-                <Spin size="small" style={{ marginLeft: 8 }} />
-              )}
             </Button>
           </div>
         </Form>

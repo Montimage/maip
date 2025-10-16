@@ -1,11 +1,12 @@
 import React, { Component } from "react";
 import { connect } from "react-redux";
-import { Modal, Tooltip, Typography, Table, Space, Button, Select, notification } from "antd";
+import { Modal, Tooltip, Typography, Table, Space, Button, Select, notification, Tag, Card } from "antd";
 import LayoutPage from "./LayoutPage";
+import { useUserRole } from '../hooks/useUserRole';
 import {
   FolderViewOutlined, DownloadOutlined, DeleteOutlined, SendOutlined,
   LineChartOutlined, SolutionOutlined, BugOutlined, ExperimentOutlined,
-  HourglassOutlined, RestOutlined, CopyOutlined, HighlightOutlined
+  HourglassOutlined, RestOutlined, CopyOutlined, HighlightOutlined, LockOutlined
 } from '@ant-design/icons';
 import {
   requestApp,
@@ -194,7 +195,10 @@ class ModelListPage extends Component {
                   notification.error({ message: 'Failed to send training dataset to NATS', description: e.message || String(e), placement: 'topRight' });
                 }
               }}
-            >Send to NATS</Button>
+              disabled={!this.props.isAdmin}
+            >
+              Send to NATS
+            </Button>
           </div>
         ),
       },
@@ -225,7 +229,10 @@ class ModelListPage extends Component {
                   notification.error({ message: 'Failed to send testing dataset to NATS', description: e.message || String(e), placement: 'topRight' });
                 }
               }}
-            >Send to NATS</Button>
+              disabled={!this.props.isAdmin}
+            >
+              Send to NATS
+            </Button>
           </div>
         ),
       },
@@ -236,9 +243,17 @@ class ModelListPage extends Component {
         render: (model) => {
           const options = [
             {
-              label: 'Retrain',
+              label: (
+                <span>
+                  Retrain
+                  {!this.props.isAdmin && (
+                    <LockOutlined style={{ fontSize: '11px', color: '#faad14', marginLeft: '6px' }} />
+                  )}
+                </span>
+              ),
               icon: <HourglassOutlined />,
               url: `/retrain/${model.modelId}`,
+              disabled: !this.props.isAdmin,
               onClick: () => {
                 window.location.href = `/models/retrain/${model.modelId}`;
               }
@@ -306,8 +321,16 @@ class ModelListPage extends Component {
               ]
             },
             {
-              label: 'Delete',
+              label: (
+                <span>
+                  Delete
+                  {!this.props.isAdmin && (
+                    <LockOutlined style={{ fontSize: '11px', color: '#faad14', marginLeft: '6px' }} />
+                  )}
+                </span>
+              ),
               icon: <RestOutlined />,
+              disabled: !this.props.isAdmin,
               onClick: () => {
                 deleteModel(model.modelId);
                 notification.success({
@@ -341,7 +364,12 @@ class ModelListPage extends Component {
                   );
                 } else {
                   return (
-                    <Option key={option.label} value={option.url} onClick={option.onClick}>
+                    <Option 
+                      key={option.label} 
+                      value={option.url} 
+                      onClick={option.onClick}
+                      disabled={option.disabled}
+                    >
                       <Space wrap>
                         {option.icon}
                         {option.label}
@@ -361,13 +389,87 @@ class ModelListPage extends Component {
         <Table columns={columns} dataSource={dataSource}
           pagination={{ pageSize: 7 }}
           expandable={{
-            expandedRowRender: (model) =>
-              <p style={{ margin: 0 }}>
-                <h3><b>Build config:</b></h3>
-                <pre style={{ fontSize: "12px" }}>
-                  {convertBuildConfigStrToJson(this.props.app, model.buildConfig)}
-                </pre>
-              </p>,
+            expandedRowRender: (model) => {
+              const buildConfig = convertBuildConfigStrToJson(this.props.app, model.buildConfig);
+              let parsedConfig;
+              let formattedJson;
+              
+              try {
+                parsedConfig = JSON.parse(buildConfig);
+                formattedJson = JSON.stringify(parsedConfig, null, 2);
+              } catch (e) {
+                parsedConfig = null;
+                formattedJson = buildConfig;
+              }
+              
+              // Syntax highlighting for JSON
+              const highlightJson = (json) => {
+                return json
+                  .replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;')
+                  .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, (match) => {
+                    let cls = 'json-number';
+                    if (/^"/.test(match)) {
+                      if (/:$/.test(match)) {
+                        cls = 'json-key';
+                      } else {
+                        cls = 'json-string';
+                      }
+                    } else if (/true|false/.test(match)) {
+                      cls = 'json-boolean';
+                    } else if (/null/.test(match)) {
+                      cls = 'json-null';
+                    }
+                    return `<span class="${cls}">${match}</span>`;
+                  });
+              };
+              
+              return (
+                <Card 
+                  title={
+                    <span style={{ fontSize: '16px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      📋 Build Configuration
+                      <Tag color="blue" style={{ fontSize: '11px' }}>JSON</Tag>
+                    </span>
+                  }
+                  bordered={false}
+                  size="small"
+                  style={{ 
+                    background: 'linear-gradient(to bottom, #fafafa, #f5f5f5)',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+                  }}
+                >
+                  <div style={{
+                    background: '#ffffff',
+                    border: '1px solid #e8e8e8',
+                    borderRadius: '6px',
+                    padding: '16px',
+                    overflow: 'auto',
+                    maxHeight: '600px',
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.08)'
+                  }}>
+                    <pre 
+                      style={{ 
+                        margin: 0,
+                        fontSize: '13px',
+                        lineHeight: '1.6',
+                        color: '#2c3e50',
+                        fontFamily: "'Fira Code', 'Consolas', 'Monaco', monospace"
+                      }}
+                      dangerouslySetInnerHTML={{ __html: highlightJson(formattedJson) }}
+                    />
+                  </div>
+                  <style>{`
+                    .json-key { color: #c7254e; font-weight: 600; }
+                    .json-string { color: #0d8050; }
+                    .json-number { color: #ff6b35; }
+                    .json-boolean { color: #0066cc; font-weight: 600; }
+                    .json-null { color: #9b59b6; font-style: italic; }
+                  `}</style>
+                </Card>
+              );
+            },
           }}
           locale={{
             emptyText: <h3>No models found! Let's build a new one!</h3>,
@@ -375,13 +477,18 @@ class ModelListPage extends Component {
         />
 
         <Space wrap>
-          <Button type="primary" danger icon={<DeleteOutlined />}
-            onClick={this.showDeleteAllModelsConfirm}
-            style={{ marginTop: '10px', marginBottom: '16px' }}
-            disabled={dataSource.length === 0}
-          >
-            Delete All Models
-          </Button>
+          <Tooltip title={!this.props.isAdmin ? "Admin access required" : "Delete all models from the database"}>
+            <Button 
+              type="primary" 
+              danger 
+              icon={<DeleteOutlined />}
+              onClick={this.showDeleteAllModelsConfirm}
+              style={{ marginTop: '10px', marginBottom: '16px' }}
+              disabled={dataSource.length === 0 || !this.props.isAdmin}
+            >
+              Delete All Models
+            </Button>
+          </Tooltip>
         </Space>
       </LayoutPage>
     );
@@ -407,4 +514,12 @@ const mapDispatchToProps = (dispatch) => ({
   },
 });
 
-export default connect(mapPropsToStates, mapDispatchToProps)(ModelListPage);
+// HOC to inject user role into class component
+function withUserRole(Component) {
+  return function WrappedComponent(props) {
+    const userRole = useUserRole();
+    return <Component {...props} isAdmin={userRole.isAdmin} />;
+  };
+}
+
+export default connect(mapPropsToStates, mapDispatchToProps)(withUserRole(ModelListPage));
