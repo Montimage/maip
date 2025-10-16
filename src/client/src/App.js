@@ -12,6 +12,7 @@ import ErrorBoundary from "antd/lib/alert/ErrorBoundary";
 import MAIPHeader from "./components/MAIPHeader";
 import MAIPFooter from "./components/MAIPFooter";
 import ProtectedRoute from "./components/ProtectedRoute";
+import AdminRoute from "./components/AdminRoute";
 import ModelListPage from "./pages/ModelListPage";
 import ModelsComparisonPage from "./pages/ModelsComparisonPage";
 //import DatasetListPage from "./pages/DatasetListPage";
@@ -73,50 +74,50 @@ function App() {
               element={<ProtectedRoute><BuildACPage app="ac" /></ProtectedRoute>} 
             />
             
-            {/* XAI routes - protected */}
+            {/* XAI routes - public */}
             <Route 
               path="/xai/shap" 
-              element={<ProtectedRoute><XAIShapPage /></ProtectedRoute>} 
+              element={<XAIShapPage />} 
             />
             <Route 
               path="/xai/shap/:modelId" 
-              element={<ProtectedRoute><XAIShapPage /></ProtectedRoute>} 
+              element={<XAIShapPage />} 
             />
             <Route 
               path="/xai/lime" 
-              element={<ProtectedRoute><XAILimePage /></ProtectedRoute>} 
+              element={<XAILimePage />} 
             />
             <Route 
               path="/xai/lime/:modelId" 
-              element={<ProtectedRoute><XAILimePage /></ProtectedRoute>} 
+              element={<XAILimePage />} 
             />
             
-            {/* Metrics routes - protected */}
+            {/* Metrics routes - public */}
             <Route 
               path="/metrics/accountability" 
-              element={<ProtectedRoute><AccountabilityMetricsPage /></ProtectedRoute>} 
+              element={<AccountabilityMetricsPage />} 
             />
             <Route 
               path="/metrics/accountability/:modelId" 
-              element={<ProtectedRoute><AccountabilityMetricsPage /></ProtectedRoute>} 
+              element={<AccountabilityMetricsPage />} 
             />
             <Route 
               path="/metrics/resilience" 
-              element={<ProtectedRoute><ResilienceMetricsPage /></ProtectedRoute>} 
+              element={<ResilienceMetricsPage />} 
             />
             <Route 
               path="/metrics/resilience/:modelId" 
-              element={<ProtectedRoute><ResilienceMetricsPage /></ProtectedRoute>} 
+              element={<ResilienceMetricsPage />} 
             />
             
-            {/* Attack routes - protected */}
+            {/* Attack routes - public */}
             <Route 
               path="/attacks" 
-              element={<ProtectedRoute><AttacksPage /></ProtectedRoute>} 
+              element={<AttacksPage />} 
             />
             <Route 
               path="/attacks/:modelId" 
-              element={<ProtectedRoute><AttacksPage /></ProtectedRoute>} 
+              element={<AttacksPage />} 
             />
             
             {/* Prediction routes - public access (online mode restricted to admins within page) */}
@@ -126,7 +127,10 @@ function App() {
             <Route path="/predict/offline" element={<PredictPage />} />
             <Route path="/predict/offline/:modelId" element={<PredictPage />} />
             <Route path="/predict/rule-based" element={<PredictRuleBasedPage />} />
-            <Route path="/predict/early" element={<EarlyPredictionPage />} />
+            <Route 
+              path="/predict/early" 
+              element={<AdminRoute><EarlyPredictionPage /></AdminRoute>} 
+            />
             <Route path="/predict/:modelId" element={<PredictPage />} />
           </Routes>
           <MAIPFooter />

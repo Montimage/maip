@@ -1,10 +1,10 @@
 import React, { Component } from "react";
 import { connect } from "react-redux";
-import { Layout, Menu, Row, Col } from "antd";
+import { Layout, Menu, Row, Col, Tooltip } from "antd";
 import {
   DeploymentUnitOutlined, FolderOpenOutlined, BlockOutlined, LineChartOutlined,
   SolutionOutlined, BugOutlined, SafetyOutlined, ExperimentOutlined, FilePdfOutlined,
-  InfoCircleOutlined, ApartmentOutlined, LoginOutlined,
+  InfoCircleOutlined, ApartmentOutlined, LoginOutlined, LockOutlined,
 } from "@ant-design/icons";
 // import {
 //   setNotification,
@@ -16,6 +16,7 @@ import {
   MENU_OPTIONS,
 } from "../../constants";
 import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react';
+import { useUserRole } from '../../hooks/useUserRole';
 
 // Determine if Clerk is configured at build time
 const HAS_CLERK_KEY = !!(process.env.REACT_APP_CLERK_PUBLISHABLE_KEY || process.env.VITE_CLERK_PUBLISHABLE_KEY);
@@ -27,6 +28,8 @@ class MAIPHeader extends Component {
   // Removed state and constructor since app selection is no longer needed
 
   getMenuItems() {
+    const { isAdmin, isSignedIn, isLoaded } = this.props;
+    
     return [
       {
         key: 'traffic-analysis',
@@ -47,9 +50,16 @@ class MAIPHeader extends Component {
       },
       {
         key: MENU_OPTIONS[0].key,
-        label: 'Build',
+        label: (
+          <>
+            Build
+            {isLoaded && !isSignedIn && <LockOutlined style={{ fontSize: '11px', color: '#FFD700', marginLeft: '8px', display: 'inline-block', verticalAlign: 'middle', position: 'relative', top: '-1px' }} />}
+          </>
+        ),
         icon: <DeploymentUnitOutlined />,
         link: `/build/ad`,
+        protected: true,
+        requireAuth: true,
         //link: MENU_OPTIONS[0].link,
       },
       {
@@ -74,8 +84,15 @@ class MAIPHeader extends Component {
           },
           {
             key: MENU_OPTIONS[15].key,
-            label: 'Models Retraining',
+            label: (
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                <span>Models Retraining</span>
+                {isLoaded && !isSignedIn && <LockOutlined style={{ fontSize: '11px', color: '#FFD700', marginLeft: '8px', display: 'inline-block', position: 'relative', top: '1px' }} />}
+              </span>
+            ),
             link: MENU_OPTIONS[15].link,
+            protected: true,
+            requireAuth: true,
           },
         ],
       },
@@ -96,8 +113,14 @@ class MAIPHeader extends Component {
           },
           {
             key: MENU_OPTIONS[19].key,
-            label: 'Early Prediction',
+            label: (
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                <span>Early Prediction</span>
+                {isLoaded && !isAdmin && <LockOutlined style={{ fontSize: '11px', color: '#FFD700', marginLeft: '8px', display: 'inline-block', position: 'relative', top: '1px' }} />}
+              </span>
+            ),
             link: MENU_OPTIONS[19].link,
+            protected: true,
           },
         ],
       },
@@ -157,7 +180,21 @@ class MAIPHeader extends Component {
     ];
   }
 
+  handleMenuClick = (item, link, isProtected) => {
+    const { isAdmin } = this.props;
+    
+    if (isProtected && !isAdmin) {
+      // Prevent navigation for non-admin users
+      return;
+    }
+    
+    // Allow navigation for public pages or admin users
+    window.location.href = link;
+  };
+
   render() {
+    const { isAdmin, isSignedIn, isLoaded } = this.props;
+    
     // Modify the current pathname if it is "/"
     let { pathname } = window.location;
     pathname = pathname === "/" ? "/models/all" : pathname;
@@ -205,25 +242,74 @@ class MAIPHeader extends Component {
               style={{ lineHeight: '52px', fontSize: '16px' }}
               selectedKeys={selectedKeys}
             >
-              {menuItems.map((item) =>
-                item.children ? (
-                  <SubMenu key={item.key} icon={item.icon} title={item.label} style={{ fontSize: '16px' }}>
-                    {item.children.map((child) => (
-                      <Menu.Item key={child.key} style={{ fontSize: '16px' }}>
-                        <a href={child.link}>{child.label}</a>
-                      </Menu.Item>
-                    ))}
+              {menuItems.map((item) => {
+                const isItemBlocked = isLoaded && ((item.requireAuth && !isSignedIn) || (item.protected && !item.requireAuth && !isAdmin));
+                
+                return item.children ? (
+                  <SubMenu 
+                    key={item.key} 
+                    icon={item.icon} 
+                    title={item.label} 
+                    style={{ fontSize: '16px' }}
+                    disabled={isItemBlocked}
+                  >
+                    {item.children.map((child) => {
+                      const isChildBlocked = isLoaded && ((child.requireAuth && !isSignedIn) || (child.protected && !child.requireAuth && !isAdmin));
+                      const tooltipTitle = child.requireAuth ? "Sign in required" : "Admin access required";
+                      
+                      const menuItem = (
+                        <Menu.Item 
+                          key={child.key} 
+                          style={{ 
+                            fontSize: '16px',
+                            cursor: isChildBlocked ? 'not-allowed' : 'pointer',
+                            opacity: isChildBlocked ? 0.75 : 1,
+                            width: 'auto',
+                            minWidth: 'fit-content'
+                          }}
+                          disabled={isChildBlocked}
+                          onClick={() => !isChildBlocked ? window.location.href = child.link : null}
+                        >
+                          {child.label}
+                        </Menu.Item>
+                      );
+                      
+                      return isChildBlocked ? (
+                        <Tooltip key={child.key} title={tooltipTitle} placement="right">
+                          {menuItem}
+                        </Tooltip>
+                      ) : menuItem;
+                    })}
                   </SubMenu>
                 ) : (
-                  <Menu.Item
-                    key={item.key}
-                    icon={item.icon}
-                    className={selectedMenu === item.key ? 'selectedMenuItem' : ''}
-                    style={{ fontSize: '16px' }}>
-                    <a href={item.link}>{item.label}</a>
-                  </Menu.Item>
-                )
-              )}
+                  isItemBlocked ? (
+                    <Tooltip key={item.key} title={item.requireAuth ? "Sign in required" : "Admin access required"} placement="bottom">
+                      <Menu.Item
+                        key={item.key}
+                        icon={item.icon}
+                        disabled
+                        style={{ 
+                          fontSize: '16px',
+                          cursor: 'not-allowed',
+                          opacity: 0.75
+                        }}
+                      >
+                        {item.label}
+                      </Menu.Item>
+                    </Tooltip>
+                  ) : (
+                    <Menu.Item
+                      key={item.key}
+                      icon={item.icon}
+                      className={selectedMenu === item.key ? 'selectedMenuItem' : ''}
+                      style={{ fontSize: '16px' }}
+                      onClick={() => window.location.href = item.link}
+                    >
+                      {item.label}
+                    </Menu.Item>
+                  )
+                );
+              })}
               
               {/* Clerk Authentication - Sign in button */}
               {HAS_CLERK_KEY && (
@@ -263,4 +349,12 @@ const mapPropsToStates = ({ app, requesting }) => ({
   app, requesting,
 });
 
-export default connect(mapPropsToStates)(MAIPHeader);
+// HOC to inject user role into class component
+function withUserRole(Component) {
+  return function WrappedComponent(props) {
+    const userRole = useUserRole();
+    return <Component {...props} isAdmin={userRole.isAdmin} isSignedIn={userRole.isSignedIn} isLoaded={userRole.isLoaded} />;
+  };
+}
+
+export default withUserRole(connect(mapPropsToStates)(MAIPHeader));
