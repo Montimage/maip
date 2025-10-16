@@ -52,6 +52,7 @@ function App() {
             <Route path="/features" element={<FeatureExtractionPage />} />
             <Route path="/models/all" element={<ModelListPage />} />
             <Route path="/models/comparison" element={<ModelsComparisonPage />} />
+            <Route path="/models/datasets/:modelId/:datasetType" element={<DatasetPage />} />
             <Route path="/dpi" element={<DPIPage />} />
             
             {/* Protected routes - require authentication */}
@@ -70,10 +71,6 @@ function App() {
             <Route 
               path="/build/ac" 
               element={<ProtectedRoute><BuildACPage app="ac" /></ProtectedRoute>} 
-            />
-            <Route 
-              path="/models/datasets/:modelId/:datasetType" 
-              element={<ProtectedRoute><DatasetPage /></ProtectedRoute>} 
             />
             
             {/* XAI routes - protected */}
