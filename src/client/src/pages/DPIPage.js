@@ -64,14 +64,10 @@ class DPIPage extends Component {
       this.loadStatus();
     }
     
-    // Start periodic status check (every 10 seconds) to detect session changes
-    // This will be stopped when user manually stops DPI, and restarted when starting new session
-    this.statusCheckInterval = setInterval(() => {
-      // Only check status if not actively running
-      if (!this.state.isRunning) {
-        this.loadStatus(true); // Silent check to avoid duplicate notifications
-      }
-    }, 10000);
+    // Removed continuous status polling - status will only be checked:
+    // 1. On initial mount (above)
+    // 2. When starting analysis (in startAnalysis)
+    // 3. During active analysis (via auto-reload)
     
     // If navigated from Feature Extraction page
     try {
@@ -183,9 +179,6 @@ class DPIPage extends Component {
   componentWillUnmount() {
     if (this.reloadInterval) {
       clearInterval(this.reloadInterval);
-    }
-    if (this.statusCheckInterval) {
-      clearInterval(this.statusCheckInterval);
     }
   }
 
@@ -667,16 +660,6 @@ class DPIPage extends Component {
         
         // Always start auto-reload for live updates
         this.startAutoReload();
-        
-        // Restart status polling if it was stopped
-        if (!this.statusCheckInterval) {
-          this.statusCheckInterval = setInterval(() => {
-            if (!this.state.isRunning) {
-              this.loadStatus(true);
-            }
-          }, 10000);
-          console.log('[DPI Frontend] Status polling restarted');
-        }
       } else {
         const errorData = await response.json();
         this.setState({ 
@@ -737,13 +720,6 @@ class DPIPage extends Component {
         if (this.reloadInterval) {
           clearInterval(this.reloadInterval);
           this.reloadInterval = null;
-        }
-        
-        // Stop status checking - no need to poll after manual stop
-        if (this.statusCheckInterval) {
-          clearInterval(this.statusCheckInterval);
-          this.statusCheckInterval = null;
-          console.log('[DPI Frontend] Status polling stopped after manual stop');
         }
         
         // Update state and show notification
@@ -2731,7 +2707,7 @@ class DPIPage extends Component {
                     icon={<ApartmentOutlined />}
                     onClick={this.startAnalysis}
                     loading={loading}
-                    disabled={isRunning || (!selectedPcap && !selectedInterface)}
+                    disabled={isRunning || (mode === 'offline' ? !selectedPcap : !selectedInterface)}
                   >
                     View DPI
                   </Button>
@@ -2746,7 +2722,7 @@ class DPIPage extends Component {
                     </Button>
                   )}
                   <Button
-                    type="default"
+                    type={mode === 'offline' && selectedPcap ? 'primary' : 'default'}
                     icon={<FolderOpenOutlined />}
                     onClick={this.handleExtractFeatures}
                     disabled={mode === 'online' || (mode === 'offline' && !selectedPcap)}

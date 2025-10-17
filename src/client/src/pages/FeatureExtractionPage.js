@@ -538,7 +538,7 @@ class FeatureExtractionPage extends Component {
                   Extract Features
                 </Button>
                 <Button
-                  type="default"
+                  type={uploadedPcapName ? 'primary' : 'default'}
                   icon={<ApartmentOutlined />}
                   onClick={this.handleViewDPI}
                   disabled={!uploadedPcapName}
