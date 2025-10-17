@@ -307,16 +307,13 @@ router.post('/rule-based/online/start', requireAdminForOnline, async (req, res) 
     const { iface, intervalSec = 5, verbose = true, excludeRules, cores } = req.body || {};
     if (!iface) return res.status(400).send('Missing iface');
     
-    // Check if online rule-based detection is already running (multi-user viewer support)
+    // Check if online rule-based detection is already running
     if (secState.running && secState.mode === 'online') {
       return res.status(409).json({ 
         error: 'Online rule-based detection already running',
-        message: 'Rule-based detection is already running. You can view the live alerts, but cannot start a new session.',
+        message: 'Rule-based detection is already running. Please stop the current session first.',
         currentSession: secState.sessionId,
-        sessionId: secState.sessionId,
-        startedBy: secState.startedBy,
-        viewers: secState.viewers || 1,
-        isOwner: false
+        sessionId: secState.sessionId
       });
     }
 
@@ -392,9 +389,8 @@ router.post('/rule-based/online/start', requireAdminForOnline, async (req, res) 
         : Array.from(verdictMap.entries()).map(([rule, verdicts]) => ({ rule, verdicts }));
     });
 
-    // Generate unique session ID and owner token
+    // Generate unique session ID
     const sessionId = `security_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const ownerToken = `owner_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     secState = {
       running: true,
@@ -409,9 +405,7 @@ router.post('/rule-based/online/start', requireAdminForOnline, async (req, res) 
       intervalSec: Number(intervalSec),
       ruleVerdicts: [],
       sessionId,
-      viewers: 1, // Start with 1 viewer (the one who started it)
-      startedBy: req.ip || 'unknown', // Track who started the session
-      ownerToken: ownerToken, // Unique token for the owner
+      startedBy: req.ip || 'unknown',
     };
 
     // Create session in session manager
@@ -423,19 +417,14 @@ router.post('/rule-based/online/start', requireAdminForOnline, async (req, res) 
       outputFile: null,
       intervalSec: Number(intervalSec),
       ruleVerdicts: [],
-      viewers: 1,
       startedBy: req.ip || 'unknown',
-      ownerToken: ownerToken,
     });
 
     res.send({ 
       ok: true, 
-      sessionId, 
-      ownerToken: ownerToken, // Return token to the owner
-      message: 'Online rule-based detection started. Other users can view live alerts.',
-      viewers: 1,
-      isOwner: true,
-      running: true, // Important: tell frontend it's running
+      sessionId,
+      message: 'Online rule-based detection started',
+      running: true,
       mode: 'online',
       iface,
       pid: child.pid,
@@ -450,23 +439,9 @@ router.post('/rule-based/online/start', requireAdminForOnline, async (req, res) 
   }
 });
 
-router.post('/rule-based/online/stop', async (req, res) => {
+router.post('/rule-based/online/stop', requireAdminForOnline, async (req, res) => {
   try {
-    const { ownerToken } = req.body;
-    
     if (!secState.running) return res.send({ ok: true, stopped: false });
-    
-    // Check if this is an online session with an owner
-    if (secState.mode === 'online' && secState.ownerToken) {
-      // Verify ownership
-      if (!ownerToken || ownerToken !== secState.ownerToken) {
-        console.log('[SECURITY] Stop denied: Not the session owner');
-        return res.status(403).json({ 
-          error: 'Permission denied',
-          message: 'Only the session owner can stop online rule-based detection'
-        });
-      }
-    }
     
     const stoppedPid = secState.pid;
     const child = secState.child;
@@ -488,7 +463,6 @@ router.post('/rule-based/online/stop', async (req, res) => {
     }
     secState.running = false;
     secState.pid = null;
-    secState.ownerToken = null; // Clear owner token
     const lastFile = findLatestSecurityCsv(secState.outputDir);
     if (lastFile) secState.outputFile = lastFile;
     
@@ -496,7 +470,6 @@ router.post('/rule-based/online/stop', async (req, res) => {
     if (secState.sessionId) {
       sessionManager.updateSession('attacks', secState.sessionId, {
         isRunning: false,
-        ownerToken: null,
         outputFile: lastFile,
         pid: null
       });

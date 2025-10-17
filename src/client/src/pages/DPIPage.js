@@ -2292,49 +2292,59 @@ class DPIPage extends Component {
         <div style={{ textAlign: 'center', marginBottom: 12 }}>
           <strong style={{ fontSize: 16 }}>Traffic Statistics</strong>
         </div>
-        <Row gutter={16}>
+        <Row gutter={12}>
           <Col span={4}>
             <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
-              {mode === 'offline' && selectedPcap ? (
+              {mode === 'offline' ? (
                 <Statistic
                   title="PCAP File"
-                  value={selectedPcap}
+                  value={selectedPcap || 'N/A'}
                   prefix={<FileTextOutlined style={{ color: '#722ed1' }} />}
-                  valueStyle={{ fontSize: 14, fontWeight: 'bold', color: '#722ed1', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                  valueStyle={{ fontSize: 13, fontWeight: 'bold', color: '#722ed1', overflow: 'hidden', textOverflow: 'ellipsis' }}
                 />
               ) : (
                 <Statistic
-                  title="Total Packets"
-                  value={statistics.totalPackets}
-                  valueStyle={{ fontSize: 16, fontWeight: 'bold', color: '#1890ff' }}
+                  title="Interface"
+                  value={selectedInterface || 'N/A'}
+                  prefix={<FileTextOutlined style={{ color: '#722ed1' }} />}
+                  valueStyle={{ fontSize: 13, fontWeight: 'bold', color: '#722ed1' }}
                 />
               )}
             </Card>
           </Col>
-          <Col span={4}>
+          <Col span={3}>
+            <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+              <Statistic
+                title="Total Packets"
+                value={statistics.totalPackets}
+                valueStyle={{ fontSize: 14, fontWeight: 'bold', color: '#1890ff' }}
+              />
+            </Card>
+          </Col>
+          <Col span={3}>
             <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
               <Statistic
                 title="Total Data"
                 value={this.formatBytes(statistics.totalBytes)}
-                valueStyle={{ fontSize: 16, fontWeight: 'bold', color: '#52c41a' }}
+                valueStyle={{ fontSize: 14, fontWeight: 'bold', color: '#52c41a' }}
               />
             </Card>
           </Col>
-          <Col span={4}>
+          <Col span={3}>
             <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
               <Statistic
                 title="Avg Packet Size"
                 value={this.formatBytes(statistics.avgPacketSize)}
-                valueStyle={{ fontSize: 16, fontWeight: 'bold', color: '#722ed1' }}
+                valueStyle={{ fontSize: 14, fontWeight: 'bold', color: '#722ed1' }}
               />
             </Card>
           </Col>
-          <Col span={4}>
+          <Col span={3}>
             <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
               <Statistic
                 title="Duration"
                 value={this.formatDuration(statistics.duration)}
-                valueStyle={{ fontSize: 16, fontWeight: 'bold', color: '#fa8c16' }}
+                valueStyle={{ fontSize: 14, fontWeight: 'bold', color: '#fa8c16' }}
               />
             </Card>
           </Col>
@@ -2343,7 +2353,7 @@ class DPIPage extends Component {
               <Statistic
                 title="Throughput"
                 value={this.formatBitsPerSecond(statistics.bitsPerSecond)}
-                valueStyle={{ fontSize: 16, fontWeight: 'bold', color: '#eb2f96' }}
+                valueStyle={{ fontSize: 14, fontWeight: 'bold', color: '#eb2f96' }}
               />
             </Card>
           </Col>
@@ -2353,7 +2363,7 @@ class DPIPage extends Component {
                 title="Packet Rate"
                 value={this.formatPacketsPerSecond(statistics.packetsPerSecond)}
                 suffix="pps"
-                valueStyle={{ fontSize: 16, fontWeight: 'bold', color: '#13c2c2' }}
+                valueStyle={{ fontSize: 14, fontWeight: 'bold', color: '#13c2c2' }}
               />
             </Card>
           </Col>
@@ -2711,7 +2721,7 @@ class DPIPage extends Component {
                   >
                     View DPI
                   </Button>
-                  {isRunning && (
+                  {isRunning && mode === 'online' && (
                     <Button
                       danger
                       icon={<StopOutlined />}
@@ -2725,8 +2735,8 @@ class DPIPage extends Component {
                     type={mode === 'offline' && selectedPcap ? 'primary' : 'default'}
                     icon={<FolderOpenOutlined />}
                     onClick={this.handleExtractFeatures}
-                    disabled={mode === 'online' || (mode === 'offline' && !selectedPcap)}
-                    title={mode === 'online' ? 'Feature extraction is only available for offline PCAP analysis' : ''}
+                    disabled={mode === 'online' || !selectedPcap || isRunning}
+                    title={mode === 'online' ? 'Feature extraction is only available for offline PCAP analysis' : (isRunning ? 'Please wait for DPI analysis to complete' : '')}
                   >
                     Extract Features
                   </Button>

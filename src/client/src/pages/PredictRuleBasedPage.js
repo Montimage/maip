@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import LayoutPage from './LayoutPage';
 import { Form, Select, Button, Table, Divider, Tooltip, Upload, Spin, message, notification, Dropdown, Menu, Modal, Card, Row, Col, Statistic, Tag, Space, Alert } from 'antd';
-import { UploadOutlined, DeleteOutlined, PlayCircleOutlined, StopOutlined, SendOutlined, LockOutlined } from '@ant-design/icons';
+import { UploadOutlined, DeleteOutlined, PlayCircleOutlined, StopOutlined, SendOutlined, LockOutlined, FileTextOutlined, CheckCircleOutlined, WarningOutlined } from '@ant-design/icons';
 import { useUserRole } from '../hooks/useUserRole';
 import { Line } from '@ant-design/plots';
 import {
@@ -32,14 +32,13 @@ class PredictRuleBasedPage extends Component {
       intervalSec: 5,
       onlineRunning: false,
       status: null,
-      sessionId: null,
-      ownerToken: null, // Owner token for online mode
-      isOwner: false, // Is current user the owner
-      canStartOnline: true, // Can current user start online mode (admin check)
       // Offline
+      pcapFiles: [],
       pcapFile: null,
+      wasUploaded: false, // Track if current PCAP was uploaded (vs selected from list)
       offlineLoading: false,
       uploadResetKey: 0,
+      detectionComplete: false, // Track if detection has been run
       // Fallback per-rule counts (used notably for Offline when verdicts are not available)
       ruleCountsByCode: {},
       // Alerts
@@ -79,25 +78,15 @@ class PredictRuleBasedPage extends Component {
 
   componentDidMount() {
     this.fetchInterfaces();
+    this.fetchPcapFiles();
     
-    // Check if there's an existing session in localStorage
-    const savedOwnerToken = localStorage.getItem('ruleBasedOwnerToken');
-    if (savedOwnerToken) {
-      console.log('[RuleBased] Found saved owner token, checking for existing session...');
-      this.pollStatus().then(() => {
-        if (this.state.onlineRunning) {
-          console.log('[RuleBased] Restored existing session');
-          this.pollAlerts();
-        } else {
-          // Session expired, clear token
-          console.log('[RuleBased] Session expired, clearing token');
-          localStorage.removeItem('ruleBasedOwnerToken');
-        }
-      });
-    } else {
-      // Fetch initial status to get canStartOnline flag
-      this.pollStatus();
-    }
+    // Check if there's an existing online session
+    this.pollStatus().then(() => {
+      if (this.state.onlineRunning) {
+        console.log('[RuleBased] Found existing online session');
+        this.pollAlerts();
+      }
+    });
     
     // Start a single conditional polling loop
     this.tick();
@@ -123,32 +112,22 @@ class PredictRuleBasedPage extends Component {
     }
   }
 
+  fetchPcapFiles = async () => {
+    try {
+      const res = await fetch(`${SERVER_URL}/api/pcaps`);
+      if (!res.ok) return;
+      const data = await res.json();
+      this.setState({ pcapFiles: data.pcaps || [] });
+    } catch (e) {
+      // ignore
+    }
+  }
+
   pollStatus = async () => {
     try {
-      const ownerToken = this.state.ownerToken || localStorage.getItem('ruleBasedOwnerToken');
-      const st = await requestRuleStatus({ ownerToken, sessionId: this.state.sessionId });
-      console.log('[RuleBased] pollStatus received:', JSON.stringify(st, null, 2));
-      
-      // Update state with current status
-      const newState = { 
-        status: st, 
-        onlineRunning: !!(st.running || st.isRunning), // Backend uses 'isRunning' when from sessionManager
-        isOwner: st.isOwner || false,
-        canStartOnline: st.canStartOnline !== false // Default to true if not specified
-      };
-      
-      console.log('[RuleBased] pollStatus computed newState:', newState);
-      
-      // If session is running, restore session info
-      if ((st.running || st.isRunning) && st.sessionId) {
-        newState.sessionId = st.sessionId;
-        if (!this.state.ownerToken && ownerToken) {
-          newState.ownerToken = ownerToken;
-        }
-      }
-      
-      this.setState(newState);
-      console.log('[RuleBased] pollStatus setState done, onlineRunning:', this.state.onlineRunning);
+      const st = await requestRuleStatus({});
+      const onlineRunning = !!(st.running || st.isRunning);
+      this.setState({ status: st, onlineRunning });
     } catch (e) {
       console.error('[RuleBased] pollStatus error:', e);
     }
@@ -156,13 +135,12 @@ class PredictRuleBasedPage extends Component {
 
   pollAlerts = async () => {
     try {
-      const sessionId = this.state.sessionId;
-      const { alerts } = await requestRuleAlerts(500, sessionId);
+      const { alerts } = await requestRuleAlerts(500);
       const unique = this.dedupeAlerts(alerts || []);
       this.setState(prev => {
         const now = Date.now();
         const bin = Math.floor(now / 5000) * 5000; // 5-second bins
-        // Total count series (keep for potential future use)
+        // Total count series
         const nextTotal = [...(prev.alertSeries || []), { time: now, count: (unique || []).length }].slice(-100);
         // Per-rule counts
         const byRule = new Map();
@@ -175,7 +153,7 @@ class PredictRuleBasedPage extends Component {
         // Replace entries for this bin
         const filtered = prevSeries.filter(p => p.time !== bin);
         const appended = Array.from(byRule.entries()).map(([rule, count]) => ({ time: bin, rule: String(rule), count }));
-        const nextByRule = [...filtered, ...appended].slice(-300); // keep last ~1500s of data
+        const nextByRule = [...filtered, ...appended].slice(-300);
         return { alerts: unique, alertSeries: nextTotal, alertSeriesByRule: nextByRule };
       });
     } catch (e) {
@@ -235,14 +213,6 @@ class PredictRuleBasedPage extends Component {
   handleStartOnline = async () => {
     const { iface, intervalSec } = this.state;
     
-    // Security check: Prevent online detection for non-admin users
-    if (!this.props.canPerformOnlineActions) {
-      message.error('Administrator privileges required for online rule-based detection');
-      this.setState({ mode: 'offline' });
-      return;
-    }
-    
-    console.log('[RuleBased] Start clicked, iface:', iface);
     if (!iface) {
       notification.warning({
         message: 'No Interface Selected',
@@ -251,79 +221,22 @@ class PredictRuleBasedPage extends Component {
       });
       return;
     }
+    
     try {
-      console.log('[RuleBased] Starting online detection...');
       // Clear previous alerts for a fresh run
-      this.setState({ alerts: [], alertSeries: [], alertSeriesByRule: [] });
+      this.setState({ alerts: [], alertSeries: [], alertSeriesByRule: [], detectionComplete: true });
       const data = await requestRuleOnlineStart({ iface, intervalSec });
-      console.log('[RuleBased] Start response received:', JSON.stringify(data, null, 2));
       
-      // Validate response
-      if (!data || !data.sessionId) {
-        console.error('[RuleBased] Invalid response - missing sessionId:', data);
-        notification.error({
-          message: 'Error',
-          description: 'Invalid response from server',
-          placement: 'topRight',
-        });
-        return;
-      }
-      
-      // Save owner token if provided
-      if (data.ownerToken) {
-        console.log('[RuleBased] Saving owner token to localStorage');
-        localStorage.setItem('ruleBasedOwnerToken', data.ownerToken);
-      }
-      
-      console.log('[RuleBased] Setting state with:', {
-        onlineRunning: true,
-        sessionId: data.sessionId,
-        ownerToken: data.ownerToken,
-        isOwner: data.isOwner
-      });
-      
-      this.setState({ 
-        onlineRunning: true, 
-        status: data,
-        sessionId: data.sessionId,
-        ownerToken: data.ownerToken,
-        isOwner: data.isOwner !== false // Default to true if not specified
-      }, () => {
-        console.log('[RuleBased] State updated, new state:', {
-          onlineRunning: this.state.onlineRunning,
-          sessionId: this.state.sessionId,
-          isOwner: this.state.isOwner
-        });
-        
+      this.setState({ onlineRunning: true, status: data }, () => {
         notification.success({
           message: 'Success',
           description: `Started rule-based detection on ${iface}`,
           placement: 'topRight',
         });
-        
-        // Kick an immediate refresh after starting
         this.pollStatus();
         this.pollAlerts();
       });
     } catch (e) {
-      // Check if it's a 409 (already running) - join as viewer
-      if (e.code === 409 && e.data && e.data.sessionId) {
-        notification.info({
-          message: 'Joining Session',
-          description: 'Rule-based detection is already running. Joining as viewer...',
-          placement: 'topRight',
-        });
-        this.setState({ 
-          onlineRunning: true,
-          sessionId: e.data.sessionId,
-          isOwner: false,
-          ownerToken: null
-        }, () => {
-          this.pollStatus();
-          this.pollAlerts();
-        });
-        return;
-      }
       notification.error({
         message: 'Error',
         description: `Failed to start: ${e.message}`,
@@ -334,24 +247,16 @@ class PredictRuleBasedPage extends Component {
 
   handleStopOnline = async () => {
     try {
-      const ownerToken = this.state.ownerToken || localStorage.getItem('ruleBasedOwnerToken');
-      await requestRuleOnlineStop({ ownerToken });
-      
-      // Clear owner token
-      localStorage.removeItem('ruleBasedOwnerToken');
+      await requestRuleOnlineStop();
       
       notification.success({
         message: 'Success',
         description: 'Stopped rule-based detection',
         placement: 'topRight',
       });
-      this.setState({ 
-        onlineRunning: false,
-        ownerToken: null,
-        isOwner: false,
-        sessionId: null
-      });
-      // Wait briefly for rule verdicts to be finalized by the server, then refresh alerts
+      this.setState({ onlineRunning: false });
+      
+      // Wait briefly for rule verdicts to be finalized, then refresh alerts
       await this.waitForVerdicts(5000);
       await this.pollAlerts();
     } catch (e) {
@@ -378,7 +283,9 @@ class PredictRuleBasedPage extends Component {
       if (!response.ok) throw new Error(await response.text());
       const data = await response.json();
       onSuccess(data, response);
-      this.setState({ pcapFile: data.pcapFile, uploading: false });
+      this.setState({ pcapFile: data.pcapFile, uploading: false, wasUploaded: true });
+      // Refresh PCAP files list
+      this.fetchPcapFiles();
     } catch (e) {
       this.setState({ uploading: false });
       onError(e);
@@ -417,6 +324,7 @@ class PredictRuleBasedPage extends Component {
       this.setState(prev => ({
         alerts: unique,
         offlineLoading: false,
+        detectionComplete: true,
         ruleCountsByCode,
         // Populate ruleVerdicts into status so the Alerts summary can reflect offline runs too
         status: {
@@ -503,6 +411,7 @@ class PredictRuleBasedPage extends Component {
               alerts: [],
               alertSeries: [],
               alertSeriesByRule: [],
+              detectionComplete: false,
               status: { ...(prev.status || {}), ruleVerdicts: [] },
             }));
           }}
@@ -515,16 +424,14 @@ class PredictRuleBasedPage extends Component {
   }
 
   renderOnlineActions() {
-    const { iface, onlineRunning, isOwner, canStartOnline } = this.state;
-    console.log('[RuleBased] Button state:', { iface, onlineRunning, isOwner, canStartOnline, disabled: onlineRunning || !iface || !canStartOnline });
+    const { iface, onlineRunning } = this.state;
     return (
       <Space>
         <Button 
           type="primary" 
           icon={<PlayCircleOutlined />}
           onClick={this.handleStartOnline} 
-          disabled={onlineRunning || !iface || !canStartOnline}
-          title={!canStartOnline ? 'Only administrators can start online detection' : ''}
+          disabled={onlineRunning || !iface}
         >
           Start
         </Button>
@@ -532,8 +439,7 @@ class PredictRuleBasedPage extends Component {
           danger
           icon={<StopOutlined />}
           onClick={this.handleStopOnline} 
-          disabled={!onlineRunning || !isOwner}
-          title={!isOwner && onlineRunning ? 'Only the session owner can stop online detection' : ''}
+          disabled={!onlineRunning}
         >
           Stop
         </Button>
@@ -541,65 +447,93 @@ class PredictRuleBasedPage extends Component {
         <Tag color={onlineRunning ? 'green' : 'default'}>
           {onlineRunning ? 'Running' : 'Stopped'}
         </Tag>
-        {onlineRunning && (
-          <Tag color={isOwner ? 'blue' : 'orange'} style={{ marginLeft: 4 }}>
-            {isOwner ? 'Owner' : 'Viewer'}
-          </Tag>
-        )}
-        {canStartOnline && !onlineRunning && (
-          <Tag color="gold" style={{ marginLeft: 4 }}>Admin</Tag>
-        )}
       </Space>
     );
   }
 
   renderOfflineSelector() {
-    const { uploading, pcapFile } = this.state;
+    const { uploading, pcapFile, pcapFiles, wasUploaded, offlineLoading } = this.state;
     return (
-      <Upload
-        key={this.state.uploadResetKey}
-        beforeUpload={this.beforeUploadPcap}
-        action={`${SERVER_URL}/api/pcaps`}
-        customRequest={this.processUploadPcap}
-        onRemove={() => this.setState(prev => ({
-          pcapFile: null,
-          alerts: [],
-          alertSeries: [],
-          alertSeriesByRule: [],
-          ruleCountsByCode: {},
-          status: { ...(prev.status || {}), ruleVerdicts: [] },
-        }))}
-        maxCount={1}
-        itemRender={(originNode, file, fileList, actions) => (
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-            <code>{file.name}</code>
-            <Button type="link" size="small" icon={<DeleteOutlined />} onClick={actions.remove} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {wasUploaded ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Tag color="green" style={{ margin: 0, padding: '4px 12px', fontSize: '14px' }}>
+              {pcapFile}
+            </Tag>
+            <Button 
+              size="small" 
+              onClick={() => {
+                this.setState({
+                  pcapFile: null,
+                  wasUploaded: false,
+                  alerts: [],
+                  alertSeries: [],
+                  alertSeriesByRule: [],
+                  ruleCountsByCode: {},
+                  detectionComplete: false,
+                  status: { ...(this.state.status || {}), ruleVerdicts: [] },
+                  uploadResetKey: (this.state.uploadResetKey || 0) + 1,
+                });
+              }}
+            >
+              Clear Upload
+            </Button>
           </div>
+        ) : (
+          <Select
+            placeholder="Select a PCAP file..."
+            value={pcapFile}
+            onChange={(value) => this.setState({ 
+              pcapFile: value,
+              wasUploaded: false,
+              alerts: [],
+              alertSeries: [],
+              alertSeriesByRule: [],
+              ruleCountsByCode: {},
+              detectionComplete: false,
+              status: { ...(this.state.status || {}), ruleVerdicts: [] },
+            })}
+            showSearch allowClear
+            style={{ width: 280 }}
+          >
+            {pcapFiles.map(file => (
+              <Select.Option key={file} value={file}>{file}</Select.Option>
+            ))}
+          </Select>
         )}
-      >
-        <Button icon={<UploadOutlined />} loading={uploading} disabled={uploading} style={{ width: 300 }}>
-          {pcapFile ? 'Change PCAP' : 'Upload PCAP'}
+        {!wasUploaded && (
+          <Upload
+            key={this.state.uploadResetKey}
+            beforeUpload={this.beforeUploadPcap}
+            action={`${SERVER_URL}/api/pcaps`}
+            customRequest={this.processUploadPcap}
+            showUploadList={false}
+          >
+            <Button icon={<UploadOutlined />} loading={uploading} disabled={uploading}>
+              Upload PCAP
+            </Button>
+          </Upload>
+        )}
+        <Button 
+          type="primary" 
+          onClick={this.handleOfflineDetect} 
+          loading={offlineLoading} 
+          disabled={!pcapFile || offlineLoading}
+        >
+          Detect
         </Button>
-      </Upload>
+      </div>
     );
   }
 
   renderOfflineActions() {
-    const { pcapFile, offlineLoading } = this.state;
-    return (
-      <Button 
-        type="primary" 
-        onClick={this.handleOfflineDetect} 
-        loading={offlineLoading} 
-        disabled={!pcapFile || offlineLoading}
-      >
-        Detect
-      </Button>
-    );
+    // Detect button now integrated into renderOfflineSelector
+    return null;
   }
 
+
   render() {
-    const { alerts } = this.state;
+    const { alerts, mode, onlineRunning } = this.state;
     const ruleVerdicts = Array.isArray(this.state.status?.ruleVerdicts) ? this.state.status.ruleVerdicts : [];
     let rulesCount = ruleVerdicts.length;
     let verdictsTotal = ruleVerdicts.reduce((sum, r) => sum + Number(r && r.verdicts ? r.verdicts : 0), 0);
@@ -626,17 +560,20 @@ class PredictRuleBasedPage extends Component {
       time: p.time, // ms timestamp; plotted as time axis
       count: p.count,
     }));
+    
+    const isRunning = mode === 'online' ? onlineRunning : this.state.offlineLoading;
+    
     return (
-      <LayoutPage pageTitle="Rule-based detection" pageSubTitle="Detect anomalies using predefined rules using mmt_security">
+      <LayoutPage pageTitle="Rule-based detection" pageSubTitle="Detect anomalies using predefined rules using mmt-security">
         
         <Divider orientation="left">
           <h2 style={{ fontSize: '20px' }}>Configuration</h2>
         </Divider>
         
         <Card style={{ marginBottom: 16 }}>
-          <Row gutter={16} align="middle" justify="center">
+          <Row gutter={16} align="middle">
             <Col flex="none">
-              <strong style={{ marginRight: 4 }}>Mode:</strong>
+              <strong style={{ fontSize: '14px' }}>Mode:</strong>
             </Col>
             <Col flex="none">
               <Select
@@ -653,12 +590,13 @@ class PredictRuleBasedPage extends Component {
                     alertSeries: [],
                     alertSeriesByRule: [],
                     ruleCountsByCode: {},
+                    detectionComplete: false,
                     status: { ...(prev.status || {}), ruleVerdicts: [] },
                     ...(value === 'online' ? { pcapFile: null, uploading: false, offlineLoading: false, uploadResetKey: (prev.uploadResetKey || 0) + 1 } : {}),
                     ...(value === 'offline' ? { iface: null, onlineRunning: false } : {}),
                   }));
                 }}
-                style={{ width: 200 }}
+                style={{ width: 180 }}
                 disabled={this.state.onlineRunning}
               >
                 <Select.Option value="offline">Offline (PCAP)</Select.Option>
@@ -670,16 +608,20 @@ class PredictRuleBasedPage extends Component {
               </Select>
             </Col>
             
+            <Divider type="vertical" style={{ height: 32, margin: '0 16px' }} />
+            
             <Col flex="none">
-              <strong style={{ marginRight: 4 }}>{this.state.mode === 'offline' ? 'PCAP File:' : 'Interface:'}</strong>
+              <strong style={{ fontSize: '14px' }}>{this.state.mode === 'offline' ? 'PCAP File:' : 'Interface:'}</strong>
             </Col>
-            <Col flex="none">
+            <Col flex="auto">
               {this.state.mode === 'offline' ? this.renderOfflineSelector() : this.renderOnlineSelector()}
             </Col>
             
-            <Col flex="none">
-              {this.state.mode === 'offline' ? this.renderOfflineActions() : this.renderOnlineActions()}
-            </Col>
+            {this.state.mode === 'online' && (
+              <Col flex="none" style={{ marginLeft: 12 }}>
+                {this.renderOnlineActions()}
+              </Col>
+            )}
           </Row>
         </Card>
 
@@ -687,31 +629,45 @@ class PredictRuleBasedPage extends Component {
           <h2 style={{ fontSize: '20px' }}>Rule-based Alerts</h2>
         </Divider>
 
-        <Card style={{ marginBottom: 16 }}>
-          <div style={{ textAlign: 'center', marginBottom: 12 }}>
-            <strong style={{ fontSize: 16 }}>Detection Statistics</strong>
-          </div>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
-                <Statistic
-                  title="Rules Triggered"
-                  value={rulesCount}
-                  valueStyle={{ color: rulesCount > 0 ? '#cf1322' : '#3f8600', fontSize: 16 }}
-                />
-              </Card>
-            </Col>
-            <Col span={12}>
-              <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
-                <Statistic
-                  title="Total Alerts"
-                  value={verdictsTotal}
-                  valueStyle={{ color: verdictsTotal > 0 ? '#cf1322' : '#3f8600', fontSize: 16 }}
-                />
-              </Card>
-            </Col>
-          </Row>
-        </Card>
+        {this.state.detectionComplete && (
+          <Card style={{ marginBottom: 24 }}>
+            <div style={{ textAlign: 'center', marginBottom: 12 }}>
+              <strong style={{ fontSize: 16 }}>Detection Statistics</strong>
+            </div>
+            <Row gutter={16}>
+              <Col span={8}>
+                <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                  <Statistic
+                    title={mode === 'offline' ? 'PCAP File' : 'Interface'}
+                    value={mode === 'offline' ? (this.state.pcapFile || 'N/A') : (this.state.iface || 'N/A')}
+                    prefix={<FileTextOutlined style={{ color: '#722ed1' }} />}
+                    valueStyle={{ fontSize: 16, fontWeight: 'bold', color: '#722ed1' }}
+                  />
+                </Card>
+              </Col>
+              <Col span={8}>
+                <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                  <Statistic
+                    title="Rules Triggered"
+                    value={rulesCount}
+                    prefix={<WarningOutlined style={{ color: rulesCount > 0 ? '#cf1322' : '#52c41a' }} />}
+                    valueStyle={{ fontSize: 16, fontWeight: 'bold', color: rulesCount > 0 ? '#cf1322' : '#52c41a' }}
+                  />
+                </Card>
+              </Col>
+              <Col span={8}>
+                <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                  <Statistic
+                    title="Total Alerts"
+                    value={verdictsTotal}
+                    prefix={<CheckCircleOutlined style={{ color: verdictsTotal > 0 ? '#cf1322' : '#52c41a' }} />}
+                    valueStyle={{ fontSize: 16, fontWeight: 'bold', color: verdictsTotal > 0 ? '#cf1322' : '#52c41a' }}
+                  />
+                </Card>
+              </Col>
+            </Row>
+          </Card>
+        )}
 
         {(this.state.mode === 'online') && (chartData && chartData.length > 0) && (
           <Card style={{ marginBottom: 16 }}>
@@ -738,10 +694,10 @@ class PredictRuleBasedPage extends Component {
             <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>Detected Alerts</h3>
             <Button
               icon={<SendOutlined />}
-              onClick={() => handleBulkMitigationAction({ actionKey: 'send-nats-bulk', rows: alerts, isValidIPv4, entityLabel: 'alerts', titleOverride: 'Confirm bulk: Send all alerts to NATS' })}
+              onClick={() => handleBulkMitigationAction({ actionKey: 'send-nats-bulk', rows: alerts, isValidIPv4, entityLabel: 'alerts', titleOverride: 'Confirm bulk: Send all to NATS' })}
               disabled={!(alerts && alerts.length > 0)}
             >
-              Send all alerts to NATS
+              Send all to NATS
             </Button>
           </div>
           <Table

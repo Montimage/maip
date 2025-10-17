@@ -684,14 +684,12 @@ export const requestRuleOnlineStart = async ({ iface, intervalSec = 5, verbose =
   return res.json();
 };
 
-export const requestRuleOnlineStop = async ({ ownerToken } = {}) => {
+export const requestRuleOnlineStop = async () => {
   const url = `${SERVER_URL}/api/security/rule-based/online/stop`;
-  const payload = {};
-  if (ownerToken) payload.ownerToken = ownerToken;
   const res = await fetch(url, { 
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
+    body: JSON.stringify({})
   });
   if (!res.ok) {
     const errorText = await res.text();

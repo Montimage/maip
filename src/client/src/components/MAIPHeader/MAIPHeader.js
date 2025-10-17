@@ -103,12 +103,12 @@ class MAIPHeader extends Component {
         children: [
           {
             key: MENU_OPTIONS[18].key,
-            label: 'Rule-based Mode',
+            label: 'Rule-based Detection',
             link: MENU_OPTIONS[18].link,
           },
           {
             key: 'predict-unified',
-            label: 'Predict',
+            label: 'Anomaly Prediction',
             link: '/predict',
           },
           {

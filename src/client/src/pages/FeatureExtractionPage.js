@@ -411,6 +411,7 @@ class FeatureExtractionPage extends Component {
                     </Tag>
                     <Button 
                       size="small" 
+                      disabled={this.state.featuresLoading}
                       onClick={async () => {
                         await new Promise(resolve => {
                           this.setState({
@@ -438,6 +439,7 @@ class FeatureExtractionPage extends Component {
                       style={{ width: 250 }}
                       value={uploadedPcapName || undefined}
                       allowClear
+                      disabled={this.state.featuresLoading}
                       onChange={(value) => {
                         this.setState({
                           uploadedPcapName: value || null,
@@ -541,14 +543,16 @@ class FeatureExtractionPage extends Component {
                   type={uploadedPcapName ? 'primary' : 'default'}
                   icon={<ApartmentOutlined />}
                   onClick={this.handleViewDPI}
-                  disabled={!uploadedPcapName}
+                  disabled={!uploadedPcapName || featuresLoading}
+                  title={featuresLoading ? 'Please wait for feature extraction to complete' : ''}
                 >
                   View DPI
                 </Button>
                 <Button
                   type={featuresReady ? 'primary' : 'default'}
                   icon={<SendOutlined />}
-                  disabled={!featuresReady}
+                  disabled={!featuresReady || featuresLoading}
+                  title={featuresLoading ? 'Please wait for feature extraction to complete' : ''}
                   onClick={() => {
                     this.setState({ disableUpload: true }, () => {
                       try {
