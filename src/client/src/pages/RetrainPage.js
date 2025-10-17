@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
 import { connect } from "react-redux";
-import { Collapse, Spin, Tooltip, Button, InputNumber, Form, Select } from 'antd';
+import { Row, Col, Card, Divider, Spin, Tooltip, Button, InputNumber, Form, Select, Statistic } from 'antd';
 import {
   requestApp,
   requestAllModels,
@@ -25,7 +25,7 @@ import {
   isACApp,
   isRunningApp,
 } from "../utils";
-const { Panel } = Collapse;
+import { RocketOutlined } from "@ant-design/icons";
 
 let isModelIdPresent = getLastPath() !== "retrain";
 
@@ -160,10 +160,27 @@ class RetrainPage extends Component {
       `Retrain the model ${modelId} using different datasets and hyperparameters` : 
       'Retrain models using different datasets and hyperparameters';
 
+    const isRunningNow = isRunningApp(this.props.app, this.props.retrainACStatus, this.props.retrainStatus);
+    const isReady = this.state.modelId && this.state.trainingDataset && this.state.testingDataset;
+
     return (
       <LayoutPage pageTitle="Models Retraining" pageSubTitle={subTitle}>
-        <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 600 }}>
-          <Form.Item name="model" label="Model" 
+        
+        <Divider orientation="left">
+          <h2 style={{ fontSize: '20px' }}>Configuration</h2>
+        </Divider>
+        
+        <Row gutter={16}>
+        <Col span={12}>
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 16 }}>
+            <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Model & Dataset Selection</h3>
+            <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+              Select the model to retrain and choose training/testing datasets
+            </span>
+          </div>
+        <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 700 }} className="bold-labels">
+          <Form.Item name="model" label={<strong>Model</strong>} 
             rules={[
               {
                 required: true,
@@ -201,7 +218,7 @@ class RetrainPage extends Component {
             </Tooltip>
           </Form.Item>
           <Form.Item
-            label="Training Dataset" name="trainingDataset"
+            label={<strong>Training Dataset</strong>} name="trainingDataset"
             rules={[
               {
                 required: true,
@@ -220,7 +237,7 @@ class RetrainPage extends Component {
             </Tooltip>
           </Form.Item>
           <Form.Item
-            label="Testing Dataset" name="testingDataset"
+            label={<strong>Testing Dataset</strong>} name="testingDataset"
             rules={[
               {
                 required: true,
@@ -238,7 +255,20 @@ class RetrainPage extends Component {
               />
             </Tooltip>
           </Form.Item>
-          <Form.Item label="Feature List" name="featureList">
+        </Form>
+        </Card>
+        </Col>
+        
+        <Col span={12}>
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 16 }}>
+            <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Training Configuration</h3>
+            <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+              Configure feature selection and training parameters
+            </span>
+          </div>
+        <Form {...FORM_LAYOUT} name="control-hooks-2" style={{ maxWidth: 700 }} className="bold-labels">
+          <Form.Item label={<strong>Feature List</strong>} name="featureList">
             <Tooltip title="Select feature lists used to build models.">
               <Select
                 value={this.state.featureList}
@@ -247,89 +277,132 @@ class RetrainPage extends Component {
               />
             </Tooltip>
           </Form.Item>
+          
           { this.props.app === 'ad' && (
-            <Collapse>
-              <Panel header="Training Parameters">
-                <Form.Item
-                  label="Number of Epochs (CNN)"
-                  name="nb_epoch_cnn"
-                >
-                  <InputNumber
-                    name="nb_epoch_cnn"
-                    value={this.state.nb_epoch_cnn}
-                    min={1} max={1000} defaultValue={2}
-                    onChange={(v) =>
-                      this.setState({
-                        trainingParameters: { ...this.state.trainingParameters, nb_epoch_cnn: v },
-                      })
-                    }
-                  />
-                </Form.Item>
-                <Form.Item
-                  label="Number of Epochs (SAE)"
-                  name="nb_epoch_sae"
-                >
-                  <InputNumber
-                    name="nb_epoch_sae"
-                    value={this.state.nb_epoch_sae}
-                    min={1} max={1000} defaultValue={5}
-                    onChange={(v) =>
-                      this.setState({
-                        trainingParameters: { ...this.state.trainingParameters, nb_epoch_sae: v },
-                      })
-                    }
-                  />
-                </Form.Item>
-                <Form.Item
-                  label="Batch Size (CNN)"
-                  name="batch_size_cnn"
-                >
-                  <InputNumber
-                    name="batch_size_cnn"
-                    value={this.state.batch_size_cnn}
-                    min={1} max={1000} defaultValue={32}
-                    onChange={(v) =>
-                      this.setState({
-                        trainingParameters: { ...this.state.trainingParameters, batch_size_cnn: v },
-                      })
-                    }
-                  />
-                </Form.Item>
-                <Form.Item
-                  label="Batch Size (SAE)"
-                  name="batch_size_sae"
-                >
-                  <InputNumber
-                    name="batch_size_sae"
-                    value={this.state.batch_size_sae}
-                    min={1} max={1000} defaultValue={16}
-                    onChange={(v) =>
-                      this.setState({
-                        trainingParameters: { ...this.state.trainingParameters, batch_size_sae: v },
-                      })
-                    }
-                  />
-                </Form.Item>
-              </Panel>
-            </Collapse>
+            <>
+              <Divider style={{ margin: '20px 0 16px 0' }}>Training Parameters</Divider>
+              
+              <Row gutter={24}>
+                <Col span={12}>
+                  <Form.Item label={<strong>Epochs (CNN)</strong>} name="nb_epoch_cnn" style={{ marginBottom: '16px' }}>
+                    <Tooltip title="In convolutional neural networks (CNN), the number of epochs determines how many times the model will iterate over the training data during the training process.">
+                      <InputNumber
+                        name="nb_epoch_cnn"
+                        value={this.state.nb_epoch_cnn}
+                        min={1} max={1000} defaultValue={2}
+                        style={{ width: '100%' }}
+                        onChange={(v) =>
+                          this.setState({
+                            trainingParameters: { ...this.state.trainingParameters, nb_epoch_cnn: v },
+                          })
+                        }
+                      />
+                    </Tooltip>
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item label={<strong>Batch Size</strong>} name="batch_size_cnn" style={{ marginBottom: '16px' }}>
+                    <Tooltip title="Batch size in CNN refers to the number of samples that are processed together in a single forward and backward pass during each epoch of training.">
+                      <InputNumber
+                        name="batch_size_cnn"
+                        value={this.state.batch_size_cnn}
+                        min={1} max={1000} defaultValue={32}
+                        style={{ width: '100%' }}
+                        onChange={(v) =>
+                          this.setState({
+                            trainingParameters: { ...this.state.trainingParameters, batch_size_cnn: v },
+                          })
+                        }
+                      />
+                    </Tooltip>
+                  </Form.Item>
+                </Col>
+              </Row>
+              
+              <Row gutter={24}>
+                <Col span={12}>
+                  <Form.Item label={<strong>Epochs (SAE)</strong>} name="nb_epoch_sae" style={{ marginBottom: '8px' }}>
+                    <Tooltip title="In Stacked Autoencoder (SAE), the number of epochs determines how many times this encoding-decoding process is repeated during training.">
+                      <InputNumber
+                        name="nb_epoch_sae"
+                        value={this.state.nb_epoch_sae}
+                        min={1} max={1000} defaultValue={5}
+                        style={{ width: '100%' }}
+                        onChange={(v) =>
+                          this.setState({
+                            trainingParameters: { ...this.state.trainingParameters, nb_epoch_sae: v },
+                          })
+                        }
+                      />
+                    </Tooltip>
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item label={<strong>Batch Size</strong>} name="batch_size_sae" style={{ marginBottom: '8px' }}>
+                    <Tooltip title="Batch size in a SAE determines the number of samples processed together in each training iteration.">
+                      <InputNumber
+                        name="batch_size_sae"
+                        value={this.state.batch_size_sae}
+                        min={1} max={1000} defaultValue={16}
+                        style={{ width: '100%' }}
+                        onChange={(v) =>
+                          this.setState({
+                            trainingParameters: { ...this.state.trainingParameters, batch_size_sae: v },
+                          })
+                        }
+                      />
+                    </Tooltip>
+                  </Form.Item>
+                </Col>
+              </Row>
+            </>
           )}
-          <div style={{ textAlign: 'center', marginTop: 10 }}>
+          
+          <div style={{ textAlign: 'center', marginTop: '24px' }}>
             <Button
               type="primary"
+              icon={<RocketOutlined />}
+              loading={isRunningNow}
               onClick={ this.handleButtonRetrain } 
-              disabled={ isRunningApp(this.props.app, this.props.retrainACStatus, this.props.retrainStatus) || 
-                !this.state.modelId || !(this.state.trainingDataset && this.state.testingDataset)
-              }
+              disabled={ isRunningNow || !isReady }
             >
-              Retrain model
-              {isRunningApp(this.props.app, this.props.retrainACStatus, this.props.retrainStatus) && 
-                <Spin size="large" style={{ marginBottom: '8px' }}>
-                  <div className="content" />
-                </Spin>
-              }
+              Retrain Model
             </Button>
           </div>
         </Form>
+        </Card>
+        </Col>
+        </Row>
+        
+        <Divider orientation="left">
+          <h2 style={{ fontSize: '20px' }}>Retraining Status</h2>
+        </Divider>
+        
+        <Card style={{ marginBottom: 24 }}>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Statistic
+                title="Status"
+                value={
+                  isRunningNow ? 'Retraining' : 
+                  isReady ? 'Ready' : 'Waiting'
+                }
+                valueStyle={{ 
+                  color: isRunningNow ? '#1890ff' : 
+                         isReady ? '#52c41a' : '#faad14',
+                  fontSize: '20px' 
+                }}
+              />
+            </Col>
+            <Col span={12}>
+              <Statistic
+                title="Model Type"
+                value={this.props.app === 'ad' ? 'Anomaly Detection' : 'Attack Classification'}
+                valueStyle={{ fontSize: '16px', color: '#722ed1' }}
+              />
+            </Col>
+          </Row>
+        </Card>
       </LayoutPage>
     );
   }

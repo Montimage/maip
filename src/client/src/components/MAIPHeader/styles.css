@@ -22,10 +22,12 @@ header {
     color: rgba(255, 255, 255, 0.9) !important;
 }
 
-/* Increase brightness of selected items */
-.ant-menu-dark .ant-menu-item-selected {
+/* Increase brightness of selected items - make them bolder */
+.ant-menu-dark .ant-menu-item-selected,
+.ant-menu-dark .ant-menu-submenu-selected > .ant-menu-submenu-title,
+.ant-menu-submenu-popup .ant-menu-item-selected {
     color: #ffffff !important;
-    font-weight: 600 !important;
+    font-weight: 700 !important;
 }
 
 /* Ensure disabled items are still visible */

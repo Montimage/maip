@@ -2,9 +2,8 @@ import React, { Component, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import LayoutPage from './LayoutPage';
 import { connect } from "react-redux";
-import { Row, Col, Tooltip, message, notification, Upload, Spin, Button, InputNumber, Space, Form, Input, Select, Checkbox } from 'antd';
+import { Row, Col, Tooltip, message, notification, Upload, Spin, Button, InputNumber, Space, Form, Input, Select, Checkbox, Card, Divider, Tag, Statistic } from 'antd';
 import { UploadOutlined, RocketOutlined } from "@ant-design/icons";
-import { Collapse } from 'antd';
 import {
   requestMMTStatus,
   requestBuildModel,
@@ -16,8 +15,6 @@ import {
   SERVER_URL,
   FEATURES_OPTIONS,
 } from "../constants";
-
-const { Panel } = Collapse;
 
 class BuildADPage extends Component {
   constructor(props) {
@@ -296,8 +293,20 @@ class BuildADPage extends Component {
 
     return (
       <LayoutPage pageTitle="Build Models" pageSubTitle="Build a new AI model for anomaly detection">
-        <Row>
+        
+        <Divider orientation="left">
+          <h2 style={{ fontSize: '20px' }}>Configuration</h2>
+        </Divider>
+        
+        <Row gutter={16}>
         <Col span={12}>
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 16 }}>
+            <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Dataset Selection</h3>
+            <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+              Select datasets or upload PCAP files for malicious and normal traffic
+            </span>
+          </div>
         <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 700 }} className="bold-labels">
           <Form.Item
             label={<strong>Malicious Dataset</strong>}
@@ -366,6 +375,17 @@ class BuildADPage extends Component {
               </Button>
             </Upload>
           </Form.Item>
+        </Form>
+        </Card>
+        
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 16 }}>
+            <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Training Configuration</h3>
+            <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+              Configure feature selection and training parameters
+            </span>
+          </div>
+        <Form {...FORM_LAYOUT} name="control-hooks-2" style={{ maxWidth: 700 }} className="bold-labels">
           <Form.Item label={<strong>Feature List</strong>} name="featureList">
             <Tooltip title="Select feature lists used to build models.">
               <Select
@@ -385,14 +405,18 @@ class BuildADPage extends Component {
               />
             </Tooltip>
           </Form.Item>
-          <Collapse>
-            <Panel header="Training Parameters">
-              <Form.Item label={<strong>Number of Epochs (CNN)</strong>} name="nb_epoch_cnn">
+          
+          <Divider style={{ margin: '20px 0 16px 0' }}>Training Parameters</Divider>
+          
+          <Row gutter={24}>
+            <Col span={12}>
+              <Form.Item label={<strong>Epochs (CNN)</strong>} name="nb_epoch_cnn" style={{ marginBottom: '16px' }}>
                 <Tooltip title="In convolutional neural networks (CNN), the number of epochs determines how many times the model will iterate over the training data during the training process.">
                   <InputNumber
                     name="nb_epoch_cnn"
                     value={this.state.nb_epoch_cnn}
                     min={1} max={1000} defaultValue={5}
+                    style={{ width: '100%' }}
                     onChange={(v) =>
                       this.setState({
                         training_parameters: { ...this.state.training_parameters, nb_epoch_cnn: v },
@@ -401,26 +425,15 @@ class BuildADPage extends Component {
                   />
                 </Tooltip>
               </Form.Item>
-              <Form.Item label={<strong>Number of Epochs (SAE)</strong>} name="nb_epoch_sae">
-                <Tooltip title="In Stacked Autoencoder (SAE), the number of epochs determines how many times this encoding-decoding process is repeated during training.">
-                  <InputNumber
-                    name="nb_epoch_sae"
-                    value={this.state.nb_epoch_sae}
-                    min={1} max={1000} defaultValue={3}
-                    onChange={(v) =>
-                      this.setState({
-                        training_parameters: { ...this.state.training_parameters, nb_epoch_sae: v },
-                      })
-                    }
-                  />
-                </Tooltip>
-              </Form.Item>
-              <Form.Item label={<strong>Batch Size (CNN)</strong>} name="batch_size_cnn">
+            </Col>
+            <Col span={12}>
+              <Form.Item label={<strong>Batch Size</strong>} name="batch_size_cnn" style={{ marginBottom: '16px' }}>
                 <Tooltip title="Batch size in CNN refers to the number of samples that are processed together in a single forward and backward pass during each epoch of training. The training dataset is divided into smaller batches, and the model's parameters are updated based on the average gradients computed from each batch.">
                   <InputNumber
                     name="batch_size_cnn"
                     value={this.state.batch_size_cnn}
                     min={1} max={1000} defaultValue={16}
+                    style={{ width: '100%' }}
                     onChange={(v) =>
                       this.setState({
                         training_parameters: { ...this.state.training_parameters, batch_size_cnn: v },
@@ -429,12 +442,35 @@ class BuildADPage extends Component {
                   />
                 </Tooltip>
               </Form.Item>
-              <Form.Item label={<strong>Batch Size (SAE)</strong>} name="batch_size_sae">
+            </Col>
+          </Row>
+          
+          <Row gutter={24}>
+            <Col span={12}>
+              <Form.Item label={<strong>Epochs (SAE)</strong>} name="nb_epoch_sae" style={{ marginBottom: '8px' }}>
+                <Tooltip title="In Stacked Autoencoder (SAE), the number of epochs determines how many times this encoding-decoding process is repeated during training.">
+                  <InputNumber
+                    name="nb_epoch_sae"
+                    value={this.state.nb_epoch_sae}
+                    min={1} max={1000} defaultValue={3}
+                    style={{ width: '100%' }}
+                    onChange={(v) =>
+                      this.setState({
+                        training_parameters: { ...this.state.training_parameters, nb_epoch_sae: v },
+                      })
+                    }
+                  />
+                </Tooltip>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label={<strong>Batch Size</strong>} name="batch_size_sae" style={{ marginBottom: '8px' }}>
                 <Tooltip title="Batch size in a SAE determines the number of samples processed together in each training iteration.">
                   <InputNumber
                     name="batch_size_sae"
                     value={this.state.batch_size_sae}
                     min={1} max={1000} defaultValue={32}
+                    style={{ width: '100%' }}
                     onChange={(v) =>
                       this.setState({
                         training_parameters: { ...this.state.training_parameters, batch_size_sae: v },
@@ -443,13 +479,12 @@ class BuildADPage extends Component {
                   />
                 </Tooltip>
               </Form.Item>
-            </Panel>
-          </Collapse>
-          <div style={{ textAlign: 'center' }}>
+            </Col>
+          </Row>
+          <div style={{ textAlign: 'center', marginTop: '24px' }}>
             <Button
               type="primary"
               icon={<RocketOutlined />}
-              style={{ marginTop: '16px' }}
               loading={isRunning}
               disabled={ isRunning ||
                 !((this.state.attackDataset && this.state.normalDataset) ||
@@ -461,13 +496,64 @@ class BuildADPage extends Component {
             </Button>
           </div>
         </Form>
+        </Card>
         </Col>
-        <Col span={12} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-          <Tooltip title="Model Training Architecture: Dataset preparation, feature extraction, model training, and evaluation pipeline">
-            <img src="../../img/architecture.png" style={{ width: '40%', cursor: 'help' }} alt="Model Architecture Diagram" />
-          </Tooltip>
+        
+        <Col span={12}>
+          <Card style={{ marginBottom: 16 }}>
+            <div style={{ marginBottom: 16 }}>
+              <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Model Training Architecture</h3>
+              <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+                Dataset preparation, feature extraction, model training, and evaluation pipeline
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
+              <Tooltip title="CNN and SAE models process network traffic data through feature extraction and classification stages" placement="bottom">
+                <img src="../../img/architecture.png" style={{ width: '100%', maxWidth: '320px', cursor: 'help' }} alt="Model Architecture Diagram" />
+              </Tooltip>
+            </div>
+          </Card>
         </Col>
         </Row>
+        
+        <Divider orientation="left">
+          <h2 style={{ fontSize: '20px' }}>Build Status</h2>
+        </Divider>
+        
+        <Card style={{ marginBottom: 24 }}>
+          <Row gutter={16}>
+            <Col span={8}>
+              <Statistic
+                title="Status"
+                value={
+                  isRunning ? 'Building' : 
+                  ((this.state.attackDataset && this.state.normalDataset) || 
+                   (this.state.attackPcapFile && this.state.normalPcapFile)) ? 'Ready' : 'Waiting'
+                }
+                valueStyle={{ 
+                  color: isRunning ? '#1890ff' : 
+                         ((this.state.attackDataset && this.state.normalDataset) || 
+                          (this.state.attackPcapFile && this.state.normalPcapFile)) ? '#52c41a' : '#faad14',
+                  fontSize: '20px' 
+                }}
+              />
+            </Col>
+            <Col span={8}>
+              <Statistic
+                title="Malicious Dataset"
+                value={this.state.attackDataset || this.state.attackPcapFile || 'Not selected'}
+                valueStyle={{ fontSize: '14px' }}
+              />
+            </Col>
+            <Col span={8}>
+              <Statistic
+                title="Normal Dataset"
+                value={this.state.normalDataset || this.state.normalPcapFile || 'Not selected'}
+                valueStyle={{ fontSize: '14px' }}
+              />
+            </Col>
+          </Row>
+        </Card>
       </LayoutPage>
     );
   }
