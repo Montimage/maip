@@ -16,6 +16,9 @@ const {
   REPORT_PATH,
   DEEP_LEARNING_PATH,
   PYTHON_CMD,
+  MODEL_PATH,
+  PREDICTION_PATH,
+  LOG_PATH,
 } = require('../constants');
 const { listFilesByTypeAsync } = require('../utils/file-utils');
 const { spawnCommand } = require('../utils/utils');
@@ -336,47 +339,93 @@ trainingQueue.process('train', CONCURRENCY.modelTraining, async (job) => {
 });
 
 /**
- * Prediction Worker
+ * Prediction Worker (Offline ML Prediction)
  * 
- * Wraps your existing prediction code
+ * Wraps existing prediction code from deep-learning/deep-learning-connector.js
  */
 predictionQueue.process('predict', CONCURRENCY.prediction, async (job) => {
-  const { modelId, datasetId, sessionId } = job.data;
+  const { modelId, reportId, reportFileName, predictionId } = job.data;
   
-  console.log(`[Worker] Processing prediction job ${job.id} for session ${sessionId}`);
+  console.log(`[Worker] Processing prediction job ${job.id} for model ${modelId}, prediction ${predictionId}`);
   
   try {
+    await job.progress(10);
+    
+    // Use imported constants from constants.js
+    const modelPath = path.join(MODEL_PATH, modelId);
+    const reportDir = path.join(REPORT_PATH, reportId);
+    
+    // For predictions, we need the FEATURES CSV, not the raw MMT CSV
+    // Try to find .features.csv file, or use the provided filename as fallback
+    let csvPath = path.join(reportDir, reportFileName);
+    
+    // If the provided file doesn't exist, try to find the features CSV
+    if (!fs.existsSync(csvPath)) {
+      // Look for .features.csv file (created by feature extraction)
+      if (fs.existsSync(reportDir)) {
+        const files = fs.readdirSync(reportDir);
+        const featuresCsv = files.find(f => f.endsWith('.features.csv'));
+        
+        if (featuresCsv) {
+          console.log(`[Worker] Using features CSV: ${featuresCsv} instead of ${reportFileName}`);
+          csvPath = path.join(reportDir, featuresCsv);
+        }
+      }
+    }
+    
+    const predictionPath = path.join(PREDICTION_PATH, predictionId, '/');
+    const logFile = path.join(LOG_PATH, `predict_${predictionId}.log`);
+    
+    console.log(`[Worker] Prediction paths:
+      - Report Dir: ${reportDir}
+      - Model: ${modelPath}
+      - CSV: ${csvPath}
+      - Output: ${predictionPath}`);
+    
+    // Verify model exists
+    if (!fs.existsSync(modelPath)) {
+      throw new Error(`Model does not exist at path: ${modelPath}`);
+    }
+    
+    // Verify CSV exists
+    if (!fs.existsSync(csvPath)) {
+      // List available files in the report directory to help debug
+      if (fs.existsSync(reportDir)) {
+        const files = fs.readdirSync(reportDir).filter(f => f.endsWith('.csv'));
+        throw new Error(`CSV file not found at: ${csvPath}\nAvailable CSV files in ${reportId}: ${files.join(', ') || 'none'}\nNote: Predictions require a .features.csv file from feature extraction`);
+      } else {
+        throw new Error(`Report directory does not exist: ${reportDir}`);
+      }
+    }
+    
+    // Create prediction directory
+    fs.mkdirSync(predictionPath, { recursive: true });
+    
     await job.progress(20);
     
-    // Call your existing prediction function
-    const predictionDir = path.join('/data/predictions', sessionId);
-    fs.mkdirSync(predictionDir, { recursive: true });
-    
-    await job.progress(40);
-    
-    // Example: Call your Python prediction script
+    // Run prediction.py
     const { spawn } = require('child_process');
+    const pythonCmd = process.env.PYTHON_CMD || 'python3';
+    const predictionScript = path.join(__dirname, '../deep-learning/prediction.py');
     
-    const pythonProcess = spawn('python3', [
-      path.join(__dirname, '../deep-learning/predict.py'),
-      '--model', path.join('/data/models', modelId),
-      '--dataset', path.join('/data/reports', datasetId),
-      '--output', predictionDir
-    ]);
+    const pythonProcess = spawn(pythonCmd, [predictionScript, csvPath, modelPath, predictionPath]);
     
     let stdout = '';
     let stderr = '';
     
     pythonProcess.stdout.on('data', (data) => {
       stdout += data.toString();
-      const match = data.toString().match(/Progress: (\d+)%/);
+      // Try to parse progress from Python output
+      const match = data.toString().match(/Progress[:\s]+(\d+)%/i);
       if (match) {
-        job.progress(parseInt(match[1]));
+        const progress = Math.min(20 + parseInt(match[1]) * 0.75, 95);
+        job.progress(progress);
       }
     });
     
     pythonProcess.stderr.on('data', (data) => {
       stderr += data.toString();
+      console.log(`[Worker] Prediction stderr: ${data}`);
     });
     
     await new Promise((resolve, reject) => {
@@ -384,21 +433,27 @@ predictionQueue.process('predict', CONCURRENCY.prediction, async (job) => {
         if (code === 0) {
           resolve();
         } else {
-          reject(new Error(`Prediction failed with code ${code}: ${stderr}`));
+          reject(new Error(`Prediction failed with code ${code}: ${stderr || 'No error details'}`));
         }
+      });
+      
+      pythonProcess.on('error', (err) => {
+        reject(new Error(`Failed to start prediction process: ${err.message}`));
       });
     });
     
     await job.progress(100);
     
-    console.log(`[Worker] Prediction completed for job ${job.id}`);
+    console.log(`[Worker] Prediction completed for job ${job.id}, prediction ${predictionId}`);
     
     return {
       success: true,
-      sessionId,
-      predictionDir,
-      resultsFile: path.join(predictionDir, 'predictions.csv'),
-      message: 'Prediction completed'
+      predictionId,
+      modelId,
+      predictionPath,
+      resultsFile: path.join(predictionPath, 'predictions.csv'),
+      statsFile: path.join(predictionPath, 'stats.csv'),
+      message: 'Prediction completed successfully'
     };
     
   } catch (error) {

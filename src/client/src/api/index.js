@@ -554,7 +554,13 @@ export const requestPredictStatus = async () => {
   return data.predictingStatus;
 };
 
-export const requestPredict = async (modelId, reportId, reportFileName) => {
+export const requestPredict = async (modelId, reportId, reportFileName, useQueue = true) => {
+  // NEW: Use queue-based endpoint by default
+  if (useQueue) {
+    return requestPredictOfflineQueued(modelId, reportId, reportFileName);
+  }
+  
+  // OLD: Legacy endpoint for backward compatibility
   const url = `${SERVER_URL}/api/predict`;
 
   const predictConfig = {
@@ -578,6 +584,34 @@ export const requestPredict = async (modelId, reportId, reportFileName) => {
   const data = await response.json();
   console.log(`Prediction on server with config ${predictConfig}`);
   return data;
+};
+
+export const requestPredictOfflineQueued = async (modelId, reportId, reportFileName) => {
+  const url = `${SERVER_URL}/api/predict/offline`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ modelId, reportId, reportFileName, useQueue: true })
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    try {
+      const errorData = JSON.parse(errorText);
+      throw new Error(errorData.message || errorData.error || errorText);
+    } catch (e) {
+      throw new Error(errorText);
+    }
+  }
+  return response.json();
+};
+
+export const requestPredictJobStatus = async (jobId) => {
+  const url = `${SERVER_URL}/api/predict/job/${jobId}`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to get job status: ${response.statusText}`);
+  }
+  return response.json();
 };
 
 export const requestPredictionsModel = async (modelId) => {

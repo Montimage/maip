@@ -27,7 +27,7 @@ import XAILimePage from "./pages/XAILimePage";
 import XAIShapPage from "./pages/XAIShapPage";
 import AccountabilityMetricsPage from "./pages/AccountabilityMetricsPage";
 import ResilienceMetricsPage from "./pages/ResilienceMetricsPage";
-import AboutPage from "./pages/AboutPage";
+import LandingPage from "./pages/LandingPage";
 import FeatureExtractionPage from "./pages/FeatureExtractionPage";
 import EarlyPredictionPage from "./pages/EarlyPredictionPage";
 import DPIPage from "./pages/DPIPage";
@@ -44,10 +44,10 @@ function App() {
           <MAIPHeader />
           <Routes>
             {/* Public routes */}
-            <Route path="/" element={<Navigate to="/models/all" replace />} />
+            <Route path="/" element={<LandingPage />} />
             <Route path="/sign-in" element={<SignInPage />} />
             <Route path="/sign-up" element={<SignUpPage />} />
-            <Route path="/about" element={<AboutPage />} />
+            <Route path="/about" element={<LandingPage />} />
             
             {/* Public read-only routes */}
             <Route path="/features" element={<FeatureExtractionPage />} />

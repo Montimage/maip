@@ -195,9 +195,8 @@ class MAIPHeader extends Component {
   render() {
     const { isAdmin, isSignedIn, isLoaded } = this.props;
     
-    // Modify the current pathname if it is "/"
+    // Get current pathname
     let { pathname } = window.location;
-    pathname = pathname === "/" ? "/models/all" : pathname;
 
     const menuItems = this.getMenuItems();
 
@@ -228,9 +227,11 @@ class MAIPHeader extends Component {
 
           {/* Title next to the logo */}
           <Col span={6} style={{ display: 'flex', alignItems: 'center' }}>
-            <div style={{ color: '#fff', fontSize: '24px', fontWeight: 700, marginTop: '-8px', marginLeft: '30px', whiteSpace: 'nowrap' }}>
-              Network Detection and Response
-            </div>
+            <a href="/" style={{ textDecoration: 'none' }}>
+              <div style={{ color: '#fff', fontSize: '24px', fontWeight: 700, marginTop: '-8px', marginLeft: '30px', whiteSpace: 'nowrap', cursor: 'pointer' }}>
+                Network Detection and Response
+              </div>
+            </a>
           </Col>
 
           {/* Removed the app selection dropdown */}

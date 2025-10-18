@@ -66,6 +66,8 @@ class PredictPage extends Component {
       // Shared state
       isRunning: (props.predictStatus && props.predictStatus.isRunning) ? props.predictStatus.isRunning : false,
       isMMTRunning: (props.mmtStatus && props.mmtStatus.isRunning) ? props.mmtStatus.isRunning : false,
+      currentJobId: null, // Job ID for queued predictions
+      currentPredictionId: null, // Prediction ID for results
       predictStats: null,
       attackCsv: null,
       attackRows: [],
@@ -390,15 +392,115 @@ class PredictPage extends Component {
           if (csvReports.length === 0) {
             console.error(`Testing dataset is not valid!`);
           } else {
-            // Suppose that there is at most one csv report in each report folder
-            console.log(csvReports[0]);
-            console.log(fetchModelId);
-            console.log(updatedTestingDataset);
-            this.props.fetchPredict(fetchModelId, updatedTestingDataset, csvReports[0]);
-            console.log("update isRunning state!");
-            this.setState({ isRunning: true });
-            this.intervalId = setInterval(() => { // start interval when button is clicked
-              this.props.fetchPredictStatus();
+            // Queue-based prediction
+            console.log('Starting queued prediction:', csvReports[0], fetchModelId, updatedTestingDataset);
+            
+            // Call new queue-based API
+            const { requestPredictOfflineQueued, requestPredictJobStatus } = require('../api');
+            const queueResponse = await requestPredictOfflineQueued(fetchModelId, updatedTestingDataset, csvReports[0]);
+            
+            console.log('Prediction queued:', queueResponse);
+            this.setState({ 
+              isRunning: true,
+              currentJobId: queueResponse.jobId,
+              currentPredictionId: queueResponse.predictionId
+            });
+            
+            // Poll job status instead of old predict status
+            this.intervalId = setInterval(async () => {
+              try {
+                const jobStatus = await requestPredictJobStatus(this.state.currentJobId);
+                console.log('Job status:', jobStatus.status, 'Progress:', jobStatus.progress);
+                
+                if (jobStatus.status === 'completed') {
+                  clearInterval(this.intervalId);
+                  this.intervalId = null;
+                  this.setState({ isRunning: false });
+                  
+                  // Load prediction results manually
+                  const predictionId = this.state.currentPredictionId;
+                  console.log('Prediction completed, loading results for:', predictionId);
+                  
+                  try {
+                    const { requestPredictStats, requestPredictionAttack } = require('../api');
+                    const predictStats = await requestPredictStats(predictionId);
+                    console.log('Fetched predictStats:', predictStats);
+                    
+                    let attackCsv = null;
+                    try {
+                      attackCsv = await requestPredictionAttack(predictionId);
+                    } catch (e) {
+                      console.warn('No attack CSV available:', e.message);
+                    }
+                    
+                    let attackRows = [];
+                    let attackFlowColumns = [];
+                    let mitigationColumns = [];
+                    
+                    if (attackCsv) {
+                      const built = buildAttackTable({
+                        csvString: attackCsv,
+                        onAction: (key, record) => this.onMitigationAction(key, record),
+                        buildMenu: (record, onAction) => {
+                          const { srcIp, dstIp, dport } = this.computeFlowDetails(record);
+                          const validSrc = this.isValidIPv4(srcIp);
+                          const validDst = this.isValidIPv4(dstIp);
+                          return (
+                            <Menu onClick={({ key }) => onAction && onAction(key, record)}>
+                              <Menu.Item key="explain-gpt">Ask Assistant</Menu.Item>
+                              <Menu.Item key="explain-shap">Explain (XAI SHAP)</Menu.Item>
+                              <Menu.Item key="explain-lime">Explain (XAI LIME)</Menu.Item>
+                              <Menu.Divider />
+                              <Menu.Item key="block-src-ip" disabled={!validSrc}>
+                                {`Block source IP${validSrc ? ` ${srcIp}` : ''}`}
+                              </Menu.Item>
+                              <Menu.Item key="block-dst-ip" disabled={!validDst}>
+                                {`Block destination IP${validDst ? ` ${dstIp}` : ''}`}
+                              </Menu.Item>
+                              <Menu.Divider />
+                              <Menu.Item key="block-dst-port" disabled={!dport}>
+                                {`Block destination port${dport ? ` ${dport}/tcp` : ''}`}
+                              </Menu.Item>
+                              <Menu.Divider />
+                              <Menu.Item key="drop-session" disabled={!(validSrc || validDst)}>
+                                {`Drop session${validDst ? ` ${dstIp}` : validSrc ? ` ${srcIp}` : ''}`}
+                              </Menu.Item>
+                            </Menu>
+                          );
+                        }
+                      });
+                      attackRows = built.rows;
+                      attackFlowColumns = built.flowColumns;
+                      mitigationColumns = built.mitigationColumns;
+                    }
+                    
+                    this.setState({ 
+                      predictStats, 
+                      attackCsv, 
+                      attackRows, 
+                      attackFlowColumns, 
+                      mitigationColumns 
+                    });
+                    
+                    notification.success({
+                      message: 'Success',
+                      description: 'Prediction completed successfully!',
+                      placement: 'topRight',
+                    });
+                  } catch (error) {
+                    console.error('Error loading prediction results:', error);
+                    message.error('Failed to load prediction results: ' + error.message);
+                  }
+                } else if (jobStatus.status === 'failed') {
+                  clearInterval(this.intervalId);
+                  this.intervalId = null;
+                  this.setState({ isRunning: false });
+                  console.error('Prediction failed:', jobStatus.failedReason);
+                  message.error('Prediction failed: ' + jobStatus.failedReason);
+                }
+              } catch (error) {
+                console.error('Error polling job status:', error);
+              }
             }, 2000);
           }
         } catch (error) {
@@ -1142,7 +1244,7 @@ class PredictPage extends Component {
     });
 
     return (
-      <LayoutPage pageTitle="Predict" pageSubTitle={subTitle}>
+      <LayoutPage pageTitle="Anomaly Prediction" pageSubTitle={subTitle}>
         
         <Divider orientation="left">
           <h2 style={{ fontSize: '20px' }}>Configuration</h2>
@@ -1377,23 +1479,6 @@ class PredictPage extends Component {
         
         { ((mode === 'offline' && predictStats && modelId && (this.state.testingDataset || this.state.testingPcapFile)) || (mode === 'online' && (this.state.hasResultsShown || aggregateNormal > 0 || aggregateMalicious > 0 || lastSliceStats || (this.state.attackRows && this.state.attackRows.length > 0)))) ? (
           <>
-            {/* Prediction Status Banner */}
-            <Alert
-              message={
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-                  <span style={{ fontSize: 16, fontWeight: 'bold' }}>{predictOutput}</span>
-                  {maliciousFlows > 0 ? (
-                    <Tag color="error" icon={<WarningOutlined />}>MALICIOUS DETECTED</Tag>
-                  ) : (
-                    <Tag color="success" icon={<CheckCircleOutlined />}>NORMAL TRAFFIC</Tag>
-                  )}
-                </div>
-              }
-              type={maliciousFlows > 0 ? "error" : "success"}
-              showIcon
-              style={{ marginBottom: 24 }}
-            />
-
             {/* Flow Statistics - DPI Style */}
             <Card style={{ marginBottom: 24 }}>
               <div style={{ textAlign: 'center', marginBottom: 16 }}>
@@ -1435,11 +1520,30 @@ class PredictPage extends Component {
                       title="Malicious Rate"
                       value={(maliciousRate * 100).toFixed(1)}
                       suffix="%"
-                      valueStyle={{ fontSize: 20, fontWeight: 'bold', color: '#ff4d4f' }}
+                      valueStyle={{ fontSize: 20, fontWeight: 'bold', color: maliciousRate > 0 ? '#ff4d4f' : '#52c41a' }}
                     />
                   </Card>
                 </Col>
               </Row>
+              
+              {/* Prediction Status Banner - Centered below the boxes, inside card */}
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}>
+                <Alert
+                  message={
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+                      <span style={{ fontSize: 16, fontWeight: 'bold' }}>{predictOutput}</span>
+                      {maliciousFlows > 0 ? (
+                        <Tag color="error" icon={<WarningOutlined />}>MALICIOUS DETECTED</Tag>
+                      ) : (
+                        <Tag color="success" icon={<CheckCircleOutlined />}>NORMAL TRAFFIC</Tag>
+                      )}
+                    </div>
+                  }
+                  type={maliciousFlows > 0 ? "error" : "success"}
+                  showIcon
+                  style={{ display: 'inline-block' }}
+                />
+              </div>
             </Card>
             
             {/* Visualizations */}
