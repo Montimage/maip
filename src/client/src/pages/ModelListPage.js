@@ -1,12 +1,12 @@
 import React, { Component } from "react";
 import { connect } from "react-redux";
-import { Modal, Tooltip, Typography, Table, Space, Button, Select, notification, Tag, Card } from "antd";
+import { Modal, Tooltip, Typography, Table, Space, Button, Select, notification, Tag, Card, Input } from "antd";
 import LayoutPage from "./LayoutPage";
 import { useUserRole } from '../hooks/useUserRole';
 import {
   FolderViewOutlined, DownloadOutlined, DeleteOutlined, SendOutlined,
   LineChartOutlined, SolutionOutlined, BugOutlined, ExperimentOutlined,
-  HourglassOutlined, RestOutlined, CopyOutlined, HighlightOutlined, LockOutlined
+  HourglassOutlined, RestOutlined, CopyOutlined, EditOutlined, LockOutlined
 } from '@ant-design/icons';
 import {
   requestApp,
@@ -43,6 +43,8 @@ class ModelListPage extends Component {
       cmConfigRight: null,
       selectedOption: null,
       selectedCriteria: null,
+      editingModelId: null,
+      editingValue: '',
     };
   }
 
@@ -106,57 +108,149 @@ class ModelListPage extends Component {
     const dataSource = filteredModels.length ?
                     filteredModels.map((model, index) => ({ ...model, key: index })) :
                     [];
+    const handleCopyModelId = (modelId) => {
+      navigator.clipboard.writeText(modelId);
+      notification.success({
+        message: 'Copied to clipboard',
+        description: `Model ID: ${modelId}`,
+        placement: 'topRight',
+        duration: 2,
+      });
+    };
+
+    const handleEditStart = (modelId) => {
+      this.setState({ 
+        editingModelId: modelId, 
+        editingValue: modelId 
+      });
+    };
+
+    const handleEditCancel = () => {
+      this.setState({ 
+        editingModelId: null, 
+        editingValue: '' 
+      });
+    };
+
+    const handleEditSave = (oldModelId) => {
+      const newModelId = this.state.editingValue.trim();
+      
+      if (!newModelId) {
+        notification.error({
+          message: 'Invalid model name',
+          description: 'Model name cannot be empty',
+          placement: 'topRight',
+        });
+        return;
+      }
+
+      if (this.props.app === 'ac' && !newModelId.startsWith('ac-')) {
+        notification.error({
+          message: 'Invalid model name',
+          description: `AC model names must start with 'ac-'`,
+          placement: 'topRight',
+        });
+        return;
+      }
+
+      updateModel(oldModelId, newModelId);
+      notification.success({
+        message: 'Model name updated',
+        description: `${oldModelId} → ${newModelId}`,
+        placement: 'topRight',
+      });
+      
+      this.setState({ 
+        editingModelId: null, 
+        editingValue: '' 
+      });
+    };
+
     const columns = [
       {
         title: "Model Id",
         key: "data",
-        width: '30%',
+        width: '35%',
         sorter: (a, b) => {
           if(a.modelId < b.modelId) return -1;
           if(a.modelId > b.modelId) return 1;
           return 0;
         },
-        render: (model) => (
-          <Text
-            copyable={{
-              text: model.modelId,
-              tooltip: 'Copy',
-              icon: <CopyOutlined style={{ fontSize: '16px' }} />,
-            }}
-            editable={{
-              icon: <HighlightOutlined style={{ fontSize: '16px' }}/>,
-              tooltip: 'Edit',
-              onChange: (newModelId) => {
-                if (this.props.app === 'ac' && !newModelId.startsWith('ac-')) {
-                  notification.error({
-                    type: 'error',
-                    message: `AC model names must start with 'ac-'`,
-                    placement: 'topRight',
-                  });
-                } else {
-                  updateModel(model.modelId, newModelId);
-                  notification.success({
-                    type: 'success',
-                    message: `Model ${model.modelId} name has been updated to ${newModelId}`,
-                    placement: 'topRight',
-                  });
-                }
-              },
-            }}
-            keyboard
-            style={{ display: 'flex', alignItems: 'center', gap: '24px' }}
-          >
-            {model.modelId}
-            <span style={{ marginLeft: '10px' }}>
-              <Tooltip title="Download">
-                <a href="#" title="Download"
-                  onClick={() => downloadModel(model.modelId)}>
-                  <DownloadOutlined style={{ fontSize: '16px' }} />
-                </a>
-              </Tooltip>
-            </span>
-          </Text>
-        ),
+        render: (model) => {
+          const isEditing = this.state.editingModelId === model.modelId;
+          
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {isEditing ? (
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <Input
+                    value={this.state.editingValue}
+                    onChange={(e) => this.setState({ editingValue: e.target.value })}
+                    onPressEnter={() => handleEditSave(model.modelId)}
+                    style={{ flex: 1 }}
+                    autoFocus
+                  />
+                  <Button 
+                    type="primary" 
+                    size="small"
+                    onClick={() => handleEditSave(model.modelId)}
+                  >
+                    Save
+                  </Button>
+                  <Button 
+                    size="small"
+                    onClick={handleEditCancel}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div style={{ 
+                    fontSize: '14px', 
+                    fontWeight: 500,
+                    color: '#262626',
+                    wordBreak: 'break-word'
+                  }}>
+                    {model.modelId}
+                  </div>
+                  <Space size="small">
+                    <Tooltip title="Edit model name">
+                      <Button
+                        type="default"
+                        size="small"
+                        icon={<EditOutlined />}
+                        onClick={() => handleEditStart(model.modelId)}
+                      >
+                        Edit
+                      </Button>
+                    </Tooltip>
+                    <Tooltip title="Copy model ID">
+                      <Button
+                        type="default"
+                        size="small"
+                        icon={<CopyOutlined />}
+                        onClick={() => handleCopyModelId(model.modelId)}
+                      >
+                        Copy
+                      </Button>
+                    </Tooltip>
+                    <Tooltip title="Download model">
+                      <Button
+                        type="default"
+                        size="small"
+                        icon={<DownloadOutlined />}
+                        onClick={() => downloadModel(model.modelId)}
+                      >
+                        Download
+                      </Button>
+                    </Tooltip>
+                  </Space>
+                </>
+              )}
+            </div>
+          );
+        },
       },
       {
         title: "Built At",
