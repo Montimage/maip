@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import LayoutPage from './LayoutPage';
 import { Table, Tooltip, message, notification, Upload, Spin, Button, Form, Select, Menu, Modal, Divider, Card, Row, Col, Statistic, Tag, Space, InputNumber, Alert } from 'antd';
-import { UploadOutlined, CheckCircleOutlined, WarningOutlined, ClockCircleOutlined, PlayCircleOutlined, StopOutlined, LockOutlined } from "@ant-design/icons";
+import { UploadOutlined, CheckCircleOutlined, WarningOutlined, ClockCircleOutlined, PlayCircleOutlined, StopOutlined, LockOutlined, FileTextOutlined } from "@ant-design/icons";
 import { connect } from "react-redux";
 import { useUserRole } from '../hooks/useUserRole';
 import { Pie, RingProgress, Bar } from '@ant-design/plots';
@@ -300,8 +300,9 @@ class PredictPage extends Component {
       // Use the filename returned by the server (e.g., { pcapFile: 'file.pcap' })
       const uploadedPcapName = (response && response.pcapFile) || (info.file.response && info.file.response.pcapFile) || null;
       this.setState({ testingPcapFile: uploadedPcapName });
+      console.log(`Uploaded successfully ${name}`);
     } else if (status === 'error') {
-      console.error('Pcap file upload failed');
+      message.error(`${name} upload failed.`);
     }
   };
 
@@ -1009,7 +1010,7 @@ class PredictPage extends Component {
 
     const modelsOptions = getFilteredModelsOptions(app, models);
 
-    const subTitle = 'Offline prediction using models';
+    const subTitle = 'Offline and online prediction using models';
 
     let tableConfig, maliciousFlows, predictOutput;
     let normalFlows = 0;
@@ -1338,30 +1339,22 @@ class PredictPage extends Component {
                   options={reportsOptions}
                   disabled={this.state.testingPcapFile !== null}
                 />
-                <Upload
-                  beforeUpload={this.beforeUploadPcap}
-                  action={`${SERVER_URL}/api/pcaps`}
-                  onChange={(info) => this.handleUploadPcap(info)}
-                  customRequest={this.processUploadPcap}
-                  disabled={!!this.state.testingPcapFile || !!this.state.testingDataset}
-                  onRemove={() => {
-                    // Clear all results when PCAP file is removed
-                    this.setState({ 
-                      testingPcapFile: null, 
-                      predictStats: null,
-                      attackRows: [],
-                      attackFlowColumns: [],
-                      mitigationColumns: [],
-                      attackCsv: null
-                    });
-                  }}
-                  maxCount={1}
-                >
-                  <Button icon={<UploadOutlined />} style={{ marginTop: '5px' }}
-                    disabled={!!this.state.testingPcapFile || !!this.state.testingDataset}>
-                    Upload pcaps only
-                  </Button>
-                </Upload>
+                <div style={{ maxWidth: '500px' }}>
+                  <Upload
+                    beforeUpload={this.beforeUploadPcap}
+                    action={`${SERVER_URL}/api/pcaps`}
+                    onChange={(info) => this.handleUploadPcap(info)}
+                    customRequest={this.processUploadPcap}
+                    onRemove={() => {
+                      this.setState({ testingPcapFile: null });
+                    }}
+                  >
+                    <Button icon={<UploadOutlined />} style={{ marginTop: '5px' }}
+                      disabled={!!this.state.testingPcapFile || !!this.state.testingDataset}>
+                      Upload pcaps only
+                    </Button>
+                  </Upload>
+                </div>
               </Col>
             </Row>
             
@@ -1484,8 +1477,18 @@ class PredictPage extends Component {
               <div style={{ textAlign: 'center', marginBottom: 16 }}>
                 <strong style={{ fontSize: 16 }}>Prediction Summary</strong>
               </div>
-              <Row gutter={16}>
-                <Col xs={24} sm={12} md={6}>
+              <Row gutter={8}>
+                <Col xs={24} sm={8} md={4}>
+                  <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                    <Statistic
+                      title={mode === 'offline' ? (this.state.testingPcapFile ? 'PCAP File' : 'Report') : 'Interface'}
+                      value={mode === 'offline' ? (this.state.testingPcapFile || this.state.testingDataset || 'N/A') : (this.state.interface || 'N/A')}
+                      valueStyle={{ fontSize: 12, fontWeight: 'bold', color: '#722ed1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                      prefix={<FileTextOutlined style={{ color: '#722ed1', fontSize: '14px' }} />}
+                    />
+                  </Card>
+                </Col>
+                <Col xs={24} sm={8} md={5}>
                   <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
                     <Statistic
                       title="Total Flows"
@@ -1494,7 +1497,7 @@ class PredictPage extends Component {
                     />
                   </Card>
                 </Col>
-                <Col xs={24} sm={12} md={6}>
+                <Col xs={24} sm={8} md={5}>
                   <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
                     <Statistic
                       title="Normal Flows"
@@ -1504,7 +1507,7 @@ class PredictPage extends Component {
                     />
                   </Card>
                 </Col>
-                <Col xs={24} sm={12} md={6}>
+                <Col xs={24} sm={8} md={5}>
                   <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
                     <Statistic
                       title="Malicious Flows"
@@ -1514,7 +1517,7 @@ class PredictPage extends Component {
                     />
                   </Card>
                 </Col>
-                <Col xs={24} sm={12} md={6}>
+                <Col xs={24} sm={8} md={5}>
                   <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
                     <Statistic
                       title="Malicious Rate"
@@ -1527,22 +1530,13 @@ class PredictPage extends Component {
               </Row>
               
               {/* Prediction Status Banner - Centered below the boxes, inside card */}
-              <div style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}>
-                <Alert
-                  message={
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-                      <span style={{ fontSize: 16, fontWeight: 'bold' }}>{predictOutput}</span>
-                      {maliciousFlows > 0 ? (
-                        <Tag color="error" icon={<WarningOutlined />}>MALICIOUS DETECTED</Tag>
-                      ) : (
-                        <Tag color="success" icon={<CheckCircleOutlined />}>NORMAL TRAFFIC</Tag>
-                      )}
-                    </div>
-                  }
-                  type={maliciousFlows > 0 ? "error" : "success"}
-                  showIcon
-                  style={{ display: 'inline-block' }}
-                />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 24 }}>
+                <span style={{ fontSize: 16, fontWeight: 'bold' }}>{predictOutput}</span>
+                {maliciousFlows > 0 ? (
+                  <Tag color="error" icon={<WarningOutlined />}>MALICIOUS DETECTED</Tag>
+                ) : (
+                  <Tag color="success" icon={<CheckCircleOutlined />}>NORMAL TRAFFIC</Tag>
+                )}
               </div>
             </Card>
             
