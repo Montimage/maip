@@ -229,7 +229,7 @@ class ResilienceMetricsPage extends Component {
         <Card style={{ marginBottom: 16 }}>
           <Row gutter={16} align="middle" justify="center">
             <Col flex="none">
-              <strong style={{ marginRight: 4 }}>Model:</strong>
+              <strong style={{ marginRight: 4 }}><span style={{ color: 'red' }}>* </span>Model:</strong>
             </Col>
             <Col>
               <Select
@@ -261,7 +261,7 @@ class ResilienceMetricsPage extends Component {
             </Col>
 
             <Col flex="none" style={{ marginLeft: 24 }}>
-              <strong style={{ marginRight: 4 }}>Attack:</strong>
+              <strong style={{ marginRight: 4 }}><span style={{ color: 'red' }}>* </span>Attack:</strong>
             </Col>
             <Col>
               <Select

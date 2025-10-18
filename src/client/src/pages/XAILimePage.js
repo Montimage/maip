@@ -450,14 +450,8 @@ class XAILimePage extends Component {
         
         <Card style={{ marginBottom: 16 }}>
           <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 600 }}>
-          <Form.Item name="model" label={<strong>Model</strong>}
+          <Form.Item name="model" label={<strong><span style={{ color: 'red' }}>* </span>Model</strong>}
             style={{ flex: 'none', marginBottom: 10 }}
-            rules={[
-              {
-                required: true,
-                message: 'Please select a model!',
-              },
-            ]}
           >
             <Tooltip title="Select a model to perform LIME method.">
               <Select placeholder="Select a model ..."

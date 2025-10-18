@@ -245,14 +245,8 @@ class AttacksPage extends Component {
           <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 700 }}>
             <Form.Item 
               name="model" 
-              label={<strong>Model</strong>}
+              label={<strong><span style={{ color: 'red' }}>* </span>Model</strong>}
               style={{ marginBottom: 16 }}
-              rules={[
-                {
-                  required: true,
-                  message: 'Please select a model!',
-                },
-              ]}
             > 
               <Tooltip title="Select a model to perform attacks.">
                 <Select
@@ -289,14 +283,8 @@ class AttacksPage extends Component {
 
             <Form.Item 
               name="attack" 
-              label={<strong>Attack Type</strong>}
+              label={<strong><span style={{ color: 'red' }}>* </span>Attack Type</strong>}
               style={{ marginBottom: 16 }}
-              rules={[
-                {
-                  required: true,
-                  message: 'Please select an attack!',
-                },
-              ]}
             >
               <Tooltip title="Select an adversarial attack to be performed against the model.">
                 <Select

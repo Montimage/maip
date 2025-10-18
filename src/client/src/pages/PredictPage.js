@@ -1293,7 +1293,7 @@ class PredictPage extends Component {
           <>
             <Row gutter={16} align="middle" style={{ marginBottom: 16 }}>
               <Col span={6} style={{ textAlign: 'right', paddingRight: 16 }}>
-                <strong>Model:</strong>
+                <strong><span style={{ color: 'red' }}>* </span>Model:</strong>
               </Col>
               <Col span={18}>
                 <Select placeholder="Select a model ..."
@@ -1312,7 +1312,7 @@ class PredictPage extends Component {
             
             <Row gutter={16} align="top" style={{ marginBottom: 16 }}>
               <Col span={6} style={{ textAlign: 'right', paddingRight: 16 }}>
-                <strong>Dataset:</strong>
+                <strong><span style={{ color: 'red' }}>* </span>Dataset:</strong>
               </Col>
               <Col span={18}>
                 <Select
@@ -1383,7 +1383,7 @@ class PredictPage extends Component {
           <>
             <Row gutter={16} align="middle" style={{ marginBottom: 16 }}>
               <Col span={6} style={{ textAlign: 'right', paddingRight: 16 }}>
-                <strong>Model:</strong>
+                <strong><span style={{ color: 'red' }}>* </span>Model:</strong>
               </Col>
               <Col span={18}>
                 <Select placeholder="Select a model ..."
@@ -1402,7 +1402,7 @@ class PredictPage extends Component {
             
             <Row gutter={16} align="middle" style={{ marginBottom: 16 }}>
               <Col span={6} style={{ textAlign: 'right', paddingRight: 16 }}>
-                <strong>Interface:</strong>
+                <strong><span style={{ color: 'red' }}>* </span>Interface:</strong>
               </Col>
               <Col span={18}>
                 <Select placeholder="Select a network interface ..."

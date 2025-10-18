@@ -2612,7 +2612,7 @@ class DPIPage extends Component {
               </Col>
               
               <Col flex="none" style={{ marginLeft: 12 }}>
-                <strong style={{ marginRight: 4 }}>{mode === 'offline' ? 'PCAP File:' : 'Interface:'}</strong>
+                <strong style={{ marginRight: 4 }}><span style={{ color: 'red' }}>* </span>{mode === 'offline' ? 'PCAP File:' : 'Interface:'}</strong>
               </Col>
               <Col flex="none">
                 {mode === 'offline' ? (

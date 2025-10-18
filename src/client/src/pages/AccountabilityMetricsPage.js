@@ -292,7 +292,7 @@ class AccountabilityMetricsPage extends Component {
         <Card style={{ marginBottom: 16 }}>
           <Row gutter={16} align="middle" justify="center">
             <Col flex="none">
-              <strong style={{ marginRight: 4 }}>Model:</strong>
+              <strong style={{ marginRight: 4 }}><span style={{ color: 'red' }}>* </span>Model:</strong>
             </Col>
             <Col>
               <Select

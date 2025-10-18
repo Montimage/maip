@@ -180,13 +180,7 @@ class RetrainPage extends Component {
             </span>
           </div>
         <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 700 }} className="bold-labels">
-          <Form.Item name="model" label={<strong>Model</strong>} 
-            rules={[
-              {
-                required: true,
-                message: 'Please select a model!',
-              },
-            ]}
+          <Form.Item name="model" label={<strong><span style={{ color: 'red' }}>* </span>Model</strong>}
           > 
             <Tooltip title="Select a model to retrain.">
               <Select
@@ -218,13 +212,7 @@ class RetrainPage extends Component {
             </Tooltip>
           </Form.Item>
           <Form.Item
-            label={<strong>Training Dataset</strong>} name="trainingDataset"
-            rules={[
-              {
-                required: true,
-                message: 'Please enter a training dataset!',
-              },
-            ]}
+            label={<strong><span style={{ color: 'red' }}>* </span>Training Dataset</strong>} name="trainingDataset"
           >
             <Tooltip title="Select a training dataset.">
               <Select
@@ -237,13 +225,7 @@ class RetrainPage extends Component {
             </Tooltip>
           </Form.Item>
           <Form.Item
-            label={<strong>Testing Dataset</strong>} name="testingDataset"
-            rules={[
-              {
-                required: true,
-                message: 'Please enter a testing dataset!',
-              },
-            ]}
+            label={<strong><span style={{ color: 'red' }}>* </span>Testing Dataset</strong>} name="testingDataset"
           >
             <Tooltip title="Select a testing dataset.">
               <Select

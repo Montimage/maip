@@ -611,7 +611,7 @@ class PredictRuleBasedPage extends Component {
             <Divider type="vertical" style={{ height: 32, margin: '0 16px' }} />
             
             <Col flex="none">
-              <strong style={{ fontSize: '14px' }}>{this.state.mode === 'offline' ? 'PCAP File:' : 'Interface:'}</strong>
+              <strong style={{ fontSize: '14px' }}><span style={{ color: 'red' }}>* </span>{this.state.mode === 'offline' ? 'PCAP File:' : 'Interface:'}</strong>
             </Col>
             <Col flex="auto">
               {this.state.mode === 'offline' ? this.renderOfflineSelector() : this.renderOnlineSelector()}

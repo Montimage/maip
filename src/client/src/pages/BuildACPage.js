@@ -118,13 +118,7 @@ class BuildACPage extends Component {
         <Row>
         <Col span={12}>
         <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 600, marginBottom: 10 }}>
-          <Form.Item label="Model Type" name="modelType"
-            rules={[
-              {
-                required: true,
-                message: 'Please select a type of AI models!',
-              },
-            ]}
+          <Form.Item label={<strong><span style={{ color: 'red' }}>* </span>Model Type</strong>} name="modelType"
           >
             <Tooltip title="Select a model type.">
               <Select
@@ -137,13 +131,7 @@ class BuildACPage extends Component {
             </Tooltip>
           </Form.Item>
 
-          <Form.Item label="Dataset" name="dataset"
-            rules={[
-              {
-                required: true,
-                message: 'Please select a dataset!',
-              },
-            ]}
+          <Form.Item label={<strong><span style={{ color: 'red' }}>* </span>Dataset</strong>} name="dataset"
           >
             <Tooltip title="Select a dataset.">
               <Select

@@ -309,14 +309,8 @@ class BuildADPage extends Component {
           </div>
         <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 700 }} className="bold-labels">
           <Form.Item
-            label={<strong>Malicious Dataset</strong>}
+            label={<strong><span style={{ color: 'red' }}>* </span>Malicious Dataset</strong>}
             name="attackDataset"
-            rules={[
-              {
-                required: true,
-                message: 'Please select an malicious dataset!',
-              },
-            ]}
           >
             <Tooltip title="Select MMT's analyzing reports of malicious traffic.">
               <Select
@@ -343,13 +337,7 @@ class BuildADPage extends Component {
             </Upload>
           </Form.Item>
 
-          <Form.Item label={<strong>Normal Dataset</strong>} name="normalDataset"
-            rules={[
-              {
-                required: true,
-                message: 'Please select a normal dataset!',
-              },
-            ]}
+          <Form.Item label={<strong><span style={{ color: 'red' }}>* </span>Normal Dataset</strong>} name="normalDataset"
           >
             <Tooltip title="Select MMT's analyzing reports of normal traffic.">
               <Select
