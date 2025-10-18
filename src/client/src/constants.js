@@ -724,7 +724,7 @@ const RES_METRICS_MENU_ITEMS = [
   },
 ];
 
-const HEADER_ACCURACY_STATS = ["precision", "recall", "f1score", "support"];
+const HEADER_ACCURACY_STATS = ["precision", "recall", "f1-score", "support"];
 
 // XAIShapPage.js
 const SHAP_URL = `${SERVER_URL}/api/xai/shap`;
