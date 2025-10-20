@@ -348,6 +348,7 @@ class ModelListPage extends Component {
               icon: <HourglassOutlined />,
               url: `/retrain/${model.modelId}`,
               disabled: !this.props.isAdmin,
+              tooltip: !this.props.isAdmin ? "Admin access required" : "Retrain this model with new data",
               onClick: () => {
                 window.location.href = `/models/retrain/${model.modelId}`;
               }
@@ -425,6 +426,7 @@ class ModelListPage extends Component {
               ),
               icon: <RestOutlined />,
               disabled: !this.props.isAdmin,
+              tooltip: !this.props.isAdmin ? "Admin access required" : "Permanently delete this model from the database",
               onClick: () => {
                 deleteModel(model.modelId);
                 notification.success({
@@ -457,6 +459,13 @@ class ModelListPage extends Component {
                     </OptGroup>
                   );
                 } else {
+                  const optionContent = (
+                    <Space wrap>
+                      {option.icon}
+                      {option.label}
+                    </Space>
+                  );
+                  
                   return (
                     <Option 
                       key={option.label} 
@@ -464,10 +473,13 @@ class ModelListPage extends Component {
                       onClick={option.onClick}
                       disabled={option.disabled}
                     >
-                      <Space wrap>
-                        {option.icon}
-                        {option.label}
-                      </Space>
+                      {option.tooltip ? (
+                        <Tooltip title={option.tooltip} placement="left">
+                          {optionContent}
+                        </Tooltip>
+                      ) : (
+                        optionContent
+                      )}
                     </Option>
                   );
                 }

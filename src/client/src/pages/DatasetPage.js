@@ -17,7 +17,7 @@ import {
   requestApp,
 } from "../actions";
 import { Col, Row, Table, Card, Statistic } from 'antd';
-import { ClockCircleOutlined, DatabaseOutlined } from '@ant-design/icons';
+import { ClockCircleOutlined, DatabaseOutlined, FileTextOutlined, AppstoreOutlined } from '@ant-design/icons';
 import Papa from "papaparse";
 import FeatureCharts from '../components/FeatureCharts';
 import FeatureDescriptions from '../components/FeatureDescriptions';
@@ -142,23 +142,43 @@ class DatasetPage extends Component {
             <strong style={{ fontSize: 16 }}>Dataset Summary</strong>
           </div>
           <Row gutter={16}>
-            <Col span={12}>
-              <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+            <Col span={6}>
+              <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff', minHeight: '92px' }}>
+                <Statistic
+                  title="Type"
+                  value={`${datasetType.charAt(0).toUpperCase() + datasetType.slice(1)} Dataset`}
+                  prefix={<FileTextOutlined />}
+                  valueStyle={{ fontSize: 18, fontWeight: 'bold', color: '#722ed1' }}
+                />
+              </Card>
+            </Col>
+            <Col span={6}>
+              <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff', minHeight: '92px' }}>
+                <Statistic
+                  title="Model ID"
+                  value={modelId}
+                  prefix={<AppstoreOutlined />}
+                  valueStyle={{ fontSize: modelId.length > 15 ? 14 : 18, fontWeight: 'bold', color: '#fa8c16', wordBreak: 'break-word', whiteSpace: 'normal', lineHeight: '1.3', display: 'block', maxWidth: '100%' }}
+                />
+              </Card>
+            </Col>
+            <Col span={6}>
+              <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff', minHeight: '92px' }}>
                 <Statistic
                   title="Total Samples"
                   value={csvData.length.toLocaleString()}
                   prefix={<ClockCircleOutlined />}
-                  valueStyle={{ fontSize: 24, fontWeight: 'bold', color: '#1890ff' }}
+                  valueStyle={{ fontSize: 18, fontWeight: 'bold', color: '#1890ff' }}
                 />
               </Card>
             </Col>
-            <Col span={12}>
-              <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+            <Col span={6}>
+              <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff', minHeight: '92px' }}>
                 <Statistic
                   title="Total Features"
                   value={numberFeatures}
                   prefix={<DatabaseOutlined />}
-                  valueStyle={{ fontSize: 24, fontWeight: 'bold', color: '#52c41a' }}
+                  valueStyle={{ fontSize: 18, fontWeight: 'bold', color: '#52c41a' }}
                 />
               </Card>
             </Col>

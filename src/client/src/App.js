@@ -15,7 +15,6 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
 import ModelListPage from "./pages/ModelListPage";
 import ModelsComparisonPage from "./pages/ModelsComparisonPage";
-//import DatasetListPage from "./pages/DatasetListPage";
 import DatasetPage from "./pages/DatasetPage";
 import BuildADPage from "./pages/BuildADPage";
 import BuildACPage from "./pages/BuildACPage";
@@ -33,8 +32,6 @@ import EarlyPredictionPage from "./pages/EarlyPredictionPage";
 import DPIPage from "./pages/DPIPage";
 import SignInPage from "./pages/SignInPage";
 import SignUpPage from "./pages/SignUpPage";
-//import MetricsTestPage from "./pages/MetricsTestPage";
-//import ScatterPage from "./pages/ScatterPage";
 
 function App() {
   return (

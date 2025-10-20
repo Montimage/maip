@@ -279,7 +279,7 @@ class DPIPage extends Component {
         if (sessionEnded && !silentCheck) {
           console.log('[DPI Frontend] Session ended, stopping auto-reload');
           this.stopAutoReload();
-          notification.info({
+          notification.success({
             message: 'DPI Session Ended',
             description: 'The DPI analysis has been stopped.',
             placement: 'topRight',
@@ -424,7 +424,7 @@ class DPIPage extends Component {
         if (sessionEnded) {
           console.log('[DPI Frontend] Session ended during data load');
           this.stopAutoReload();
-          notification.info({
+          notification.success({
             message: 'DPI Session Ended',
             description: 'The DPI analysis has been stopped.',
             placement: 'topRight',
