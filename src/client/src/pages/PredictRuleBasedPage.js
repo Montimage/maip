@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import LayoutPage from './LayoutPage';
-import { Form, Select, Button, Table, Divider, Tooltip, Upload, Spin, message, notification, Dropdown, Menu, Modal, Card, Row, Col, Statistic, Tag, Space, Alert } from 'antd';
+import { Form, Select, Button, Table, Divider, Tooltip, Upload, Spin, message, notification, Dropdown, Menu, Modal, Card, Row, Col, Statistic, Tag, Space, Alert, Typography } from 'antd';
 import { UploadOutlined, DeleteOutlined, PlayCircleOutlined, StopOutlined, SendOutlined, LockOutlined, FileTextOutlined, CheckCircleOutlined, WarningOutlined } from '@ant-design/icons';
 import { useUserRole } from '../hooks/useUserRole';
 import { Line } from '@ant-design/plots';
@@ -52,6 +52,7 @@ class PredictRuleBasedPage extends Component {
       assistantModalVisible: false,
       assistantText: '',
       assistantLoading: false,
+      assistantTokenInfo: null,
     };
   }
 
@@ -60,19 +61,53 @@ class PredictRuleBasedPage extends Component {
       const { srcIp, dstIp, sessionId, dport, pktsRate, byteRate } = computeFlowDetails(record);
       const modelId = 'rule-based';
       const predictionId = '';
-      this.setState({ assistantModalVisible: true, assistantLoading: true, assistantText: '' });
+      const { userRole } = this.props;
+      this.setState({ assistantModalVisible: true, assistantLoading: true, assistantText: '', assistantTokenInfo: null });
       requestAssistantExplainFlow({
         flowRecord: record,
         modelId,
         predictionId,
-        extra: { srcIp, dstIp, sessionId, dport, pktsRate, byteRate }
-      }).then(({ text }) => {
-        this.setState({ assistantText: text || '', assistantLoading: false });
+        extra: { srcIp, dstIp, sessionId, dport, pktsRate, byteRate },
+        userId: userRole?.userId,
+        isAdmin: userRole?.isAdmin,
+      }).then((resp) => {
+        this.setState({ assistantText: resp.text || '', assistantLoading: false, assistantTokenInfo: resp.tokenUsage });
+        
+        // Show token usage notification
+        if (resp.tokenUsage) {
+          const { thisRequest, remaining, limit, percentUsed } = resp.tokenUsage;
+          if (limit === Infinity) {
+            notification.success({
+              message: 'AI Explanation Generated',
+              description: `Tokens used: ${thisRequest} - Unlimited (Admin)`,
+              placement: 'topRight',
+              duration: 4,
+            });
+          } else {
+            const color = percentUsed >= 90 ? 'warning' : 'success';
+            notification[color]({
+              message: 'AI Explanation Generated',
+              description: `Tokens used: ${thisRequest} - Remaining: ${remaining.toLocaleString()}/${limit.toLocaleString()} (${percentUsed}% used)`,
+              placement: 'topRight',
+              duration: 5,
+            });
+          }
+        }
       }).catch((e) => {
         this.setState({ assistantText: `Error: ${e.message || String(e)}`, assistantLoading: false });
+        notification.error({
+          message: 'AI Assistant Error',
+          description: e.message || String(e),
+          placement: 'topRight',
+        });
       });
     } catch (e) {
       this.setState({ assistantModalVisible: true, assistantLoading: false, assistantText: `Error: ${e.message || String(e)}` });
+      notification.error({
+        message: 'AI Assistant Error',
+        description: e.message || String(e),
+        placement: 'topRight',
+      });
     }
   }
 
@@ -375,14 +410,27 @@ class PredictRuleBasedPage extends Component {
         const { srcIp, dstIp } = computeFlowDetails(row);
         const validSrc = isValidIPv4(srcIp);
         const validDst = isValidIPv4(dstIp);
+        const { userRole } = this.props;
+        const assistantDisabled = !userRole?.isSignedIn || userRole?.tokenLimitReached;
+        const natsDisabled = !userRole?.isAdmin;
         const menu = (
           <Menu onClick={({ key }) => key === 'explain-gpt' ? this.onAssistantExplain(row) : handleMitigationAction({ actionKey: key, srcIp, dstIp, isValidIPv4, flowRecord: row })}>
-            <Menu.Item key="explain-gpt">Ask Assistant</Menu.Item>
+            <Tooltip title={!userRole?.isSignedIn ? "Sign in required" : userRole?.tokenLimitReached ? "Token limit reached" : ""} placement="left">
+              <Menu.Item key="explain-gpt" disabled={assistantDisabled}>
+                Ask Assistant
+                {assistantDisabled && <LockOutlined style={{ marginLeft: 8, fontSize: '11px', color: '#ff4d4f' }} />}
+              </Menu.Item>
+            </Tooltip>
             <Menu.Divider />
             <Menu.Item key="block-src-ip" disabled={!validSrc}>{`Block source IP${validSrc ? ` ${srcIp}` : ''}`}</Menu.Item>
             <Menu.Item key="block-dst-ip" disabled={!validDst}>{`Block destination IP${validDst ? ` ${dstIp}` : ''}`}</Menu.Item>
             <Menu.Divider />
-            <Menu.Item key="send-nats">Send alert to NATS</Menu.Item>
+            <Tooltip title={natsDisabled ? "Admin access required" : ""} placement="left">
+              <Menu.Item key="send-nats" disabled={natsDisabled}>
+                Send alert to NATS
+                {natsDisabled && <LockOutlined style={{ marginLeft: 8, fontSize: '11px', color: '#ff4d4f' }} />}
+              </Menu.Item>
+            </Tooltip>
           </Menu>
         );
         return (
@@ -501,7 +549,7 @@ class PredictRuleBasedPage extends Component {
             ))}
           </Select>
         )}
-        {!wasUploaded && (
+        {!wasUploaded && this.props.isSignedIn && (
           <Upload
             key={this.state.uploadResetKey}
             beforeUpload={this.beforeUploadPcap}
@@ -513,6 +561,13 @@ class PredictRuleBasedPage extends Component {
               Upload PCAP
             </Button>
           </Upload>
+        )}
+        {!wasUploaded && !this.props.isSignedIn && (
+          <Tooltip title="Sign in required">
+            <Button icon={<LockOutlined />} disabled>
+              Upload PCAP
+            </Button>
+          </Tooltip>
         )}
         <Button 
           type="primary" 
@@ -692,13 +747,15 @@ class PredictRuleBasedPage extends Component {
         <Card style={{ marginBottom: 16 }}>
           <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>Detected Alerts</h3>
-            <Button
-              icon={<SendOutlined />}
-              onClick={() => handleBulkMitigationAction({ actionKey: 'send-nats-bulk', rows: alerts, isValidIPv4, entityLabel: 'alerts', titleOverride: 'Confirm bulk: Send all to NATS' })}
-              disabled={!(alerts && alerts.length > 0)}
-            >
-              Send all to NATS
-            </Button>
+            <Tooltip title={!this.props.userRole?.isAdmin ? "Admin access required" : ""}>
+              <Button
+                icon={!this.props.userRole?.isAdmin ? <LockOutlined /> : <SendOutlined />}
+                onClick={() => handleBulkMitigationAction({ actionKey: 'send-nats-bulk', rows: alerts, isValidIPv4, entityLabel: 'alerts', titleOverride: 'Confirm bulk: Send all to NATS' })}
+                disabled={!(alerts && alerts.length > 0) || !this.props.userRole?.isAdmin}
+              >
+                Send all to NATS
+              </Button>
+            </Tooltip>
           </div>
           <Table
             dataSource={(alerts || []).map((a, idx) => ({ key: idx + 1, ...a }))}
@@ -721,11 +778,25 @@ class PredictRuleBasedPage extends Component {
               <Spin size="large" />
             </div>
           ) : (
-            <div className="assistant-markdown" style={{ maxHeight: 500, overflowY: 'auto' }}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {this.state.assistantText || ''}
-              </ReactMarkdown>
-            </div>
+            <>
+              <div className="assistant-markdown" style={{ maxHeight: 500, overflowY: 'auto' }}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {this.state.assistantText || ''}
+                </ReactMarkdown>
+              </div>
+              {this.state.assistantTokenInfo && (
+                <div style={{ marginTop: 16, padding: '12px', backgroundColor: '#f6f8fa', borderRadius: '4px' }}>
+                  <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
+                    <strong>Token Usage:</strong> {this.state.assistantTokenInfo.thisRequest} tokens used this request
+                    {this.state.assistantTokenInfo.limit !== Infinity && (
+                      <> - <strong>Total:</strong> {this.state.assistantTokenInfo.totalUsed.toLocaleString()}/{this.state.assistantTokenInfo.limit.toLocaleString()} 
+                      ({this.state.assistantTokenInfo.percentUsed}% used) - <strong>Remaining:</strong> {this.state.assistantTokenInfo.remaining.toLocaleString()} tokens</>
+                    )}
+                    {this.state.assistantTokenInfo.limit === Infinity && <> - <strong>Unlimited</strong> (Admin)</>}
+                  </Typography.Text>
+                </div>
+              )}
+            </>
           )}
         </Modal>
       </LayoutPage>
@@ -735,8 +806,8 @@ class PredictRuleBasedPage extends Component {
 
 // Wrap with role check
 const PredictRuleBasedPageWithRole = (props) => {
-  const { canPerformOnlineActions, isSignedIn, isLoaded } = useUserRole();
-  return <PredictRuleBasedPage {...props} canPerformOnlineActions={canPerformOnlineActions} isSignedIn={isSignedIn} isAuthLoaded={isLoaded} />;
+  const userRole = useUserRole();
+  return <PredictRuleBasedPage {...props} userRole={userRole} canPerformOnlineActions={userRole.canPerformOnlineActions} isSignedIn={userRole.isSignedIn} isAuthLoaded={userRole.isLoaded} />;
 };
 
 export default PredictRuleBasedPageWithRole;

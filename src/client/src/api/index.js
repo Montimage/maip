@@ -651,20 +651,24 @@ export const requestPredictionAttack = async (predictionId) => {
 };
 
 // Assistant API: Explain a malicious flow using GPT
-export const requestAssistantExplainFlow = async ({ flowRecord, modelId, predictionId, extra }) => {
+export const requestAssistantExplainFlow = async ({ flowRecord, modelId, predictionId, extra, userId, isAdmin }) => {
   const url = `${ASSISTANT_URL}/explain/flow`;
   const body = { flowRecord, modelId, predictionId, extra };
   const response = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      'Content-Type': 'application/json',
+      'x-user-id': userId || '',
+      'x-is-admin': isAdmin ? 'true' : 'false',
+    },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(errorText || 'Failed to get assistant explanation');
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
   }
-  return response.json(); // { text }
+  return response.json();
 };
+
 // Rule-based detection (mmt_security)
 export const requestRuleStatus = async ({ ownerToken, sessionId } = {}) => {
   let url = `${SERVER_URL}/api/security/rule-based/status`;

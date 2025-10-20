@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
 import { Button, Card, Row, Col, Divider, Space, Alert, Spin, Upload, Tag, message, notification, Checkbox, Select, Statistic, Tooltip, Table } from 'antd';
-import { UploadOutlined, DownloadOutlined, ApartmentOutlined, FolderOpenOutlined, FileTextOutlined, DatabaseOutlined, CheckCircleOutlined, SendOutlined } from '@ant-design/icons';
+import { UploadOutlined, DownloadOutlined, ApartmentOutlined, FolderOpenOutlined, FileTextOutlined, DatabaseOutlined, CheckCircleOutlined, SendOutlined, LockOutlined } from '@ant-design/icons';
 import Papa from 'papaparse';
 import { connect } from 'react-redux';
 import { useUserRole } from '../hooks/useUserRole';
@@ -496,6 +496,13 @@ class FeatureExtractionPage extends Component {
                       >
                         <Button icon={<UploadOutlined />} disabled={this.state.featuresLoading}>Upload PCAP</Button>
                       </Upload>
+                    )}
+                    {!this.props.isSignedIn && (
+                      <Tooltip title="Sign in required">
+                        <Button icon={<LockOutlined />} disabled>
+                          Upload PCAP
+                        </Button>
+                      </Tooltip>
                     )}
                   </div>
                 )}

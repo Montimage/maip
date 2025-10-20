@@ -2684,6 +2684,13 @@ class DPIPage extends Component {
                           </Button>
                         </Upload>
                       )}
+                      {!this.props.isSignedIn && (
+                        <Tooltip title="Sign in required">
+                          <Button icon={<LockOutlined />} disabled>
+                            Upload PCAP
+                          </Button>
+                        </Tooltip>
+                      )}
                     </div>
                   )
                 ) : (

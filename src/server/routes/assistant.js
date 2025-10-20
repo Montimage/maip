@@ -80,7 +80,7 @@ function buildSystemPrompt({ includeMitigations = true } = {}) {
 
 // POST /api/assistant/explain/flow
 // Body: { flowRecord, modelId, predictionId?, extra?: { probs?, shapValues?, limeValues? } }
-router.post('/explain/flow', async (req, res) => {
+router.post('/explain/flow', checkTokenLimit, async (req, res) => {
   try {
     const { flowRecord, modelId, predictionId, extra = {} } = req.body || {};
     if (!flowRecord || !modelId) {
@@ -92,7 +92,27 @@ router.post('/explain/flow', async (req, res) => {
       { role: 'user', content: `Model: ${modelId}\nPrediction ID: ${predictionId || 'N/A'}\nFlow features (subset):\n${JSON.stringify(trimmed, null, 2)}\n\nAdditional context:\n${JSON.stringify(extra, null, 2)}\n\nTask:\n- Explain in 3 brief bullets why this flow may be malicious.\n- Summarize in 1 bullet which features likely contributed most.\n- Provide 3 concise mitigation bullets (playbook-style).\n- Keep under ~220 words, but ensure complete sentences (do not cut off mid-sentence).` },
     ];
     const result = await callOpenAIChat({ messages, max_tokens: 320 });
-    res.send({ text: result.text });
+    
+    // Record actual token usage
+    const tokensUsed = result.usage?.total_tokens || 320; // Estimate if not available
+    recordTokenUsage(req.userId, tokensUsed, req.isAdmin);
+    
+    const newTotal = req.tokenUsage.totalTokens + tokensUsed;
+    const limit = req.isAdmin ? Infinity : (parseInt(process.env.USER_TOKEN_LIMIT) || 50000);
+    const remaining = req.isAdmin ? Infinity : Math.max(0, limit - newTotal);
+    
+    console.log(`[TokenLimit] User ${req.userId} used ${tokensUsed} tokens (total: ${newTotal}/${limit})`);
+    
+    res.send({ 
+      text: result.text,
+      tokenUsage: {
+        thisRequest: tokensUsed,
+        totalUsed: newTotal,
+        limit: limit,
+        remaining: remaining,
+        percentUsed: req.isAdmin ? 0 : Math.round((newTotal / limit) * 100)
+      }
+    });
   } catch (e) {
     res.status(500).send({ error: e.message || String(e) });
   }

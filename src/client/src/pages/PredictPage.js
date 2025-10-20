@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import LayoutPage from './LayoutPage';
-import { Table, Tooltip, message, notification, Upload, Spin, Button, Form, Select, Menu, Modal, Divider, Card, Row, Col, Statistic, Tag, Space, InputNumber, Alert } from 'antd';
+import { Table, Tooltip, message, notification, Upload, Spin, Button, Form, Select, Menu, Modal, Divider, Card, Row, Col, Statistic, Tag, Space, InputNumber, Alert, Typography } from 'antd';
 import { UploadOutlined, CheckCircleOutlined, WarningOutlined, ClockCircleOutlined, PlayCircleOutlined, StopOutlined, LockOutlined, FileTextOutlined } from "@ant-design/icons";
 import { connect } from "react-redux";
 import { useUserRole } from '../hooks/useUserRole';
@@ -91,6 +91,7 @@ class PredictPage extends Component {
       assistantModalVisible: false,
       assistantText: '',
       assistantLoading: false,
+      assistantTokenInfo: null,
     };
     this.handleButtonStart = this.handleButtonStart.bind(this);
     this.handleButtonStop = this.handleButtonStop.bind(this);
@@ -446,9 +447,15 @@ class PredictPage extends Component {
                           const { srcIp, dstIp, dport } = this.computeFlowDetails(record);
                           const validSrc = this.isValidIPv4(srcIp);
                           const validDst = this.isValidIPv4(dstIp);
+                          const { userRole } = this.props;
+                          const assistantDisabled = !userRole?.isSignedIn || userRole?.tokenLimitReached;
                           return (
                             <Menu onClick={({ key }) => onAction && onAction(key, record)}>
-                              <Menu.Item key="explain-gpt">Ask Assistant</Menu.Item>
+                              <Menu.Item key="explain-gpt" disabled={assistantDisabled}>
+                                Ask Assistant
+                                {!userRole?.isSignedIn && <Tag color="orange" style={{ marginLeft: 8, fontSize: '10px' }}>Sign in required</Tag>}
+                                {userRole?.tokenLimitReached && <Tag color="red" style={{ marginLeft: 8, fontSize: '10px' }}>Limit reached</Tag>}
+                              </Menu.Item>
                               <Menu.Item key="explain-shap">Explain (XAI SHAP)</Menu.Item>
                               <Menu.Item key="explain-lime">Explain (XAI LIME)</Menu.Item>
                               <Menu.Divider />
@@ -608,9 +615,18 @@ class PredictPage extends Component {
                   const { srcIp, dstIp, dport } = this.computeFlowDetails(record);
                   const validSrc = this.isValidIPv4(srcIp);
                   const validDst = this.isValidIPv4(dstIp);
+                  const { userRole } = this.props;
+                  const assistantDisabled = !userRole?.isSignedIn || userRole?.tokenLimitReached;
+                  const natsDisabled = !userRole?.isAdmin;
                   return (
                     <Menu onClick={({ key }) => onAction && onAction(key, record)}>
-                      <Menu.Item key="explain-gpt">Ask Assistant</Menu.Item>
+                      <Tooltip title={!userRole?.isSignedIn ? "Sign in required" : userRole?.tokenLimitReached ? "Token limit reached" : ""} placement="left">
+                        <Menu.Item key="explain-gpt" disabled={assistantDisabled}>
+                          Ask Assistant
+                          {!userRole?.isSignedIn && <Tag color="orange" style={{ marginLeft: 8, fontSize: '10px' }}>Sign in required</Tag>}
+                          {userRole?.tokenLimitReached && <Tag color="red" style={{ marginLeft: 8, fontSize: '10px' }}>Limit reached</Tag>}
+                        </Menu.Item>
+                      </Tooltip>
                       <Menu.Item key="explain-shap">Explain (XAI SHAP)</Menu.Item>
                       <Menu.Item key="explain-lime">Explain (XAI LIME)</Menu.Item>
                       <Menu.Divider />
@@ -638,7 +654,12 @@ class PredictPage extends Component {
                         {`Rate-limit source${validSrc && dport ? ` ${srcIp}:${dport}/tcp` : ''}`}
                       </Menu.Item>
                       <Menu.Divider />
-                      <Menu.Item key="send-nats">Send flow to NATS</Menu.Item>
+                      <Tooltip title={natsDisabled ? "Admin access required" : ""} placement="left">
+                        <Menu.Item key="send-nats" disabled={natsDisabled}>
+                          Send alert to NATS
+                          {natsDisabled && <Tag color="red" style={{ marginLeft: 8, fontSize: '10px' }}>Admin only</Tag>}
+                        </Menu.Item>
+                      </Tooltip>
                     </Menu>
                   );
                 }
@@ -690,9 +711,15 @@ class PredictPage extends Component {
             const { srcIp, dstIp, dport } = this.computeFlowDetails(record);
             const validSrc = this.isValidIPv4(srcIp);
             const validDst = this.isValidIPv4(dstIp);
+            const { userRole } = this.props;
+            const assistantDisabled = !userRole?.isSignedIn || userRole?.tokenLimitReached;
             return (
               <Menu onClick={({ key }) => onAction && onAction(key, record)}>
-                <Menu.Item key="explain-gpt">Ask Assistant</Menu.Item>
+                <Menu.Item key="explain-gpt" disabled={assistantDisabled}>
+                  Ask Assistant
+                  {!userRole?.isSignedIn && <Tag color="orange" style={{ marginLeft: 8, fontSize: '10px' }}>Sign in required</Tag>}
+                  {userRole?.tokenLimitReached && <Tag color="red" style={{ marginLeft: 8, fontSize: '10px' }}>Limit reached</Tag>}
+                </Menu.Item>
                 <Menu.Item key="explain-shap" disabled>Explain (XAI SHAP)</Menu.Item>
                 <Menu.Item key="explain-lime" disabled>Explain (XAI LIME)</Menu.Item>
                 <Menu.Divider />
@@ -761,17 +788,46 @@ class PredictPage extends Component {
     if (key === 'explain-gpt') {
       const modelId = this.state.modelId;
       const predictionId = this.props.predictStatus?.lastPredictedId || '';
+      const { userRole } = this.props;
       if (!modelId) return;
-      this.setState({ assistantModalVisible: true, assistantLoading: true, assistantText: '' });
+      this.setState({ assistantModalVisible: true, assistantLoading: true, assistantText: '', assistantTokenInfo: null });
       requestAssistantExplainFlow({
         flowRecord: record,
         modelId,
         predictionId,
-        extra: { srcIp, dstIp, sessionId, dport, pktsRate, byteRate }
-      }).then(({ text }) => {
-        this.setState({ assistantText: text || '', assistantLoading: false });
+        extra: { srcIp, dstIp, sessionId, dport, pktsRate, byteRate },
+        userId: userRole?.userId,
+        isAdmin: userRole?.isAdmin,
+      }).then((resp) => {
+        this.setState({ assistantText: resp.text || '', assistantLoading: false, assistantTokenInfo: resp.tokenUsage });
+        
+        // Show token usage notification
+        if (resp.tokenUsage) {
+          const { thisRequest, remaining, limit, percentUsed } = resp.tokenUsage;
+          if (limit === Infinity) {
+            notification.success({
+              message: 'AI Explanation Generated',
+              description: `Tokens used: ${thisRequest} - Unlimited (Admin)`,
+              placement: 'topRight',
+              duration: 4,
+            });
+          } else {
+            const color = percentUsed >= 90 ? 'warning' : 'success';
+            notification[color]({
+              message: 'AI Explanation Generated',
+              description: `Tokens used: ${thisRequest} - Remaining: ${remaining.toLocaleString()}/${limit.toLocaleString()} (${percentUsed}% used)`,
+              placement: 'topRight',
+              duration: 5,
+            });
+          }
+        }
       }).catch((e) => {
         this.setState({ assistantText: `Error: ${e.message || String(e)}`, assistantLoading: false });
+        notification.error({
+          message: 'AI Assistant Error',
+          description: e.message || String(e),
+          placement: 'topRight',
+        });
       });
       return;
     }
@@ -1696,11 +1752,25 @@ class PredictPage extends Component {
                   <Spin size="large" />
                 </div>
               ) : (
-                <div className="assistant-markdown" style={{ maxHeight: 500, overflowY: 'auto' }}>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {this.state.assistantText || ''}
-                  </ReactMarkdown>
-                </div>
+                <>
+                  <div className="assistant-markdown" style={{ maxHeight: 500, overflowY: 'auto' }}>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {this.state.assistantText || ''}
+                    </ReactMarkdown>
+                  </div>
+                  {this.state.assistantTokenInfo && (
+                    <div style={{ marginTop: 16, padding: '12px', backgroundColor: '#f6f8fa', borderRadius: '4px' }}>
+                      <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
+                        <strong>Token Usage:</strong> {this.state.assistantTokenInfo.thisRequest} tokens used this request
+                        {this.state.assistantTokenInfo.limit !== Infinity && (
+                          <> - <strong>Total:</strong> {this.state.assistantTokenInfo.totalUsed.toLocaleString()}/{this.state.assistantTokenInfo.limit.toLocaleString()} 
+                          ({this.state.assistantTokenInfo.percentUsed}% used) - <strong>Remaining:</strong> {this.state.assistantTokenInfo.remaining.toLocaleString()} tokens</>
+                        )}
+                        {this.state.assistantTokenInfo.limit === Infinity && <> - <strong>Unlimited</strong> (Admin)</>}
+                      </Typography.Text>
+                    </div>
+                  )}
+                </>
               )}
             </Modal>
           </>
@@ -1730,8 +1800,8 @@ const mapDispatchToProps = (dispatch) => ({
 
 // Wrap with role check
 const PredictPageWithRole = (props) => {
-  const { canPerformOnlineActions, isSignedIn, isLoaded } = useUserRole();
-  return <PredictPage {...props} canPerformOnlineActions={canPerformOnlineActions} isSignedIn={isSignedIn} isAuthLoaded={isLoaded} />;
+  const userRole = useUserRole();
+  return <PredictPage {...props} userRole={userRole} canPerformOnlineActions={userRole.canPerformOnlineActions} isSignedIn={userRole.isSignedIn} isAuthLoaded={userRole.isLoaded} />;
 };
 
 export default connect(mapPropsToStates, mapDispatchToProps)(PredictPageWithRole);
