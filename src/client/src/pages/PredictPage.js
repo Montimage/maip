@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import LayoutPage from './LayoutPage';
 import { Table, Tooltip, message, notification, Upload, Spin, Button, Form, Select, Menu, Modal, Divider, Card, Row, Col, Statistic, Tag, Space, InputNumber, Alert, Typography } from 'antd';
-import { UploadOutlined, CheckCircleOutlined, WarningOutlined, ClockCircleOutlined, PlayCircleOutlined, StopOutlined, LockOutlined, FileTextOutlined } from "@ant-design/icons";
+import { UploadOutlined, CheckCircleOutlined, WarningOutlined, ClockCircleOutlined, PlayCircleOutlined, StopOutlined, LockOutlined, FileTextOutlined, SendOutlined } from "@ant-design/icons";
 import { connect } from "react-redux";
 import { useUserRole } from '../hooks/useUserRole';
 import { Pie, RingProgress, Bar } from '@ant-design/plots';
@@ -451,11 +451,12 @@ class PredictPage extends Component {
                           const assistantDisabled = !userRole?.isSignedIn || userRole?.tokenLimitReached;
                           return (
                             <Menu onClick={({ key }) => onAction && onAction(key, record)}>
-                              <Menu.Item key="explain-gpt" disabled={assistantDisabled}>
-                                Ask Assistant
-                                {!userRole?.isSignedIn && <Tag color="orange" style={{ marginLeft: 8, fontSize: '10px' }}>Sign in required</Tag>}
-                                {userRole?.tokenLimitReached && <Tag color="red" style={{ marginLeft: 8, fontSize: '10px' }}>Limit reached</Tag>}
-                              </Menu.Item>
+                              <Tooltip title={!userRole?.isSignedIn ? "Sign in required" : userRole?.tokenLimitReached ? "Token limit reached" : ""} placement="left">
+                                <Menu.Item key="explain-gpt" disabled={assistantDisabled}>
+                                  Ask Assistant
+                                  {assistantDisabled && <LockOutlined style={{ marginLeft: 8, fontSize: '11px', color: '#ff4d4f' }} />}
+                                </Menu.Item>
+                              </Tooltip>
                               <Menu.Item key="explain-shap">Explain (XAI SHAP)</Menu.Item>
                               <Menu.Item key="explain-lime">Explain (XAI LIME)</Menu.Item>
                               <Menu.Divider />
@@ -473,6 +474,13 @@ class PredictPage extends Component {
                               <Menu.Item key="drop-session" disabled={!(validSrc || validDst)}>
                                 {`Drop session${validDst ? ` ${dstIp}` : validSrc ? ` ${srcIp}` : ''}`}
                               </Menu.Item>
+                              <Menu.Divider />
+                              <Tooltip title={!userRole?.isAdmin ? "Admin access required" : ""} placement="left">
+                                <Menu.Item key="send-nats" disabled={!userRole?.isAdmin}>
+                                  Send flow to NATS
+                                  {!userRole?.isAdmin && <LockOutlined style={{ marginLeft: 8, fontSize: '11px', color: '#ff4d4f' }} />}
+                                </Menu.Item>
+                              </Tooltip>
                             </Menu>
                           );
                         }
@@ -623,8 +631,7 @@ class PredictPage extends Component {
                       <Tooltip title={!userRole?.isSignedIn ? "Sign in required" : userRole?.tokenLimitReached ? "Token limit reached" : ""} placement="left">
                         <Menu.Item key="explain-gpt" disabled={assistantDisabled}>
                           Ask Assistant
-                          {!userRole?.isSignedIn && <Tag color="orange" style={{ marginLeft: 8, fontSize: '10px' }}>Sign in required</Tag>}
-                          {userRole?.tokenLimitReached && <Tag color="red" style={{ marginLeft: 8, fontSize: '10px' }}>Limit reached</Tag>}
+                          {assistantDisabled && <LockOutlined style={{ marginLeft: 8, fontSize: '11px', color: '#ff4d4f' }} />}
                         </Menu.Item>
                       </Tooltip>
                       <Menu.Item key="explain-shap">Explain (XAI SHAP)</Menu.Item>
@@ -656,8 +663,8 @@ class PredictPage extends Component {
                       <Menu.Divider />
                       <Tooltip title={natsDisabled ? "Admin access required" : ""} placement="left">
                         <Menu.Item key="send-nats" disabled={natsDisabled}>
-                          Send alert to NATS
-                          {natsDisabled && <Tag color="red" style={{ marginLeft: 8, fontSize: '10px' }}>Admin only</Tag>}
+                          Send flow to NATS
+                          {natsDisabled && <LockOutlined style={{ marginLeft: 8, fontSize: '11px', color: '#ff4d4f' }} />}
                         </Menu.Item>
                       </Tooltip>
                     </Menu>
@@ -715,11 +722,12 @@ class PredictPage extends Component {
             const assistantDisabled = !userRole?.isSignedIn || userRole?.tokenLimitReached;
             return (
               <Menu onClick={({ key }) => onAction && onAction(key, record)}>
-                <Menu.Item key="explain-gpt" disabled={assistantDisabled}>
-                  Ask Assistant
-                  {!userRole?.isSignedIn && <Tag color="orange" style={{ marginLeft: 8, fontSize: '10px' }}>Sign in required</Tag>}
-                  {userRole?.tokenLimitReached && <Tag color="red" style={{ marginLeft: 8, fontSize: '10px' }}>Limit reached</Tag>}
-                </Menu.Item>
+                <Tooltip title={!userRole?.isSignedIn ? "Sign in required" : userRole?.tokenLimitReached ? "Token limit reached" : ""} placement="left">
+                  <Menu.Item key="explain-gpt" disabled={assistantDisabled}>
+                    Ask Assistant
+                    {assistantDisabled && <LockOutlined style={{ marginLeft: 8, fontSize: '11px', color: '#ff4d4f' }} />}
+                  </Menu.Item>
+                </Tooltip>
                 <Menu.Item key="explain-shap" disabled>Explain (XAI SHAP)</Menu.Item>
                 <Menu.Item key="explain-lime" disabled>Explain (XAI LIME)</Menu.Item>
                 <Menu.Divider />
@@ -733,7 +741,12 @@ class PredictPage extends Component {
                 <Menu.Item key="drop-session" disabled={!(validSrc || validDst)}>{`Drop session${validDst ? ` ${dstIp}` : validSrc ? ` ${srcIp}` : ''}`}</Menu.Item>
                 <Menu.Item key="rate-limit-src" disabled={!(validSrc && dport)}>{`Rate-limit source${validSrc && dport ? ` ${srcIp}:${dport}/tcp` : ''}`}</Menu.Item>
                 <Menu.Divider />
-                <Menu.Item key="send-nats">Send flow to NATS</Menu.Item>
+                <Tooltip title={!userRole?.isAdmin ? "Admin access required" : ""} placement="left">
+                  <Menu.Item key="send-nats" disabled={!userRole?.isAdmin}>
+                    Send flow to NATS
+                    {!userRole?.isAdmin && <LockOutlined style={{ marginLeft: 8, fontSize: '11px', color: '#ff4d4f' }} />}
+                  </Menu.Item>
+                </Tooltip>
               </Menu>
             );
           }
@@ -1648,6 +1661,18 @@ class PredictPage extends Component {
                   <h2 style={{ fontSize: '20px' }}>Malicious Flows</h2>
                 </Divider>
                 <Card>
+                  <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>Detected Malicious Flows</h3>
+                    <Tooltip title={!this.props.userRole?.isAdmin ? "Admin access required" : ""}>
+                      <Button
+                        icon={!this.props.userRole?.isAdmin ? <LockOutlined /> : <SendOutlined />}
+                        onClick={() => handleBulkMitigationAction({ actionKey: 'send-nats-bulk', rows: this.state.attackRows, isValidIPv4: this.isValidIPv4, entityLabel: 'flows', titleOverride: 'Confirm bulk: Send all to NATS' })}
+                        disabled={!(this.state.attackRows && this.state.attackRows.length > 0) || !this.props.userRole?.isAdmin}
+                      >
+                        Send all to NATS
+                      </Button>
+                    </Tooltip>
+                  </div>
                   <Table
                     dataSource={this.state.attackRows}
                     columns={[...this.state.attackFlowColumns, ...this.state.mitigationColumns]}
