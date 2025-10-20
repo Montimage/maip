@@ -5,7 +5,7 @@
  * Just import existing functions and call them from workers
  */
 
-const { featureQueue, trainingQueue, predictionQueue, ruleBasedQueue } = require('./job-queue');
+const { featureQueue, trainingQueue, predictionQueue, ruleBasedQueue, xaiQueue } = require('./job-queue');
 const path = require('path');
 const fs = require('fs');
 
@@ -29,7 +29,8 @@ const CONCURRENCY = {
   featureExtraction: parseInt(process.env.FEATURE_WORKERS) || 3,
   modelTraining: parseInt(process.env.TRAINING_WORKERS) || 2,
   prediction: parseInt(process.env.PREDICTION_WORKERS) || 3,
-  ruleBasedDetection: parseInt(process.env.RULEBASED_WORKERS) || 2
+  ruleBasedDetection: parseInt(process.env.RULEBASED_WORKERS) || 2,
+  xaiExplanations: parseInt(process.env.XAI_WORKERS) || 1  // XAI is CPU intensive
 };
 
 /**
@@ -610,6 +611,182 @@ ruleBasedQueue.on('completed', (job, result) => {
 
 ruleBasedQueue.on('failed', (job, err) => {
   console.error(`[Queue] Rule-based detection job ${job.id} failed:`, err.message);
+});
+
+/**
+ * XAI Worker (SHAP/LIME Explanations)
+ * 
+ * Wraps existing XAI code from deep-learning/xai-connector.js
+ */
+xaiQueue.process('*', CONCURRENCY.xaiExplanations, async (job) => {
+  const { xaiType, modelId, config } = job.data;
+  
+  console.log(`[Worker] Processing ${xaiType} job ${job.id} for model ${modelId}`);
+  
+  try {
+    const modelPath = path.join(MODEL_PATH, modelId);
+    if (!fs.existsSync(modelPath)) {
+      throw new Error(`Model does not exist: ${modelId}`);
+    }
+    
+    await job.progress(10);
+    
+    const logFile = path.join(LOG_PATH, `xai_${xaiType}_${modelId}.log`);
+    let scriptPath, args;
+    
+    // Determine script and arguments based on XAI type
+    if (xaiType === 'shap') {
+      const { numberBackgroundSamples, numberExplainedSamples, maxDisplay } = config;
+      scriptPath = path.join(DEEP_LEARNING_PATH, 'xai-shap.py');
+      args = [scriptPath, modelId, numberBackgroundSamples, numberExplainedSamples, maxDisplay];
+      
+    } else if (xaiType === 'lime') {
+      const { sampleId, numberFeature } = config;
+      scriptPath = path.join(DEEP_LEARNING_PATH, 'xai-lime.py');
+      args = [scriptPath, modelId, sampleId, numberFeature];
+      
+    } else if (xaiType === 'shap-flow') {
+      const { predictionId, sessionId, numberFeature } = config;
+      const fsPromises = require('fs').promises;
+      
+      // Build instance vector from prediction
+      const buildInstanceVector = async () => {
+        const attackFile = path.join(PREDICTION_PATH, predictionId, 'attacks.csv');
+        const allFile = path.join(PREDICTION_PATH, predictionId, 'predictions.csv');
+        let csvPath = fs.existsSync(attackFile) ? attackFile : allFile;
+        
+        if (!fs.existsSync(csvPath)) {
+          throw new Error(`No prediction CSV found for ${predictionId}`);
+        }
+        
+        const content = await fsPromises.readFile(csvPath, 'utf-8');
+        const lines = content.split('\n').filter(l => l.trim().length > 0);
+        if (lines.length < 2) throw new Error('Empty prediction CSV');
+        
+        const header = lines[0].split(',');
+        const featureHeaders = header.slice(3, header.length - 1);
+        
+        for (let i = 1; i < lines.length; i++) {
+          const cols = lines[i].split(',');
+          if (cols.length < 5) continue;
+          if (String(cols[0]).trim() === String(sessionId).trim()) {
+            const featureVals = cols.slice(3, cols.length - 1);
+            const featureMap = {};
+            for (let j = 0; j < featureHeaders.length; j++) {
+              const key = featureHeaders[j];
+              const num = Number(featureVals[j]);
+              featureMap[key] = Number.isNaN(num) ? 0 : num;
+            }
+            return featureMap;
+          }
+        }
+        throw new Error(`Session ${sessionId} not found in prediction ${predictionId}`);
+      };
+      
+      const featureMap = await buildInstanceVector();
+      const tmpDir = path.join(DEEP_LEARNING_PATH, 'xai', 'tmp');
+      fs.mkdirSync(tmpDir, { recursive: true });
+      const instanceJsonPath = path.join(tmpDir, `${predictionId}_${sessionId}_shap.json`);
+      fs.writeFileSync(instanceJsonPath, JSON.stringify(featureMap));
+      
+      scriptPath = path.join(DEEP_LEARNING_PATH, 'xai-shap-instance.py');
+      args = [scriptPath, modelId, instanceJsonPath, numberFeature];
+      
+    } else if (xaiType === 'lime-flow') {
+      const { predictionId, sessionId, numberFeature } = config;
+      const fsPromises = require('fs').promises;
+      
+      // Build instance vector (same logic as shap-flow)
+      const buildInstanceVector = async () => {
+        const attackFile = path.join(PREDICTION_PATH, predictionId, 'attacks.csv');
+        const allFile = path.join(PREDICTION_PATH, predictionId, 'predictions.csv');
+        let csvPath = fs.existsSync(attackFile) ? attackFile : allFile;
+        
+        if (!fs.existsSync(csvPath)) {
+          throw new Error(`No prediction CSV found for ${predictionId}`);
+        }
+        
+        const content = await fsPromises.readFile(csvPath, 'utf-8');
+        const lines = content.split('\n').filter(l => l.trim().length > 0);
+        if (lines.length < 2) throw new Error('Empty prediction CSV');
+        
+        const header = lines[0].split(',');
+        const featureHeaders = header.slice(3, header.length - 1);
+        
+        for (let i = 1; i < lines.length; i++) {
+          const cols = lines[i].split(',');
+          if (cols.length < 5) continue;
+          if (String(cols[0]).trim() === String(sessionId).trim()) {
+            const featureVals = cols.slice(3, cols.length - 1);
+            const featureMap = {};
+            for (let j = 0; j < featureHeaders.length; j++) {
+              const key = featureHeaders[j];
+              const num = Number(featureVals[j]);
+              featureMap[key] = Number.isNaN(num) ? 0 : num;
+            }
+            return featureMap;
+          }
+        }
+        throw new Error(`Session ${sessionId} not found in prediction ${predictionId}`);
+      };
+      
+      const featureMap = await buildInstanceVector();
+      const tmpDir = path.join(DEEP_LEARNING_PATH, 'xai', 'tmp');
+      fs.mkdirSync(tmpDir, { recursive: true });
+      const instanceJsonPath = path.join(tmpDir, `${predictionId}_${sessionId}.json`);
+      fs.writeFileSync(instanceJsonPath, JSON.stringify(featureMap));
+      
+      scriptPath = path.join(DEEP_LEARNING_PATH, 'xai-lime-instance.py');
+      args = [scriptPath, modelId, instanceJsonPath, numberFeature];
+      
+    } else {
+      throw new Error(`Unknown XAI type: ${xaiType}`);
+    }
+    
+    await job.progress(30);
+    
+    // Execute Python script
+    return new Promise((resolve, reject) => {
+      spawnCommand(PYTHON_CMD, args, logFile, async (error) => {
+        if (error) {
+          return reject(new Error(`${xaiType.toUpperCase()} script failed: ${error.message}`));
+        }
+        
+        await job.progress(100);
+        
+        console.log(`[Worker] ${xaiType.toUpperCase()} job ${job.id} completed for model ${modelId}`);
+        
+        resolve({
+          success: true,
+          xaiType,
+          modelId,
+          message: `${xaiType.toUpperCase()} explanations generated successfully`
+        });
+      });
+      
+      // Update progress periodically while running
+      const progressInterval = setInterval(async () => {
+        const currentProgress = await job.progress();
+        if (currentProgress < 90) {
+          await job.progress(currentProgress + 10);
+        } else {
+          clearInterval(progressInterval);
+        }
+      }, 5000);
+    });
+    
+  } catch (error) {
+    console.error(`[Worker] ${xaiType} job ${job.id} failed:`, error);
+    throw error;
+  }
+});
+
+xaiQueue.on('completed', (job, result) => {
+  console.log(`[Queue] XAI job ${job.id} completed:`, result.xaiType);
+});
+
+xaiQueue.on('failed', (job, err) => {
+  console.error(`[Queue] XAI job ${job.id} failed:`, err.message);
 });
 
 console.log('[Workers] Started with concurrency:', CONCURRENCY);

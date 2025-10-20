@@ -1,9 +1,9 @@
 const express = require('express');
-const https = require('https');
-
 const router = express.Router();
+const https = require('https');
+const { checkTokenLimit, recordTokenUsage, getTokenStats, resetTokenUsage } = require('../middleware/tokenLimiter');
 
-// Helper to call OpenAI Chat Completions API via built-in https to avoid ESM issues
+// Helper to call OpenAI Chat Completions API
 async function callOpenAIChat({ model, messages, temperature = 0.2, max_tokens = 350 }) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -37,7 +37,8 @@ async function callOpenAIChat({ model, messages, temperature = 0.2, max_tokens =
           const json = JSON.parse(data);
           if (res.statusCode >= 200 && res.statusCode < 300) {
             const text = json.choices?.[0]?.message?.content || '';
-            resolve({ raw: json, text });
+            const usage = json.usage; // { prompt_tokens, completion_tokens, total_tokens }
+            resolve({ raw: json, text, usage });
           } else {
             reject(new Error(json.error?.message || `OpenAI API error: HTTP ${res.statusCode}`));
           }
@@ -99,7 +100,7 @@ router.post('/explain/flow', async (req, res) => {
 
 // POST /api/assistant/explain/xai
 // Body: { method: 'shap'|'lime', modelId, label?, explanation, context? }
-router.post('/explain/xai', async (req, res) => {
+router.post('/explain/xai', checkTokenLimit, async (req, res) => {
   try {
     const { method, modelId, label, explanation, context = {} } = req.body || {};
     if (!method || !modelId || !Array.isArray(explanation)) {
@@ -112,11 +113,37 @@ router.post('/explain/xai', async (req, res) => {
       { role: 'user', content: `Model: ${modelId}\nMethod: ${method}\nLabel: ${label || 'N/A'}\nTop explanation items (truncated):\n${JSON.stringify(topItems, null, 2)}\n\nContext:\n${JSON.stringify(context, null, 2)}\n\nTask:\n- Explain the XAI output (what the features indicate) in simple, brief bullet points.\n- Do not include any mitigation steps or recommendations.\n- Keep under ~120 words.` },
     ];
     const result = await callOpenAIChat({ messages, max_tokens: 200 });
-    res.send({ text: result.text });
+    
+    // Record actual token usage
+    const tokensUsed = result.usage?.total_tokens || 200; // Estimate if not available
+    recordTokenUsage(req.userId, tokensUsed, req.isAdmin);
+    
+    const newTotal = req.tokenUsage.totalTokens + tokensUsed;
+    const limit = req.isAdmin ? Infinity : (parseInt(process.env.USER_TOKEN_LIMIT) || 50000);
+    const remaining = req.isAdmin ? Infinity : Math.max(0, limit - newTotal);
+    
+    console.log(`[TokenLimit] User ${req.userId} used ${tokensUsed} tokens (total: ${newTotal}/${limit})`);
+    
+    res.send({ 
+      text: result.text,
+      tokenUsage: {
+        thisRequest: tokensUsed,
+        totalUsed: newTotal,
+        limit: limit,
+        remaining: remaining,
+        percentUsed: req.isAdmin ? 0 : Math.round((newTotal / limit) * 100)
+      }
+    });
   } catch (e) {
     res.status(500).send({ error: e.message || String(e) });
   }
 });
+
+// Get token usage stats
+router.get('/tokens', getTokenStats);
+
+// Reset token usage (admin only)
+router.post('/tokens/reset', resetTokenUsage);
 
 // Health check
 router.get('/', (req, res) => {

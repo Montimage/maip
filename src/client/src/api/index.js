@@ -332,7 +332,7 @@ export const requestXAIStatus = async () => {
   return data.xaiStatus;
 };
 
-export const requestRunShap = async (modelId, numberBackgroundSamples, numberExplainedSamples, maxDisplay) => {
+export const requestRunShap = async (modelId, numberBackgroundSamples, numberExplainedSamples, maxDisplay, useQueue = true) => {
   const url = `${SERVER_URL}/api/xai/shap`;
   const shapConfig = {
     "modelId": modelId,
@@ -345,10 +345,10 @@ export const requestRunShap = async (modelId, numberBackgroundSamples, numberExp
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ shapConfig }),
+    body: JSON.stringify({ shapConfig, useQueue }),
   });
   const data = await response.json();
-  console.log(`Run SHAP on server with config ${shapConfig}`);
+  console.log(`Run SHAP on server with config`, shapConfig);
   return data;
 };
 
@@ -362,7 +362,7 @@ export const requestShapValues = async (modelId, labelId) => {
   return shapValues;
 };
 
-export const requestRunLime = async (modelId, sampleId, numberFeature) => {
+export const requestRunLime = async (modelId, sampleId, numberFeature, useQueue = true) => {
   const url = `${SERVER_URL}/api/xai/lime`;
   const limeConfig = {
     "modelId": modelId,
@@ -374,7 +374,7 @@ export const requestRunLime = async (modelId, sampleId, numberFeature) => {
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ limeConfig }),
+    body: JSON.stringify({ limeConfig, useQueue }),
   });
   const data = await response.json();
   console.log(`Run LIME on server with config ${limeConfig}`);
@@ -775,17 +775,47 @@ export const requestExtractFeatures = async ({ pcapFile, isMalicious }) => {
 };
 
 // Assistant API: Explain XAI output (LIME/SHAP) using GPT
-export const requestAssistantExplainXAI = async ({ method, modelId, label, explanation, context }) => {
+export const requestAssistantExplainXAI = async ({ method, modelId, label, explanation, context, userId, isAdmin }) => {
   const url = `${ASSISTANT_URL}/explain/xai`;
   const body = { method, modelId, label, explanation, context };
   const response = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      'Content-Type': 'application/json',
+      'x-user-id': userId || '',
+      'x-is-admin': isAdmin ? 'true' : 'false',
+    },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(errorText || 'Failed to get assistant explanation');
   }
-  return response.json(); // { text }
+  return response.json();
+};
+
+// Get token usage stats
+export const requestTokenStats = async (userId, isAdmin) => {
+  const url = `${ASSISTANT_URL}/tokens`;
+  const response = await fetch(url, {
+    headers: {
+      'x-user-id': userId || '',
+      'x-is-admin': isAdmin ? 'true' : 'false',
+    },
+  });
+  return response.json();
+};
+
+/**
+ * Request job status from queue
+ */
+export const requestJobStatus = async (jobId, queueName) => {
+  const url = `${SERVER_URL}/api/queue/status/${queueName}/${jobId}`;
+  const response = await fetch(url);
+  const data = await response.json();
+  if (!data.success) {
+    throw new Error(data.message || 'Failed to get job status');
+  }
+  // Backend spreads status into response, so return the whole data object
+  return data;
 };

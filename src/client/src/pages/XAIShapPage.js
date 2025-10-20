@@ -1,11 +1,12 @@
 import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
-import { Spin, Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Tooltip, Typography, Modal, Card } from 'antd';
+import { Spin, Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Tooltip, Typography, Modal, Card, notification } from 'antd';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { QuestionOutlined, CameraOutlined } from "@ant-design/icons";
 import { Bar } from '@ant-design/plots';
+import { useUserRole } from '../hooks/useUserRole';
 import {
   requestApp,
   requestAllModels,
@@ -52,9 +53,9 @@ class XAIShapPage extends Component {
       isRunning: props.xaiStatus.isRunning,
       shapValues: [],
       isLabelEnabled: false,
-      assistantModalVisible: false,
       assistantText: '',
       assistantLoading: false,
+      assistantTokenInfo: null,
     };
     this.handleContributionsChange = this.handleContributionsChange.bind(this);
     this.handleShapClick = this.handleShapClick.bind(this);
@@ -62,23 +63,54 @@ class XAIShapPage extends Component {
 
   handleAskAssistantShap = async () => {
     const { modelId, label, shapValues, maxDisplay } = this.state;
+    const { userRole } = this.props;
     if (!modelId || !shapValues || shapValues.length === 0) return;
     // Build concise explanation payload (top maxDisplay items)
     const topItems = shapValues.slice(0, maxDisplay);
-    this.setState({ assistantModalVisible: true, assistantLoading: true, assistantText: '' });
+    this.setState({ assistantLoading: true, assistantText: '', assistantTokenInfo: null });
     try {
       const resp = await requestAssistantExplainXAI({
         method: 'shap',
         modelId,
         label,
         explanation: topItems,
-        context: {},
+        userId: userRole?.userId,
+        isAdmin: userRole?.isAdmin,
       });
-      console.log('Assistant (SHAP) response:', resp);
-      const text = resp && typeof resp.text === 'string' ? resp.text : '';
-      this.setState({ assistantText: text || 'Assistant returned no content.', assistantLoading: false });
+      this.setState({ 
+        assistantText: resp.text, 
+        assistantLoading: false,
+        assistantTokenInfo: resp.tokenUsage 
+      });
+      
+      // Show token usage notification
+      if (resp.tokenUsage) {
+        const { thisRequest, totalUsed, remaining, limit, percentUsed } = resp.tokenUsage;
+        if (limit === Infinity) {
+          notification.success({
+            message: 'AI Explanation Generated',
+            description: `Tokens used: ${thisRequest} - Unlimited (Admin)`,
+            placement: 'topRight',
+            duration: 4,
+          });
+        } else {
+          const color = percentUsed >= 90 ? 'warning' : 'success';
+          notification[color]({
+            message: 'AI Explanation Generated',
+            description: `Tokens used: ${thisRequest} - Remaining: ${remaining.toLocaleString()}/${limit.toLocaleString()} (${percentUsed}% used)`,
+            placement: 'topRight',
+            duration: 5,
+          });
+        }
+      }
     } catch (e) {
-      this.setState({ assistantText: `Error: ${e.message || String(e)}`, assistantLoading: false });
+      console.error(e);
+      this.setState({ assistantText: `Error: ${e.message}`, assistantLoading: false });
+      notification.error({
+        message: 'AI Assistant Error',
+        description: e.message,
+        placement: 'topRight',
+      });
     }
   }
 
@@ -141,9 +173,17 @@ class XAIShapPage extends Component {
     }
 
     if (prevProps.xaiStatus.isRunning === true && xaiStatus.isRunning === false) {
-      console.log('isRunning has been changed from true to false');
+      console.log('[SHAP componentDidUpdate] isRunning changed from true to false');
+      console.log('[SHAP componentDidUpdate] modelId:', modelId, 'label:', label);
+      // Clear any old polling interval if it exists
+      if (this.intervalId) {
+        clearInterval(this.intervalId);
+        this.intervalId = null;
+      }
       this.setState({ isRunning: false, isLabelEnabled: true });
+      console.log('[SHAP componentDidUpdate] About to call fetchNewValues');
       await this.fetchNewValues(modelId, label);
+      console.log('[SHAP componentDidUpdate] fetchNewValues completed');
     }
 
     // Check if shapValues state is updated and clear the interval if it is
@@ -188,49 +228,49 @@ class XAIShapPage extends Component {
 
   async handleShapClick() {
     const { modelId, numberBackgroundSamples, numberExplainedSamples, maxDisplay } = this.state;
-    const shapConfig = {
-      "modelId": modelId,
-      "numberBackgroundSamples": numberBackgroundSamples,
-      "numberExplainedSamples": numberExplainedSamples,
-      "maxDisplay": maxDisplay,
-    };
+    
     this.setState({
+      maskedFeatures: [],
+      assistantText: '',
+      assistantTokenInfo: null,
+      assistantLoading: false,
       isRunning: true,
       shapValues: [],
       isLabelEnabled: false
     });
-
-    const response = await fetch(SHAP_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ shapConfig }),
-    });
-    const data = await response.json();
-
+    
     console.log(`Building SHAP values of the model ${modelId}`);
-    //console.log(JSON.stringify(data));
-    this.intervalId = setInterval(() => { // start interval when button is clicked
-      this.props.fetchXAIStatus();
-    }, 1000);
+    
+    // Use Redux action which handles queue-based processing
+    // The saga will handle polling and updating status
+    this.props.fetchRunShap(modelId, numberBackgroundSamples, numberExplainedSamples, maxDisplay);
   }
 
   async fetchNewValues(modelId, label) {
+    console.log('[SHAP fetchNewValues] Called with modelId:', modelId, 'label:', label);
     const labelsList = getLabelsListXAI(this.state.modelId);
     const labelIndex = labelsList.indexOf(label);
 
     if (labelIndex === -1) {
-      console.error(`Invalid label: ${label}`);
+      console.error(`[SHAP fetchNewValues] Invalid label: ${label}, labelsList:`, labelsList);
       return;
     }
 
     const shapValuesUrl = `${SHAP_URL}/explanations/${modelId}/${labelIndex}`;
-    const shapValues = await fetch(shapValuesUrl).then(res => res.json());
-    console.log(`Get new SHAP values of the model ${modelId} for label ${label} (index ${labelIndex}) from server`);
+    console.log('[SHAP fetchNewValues] Fetching from:', shapValuesUrl);
+    
+    try {
+      const shapValues = await fetch(shapValuesUrl).then(res => res.json());
+      console.log(`[SHAP fetchNewValues] Got SHAP values:`, shapValues);
 
-    if (JSON.stringify(shapValues) !== JSON.stringify(this.state.shapValues)) {
-      this.setState({ shapValues });
+      if (JSON.stringify(shapValues) !== JSON.stringify(this.state.shapValues)) {
+        console.log('[SHAP fetchNewValues] Setting new SHAP values in state');
+        this.setState({ shapValues });
+      } else {
+        console.log('[SHAP fetchNewValues] SHAP values unchanged, skipping setState');
+      }
+    } catch (error) {
+      console.error('[SHAP fetchNewValues] Error fetching SHAP values:', error);
     }
   }
 
@@ -346,7 +386,10 @@ class XAIShapPage extends Component {
                     this.setState({
                       modelId: value,
                       shapValues: [],
-                      isLabelEnabled: false
+                      isLabelEnabled: false,
+                      assistantText: '',
+                      assistantTokenInfo: null,
+                      assistantLoading: false
                     });
                     console.log(`Select model ${value}`);
                   }}
@@ -435,12 +478,22 @@ class XAIShapPage extends Component {
             >
               SHAP Explain
             </Button>
-            <Button style={{ marginLeft: 8 }} htmlType="button" type="primary"
-              onClick={() => this.handleAskAssistantShap()}
-              disabled={!this.state.modelId || this.state.shapValues.length === 0}
-            >
-              Ask Assistant
-            </Button>
+            <Tooltip title={!this.props.userRole?.isSignedIn ? "Sign in to use AI Assistant" : 
+                           this.props.userRole?.tokenLimitReached ? "Token limit reached" : 
+                           "Get AI explanation of SHAP results"}>
+              <Button 
+                style={{ marginLeft: 8 }} 
+                htmlType="button" 
+                type="primary"
+                onClick={() => this.handleAskAssistantShap()}
+                disabled={!this.state.modelId || this.state.shapValues.length === 0 || 
+                         !this.props.userRole?.isSignedIn || 
+                         this.props.userRole?.tokenLimitReached}
+                loading={this.state.assistantLoading}
+              >
+                Ask Assistant
+              </Button>
+            </Tooltip>
           </div>
           </Form>
         </Card>
@@ -452,20 +505,11 @@ class XAIShapPage extends Component {
         <Row gutter={16}>
           <Col span={12}>
             <Card style={{ marginBottom: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>Feature Importances{isFlowBased && sampleIdParam ? ` - Flow sample ID ${sampleIdParam}` : ''}</h3>
-                <div>
-                  <Tooltip title="Download plot as png">
-                    <Button
-                      type="link"
-                      icon={<CameraOutlined />}
-                      onClick={downloadShapImage}
-                    />
-                  </Tooltip>
-                  <Tooltip title="Feature importances plot displays the sum of individual contributions, computed on the complete dataset.">
-                    <Button type="link" icon={<QuestionOutlined />} />
-                  </Tooltip>
-                </div>
+              <div style={{ marginBottom: 16 }}>
+                <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Feature Importances{isFlowBased && sampleIdParam ? ` - Flow sample ID ${sampleIdParam}` : ''}</h3>
+                <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+                  Shows the average impact of each feature on model predictions across the complete dataset
+                </span>
               </div>
               &nbsp;&nbsp;&nbsp;
               <Tooltip title="Select a label">
@@ -501,16 +545,53 @@ class XAIShapPage extends Component {
           
           <Col span={12}>
             <Card style={{ marginBottom: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>{`Top ${maxDisplay} most important features`}</h3>
-                <Tooltip title={`Displays the top ${maxDisplay} most important features with detailed description.`}>
-                  <Button type="link" icon={<QuestionOutlined />} />
-                </Tooltip>
+              <div style={{ marginBottom: 16 }}>
+                <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>{`Top ${maxDisplay} most important features`}</h3>
+                <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+                  Details of the most influential features with their technical descriptions
+                </span>
               </div>
               <Table dataSource={topFeatures} columns={COLUMNS_TOP_FEATURES}
                 size="small"
               />
             </Card>
+            
+            {/* AI Assistant Explanation Card - Right Side */}
+            {(this.state.assistantText || this.state.assistantLoading) && (
+              <Card>
+                <div style={{ marginBottom: 16 }}>
+                  <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>AI Assistant Explanation</h3>
+                  <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+                    AI-generated explanation of the SHAP results to help interpret feature importance
+                  </span>
+                </div>
+                {this.state.assistantLoading ? (
+                  <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
+                    <Spin size="large" />
+                  </div>
+                ) : (
+                  <>
+                    <div className="assistant-markdown">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {this.state.assistantText || ''}
+                      </ReactMarkdown>
+                    </div>
+                    {this.state.assistantTokenInfo && (
+                      <div style={{ marginTop: 16, padding: '12px', backgroundColor: '#f6f8fa', borderRadius: '4px' }}>
+                        <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
+                          <strong>Token Usage:</strong> {this.state.assistantTokenInfo.thisRequest} tokens used this request
+                          {this.state.assistantTokenInfo.limit !== Infinity && (
+                            <> - <strong>Total:</strong> {this.state.assistantTokenInfo.totalUsed.toLocaleString()}/{this.state.assistantTokenInfo.limit.toLocaleString()} 
+                            ({this.state.assistantTokenInfo.percentUsed}% used) - <strong>Remaining:</strong> {this.state.assistantTokenInfo.remaining.toLocaleString()} tokens</>
+                          )}
+                          {this.state.assistantTokenInfo.limit === Infinity && <> - <strong>Unlimited</strong> (Admin)</>}
+                        </Typography.Text>
+                      </div>
+                    )}
+                  </>
+                )}
+              </Card>
+            )}
           </Col>
           {/* <Col span={12} style={{ marginTop: "24px" }}>
             <div style={BOX_STYLE}>
@@ -518,27 +599,6 @@ class XAIShapPage extends Component {
             </div>
           </Col> */}
         </Row>
-        <Modal
-          title="Assistant Explanation"
-          open={this.state.assistantModalVisible}
-          onCancel={() => this.setState({ assistantModalVisible: false })}
-          footer={<Button onClick={() => this.setState({ assistantModalVisible: false })}>Close</Button>}
-          width={800}
-          zIndex={2000}
-          getContainer={() => document.body}
-        >
-          {this.state.assistantLoading ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
-              <Spin size="large" />
-            </div>
-          ) : (
-            <div className="assistant-markdown" style={{ maxHeight: 500, overflowY: 'auto' }}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {this.state.assistantText || ''}
-              </ReactMarkdown>
-            </div>
-          )}
-        </Modal>
       </LayoutPage>
     );
   }
@@ -551,9 +611,14 @@ const mapPropsToStates = ({ app, models, xaiStatus }) => ({
 const mapDispatchToProps = (dispatch) => ({
   fetchApp: () => dispatch(requestApp()),
   fetchAllModels: () => dispatch(requestAllModels()),
-  fetchXAIStatus: () => dispatch(requestXAIStatus()),
   fetchRunShap: (modelId, numberBackgroundSamples, numberExplainedSamples, maxDisplay) =>
     dispatch(requestRunShap({ modelId, numberBackgroundSamples, numberExplainedSamples, maxDisplay })),
 });
 
-export default connect(mapPropsToStates, mapDispatchToProps)(XAIShapPage);
+// HOC to inject userRole
+const XAIShapPageWithUserRole = (props) => {
+  const userRole = useUserRole();
+  return <XAIShapPage {...props} userRole={userRole} />;
+};
+
+export default connect(mapPropsToStates, mapDispatchToProps)(XAIShapPageWithUserRole);

@@ -20,9 +20,8 @@ from tools import dataScale_cnn
 import constants
 
 deepLearningPath = str(Path.cwd()) + '/src/server/deep-learning/'
-features = constants.AD_FEATURES[3:]
 
-def running_lime(sampleId, numberFeatures):
+def running_lime(sampleId, numberFeatures, features):
 
   """
     Produce explanations of a particular sample
@@ -104,15 +103,25 @@ if __name__ == "__main__":
     test_data = pd.read_csv(test_data_path, delimiter=",")
     test_data.drop(columns=['ip.session_id', 'meta.direction'], inplace=True)
 
+    # Get actual feature names from the training data (excluding the label column)
+    features = [col for col in train_data.columns if col != 'malware']
+    print(f"Number of features: {len(features)}")
+
     d = datetime.now()
     x_train_norm, x_train_mal, x_test_norm, x_test_mal, x_train, y_train, x_test, y_test, scaler = dataScale_cnn(output_path,
       train_data, test_data, datetime=d)
 
-    #running_lime(sampleId, numberFeatures)
+    # Verify feature count matches data shape
+    if x_train.shape[1] != len(features):
+        print(f"Warning: Data has {x_train.shape[1]} features but feature list has {len(features)} names")
+        print(f"Using only the first {x_train.shape[1]} feature names")
+        features = features[:x_train.shape[1]]
+
+    #running_lime(sampleId, numberFeatures, features)
 
     # Compute time for producing explanations and save it to file
     generation_iters = 1
-    time_taken =  timeit.timeit(lambda: running_lime(sampleId, numberFeatures), number=generation_iters)
+    time_taken =  timeit.timeit(lambda: running_lime(sampleId, numberFeatures, features), number=generation_iters)
     print("Time taken for LIME in seconds: ", time_taken)
     xai_path = deepLearningPath + '/xai/' + model_name
     statsfile = os.path.join(xai_path, 'time_stats_lime.txt')

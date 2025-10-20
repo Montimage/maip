@@ -141,6 +141,122 @@ const runSHAPForFlow = async (shapFlowConfig, callback) => {
 
 const getXAIStatus = () => xaiStatus;
 
+/**
+ * Queue-based SHAP execution (non-blocking)
+ */
+const runSHAPQueued = async (shapConfig) => {
+  const { queueXAI } = require('../queue/job-queue');
+  const { modelId } = shapConfig;
+  
+  const inputModelFilePath = MODEL_PATH + modelId;
+  if (!fs.existsSync(inputModelFilePath)) {
+    throw new Error(`The given model file ${modelId} does not exist`);
+  }
+  
+  const jobInfo = await queueXAI({
+    xaiType: 'shap',
+    modelId,
+    config: shapConfig
+  });
+  
+  return {
+    success: true,
+    useQueue: true,
+    jobId: jobInfo.jobId,
+    queueName: jobInfo.queueName,
+    position: jobInfo.position,
+    estimatedWait: jobInfo.estimatedWait,
+    message: 'SHAP explanation queued successfully'
+  };
+};
+
+/**
+ * Queue-based LIME execution (non-blocking)
+ */
+const runLIMEQueued = async (limeConfig) => {
+  const { queueXAI } = require('../queue/job-queue');
+  const { modelId } = limeConfig;
+  
+  const inputModelFilePath = MODEL_PATH + modelId;
+  if (!fs.existsSync(inputModelFilePath)) {
+    throw new Error(`The given model file ${modelId} does not exist`);
+  }
+  
+  const jobInfo = await queueXAI({
+    xaiType: 'lime',
+    modelId,
+    config: limeConfig
+  });
+  
+  return {
+    success: true,
+    useQueue: true,
+    jobId: jobInfo.jobId,
+    queueName: jobInfo.queueName,
+    position: jobInfo.position,
+    estimatedWait: jobInfo.estimatedWait,
+    message: 'LIME explanation queued successfully'
+  };
+};
+
+/**
+ * Queue-based SHAP for flow instance (non-blocking)
+ */
+const runSHAPForFlowQueued = async (shapFlowConfig) => {
+  const { queueXAI } = require('../queue/job-queue');
+  const { modelId } = shapFlowConfig;
+  
+  const inputModelFilePath = MODEL_PATH + modelId;
+  if (!fs.existsSync(inputModelFilePath)) {
+    throw new Error(`The given model file ${modelId} does not exist`);
+  }
+  
+  const jobInfo = await queueXAI({
+    xaiType: 'shap-flow',
+    modelId,
+    config: shapFlowConfig
+  });
+  
+  return {
+    success: true,
+    useQueue: true,
+    jobId: jobInfo.jobId,
+    queueName: jobInfo.queueName,
+    position: jobInfo.position,
+    estimatedWait: jobInfo.estimatedWait,
+    message: 'SHAP flow explanation queued successfully'
+  };
+};
+
+/**
+ * Queue-based LIME for flow instance (non-blocking)
+ */
+const runLIMEForFlowQueued = async (limeFlowConfig) => {
+  const { queueXAI } = require('../queue/job-queue');
+  const { modelId } = limeFlowConfig;
+  
+  const inputModelFilePath = MODEL_PATH + modelId;
+  if (!fs.existsSync(inputModelFilePath)) {
+    throw new Error(`The given model file ${modelId} does not exist`);
+  }
+  
+  const jobInfo = await queueXAI({
+    xaiType: 'lime-flow',
+    modelId,
+    config: limeFlowConfig
+  });
+  
+  return {
+    success: true,
+    useQueue: true,
+    jobId: jobInfo.jobId,
+    queueName: jobInfo.queueName,
+    position: jobInfo.position,
+    estimatedWait: jobInfo.estimatedWait,
+    message: 'LIME flow explanation queued successfully'
+  };
+};
+
 const getModelType = async (modelId) => {
   if (!modelId.startsWith("ac-")) return null;  // Return null for non "ac-" models
 
@@ -186,7 +302,7 @@ const runSHAP = async (shapConfig, callback) => {
   } else {
     spawnCommand(PYTHON_CMD, [scriptPath, modelId, numberBackgroundSamples, numberExplainedSamples, maxDisplay], logFile, () => {
       xaiStatus.isRunning = false;
-      console.log('Finish producing LIME explanations for a particular instance');
+      console.log('Finish producing SHAP feature importance explanations');
     });
   }
 
@@ -238,4 +354,8 @@ module.exports = {
   runLIME,
   runLIMEForFlow,
   runSHAPForFlow,
+  runSHAPQueued,
+  runLIMEQueued,
+  runSHAPForFlowQueued,
+  runLIMEForFlowQueued,
 };

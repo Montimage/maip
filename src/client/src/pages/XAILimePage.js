@@ -1,15 +1,15 @@
 import React, { Component } from 'react';
-import { connect } from "react-redux";
+import { connect } from 'react-redux';
 import LayoutPage from './LayoutPage';
-import { Spin, Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Tooltip, Modal, Card } from 'antd';
+import { Spin, Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Tooltip, Typography, Modal, Card, notification } from 'antd';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { QuestionOutlined, CameraOutlined } from "@ant-design/icons";
+import { QuestionOutlined, CameraOutlined } from '@ant-design/icons';
 import { Bar, Pie } from '@ant-design/plots';
+import { useUserRole } from '../hooks/useUserRole';
 import {
   requestApp,
   requestAllModels,
-  requestModel,
   requestRunLime,
   requestXAIStatus,
 } from "../actions";
@@ -53,9 +53,9 @@ class XAILimePage extends Component {
       limeValues: [],
       isLabelEnabled: false,
       predictions: null,
-      assistantModalVisible: false,
       assistantText: '',
       assistantLoading: false,
+      assistantTokenInfo: null,
     };
     this.handleContributionsChange = this.handleContributionsChange.bind(this);
     this.handleLimeClick = this.handleLimeClick.bind(this);
@@ -63,8 +63,9 @@ class XAILimePage extends Component {
 
   handleAskAssistantLime = async () => {
     const { modelId, label, limeValues, dataTableProbs, pieData, sampleId } = this.state;
+    const { userRole } = this.props;
     if (!modelId || !limeValues || limeValues.length === 0) return;
-    this.setState({ assistantModalVisible: true, assistantLoading: true, assistantText: '' });
+    this.setState({ assistantLoading: true, assistantText: '', assistantTokenInfo: null });
     try {
       const context = { dataTableProbs, pieData, sampleId };
       const resp = await requestAssistantExplainXAI({
@@ -73,12 +74,43 @@ class XAILimePage extends Component {
         label,
         explanation: limeValues,
         context,
+        userId: userRole?.userId,
+        isAdmin: userRole?.isAdmin,
       });
-      console.log('Assistant (LIME) response:', resp);
-      const text = resp && typeof resp.text === 'string' ? resp.text : '';
-      this.setState({ assistantText: text || 'Assistant returned no content.', assistantLoading: false });
+      this.setState({ 
+        assistantText: resp.text, 
+        assistantLoading: false,
+        assistantTokenInfo: resp.tokenUsage 
+      });
+      
+      // Show token usage notification
+      if (resp.tokenUsage) {
+        const { thisRequest, totalUsed, remaining, limit, percentUsed } = resp.tokenUsage;
+        if (limit === Infinity) {
+          notification.success({
+            message: 'AI Explanation Generated',
+            description: `Tokens used: ${thisRequest} - Unlimited (Admin)`,
+            placement: 'topRight',
+            duration: 4,
+          });
+        } else {
+          const color = percentUsed >= 90 ? 'warning' : 'success';
+          notification[color]({
+            message: 'AI Explanation Generated',
+            description: `Tokens used: ${thisRequest} - Remaining: ${remaining.toLocaleString()}/${limit.toLocaleString()} (${percentUsed}% used)`,
+            placement: 'topRight',
+            duration: 5,
+          });
+        }
+      }
     } catch (e) {
-      this.setState({ assistantText: `Error: ${e.message || String(e)}` , assistantLoading: false });
+      console.error(e);
+      this.setState({ assistantText: `Error: ${e.message}`, assistantLoading: false });
+      notification.error({
+        message: 'AI Assistant Error',
+        description: e.message,
+        placement: 'topRight',
+      });
     }
   }
 
@@ -140,9 +172,17 @@ class XAILimePage extends Component {
     }
 
     if (prevProps.xaiStatus.isRunning === true && xaiStatus.isRunning === false) {
-      console.log('isRunning has been changed from true to false');
+      console.log('[LIME componentDidUpdate] isRunning changed from true to false');
+      console.log('[LIME componentDidUpdate] modelId:', modelId, 'label:', label);
+      // Clear any old polling interval if it exists
+      if (this.intervalId) {
+        clearInterval(this.intervalId);
+        this.intervalId = null;
+      }
       this.setState({ isRunning: false, isLabelEnabled: true });
+      console.log('[LIME componentDidUpdate] About to call fetchNewValues');
       await this.fetchNewValues(modelId, label);
+      console.log('[LIME componentDidUpdate] fetchNewValues completed');
       // If flow-based (predictionId present), fetch instance probabilities for pie chart
       const { predictionId: predictionIdParam } = getFlowParams();
       if (predictionIdParam && (!this.state.dataTableProbs || this.state.dataTableProbs.length === 0)) {
@@ -186,7 +226,7 @@ class XAILimePage extends Component {
   // Pay attention to re-render
   shouldComponentUpdate(nextProps, nextState) {
     const { app, models, xaiStatus } = this.props;
-    const { modelId, label, limeValues, positiveChecked, negativeChecked, maxDisplay, maskedFeatures, assistantModalVisible, assistantLoading, assistantText } = this.state;
+    const { modelId, label, limeValues, positiveChecked, negativeChecked, maxDisplay, maskedFeatures, assistantLoading, assistantText } = this.state;
     return (
       app !== nextProps.app ||
       models !== nextProps.models ||
@@ -194,7 +234,6 @@ class XAILimePage extends Component {
       label !== nextState.label ||
       limeValues !== nextState.limeValues ||
       xaiStatus.isRunning !== nextProps.xaiStatus.isRunning ||
-      assistantModalVisible !== nextState.assistantModalVisible ||
       assistantLoading !== nextState.assistantLoading ||
       assistantText !== nextState.assistantText ||
       (limeValues === nextState.limeValues &&
@@ -208,11 +247,6 @@ class XAILimePage extends Component {
   async handleLimeClick() {
     const { modelId, sampleId, maxDisplay } = this.state;
     const { predictionId: predictionIdParam } = getFlowParams();
-    const limeConfig = {
-      "modelId": modelId,
-      "sampleId": sampleId,
-      "numberFeature": maxDisplay,
-    };
 
     // Only fetch test-set predictions for non flow-based mode
     const predictions = predictionIdParam ? null : await requestPredictionsModel(modelId);
@@ -226,37 +260,22 @@ class XAILimePage extends Component {
       predictions
     });
 
-    // Choose endpoint: flow-based when predictionId is provided
-    const isFlowBased = !!predictionIdParam;
-    const endpoint = isFlowBased ? `${LIME_URL}/flow` : LIME_URL;
-    const payload = isFlowBased
-      ? { limeFlowConfig: { modelId, predictionId: predictionIdParam, sessionId: sampleId, numberFeature: maxDisplay } }
-      : { limeConfig };
-
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-    const data = await response.json();
-
     console.log(`Building LIME values of the model ${modelId}`);
-    //console.log(JSON.stringify(data));
-    this.intervalId = setInterval(() => { // start interval when button is clicked
-      this.props.fetchXAIStatus();
-    }, 1000);
+    
+    // Use Redux action which handles queue-based processing
+    // The saga will handle polling and updating status
+    this.props.fetchRunLime(modelId, sampleId, maxDisplay);
 
     // TODO: refactor code ?
-    const predictedProbsResponse = await fetch(`${SERVER_URL}/api/models/${modelId}/probabilities`, {
-      method: 'GET',
-    });
-    const predictedProbsData = await predictedProbsResponse.json();
-    const predictedProbs = predictedProbsData.probs;
-    const linesProbs = predictedProbs.split('\n');
-    const dataProbs = linesProbs.slice(1).map(line => line.split(','));
-    const yProbs = dataProbs.map(row => row.map(val => parseFloat(val)));
+    try {
+      const predictedProbsResponse = await fetch(`${SERVER_URL}/api/models/${modelId}/probabilities`, {
+        method: 'GET',
+      });
+      const predictedProbsData = await predictedProbsResponse.json();
+      const predictedProbs = predictedProbsData.probs;
+      const linesProbs = predictedProbs.split('\n');
+      const dataProbs = linesProbs.slice(1).map(line => line.split(','));
+      const yProbs = dataProbs.map(row => row.map(val => parseFloat(val)));
 
     let dataTableProbs = [];
     let pieData = [];
@@ -274,18 +293,23 @@ class XAILimePage extends Component {
         },
         {
           key: 2,
-          label: 'Video',
+          label: 'Mail',
           probability: sampleId && yProbs[sampleId] ? yProbs[sampleId][2].toFixed(6) : '-'
-        }
-    ];
+        },
+        {
+          key: 3,
+          label: 'File Transfer',
+          probability: sampleId && yProbs[sampleId] ? yProbs[sampleId][3].toFixed(6) : '-'
+        },
+      ];
 
-    pieData = sampleId ? yProbs[sampleId].map((prob, i) => {
-      const percentage = parseFloat((prob * 100).toFixed(2));
-      return {
-        type: `${AC_OUTPUT_LABELS[i]}`,
-        value: percentage,
-      };
-    }) : [];
+      pieData = sampleId ? yProbs[sampleId].map((prob, i) => {
+        const percentage = parseFloat((prob * 100).toFixed(2));
+        return {
+          type: `${AC_OUTPUT_LABELS[i]}`,
+          value: percentage,
+        };
+      }) : [];
     } else {
       dataTableProbs = [
         {
@@ -307,32 +331,43 @@ class XAILimePage extends Component {
           value: percentage,
         };
       }) : [];
+      }
+
+      this.setState({
+        pieData: pieData,
+        dataTableProbs: dataTableProbs,
+      });
+    } catch (error) {
+      console.error('[LIME] Error fetching predicted probabilities:', error);
+      // Continue without probabilities - LIME can still work
     }
-
-    this.setState({
-      pieData: pieData,
-      dataTableProbs: dataTableProbs,
-    });
-
   }
 
   async fetchNewValues(modelId, label) {
+    console.log('[LIME fetchNewValues] Called with modelId:', modelId, 'label:', label);
     const labelsList = getLabelsListXAI(this.state.modelId);
     const labelIndex = labelsList.indexOf(label);
 
     if (labelIndex === -1) {
-      console.error(`Invalid label: ${label}`);
+      console.error(`[LIME fetchNewValues] Invalid label: ${label}, labelsList:`, labelsList);
       return;
     }
 
     const limeValuesUrl = `${LIME_URL}/explanations/${modelId}/${labelIndex}`;
-    const limeValues = await fetch(limeValuesUrl).then(res => res.json());
-    console.log(`Get new LIME values of the model ${modelId} for label ${label} (index ${labelIndex}) from server`);
-    //console.log(JSON.stringify(limeValues));
+    console.log('[LIME fetchNewValues] Fetching from:', limeValuesUrl);
+    
+    try {
+      const limeValues = await fetch(limeValuesUrl).then(res => res.json());
+      console.log(`[LIME fetchNewValues] Got LIME values:`, limeValues);
 
-    // Update state only if new data is different than old data
-    if (JSON.stringify(limeValues) !== JSON.stringify(this.state.limeValues)) {
-      this.setState({ limeValues });
+      if (JSON.stringify(limeValues) !== JSON.stringify(this.state.limeValues)) {
+        console.log('[LIME fetchNewValues] Setting new LIME values in state');
+        this.setState({ limeValues });
+      } else {
+        console.log('[LIME fetchNewValues] LIME values unchanged, skipping setState');
+      }
+    } catch (error) {
+      console.error('[LIME fetchNewValues] Error fetching LIME values:', error);
     }
   }
 
@@ -471,7 +506,10 @@ class XAILimePage extends Component {
                     pieData: [],
                     dataTableProbs: [],
                     isLabelEnabled: false,
-                    predictions: null
+                    predictions: null,
+                    assistantText: '',
+                    assistantTokenInfo: null,
+                    assistantLoading: false
                   });
                   console.log(`Select model ${value}`);
                 }}
@@ -538,12 +576,22 @@ class XAILimePage extends Component {
             >
               LIME Explain
             </Button>
-            <Button style={{ marginLeft: 8 }} htmlType="button" type="primary"
-              onClick={() => this.handleAskAssistantLime()}
-              disabled={!this.state.modelId || this.state.limeValues.length === 0}
-            >
-              Ask Assistant
-            </Button>
+            <Tooltip title={!this.props.userRole?.isSignedIn ? "Sign in to use AI Assistant" : 
+                           this.props.userRole?.tokenLimitReached ? "Token limit reached" : 
+                           "Get AI explanation of LIME results"}>
+              <Button 
+                style={{ marginLeft: 8 }} 
+                htmlType="button" 
+                type="primary"
+                onClick={() => this.handleAskAssistantLime()}
+                disabled={!this.state.modelId || this.state.limeValues.length === 0 || 
+                         !this.props.userRole?.isSignedIn || 
+                         this.props.userRole?.tokenLimitReached}
+                loading={this.state.assistantLoading}
+              >
+                Ask Assistant
+              </Button>
+            </Tooltip>
           </div>
           </Form>
         </Card>
@@ -555,107 +603,110 @@ class XAILimePage extends Component {
         <Row gutter={16}>
           <Col span={12}>
             <Card style={{ marginBottom: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>Local Explanation - Sample ID {sampleId}</h3>
-                <div>
-                  <Tooltip title="Download plot as png">
-                    <Button
-                      type="link" icon={<CameraOutlined />}
-                      onClick={downloadLimeImage}
-                    />
-                  </Tooltip>
-                  <Tooltip title="Local interpretability plot displays each most important feature's contributions for this specific sample.">
-                    <Button type="link" icon={<QuestionOutlined />} />
-                  </Tooltip>
-                </div>
+              <div style={{ marginBottom: 16 }}>
+                <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>LIME Explanation</h3>
+                <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+                  Local model explanation showing feature contributions to the prediction
+                </span>
               </div>
-              &nbsp;&nbsp;&nbsp;
-              <Tooltip title="Select a label">
-                <Select
-                  value={this.state.label}
-                  placeholder="Select a label ..."
-                  onChange={v => this.setState({ label: v })}
-                  disabled={!this.state.modelId || !this.state.isLabelEnabled}
-                  filterOption={(input, option) => (option?.value ?? '').includes(input)}
-                  style={{ width: 200, marginTop: '10px', marginBottom: '10px' }}
-                  options={labelsOptions}
-                >
-                  {labelsList.map((header) => (
-                    <Option key={header} value={header}>
-                      {header}
-                    </Option>
-                  ))}
-                </Select>
-              </Tooltip>
               {limeValuesBarConfig && (
-                <Bar {...limeValuesBarConfig} onReady={(bar) => (barLime = bar)}/>
+                <Bar {...limeValuesBarConfig} onReady={(bar) => (barLime = bar)} />
               )}
             </Card>
           </Col>
-          
+
           <Col span={12}>
-            <Card style={{ marginBottom: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>Prediction - Sample ID {sampleId} { !isFlowBased ? `(ground truth: ${sampleTrueLabel})` : '' }</h3>
-                <Tooltip title="Shows predicted probability for each sample.">
-                  <Button type="link" icon={<QuestionOutlined />} />
-                </Tooltip>
+            <Card style={{ marginBottom: 16, height: 'fit-content' }}>
+              <div style={{ marginBottom: 8 }}>
+                <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Prediction - Sample ID {sampleId}</h3>
+                <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+                  Model's predicted probabilities for normal and malicious traffic classes
+                </span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              {!isFlowBased && sampleTrueLabel && (
+                <div style={{ marginBottom: 12, padding: '8px 12px', backgroundColor: '#f0f5ff', borderRadius: '4px', border: '1px solid #d6e4ff' }}>
+                  <Typography.Text style={{ fontSize: '13px', color: '#1890ff' }}>
+                    <strong>Ground Truth:</strong> {sampleTrueLabel}
+                  </Typography.Text>
+                </div>
+              )}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 {pieConfig && (
                   <>
-                    <Table
-                      columns={COLUMNS_TABLE_PROBS}
-                      dataSource={dataTableProbs}
-                      pagination={false}
-                      style={{ marginLeft: '10px', marginRight: '10px', width: '280px' }}
-                    />
-                    <div style={{ width: '400px', marginRight: '10px' }}>
+                    <div style={{ flex: '0 0 33.33%' }}>
+                      <Table
+                        columns={COLUMNS_TABLE_PROBS}
+                        dataSource={dataTableProbs}
+                        pagination={false}
+                        size="small"
+                      />
+                    </div>
+                    <div style={{ flex: '0 0 66.67%', display: 'flex', justifyContent: 'center' }}>
                       <Pie {...pieConfig} />
                     </div>
                   </>
                 )}
               </div>
             </Card>
+            
+            {/* AI Assistant Explanation Card - Right Side */}
+            {(this.state.assistantText || this.state.assistantLoading) && (
+              <Card>
+                <div style={{ marginBottom: 16 }}>
+                  <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>AI Assistant Explanation</h3>
+                  <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+                    AI-generated explanation of the LIME results to help interpret the model's decision
+                  </span>
+                </div>
+                {this.state.assistantLoading ? (
+                  <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
+                    <Spin size="large" />
+                  </div>
+                ) : (
+                  <>
+                    <div className="assistant-markdown">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {this.state.assistantText || ''}
+                      </ReactMarkdown>
+                    </div>
+                    {this.state.assistantTokenInfo && (
+                      <div style={{ marginTop: 16, padding: '12px', backgroundColor: '#f6f8fa', borderRadius: '4px' }}>
+                        <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
+                          <strong>Token Usage:</strong> {this.state.assistantTokenInfo.thisRequest} tokens used this request
+                          {this.state.assistantTokenInfo.limit !== Infinity && (
+                            <> - <strong>Total:</strong> {this.state.assistantTokenInfo.totalUsed.toLocaleString()}/{this.state.assistantTokenInfo.limit.toLocaleString()} 
+                            ({this.state.assistantTokenInfo.percentUsed}% used) - <strong>Remaining:</strong> {this.state.assistantTokenInfo.remaining.toLocaleString()} tokens</>
+                          )}
+                          {this.state.assistantTokenInfo.limit === Infinity && <> - <strong>Unlimited</strong> (Admin)</>}
+                        </Typography.Text>
+                      </div>
+                    )}
+                  </>
+                )}
+              </Card>
+            )}
           </Col>
         </Row>
-        <Modal
-          title="Assistant Explanation"
-          open={this.state.assistantModalVisible}
-          onCancel={() => this.setState({ assistantModalVisible: false })}
-          footer={<Button onClick={() => this.setState({ assistantModalVisible: false })}>Close</Button>}
-          width={800}
-          zIndex={2000}
-          getContainer={() => document.body}
-        >
-          {this.state.assistantLoading ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
-              <Spin size="large" />
-            </div>
-          ) : (
-            <div className="assistant-markdown" style={{ maxHeight: 500, overflowY: 'auto' }}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {this.state.assistantText || ''}
-              </ReactMarkdown>
-            </div>
-          )}
-        </Modal>
       </LayoutPage>
     );
   }
 }
 
-const mapPropsToStates = ({ app, models, model, xaiStatus }) => ({
-  app, models, model, xaiStatus,
+const mapPropsToStates = ({ app, models, xaiStatus }) => ({
+  app, models, xaiStatus,
 });
 
 const mapDispatchToProps = (dispatch) => ({
   fetchApp: () => dispatch(requestApp()),
   fetchAllModels: () => dispatch(requestAllModels()),
-  fetchModel: (modelId) => dispatch(requestModel(modelId)),
-  fetchXAIStatus: () => dispatch(requestXAIStatus()),
   fetchRunLime: (modelId, sampleId, numberFeatures) =>
     dispatch(requestRunLime({ modelId, sampleId, numberFeatures })),
 });
 
-export default connect(mapPropsToStates, mapDispatchToProps)(XAILimePage);
+// HOC to inject userRole
+const XAILimePageWithUserRole = (props) => {
+  const userRole = useUserRole();
+  return <XAILimePage {...props} userRole={userRole} />;
+};
+
+export default connect(mapPropsToStates, mapDispatchToProps)(XAILimePageWithUserRole);
