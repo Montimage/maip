@@ -1479,11 +1479,11 @@ class PredictPage extends Component {
               </div>
               <Row gutter={8}>
                 <Col xs={24} sm={8} md={4}>
-                  <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                  <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff', minHeight: '92px' }}>
                     <Statistic
                       title={mode === 'offline' ? (this.state.testingPcapFile ? 'PCAP File' : 'Report') : 'Interface'}
                       value={mode === 'offline' ? (this.state.testingPcapFile || this.state.testingDataset || 'N/A') : (this.state.interface || 'N/A')}
-                      valueStyle={{ fontSize: 12, fontWeight: 'bold', color: '#722ed1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                      valueStyle={{ fontSize: 11, fontWeight: 'bold', color: '#722ed1', wordBreak: 'break-word', whiteSpace: 'normal', lineHeight: '1.3' }}
                       prefix={<FileTextOutlined style={{ color: '#722ed1', fontSize: '14px' }} />}
                     />
                   </Card>
