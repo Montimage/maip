@@ -483,6 +483,65 @@ class ModelListPage extends Component {
                   pagination={false}
                   size="small"
                 />
+                
+                {/* Overall Winner Summary */}
+                <Card size="small" style={{ marginTop: 16, backgroundColor: '#f0f5ff', border: '1px solid #adc6ff' }}>
+                  {(() => {
+                    const metrics = ['Accuracy', 'Precision', 'Recall', 'F1-Score'];
+                    let leftWins = 0;
+                    let rightWins = 0;
+                    let ties = 0;
+                    
+                    metrics.forEach(metric => {
+                      const getMetricValue = (stats, metricName) => {
+                        const row = stats.find(s => 
+                          s.metric && s.metric.toLowerCase() === metricName.toLowerCase()
+                        );
+                        if (!row) return 0;
+                        const classKeys = Object.keys(row).filter(k => k.startsWith('class'));
+                        if (classKeys.length === 0) return 0;
+                        const sum = classKeys.reduce((acc, key) => acc + (parseFloat(row[key]) || 0), 0);
+                        return sum / classKeys.length;
+                      };
+                      
+                      const leftVal = getMetricValue(dataStatsLeft, metric);
+                      const rightVal = getMetricValue(dataStatsRight, metric);
+                      const threshold = 0.001;
+                      
+                      if (leftVal - rightVal > threshold) {
+                        leftWins++;
+                      } else if (rightVal - leftVal > threshold) {
+                        rightWins++;
+                      } else {
+                        ties++;
+                      }
+                    });
+                    
+                    let summaryText = '';
+                    let summaryIcon = '';
+                    let summaryColor = '#1890ff';
+                    
+                    if (leftWins > rightWins) {
+                      summaryText = `${selectedModelLeft} performs better overall, winning ${leftWins} out of ${metrics.length} metrics`;
+                      summaryIcon = '🏆';
+                      summaryColor = '#1890ff';
+                    } else if (rightWins > leftWins) {
+                      summaryText = `${selectedModelRight} performs better overall, winning ${rightWins} out of ${metrics.length} metrics`;
+                      summaryIcon = '🏆';
+                      summaryColor = '#52c41a';
+                    } else {
+                      summaryText = `Both models perform equally well with ${leftWins} wins each${ties > 0 ? ` and ${ties} tie(s)` : ''}`;
+                      summaryIcon = '🤝';
+                      summaryColor = '#8c8c8c';
+                    }
+                    
+                    return (
+                      <div style={{ fontSize: '13px', color: summaryColor, textAlign: 'center' }}>
+                        <strong>{summaryIcon} {summaryText}</strong>
+                      </div>
+                    );
+                  })()}
+                </Card>
               </>
             ) : (
               <div style={{ textAlign: 'center', padding: '40px 0', color: '#8c8c8c' }}>
