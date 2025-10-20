@@ -49,6 +49,8 @@ class PredictPage extends Component {
       modelId: null,
       testingPcapFile: null,
       testingDataset: null,
+      pcapFiles: [],
+      wasUploaded: false,
       
       // Online mode
       interface: null,
@@ -160,6 +162,7 @@ class PredictPage extends Component {
     this.props.fetchAllReports();
     this.props.fetchAllModels();
     this.fetchInterfacesAndSetOptions();
+    this.fetchPcapFiles();
     
     // Load previously uploaded PCAPs for reuse
     try {
@@ -228,6 +231,17 @@ class PredictPage extends Component {
     this.setState({ interfacesOptions });
   }
 
+  async fetchPcapFiles() {
+    try {
+      const res = await fetch(`${SERVER_URL}/api/pcaps`);
+      if (!res.ok) return;
+      const data = await res.json();
+      this.setState({ pcapFiles: data.pcaps || [] });
+    } catch (e) {
+      // ignore
+    }
+  }
+
   // Retrieve cached report id mapped to a given PCAP filename from localStorage
   getCachedReportForPcap = (pcapName) => {
     try {
@@ -292,15 +306,12 @@ class PredictPage extends Component {
   }
 
   handleUploadPcap = async (info, typePcap) => {
-    const { status, response, name } = info.file;
-    console.log({ status, response, name });
+    const { status, name } = info.file;
+    console.log({ status, name });
 
     if (status === 'uploading') {
       console.log(`Uploading ${name}`);
     } else if (status === 'done') {
-      // Use the filename returned by the server (e.g., { pcapFile: 'file.pcap' })
-      const uploadedPcapName = (response && response.pcapFile) || (info.file.response && info.file.response.pcapFile) || null;
-      this.setState({ testingPcapFile: uploadedPcapName });
       console.log(`Uploaded successfully ${name}`);
     } else if (status === 'error') {
       message.error(`${name} upload failed.`);
@@ -320,6 +331,9 @@ class PredictPage extends Component {
       if (response.ok) {
         const data = await response.json();
         onSuccess(data, response);
+        this.setState({ testingPcapFile: data.pcapFile, wasUploaded: true });
+        // Refresh PCAP files list
+        this.fetchPcapFiles();
         console.log(`Uploaded successfully ${file.name}`);
       } else {
         const error = await response.text();
@@ -346,6 +360,8 @@ class PredictPage extends Component {
     let updatedTestingDataset = null;
 
     if (!isRunning) {
+      // Set isRunning immediately to disable button and show loading spinner
+      this.setState({ isRunning: true });
       if (testingDataset) {
         updatedTestingDataset = testingDataset;
       } else if (testingPcapFile) {
@@ -383,6 +399,8 @@ class PredictPage extends Component {
             } catch (_) {}
           } else {
             console.error('Failed to start MMT offline analysis or missing sessionId');
+            this.setState({ isRunning: false });
+            message.error('Failed to start MMT analysis');
             return;
           }
         }
@@ -393,23 +411,26 @@ class PredictPage extends Component {
           csvReports = await requestCsvReports(updatedTestingDataset);
           if (csvReports.length === 0) {
             console.error(`Testing dataset is not valid!`);
+            this.setState({ isRunning: false });
+            message.error('Testing dataset is not valid');
           } else {
             // Queue-based prediction
             console.log('Starting queued prediction:', csvReports[0], fetchModelId, updatedTestingDataset);
             
             // Call new queue-based API
             const { requestPredictOfflineQueued, requestPredictJobStatus } = require('../api');
-            const queueResponse = await requestPredictOfflineQueued(fetchModelId, updatedTestingDataset, csvReports[0]);
             
-            console.log('Prediction queued:', queueResponse);
-            this.setState({ 
-              isRunning: true,
-              currentJobId: queueResponse.jobId,
-              currentPredictionId: queueResponse.predictionId
-            });
-            
-            // Poll job status instead of old predict status
-            this.intervalId = setInterval(async () => {
+            try {
+              const queueResponse = await requestPredictOfflineQueued(fetchModelId, updatedTestingDataset, csvReports[0]);
+              
+              console.log('Prediction queued:', queueResponse);
+              this.setState({ 
+                currentJobId: queueResponse.jobId,
+                currentPredictionId: queueResponse.predictionId
+              });
+              
+              // Poll job status instead of old predict status
+              this.intervalId = setInterval(async () => {
               try {
                 const jobStatus = await requestPredictJobStatus(this.state.currentJobId);
                 console.log('Job status:', jobStatus.status, 'Progress:', jobStatus.progress);
@@ -451,12 +472,10 @@ class PredictPage extends Component {
                           const assistantDisabled = !userRole?.isSignedIn || userRole?.tokenLimitReached;
                           return (
                             <Menu onClick={({ key }) => onAction && onAction(key, record)}>
-                              <Tooltip title={!userRole?.isSignedIn ? "Sign in required" : userRole?.tokenLimitReached ? "Token limit reached" : ""} placement="left">
-                                <Menu.Item key="explain-gpt" disabled={assistantDisabled}>
-                                  Ask Assistant
-                                  {assistantDisabled && <LockOutlined style={{ marginLeft: 8, fontSize: '11px', color: '#ff4d4f' }} />}
-                                </Menu.Item>
-                              </Tooltip>
+                              <Menu.Item key="explain-gpt" disabled={assistantDisabled}>
+                                Ask Assistant
+                                {assistantDisabled && <LockOutlined style={{ marginLeft: 8, fontSize: '11px', color: '#ff4d4f' }} />}
+                              </Menu.Item>
                               <Menu.Item key="explain-shap">Explain (XAI SHAP)</Menu.Item>
                               <Menu.Item key="explain-lime">Explain (XAI LIME)</Menu.Item>
                               <Menu.Divider />
@@ -475,12 +494,10 @@ class PredictPage extends Component {
                                 {`Drop session${validDst ? ` ${dstIp}` : validSrc ? ` ${srcIp}` : ''}`}
                               </Menu.Item>
                               <Menu.Divider />
-                              <Tooltip title={!userRole?.isAdmin ? "Admin access required" : ""} placement="left">
-                                <Menu.Item key="send-nats" disabled={!userRole?.isAdmin}>
-                                  Send flow to NATS
-                                  {!userRole?.isAdmin && <LockOutlined style={{ marginLeft: 8, fontSize: '11px', color: '#ff4d4f' }} />}
-                                </Menu.Item>
-                              </Tooltip>
+                              <Menu.Item key="send-nats" disabled={!userRole?.isAdmin}>
+                                Send flow to NATS
+                                {!userRole?.isAdmin && <LockOutlined style={{ marginLeft: 8, fontSize: '11px', color: '#ff4d4f' }} />}
+                              </Menu.Item>
                             </Menu>
                           );
                         }
@@ -518,9 +535,16 @@ class PredictPage extends Component {
                 console.error('Error polling job status:', error);
               }
             }, 2000);
+            } catch (error) {
+              console.error('Error queueing prediction:', error);
+              this.setState({ isRunning: false });
+              message.error('Failed to queue prediction: ' + error.message);
+            }
           }
         } catch (error) {
           console.error('Error in requestCsvReports:', error);
+          this.setState({ isRunning: false });
+          message.error('Failed to process dataset: ' + error.message);
         }
       }
     }
@@ -628,12 +652,10 @@ class PredictPage extends Component {
                   const natsDisabled = !userRole?.isAdmin;
                   return (
                     <Menu onClick={({ key }) => onAction && onAction(key, record)}>
-                      <Tooltip title={!userRole?.isSignedIn ? "Sign in required" : userRole?.tokenLimitReached ? "Token limit reached" : ""} placement="left">
-                        <Menu.Item key="explain-gpt" disabled={assistantDisabled}>
-                          Ask Assistant
-                          {assistantDisabled && <LockOutlined style={{ marginLeft: 8, fontSize: '11px', color: '#ff4d4f' }} />}
-                        </Menu.Item>
-                      </Tooltip>
+                      <Menu.Item key="explain-gpt" disabled={assistantDisabled}>
+                        Ask Assistant
+                        {assistantDisabled && <LockOutlined style={{ marginLeft: 8, fontSize: '11px', color: '#ff4d4f' }} />}
+                      </Menu.Item>
                       <Menu.Item key="explain-shap">Explain (XAI SHAP)</Menu.Item>
                       <Menu.Item key="explain-lime">Explain (XAI LIME)</Menu.Item>
                       <Menu.Divider />
@@ -661,12 +683,10 @@ class PredictPage extends Component {
                         {`Rate-limit source${validSrc && dport ? ` ${srcIp}:${dport}/tcp` : ''}`}
                       </Menu.Item>
                       <Menu.Divider />
-                      <Tooltip title={natsDisabled ? "Admin access required" : ""} placement="left">
-                        <Menu.Item key="send-nats" disabled={natsDisabled}>
-                          Send flow to NATS
-                          {natsDisabled && <LockOutlined style={{ marginLeft: 8, fontSize: '11px', color: '#ff4d4f' }} />}
-                        </Menu.Item>
-                      </Tooltip>
+                      <Menu.Item key="send-nats" disabled={natsDisabled}>
+                        Send flow to NATS
+                        {natsDisabled && <LockOutlined style={{ marginLeft: 8, fontSize: '11px', color: '#ff4d4f' }} />}
+                      </Menu.Item>
                     </Menu>
                   );
                 }
@@ -722,12 +742,10 @@ class PredictPage extends Component {
             const assistantDisabled = !userRole?.isSignedIn || userRole?.tokenLimitReached;
             return (
               <Menu onClick={({ key }) => onAction && onAction(key, record)}>
-                <Tooltip title={!userRole?.isSignedIn ? "Sign in required" : userRole?.tokenLimitReached ? "Token limit reached" : ""} placement="left">
-                  <Menu.Item key="explain-gpt" disabled={assistantDisabled}>
-                    Ask Assistant
-                    {assistantDisabled && <LockOutlined style={{ marginLeft: 8, fontSize: '11px', color: '#ff4d4f' }} />}
-                  </Menu.Item>
-                </Tooltip>
+                <Menu.Item key="explain-gpt" disabled={assistantDisabled}>
+                  Ask Assistant
+                  {assistantDisabled && <LockOutlined style={{ marginLeft: 8, fontSize: '11px', color: '#ff4d4f' }} />}
+                </Menu.Item>
                 <Menu.Item key="explain-shap" disabled>Explain (XAI SHAP)</Menu.Item>
                 <Menu.Item key="explain-lime" disabled>Explain (XAI LIME)</Menu.Item>
                 <Menu.Divider />
@@ -741,12 +759,10 @@ class PredictPage extends Component {
                 <Menu.Item key="drop-session" disabled={!(validSrc || validDst)}>{`Drop session${validDst ? ` ${dstIp}` : validSrc ? ` ${srcIp}` : ''}`}</Menu.Item>
                 <Menu.Item key="rate-limit-src" disabled={!(validSrc && dport)}>{`Rate-limit source${validSrc && dport ? ` ${srcIp}:${dport}/tcp` : ''}`}</Menu.Item>
                 <Menu.Divider />
-                <Tooltip title={!userRole?.isAdmin ? "Admin access required" : ""} placement="left">
-                  <Menu.Item key="send-nats" disabled={!userRole?.isAdmin}>
-                    Send flow to NATS
-                    {!userRole?.isAdmin && <LockOutlined style={{ marginLeft: 8, fontSize: '11px', color: '#ff4d4f' }} />}
-                  </Menu.Item>
-                </Tooltip>
+                <Menu.Item key="send-nats" disabled={!userRole?.isAdmin}>
+                  Send flow to NATS
+                  {!userRole?.isAdmin && <LockOutlined style={{ marginLeft: 8, fontSize: '11px', color: '#ff4d4f' }} />}
+                </Menu.Item>
               </Menu>
             );
           }
@@ -1310,7 +1326,7 @@ class PredictPage extends Component {
       modelId,
       testingDataset: this.state.testingDataset,
       testingPcapFile: this.state.testingPcapFile,
-      shouldShowResults: ((mode === 'offline' && predictStats && modelId && (this.state.testingDataset || this.state.testingPcapFile)))
+      shouldShowResults: ((mode === 'offline' && predictStats && modelId && this.state.testingPcapFile))
     });
 
     return (
@@ -1382,45 +1398,91 @@ class PredictPage extends Component {
             
             <Row gutter={16} align="top" style={{ marginBottom: 16 }}>
               <Col span={6} style={{ textAlign: 'right', paddingRight: 16 }}>
-                <strong><span style={{ color: 'red' }}>* </span>Dataset:</strong>
+                <strong><span style={{ color: 'red' }}>* </span>PCAP File:</strong>
               </Col>
               <Col span={18}>
-                <Select
-                  placeholder="Select testing MMT reports ..."
-                  showSearch allowClear
-                  style={{ width: '100%', maxWidth: 500, display: 'block' }}
-                  value={this.state.testingDataset}
-                  onChange={(value) => {
-                    // Clear all results when dataset is cleared
-                    if (!value) {
-                      this.setState({ 
-                        testingDataset: null, 
-                        predictStats: null,
-                        attackRows: [],
-                        attackFlowColumns: [],
-                        mitigationColumns: [],
-                        attackCsv: null
-                      });
-                    } else {
-                      this.setState({ testingDataset: value, predictStats: null });
-                    }
-                  }}
-                  options={reportsOptions}
-                  disabled={this.state.testingPcapFile !== null}
-                />
-                <div style={{ maxWidth: '500px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  {this.state.wasUploaded ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Tag color="green" style={{ margin: 0, padding: '4px 12px', fontSize: '14px' }}>
+                        {this.state.testingPcapFile}
+                      </Tag>
+                      <Button 
+                        size="small" 
+                        onClick={() => {
+                          this.setState({
+                            testingPcapFile: null,
+                            testingDataset: null,
+                            wasUploaded: false,
+                            predictStats: null,
+                            attackRows: [],
+                            attackFlowColumns: [],
+                            mitigationColumns: [],
+                            attackCsv: null
+                          });
+                        }}
+                      >
+                        Clear Upload
+                      </Button>
+                    </div>
+                  ) : (
+                    <Select
+                      placeholder="Select a PCAP file..."
+                      value={this.state.testingPcapFile}
+                      onChange={(value) => {
+                        // Clear all results when pcap is cleared
+                        if (!value) {
+                          this.setState({ 
+                            testingPcapFile: null,
+                            testingDataset: null,
+                            wasUploaded: false,
+                            predictStats: null,
+                            attackRows: [],
+                            attackFlowColumns: [],
+                            mitigationColumns: [],
+                            attackCsv: null
+                          });
+                        } else {
+                          // Clear cached report mapping for this PCAP to force fresh analysis
+                          try {
+                            const raw = localStorage.getItem('pcapToReport');
+                            let map = raw ? JSON.parse(raw) : {};
+                            if (map && map[value]) {
+                              delete map[value];
+                              localStorage.setItem('pcapToReport', JSON.stringify(map));
+                            }
+                          } catch (e) {
+                            // ignore
+                          }
+                          this.setState({ 
+                            testingPcapFile: value, 
+                            testingDataset: null, 
+                            wasUploaded: false, 
+                            predictStats: null,
+                            attackRows: [],
+                            attackFlowColumns: [],
+                            mitigationColumns: [],
+                            attackCsv: null
+                          });
+                        }
+                      }}
+                      showSearch allowClear
+                      style={{ width: 280 }}
+                    >
+                      {this.state.pcapFiles.map(file => (
+                        <Select.Option key={file} value={file}>{file}</Select.Option>
+                      ))}
+                    </Select>
+                  )}
                   <Upload
                     beforeUpload={this.beforeUploadPcap}
                     action={`${SERVER_URL}/api/pcaps`}
                     onChange={(info) => this.handleUploadPcap(info)}
                     customRequest={this.processUploadPcap}
-                    onRemove={() => {
-                      this.setState({ testingPcapFile: null });
-                    }}
+                    showUploadList={false}
                   >
-                    <Button icon={<UploadOutlined />} style={{ marginTop: '5px' }}
-                      disabled={!!this.state.testingPcapFile || !!this.state.testingDataset}>
-                      Upload pcaps only
+                    <Button icon={<UploadOutlined />} disabled={!!this.state.testingPcapFile} style={{ width: 212 }}>
+                      Upload PCAP
                     </Button>
                   </Upload>
                 </div>
@@ -1433,7 +1495,7 @@ class PredictPage extends Component {
                 <Button type="primary"
                   icon={<PlayCircleOutlined />}
                   onClick={this.handlePredictOffline}
-                  disabled={ isRunning || !this.state.modelId || !(this.state.testingDataset || this.state.testingPcapFile) }
+                  disabled={ isRunning || !this.state.modelId || !this.state.testingPcapFile }
                   loading={isRunning}
                 >
                   Predict
@@ -1539,7 +1601,7 @@ class PredictPage extends Component {
           <h2 style={{ fontSize: '20px' }}>Prediction Results</h2>
         </Divider>
         
-        { ((mode === 'offline' && predictStats && modelId && (this.state.testingDataset || this.state.testingPcapFile)) || (mode === 'online' && (this.state.hasResultsShown || aggregateNormal > 0 || aggregateMalicious > 0 || lastSliceStats || (this.state.attackRows && this.state.attackRows.length > 0)))) ? (
+        { ((mode === 'offline' && predictStats && modelId && this.state.testingPcapFile) || (mode === 'online' && (this.state.hasResultsShown || aggregateNormal > 0 || aggregateMalicious > 0 || lastSliceStats || (this.state.attackRows && this.state.attackRows.length > 0)))) ? (
           <>
             {/* Flow Statistics - DPI Style */}
             <Card style={{ marginBottom: 24 }}>
@@ -1550,8 +1612,8 @@ class PredictPage extends Component {
                 <Col xs={24} sm={8} md={4}>
                   <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff', minHeight: '92px' }}>
                     <Statistic
-                      title={mode === 'offline' ? (this.state.testingPcapFile ? 'PCAP File' : 'Report') : 'Interface'}
-                      value={mode === 'offline' ? (this.state.testingPcapFile || this.state.testingDataset || 'N/A') : (this.state.interface || 'N/A')}
+                      title={mode === 'offline' ? 'PCAP File' : 'Interface'}
+                      value={mode === 'offline' ? (this.state.testingPcapFile || 'N/A') : (this.state.interface || 'N/A')}
                       valueStyle={{ fontSize: 11, fontWeight: 'bold', color: '#722ed1', wordBreak: 'break-word', whiteSpace: 'normal', lineHeight: '1.3' }}
                       prefix={<FileTextOutlined style={{ color: '#722ed1', fontSize: '14px' }} />}
                     />

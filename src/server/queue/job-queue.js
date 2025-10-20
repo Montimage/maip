@@ -60,12 +60,26 @@ const ruleBasedQueue = new Queue('rule-based-detection', REDIS_URL, {
   }
 });
 
+const xaiQueue = new Queue('xai-explanations', REDIS_URL, {
+  defaultJobOptions: {
+    attempts: 2,
+    backoff: {
+      type: 'exponential',
+      delay: 3000
+    },
+    removeOnComplete: 100,
+    removeOnFail: 50,
+    timeout: 10 * 60 * 1000 // 10 minutes timeout for XAI (can be slow)
+  }
+});
+
 // Configure concurrency (number of parallel workers)
 const CONCURRENCY = {
   featureExtraction: parseInt(process.env.FEATURE_WORKERS) || 3,
   modelTraining: parseInt(process.env.TRAINING_WORKERS) || 2,
   prediction: parseInt(process.env.PREDICTION_WORKERS) || 3,
-  ruleBasedDetection: parseInt(process.env.RULEBASED_WORKERS) || 2
+  ruleBasedDetection: parseInt(process.env.RULEBASED_WORKERS) || 2,
+  xaiExplanations: parseInt(process.env.XAI_WORKERS) || 1  // XAI is CPU intensive, keep it low
 };
 
 /**
@@ -169,6 +183,34 @@ const queueRuleBasedDetection = async (data) => {
 };
 
 /**
+ * Add job to XAI explanations queue (SHAP/LIME)
+ */
+const queueXAI = async (data) => {
+  const { xaiType, modelId } = data;
+  const jobName = `${xaiType}-${modelId}`;
+  
+  const job = await xaiQueue.add(jobName, data, {
+    priority: data.priority || 5,
+    timeout: 10 * 60 * 1000 // 10 minutes timeout for XAI
+  });
+  
+  // Get position - handle both Bull v3 and v4 API
+  let position = 0;
+  try {
+    position = typeof job.getPosition === 'function' ? await job.getPosition() : 0;
+  } catch (e) {
+    position = 0;
+  }
+  
+  return {
+    jobId: job.id,
+    queueName: 'xai-explanations',
+    position: position,
+    estimatedWait: await estimateWaitTime(xaiQueue, job)
+  };
+};
+
+/**
  * Estimate wait time based on queue position and average job duration
  */
 const estimateWaitTime = async (queue, job) => {
@@ -229,7 +271,8 @@ const getJobStatus = async (jobId, queueName) => {
     'feature-extraction': featureQueue,
     'model-training': trainingQueue,
     'prediction': predictionQueue,
-    'rule-based-detection': ruleBasedQueue
+    'rule-based-detection': ruleBasedQueue,
+    'xai-explanations': xaiQueue
   }[queueName];
   
   if (!queue) {
@@ -273,11 +316,12 @@ const getJobStatus = async (jobId, queueName) => {
  * Get queue statistics
  */
 const getQueueStats = async () => {
-  const [featureStats, trainingStats, predictionStats, ruleBasedStats] = await Promise.all([
+  const [featureStats, trainingStats, predictionStats, ruleBasedStats, xaiStats] = await Promise.all([
     featureQueue.getJobCounts(),
     trainingQueue.getJobCounts(),
     predictionQueue.getJobCounts(),
-    ruleBasedQueue.getJobCounts()
+    ruleBasedQueue.getJobCounts(),
+    xaiQueue.getJobCounts()
   ]);
   
   return {
@@ -297,11 +341,15 @@ const getQueueStats = async () => {
       ...ruleBasedStats,
       workers: CONCURRENCY.ruleBasedDetection
     },
+    xaiExplanations: {
+      ...xaiStats,
+      workers: CONCURRENCY.xaiExplanations
+    },
     total: {
-      waiting: (featureStats.waiting || 0) + (trainingStats.waiting || 0) + (predictionStats.waiting || 0) + (ruleBasedStats.waiting || 0),
-      active: (featureStats.active || 0) + (trainingStats.active || 0) + (predictionStats.active || 0) + (ruleBasedStats.active || 0),
-      completed: (featureStats.completed || 0) + (trainingStats.completed || 0) + (predictionStats.completed || 0) + (ruleBasedStats.completed || 0),
-      failed: (featureStats.failed || 0) + (trainingStats.failed || 0) + (predictionStats.failed || 0) + (ruleBasedStats.failed || 0)
+      waiting: (featureStats.waiting || 0) + (trainingStats.waiting || 0) + (predictionStats.waiting || 0) + (ruleBasedStats.waiting || 0) + (xaiStats.waiting || 0),
+      active: (featureStats.active || 0) + (trainingStats.active || 0) + (predictionStats.active || 0) + (ruleBasedStats.active || 0) + (xaiStats.active || 0),
+      completed: (featureStats.completed || 0) + (trainingStats.completed || 0) + (predictionStats.completed || 0) + (ruleBasedStats.completed || 0) + (xaiStats.completed || 0),
+      failed: (featureStats.failed || 0) + (trainingStats.failed || 0) + (predictionStats.failed || 0) + (ruleBasedStats.failed || 0) + (xaiStats.failed || 0)
     }
   };
 };
@@ -314,7 +362,8 @@ const cancelJob = async (jobId, queueName) => {
     'feature-extraction': featureQueue,
     'model-training': trainingQueue,
     'prediction': predictionQueue,
-    'rule-based-detection': ruleBasedQueue
+    'rule-based-detection': ruleBasedQueue,
+    'xai-explanations': xaiQueue
   }[queueName];
   
   if (!queue) {
@@ -344,7 +393,9 @@ const cleanupOldJobs = async (olderThanHours = 24) => {
     predictionQueue.clean(olderThanHours * 60 * 60 * 1000, 'completed'),
     predictionQueue.clean(olderThanHours * 60 * 60 * 1000, 'failed'),
     ruleBasedQueue.clean(olderThanHours * 60 * 60 * 1000, 'completed'),
-    ruleBasedQueue.clean(olderThanHours * 60 * 60 * 1000, 'failed')
+    ruleBasedQueue.clean(olderThanHours * 60 * 60 * 1000, 'failed'),
+    xaiQueue.clean(olderThanHours * 60 * 60 * 1000, 'completed'),
+    xaiQueue.clean(olderThanHours * 60 * 60 * 1000, 'failed')
   ]);
   
   console.log(`[Queue] Cleaned up jobs older than ${olderThanHours} hours`);
@@ -361,12 +412,14 @@ module.exports = {
   trainingQueue,
   predictionQueue,
   ruleBasedQueue,
+  xaiQueue,
   
   // Queue operations
   queueFeatureExtraction,
   queueModelTraining,
   queuePrediction,
   queueRuleBasedDetection,
+  queueXAI,
   
   // Job operations
   getJobStatus,

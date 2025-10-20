@@ -415,26 +415,22 @@ class PredictRuleBasedPage extends Component {
         const natsDisabled = !userRole?.isAdmin;
         const menu = (
           <Menu onClick={({ key }) => key === 'explain-gpt' ? this.onAssistantExplain(row) : handleMitigationAction({ actionKey: key, srcIp, dstIp, isValidIPv4, flowRecord: row })}>
-            <Tooltip title={!userRole?.isSignedIn ? "Sign in required" : userRole?.tokenLimitReached ? "Token limit reached" : ""} placement="left">
-              <Menu.Item key="explain-gpt" disabled={assistantDisabled}>
-                Ask Assistant
-                {assistantDisabled && <LockOutlined style={{ marginLeft: 8, fontSize: '11px', color: '#ff4d4f' }} />}
-              </Menu.Item>
-            </Tooltip>
+            <Menu.Item key="explain-gpt" disabled={assistantDisabled}>
+              Ask Assistant
+              {assistantDisabled && <LockOutlined style={{ marginLeft: 8, fontSize: '11px', color: '#ff4d4f' }} />}
+            </Menu.Item>
             <Menu.Divider />
             <Menu.Item key="block-src-ip" disabled={!validSrc}>{`Block source IP${validSrc ? ` ${srcIp}` : ''}`}</Menu.Item>
             <Menu.Item key="block-dst-ip" disabled={!validDst}>{`Block destination IP${validDst ? ` ${dstIp}` : ''}`}</Menu.Item>
             <Menu.Divider />
-            <Tooltip title={natsDisabled ? "Admin access required" : ""} placement="left">
-              <Menu.Item key="send-nats" disabled={natsDisabled}>
-                Send alert to NATS
-                {natsDisabled && <LockOutlined style={{ marginLeft: 8, fontSize: '11px', color: '#ff4d4f' }} />}
-              </Menu.Item>
-            </Tooltip>
+            <Menu.Item key="send-nats" disabled={natsDisabled}>
+              Send alert to NATS
+              {natsDisabled && <LockOutlined style={{ marginLeft: 8, fontSize: '11px', color: '#ff4d4f' }} />}
+            </Menu.Item>
           </Menu>
         );
         return (
-          <Dropdown overlay={menu} trigger={["click"]} placement="bottomRight" getPopupContainer={() => document.body} overlayStyle={{ zIndex: 2000 }}>
+          <Dropdown overlay={menu} trigger={["click"]} placement="bottomRight">
             <Button size="small">Actions</Button>
           </Dropdown>
         );

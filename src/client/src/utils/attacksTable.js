@@ -112,8 +112,6 @@ export function buildAttackTable({ csvString, onAction, buildMenu, sortColumns =
           overlay={actionsMenu(record)}
           trigger={["click"]}
           placement="bottomRight"
-          getPopupContainer={() => document.body}
-          overlayStyle={{ zIndex: 2000 }}
         >
           <Button size="small">Actions</Button>
         </Dropdown>

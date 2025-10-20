@@ -3,13 +3,89 @@
  * Tracks OpenAI token usage per user and enforces limits
  */
 
+const fs = require('fs');
+const path = require('path');
+
 const TOKEN_LIMITS = {
   admin: Infinity, // No limit for admins
   user: parseInt(process.env.USER_TOKEN_LIMIT) || 50000, // Default 50k tokens per user
 };
 
-// In-memory storage (consider using Redis or database for production)
+// Persistent storage file path
+const STORAGE_FILE = path.join(__dirname, '..', 'data', 'token-usage.json');
+
+// In-memory storage with file persistence
 const userTokenUsage = new Map();
+
+/**
+ * Load token usage from file on startup
+ */
+function loadTokenUsage() {
+  try {
+    // Ensure data directory exists
+    const dataDir = path.dirname(STORAGE_FILE);
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+
+    if (fs.existsSync(STORAGE_FILE)) {
+      const data = fs.readFileSync(STORAGE_FILE, 'utf8');
+      const parsed = JSON.parse(data);
+      
+      // Restore Map from saved data
+      Object.entries(parsed).forEach(([userId, usage]) => {
+        userTokenUsage.set(userId, usage);
+      });
+      
+      console.log(`[TokenLimit] Loaded token usage for ${userTokenUsage.size} users`);
+    } else {
+      console.log('[TokenLimit] No existing token usage file found, starting fresh');
+    }
+  } catch (error) {
+    console.error('[TokenLimit] Error loading token usage:', error.message);
+  }
+}
+
+/**
+ * Save token usage to file
+ */
+function saveTokenUsage() {
+  try {
+    // Convert Map to object for JSON serialization
+    const obj = {};
+    userTokenUsage.forEach((value, key) => {
+      obj[key] = value;
+    });
+    
+    const dataDir = path.dirname(STORAGE_FILE);
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+    
+    fs.writeFileSync(STORAGE_FILE, JSON.stringify(obj, null, 2), 'utf8');
+  } catch (error) {
+    console.error('[TokenLimit] Error saving token usage:', error.message);
+  }
+}
+
+// Load existing data on module initialization
+loadTokenUsage();
+
+// Auto-save every 30 seconds
+setInterval(saveTokenUsage, 30000);
+
+// Save on process exit
+process.on('SIGINT', () => {
+  console.log('[TokenLimit] Saving token usage before exit...');
+  saveTokenUsage();
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  console.log('[TokenLimit] Saving token usage before termination...');
+  saveTokenUsage();
+  process.exit(0);
+});
 
 /**
  * Get current token usage for a user
@@ -44,6 +120,9 @@ function recordTokenUsage(userId, tokens, isAdmin = false) {
   if (usage.history.length > 100) {
     usage.history = usage.history.slice(-100);
   }
+  
+  // Save immediately after recording (debounced by auto-save anyway)
+  saveTokenUsage();
 }
 
 /**
@@ -139,9 +218,11 @@ function resetTokenUsage(req, res) {
   
   if (targetUserId) {
     userTokenUsage.delete(targetUserId);
+    saveTokenUsage(); // Persist the reset
     res.json({ message: `Token usage reset for user ${targetUserId}` });
   } else {
     userTokenUsage.clear();
+    saveTokenUsage(); // Persist the reset
     res.json({ message: 'All token usage reset' });
   }
 }
@@ -154,5 +235,7 @@ module.exports = {
   getUserTokenUsage,
   getTokenStats,
   resetTokenUsage,
+  saveTokenUsage,
+  loadTokenUsage,
   TOKEN_LIMITS
 };
