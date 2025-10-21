@@ -342,8 +342,11 @@ class AttacksPage extends Component {
             bordered={false} 
             style={{ marginBottom: 24 }}
           >
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <strong style={{ fontSize: 16 }}>Attack Summary</strong>
+            <div style={{ marginBottom: 16 }}>
+              <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Attack Summary</h3>
+              <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+                Key metrics showing the attack type, poisoning rate, and number of modified samples
+              </span>
             </div>
             <Row gutter={16}>
               <Col xs={24} sm={24} md={8}>
@@ -389,8 +392,11 @@ class AttacksPage extends Component {
             bordered={false}
             style={{ marginBottom: 24 }}
           >
-            <div style={{ color: '#666', marginBottom: 16, fontSize: '14px' }}>
-              The plot displays the frequency of output labels before and after an attack, represented as percentages. It provides a visual comparison of the distribution of labels in the original and poisoned training datasets.
+            <div style={{ marginBottom: 16 }}>
+              <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Dataset Comparison</h3>
+              <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+                Label distribution comparison before and after attack, shown as percentages
+              </span>
             </div>
             <Row gutter={24}>
               <Col xs={24} lg={16}>

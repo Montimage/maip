@@ -961,6 +961,34 @@ export const getConfigLabelsColumn = (dataLabelsColumn) => {
     seriesField: 'class',
     isPercent: true,
     isStack: true,
+    color: ({ class: className }) => {
+      // Malware/attack classes in red, normal/benign in blue
+      const classLower = String(className).toLowerCase();
+      const isMalware = classLower.includes('malware') || 
+                       classLower.includes('attack') || 
+                       classLower.includes('ddos') ||
+                       classLower.includes('malicious') ||
+                       className === '1';
+      return isMalware ? '#ff4d4f' : '#1890ff';
+    },
+    xAxis: {
+      title: {
+        text: 'Dataset Type',
+        style: {
+          fontSize: 14,
+          fontWeight: 600,
+        },
+      },
+    },
+    yAxis: {
+      title: {
+        text: 'Percentage (%)',
+        style: {
+          fontSize: 14,
+          fontWeight: 600,
+        },
+      },
+    },
     meta: {
       value: {
         min: 0,
