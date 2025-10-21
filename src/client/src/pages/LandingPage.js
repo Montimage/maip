@@ -135,6 +135,7 @@ const LandingPage = () => {
               AI-Powered Network Anomaly Detection with Explainable Intelligence
             </Title>
             <Paragraph className="hero-description" style={{ fontSize: 18, marginTop: 24, maxWidth: 700, margin: '24px auto' }}>
+              Advanced Cybersecurity Analytics Service (ACAS) for AI-based analysis of network events captured by the Montimage Monitoring Tools (MMT). 
               Protect your network infrastructure with advanced machine learning models that detect and respond to 
               network threats and anomalies in real-time. Get early warnings, understand root causes, and automate responses.
             </Paragraph>
@@ -155,7 +156,7 @@ const LandingPage = () => {
               </Button>
               <Button 
                 size="large" 
-                onClick={() => navigate('/predict')}
+                onClick={() => navigate('/predict/offline')}
                 style={{ height: 48, padding: '0 32px', fontSize: 16, background: '#fff', color: '#1890ff', border: '1px solid #1890ff' }}
               >
                 Try Prediction
