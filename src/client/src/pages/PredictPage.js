@@ -139,7 +139,6 @@ class PredictPage extends Component {
   }
 
   componentDidMount() {
-    let modelId = getLastPath();
     const path = getLastPath();
     
     // Determine initial mode from URL (with permission check)
@@ -148,15 +147,21 @@ class PredictPage extends Component {
       if (this.props.canPerformOnlineActions) {
         this.setState({ mode: 'online' });
       } else {
+        // Redirect non-admin users to offline mode
         this.setState({ mode: 'offline' });
+        window.history.replaceState(null, '', '/predict/offline');
         message.warning('Administrator privileges required for online predictions. Switched to offline mode.');
       }
     } else if (path === 'offline') {
       this.setState({ mode: 'offline' });
+    } else if (path === 'predict' || !path) {
+      // Default to offline mode if no specific mode in URL
+      this.setState({ mode: 'offline' });
     }
     
-    if (isModelIdPresent) {
-      this.setState({ modelId });
+    // Only set modelId if path is not a reserved word (online/offline/predict)
+    if (isModelIdPresent && path !== 'online' && path !== 'offline' && path !== 'predict') {
+      this.setState({ modelId: path });
     }
     this.props.fetchApp();
     this.props.fetchAllReports();

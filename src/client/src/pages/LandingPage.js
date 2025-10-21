@@ -156,7 +156,7 @@ const LandingPage = () => {
               </Button>
               <Button 
                 size="large" 
-                onClick={() => navigate('/predict/offline')}
+                onClick={() => navigate('/predict')}
                 style={{ height: 48, padding: '0 32px', fontSize: 16, background: '#fff', color: '#1890ff', border: '1px solid #1890ff' }}
               >
                 Try Prediction
