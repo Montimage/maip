@@ -73,13 +73,46 @@ const xaiQueue = new Queue('xai-explanations', REDIS_URL, {
   }
 });
 
+const attackQueue = new Queue('adversarial-attacks', REDIS_URL, {
+  defaultJobOptions: {
+    attempts: 2,
+    backoff: {
+      type: 'exponential',
+      delay: 5000
+    },
+    removeOnComplete: 50,
+    removeOnFail: 25,
+    timeout: 15 * 60 * 1000 // 15 minutes timeout for attacks (dataset poisoning can be slow)
+  }
+});
+
+const retrainQueue = new Queue('model-retraining', REDIS_URL, {
+  defaultJobOptions: {
+    attempts: 2,
+    backoff: {
+      type: 'exponential',
+      delay: 5000
+    },
+    removeOnComplete: 50,
+    removeOnFail: 25,
+    timeout: 30 * 60 * 1000 // 30 minutes timeout for retraining
+  },
+  settings: {
+    lockDuration: 30 * 60 * 1000, // 30 minutes - job lock duration
+    stalledInterval: 5 * 60 * 1000, // Check for stalled jobs every 5 minutes
+    maxStalledCount: 2 // Allow 2 stalled checks before failing
+  }
+});
+
 // Configure concurrency (number of parallel workers)
 const CONCURRENCY = {
   featureExtraction: parseInt(process.env.FEATURE_WORKERS) || 3,
   modelTraining: parseInt(process.env.TRAINING_WORKERS) || 2,
   prediction: parseInt(process.env.PREDICTION_WORKERS) || 3,
   ruleBasedDetection: parseInt(process.env.RULEBASED_WORKERS) || 2,
-  xaiExplanations: parseInt(process.env.XAI_WORKERS) || 1  // XAI is CPU intensive, keep it low
+  xaiExplanations: parseInt(process.env.XAI_WORKERS) || 1,  // XAI is CPU intensive, keep it low
+  adversarialAttacks: parseInt(process.env.ATTACK_WORKERS) || 2,  // Attacks are CPU/memory intensive
+  modelRetraining: parseInt(process.env.RETRAIN_WORKERS) || 2  // Retraining is very resource intensive
 };
 
 /**
@@ -211,6 +244,66 @@ const queueXAI = async (data) => {
 };
 
 /**
+ * Add job to adversarial attack queue
+ */
+const queueAttack = async (data) => {
+  const { selectedAttack, modelId } = data;
+  const jobName = `${selectedAttack}-${modelId}`;
+  
+  const job = await attackQueue.add(jobName, data, {
+    priority: data.priority || 5,
+    timeout: 15 * 60 * 1000 // 15 minutes timeout for attacks
+  });
+  
+  // Get position - handle both Bull v3 and v4 API
+  let position = 0;
+  try {
+    position = typeof job.getPosition === 'function' ? await job.getPosition() : 0;
+  } catch (e) {
+    position = 0;
+  }
+  
+  return {
+    jobId: job.id,
+    queueName: 'adversarial-attacks',
+    position: position,
+    estimatedWait: await estimateWaitTime(attackQueue, job)
+  };
+};
+
+/**
+ * Add job to model retraining queue (for impact metrics)
+ */
+const queueRetrain = async (data) => {
+  const { modelId, trainingDataset, testingDataset } = data;
+  
+  // Make jobId unique by adding timestamp to avoid reusing old jobs
+  const jobName = `retrain-${modelId}-${trainingDataset}-${Date.now()}`;
+  
+  // First parameter is job TYPE (must match worker), not job name
+  const job = await retrainQueue.add('retrain', data, {
+    jobId: jobName, // Unique ID for easier identification
+    priority: data.priority || 5,
+    timeout: 20 * 60 * 1000 // 20 minutes timeout for retraining
+  });
+  
+  // Get position - handle both Bull v3 and v4 API
+  let position = 0;
+  try {
+    position = typeof job.getPosition === 'function' ? await job.getPosition() : 0;
+  } catch (e) {
+    position = 0;
+  }
+  
+  return {
+    jobId: job.id,
+    queueName: 'model-retraining',
+    position: position,
+    estimatedWait: await estimateWaitTime(retrainQueue, job)
+  };
+};
+
+/**
  * Estimate wait time based on queue position and average job duration
  */
 const estimateWaitTime = async (queue, job) => {
@@ -272,7 +365,9 @@ const getJobStatus = async (jobId, queueName) => {
     'model-training': trainingQueue,
     'prediction': predictionQueue,
     'rule-based-detection': ruleBasedQueue,
-    'xai-explanations': xaiQueue
+    'xai-explanations': xaiQueue,
+    'adversarial-attacks': attackQueue,
+    'model-retraining': retrainQueue
   }[queueName];
   
   if (!queue) {
@@ -316,12 +411,14 @@ const getJobStatus = async (jobId, queueName) => {
  * Get queue statistics
  */
 const getQueueStats = async () => {
-  const [featureStats, trainingStats, predictionStats, ruleBasedStats, xaiStats] = await Promise.all([
+  const [featureStats, trainingStats, predictionStats, ruleBasedStats, xaiStats, attackStats, retrainStats] = await Promise.all([
     featureQueue.getJobCounts(),
     trainingQueue.getJobCounts(),
     predictionQueue.getJobCounts(),
     ruleBasedQueue.getJobCounts(),
-    xaiQueue.getJobCounts()
+    xaiQueue.getJobCounts(),
+    attackQueue.getJobCounts(),
+    retrainQueue.getJobCounts()
   ]);
   
   return {
@@ -345,11 +442,19 @@ const getQueueStats = async () => {
       ...xaiStats,
       workers: CONCURRENCY.xaiExplanations
     },
+    adversarialAttacks: {
+      ...attackStats,
+      workers: CONCURRENCY.adversarialAttacks
+    },
+    modelRetraining: {
+      ...retrainStats,
+      workers: CONCURRENCY.modelRetraining
+    },
     total: {
-      waiting: (featureStats.waiting || 0) + (trainingStats.waiting || 0) + (predictionStats.waiting || 0) + (ruleBasedStats.waiting || 0) + (xaiStats.waiting || 0),
-      active: (featureStats.active || 0) + (trainingStats.active || 0) + (predictionStats.active || 0) + (ruleBasedStats.active || 0) + (xaiStats.active || 0),
-      completed: (featureStats.completed || 0) + (trainingStats.completed || 0) + (predictionStats.completed || 0) + (ruleBasedStats.completed || 0) + (xaiStats.completed || 0),
-      failed: (featureStats.failed || 0) + (trainingStats.failed || 0) + (predictionStats.failed || 0) + (ruleBasedStats.failed || 0) + (xaiStats.failed || 0)
+      waiting: (featureStats.waiting || 0) + (trainingStats.waiting || 0) + (predictionStats.waiting || 0) + (ruleBasedStats.waiting || 0) + (xaiStats.waiting || 0) + (attackStats.waiting || 0) + (retrainStats.waiting || 0),
+      active: (featureStats.active || 0) + (trainingStats.active || 0) + (predictionStats.active || 0) + (ruleBasedStats.active || 0) + (xaiStats.active || 0) + (attackStats.active || 0) + (retrainStats.active || 0),
+      completed: (featureStats.completed || 0) + (trainingStats.completed || 0) + (predictionStats.completed || 0) + (ruleBasedStats.completed || 0) + (xaiStats.completed || 0) + (attackStats.completed || 0) + (retrainStats.completed || 0),
+      failed: (featureStats.failed || 0) + (trainingStats.failed || 0) + (predictionStats.failed || 0) + (ruleBasedStats.failed || 0) + (xaiStats.failed || 0) + (attackStats.failed || 0) + (retrainStats.failed || 0)
     }
   };
 };
@@ -363,7 +468,9 @@ const cancelJob = async (jobId, queueName) => {
     'model-training': trainingQueue,
     'prediction': predictionQueue,
     'rule-based-detection': ruleBasedQueue,
-    'xai-explanations': xaiQueue
+    'xai-explanations': xaiQueue,
+    'adversarial-attacks': attackQueue,
+    'model-retraining': retrainQueue
   }[queueName];
   
   if (!queue) {
@@ -395,7 +502,11 @@ const cleanupOldJobs = async (olderThanHours = 24) => {
     ruleBasedQueue.clean(olderThanHours * 60 * 60 * 1000, 'completed'),
     ruleBasedQueue.clean(olderThanHours * 60 * 60 * 1000, 'failed'),
     xaiQueue.clean(olderThanHours * 60 * 60 * 1000, 'completed'),
-    xaiQueue.clean(olderThanHours * 60 * 60 * 1000, 'failed')
+    xaiQueue.clean(olderThanHours * 60 * 60 * 1000, 'failed'),
+    attackQueue.clean(olderThanHours * 60 * 60 * 1000, 'completed'),
+    attackQueue.clean(olderThanHours * 60 * 60 * 1000, 'failed'),
+    retrainQueue.clean(olderThanHours * 60 * 60 * 1000, 'completed'),
+    retrainQueue.clean(olderThanHours * 60 * 60 * 1000, 'failed')
   ]);
   
   console.log(`[Queue] Cleaned up jobs older than ${olderThanHours} hours`);
@@ -413,6 +524,8 @@ module.exports = {
   predictionQueue,
   ruleBasedQueue,
   xaiQueue,
+  attackQueue,
+  retrainQueue,
   
   // Queue operations
   queueFeatureExtraction,
@@ -420,6 +533,8 @@ module.exports = {
   queuePrediction,
   queueRuleBasedDetection,
   queueXAI,
+  queueAttack,
+  queueRetrain,
   
   // Job operations
   getJobStatus,

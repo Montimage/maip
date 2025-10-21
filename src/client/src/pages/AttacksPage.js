@@ -17,11 +17,13 @@ import {
 import {
   requestViewModelDatasets,
   requestViewPoisonedDatasets,
+  requestQueueAttack,
+  requestAttackJobStatus,
 } from "../api";
 import Papa from "papaparse";
 import { Column } from '@ant-design/plots';
-import { Spin, message, Col, Row, Divider, Slider, Form, Button, Checkbox, Select, Tooltip, Card, Statistic, Space, Alert } from 'antd';
-import { WarningOutlined, ExperimentOutlined, PercentageOutlined, PlayCircleOutlined } from "@ant-design/icons";
+import { Spin, notification, Col, Row, Divider, Slider, Form, Button, Checkbox, Select, Tooltip, Card, Statistic, Space, Alert } from 'antd';
+import { WarningOutlined, ExperimentOutlined, PercentageOutlined, PlayCircleOutlined, LineChartOutlined } from "@ant-design/icons";
 import {
   FORM_LAYOUT, BOX_STYLE,
   ATTACK_OPTIONS, ATTACKS_SLIDER_MARKS, 
@@ -38,11 +40,15 @@ class AttacksPage extends Component {
       modelId: null,
       csvDataOriginal: [],
       csvDataPoisoned: [],
-      poisoningRate: 50,
+      poisoningRate: 10,
       selectedAttack: null,
       targetClass: null,
       checkboxValues: [],
       isRunning: false,
+      currentJobId: null,
+      jobStatus: null,
+      queuePosition: null,
+      progress: 0,
     };
     this.handleTargetClass = this.handleTargetClass.bind(this);
   }
@@ -64,7 +70,12 @@ class AttacksPage extends Component {
     const { modelId } = this.state;
     let targetClass = null;
     if (checkedValues.length > 1) {
-      message.error('You can only select one option');
+      notification.error({
+        message: 'Invalid Selection',
+        description: 'You can only select one option',
+        placement: 'topRight',
+        duration: 4,
+      });
       this.setState({ targetClass: null, checkboxValues: [] });
     } else {
       if (checkedValues.length === 1) {
@@ -75,7 +86,12 @@ class AttacksPage extends Component {
         if (targetClasses.length > 0) {
             targetClass = parseInt(targetClasses[0]);
         } else {
-            message.error(`Invalid option for ${isACModel(modelId) ? 'AC' : 'AD'} model`);
+            notification.error({
+              message: 'Invalid Option',
+              description: `Invalid option for ${isACModel(modelId) ? 'AC' : 'AD'} model`,
+              placement: 'topRight',
+              duration: 4,
+            });
         }
       }
       this.setState({ targetClass, checkboxValues: checkedValues });
@@ -116,7 +132,7 @@ class AttacksPage extends Component {
       }
     }
 
-    if (prevState.modelId !== this.state.modelId) {
+    if (prevState.modelId !== this.state.modelId && modelId) {
       try {
         const csvDataString = await requestViewModelDatasets(modelId, datasetType);
     
@@ -146,11 +162,111 @@ class AttacksPage extends Component {
   async handlePerformAttackClick(modelId, selectedAttack, poisoningRate, targetClass) {
     const { isRunning } = this.state;
     if (!isRunning) {
-      this.setState({ isRunning: true });        
-      this.props.fetchPerformAttack(modelId, selectedAttack, poisoningRate, targetClass);
-      this.intervalId = setInterval(() => { // start interval when button is clicked
-        this.props.fetchAttacksStatus();
-      }, 1000);
+      // Clear previous results
+      this.setState({ 
+        isRunning: true, 
+        progress: 0, 
+        queuePosition: null, 
+        jobStatus: 'queuing',
+        csvDataPoisoned: [] // Clear previous attack results
+      });
+      
+      try {
+        // Queue the attack
+        const queueResponse = await requestQueueAttack(modelId, selectedAttack, poisoningRate, targetClass);
+        const { jobId, position, estimatedTime } = queueResponse;
+        
+        console.log(`Attack queued: jobId=${jobId}, position=${position}, estimated=${estimatedTime}s`);
+        
+        this.setState({
+          currentJobId: jobId,
+          queuePosition: position,
+          jobStatus: 'queued',
+        });
+        
+        if (position > 1) {
+          notification.info({
+            message: 'Attack Queued',
+            description: `Your attack is #${position} in queue. Estimated wait: ${estimatedTime}s`,
+            placement: 'topRight',
+            duration: 4,
+          });
+        }
+        
+        // Poll job status
+        this.intervalId = setInterval(async () => {
+          try {
+            const jobStatus = await requestAttackJobStatus(this.state.currentJobId);
+            console.log('Attack job status:', jobStatus.status, 'Progress:', jobStatus.progress, '%');
+            
+            this.setState({
+              jobStatus: jobStatus.status,
+              progress: jobStatus.progress || 0,
+              queuePosition: jobStatus.queuePosition,
+            });
+            
+            if (jobStatus.status === 'completed') {
+              clearInterval(this.intervalId);
+              this.intervalId = null;
+              
+              // Load results - use state values to ensure they're current
+              console.log('Loading poisoned dataset...');
+              const currentModelId = this.state.modelId;
+              const currentAttack = this.state.selectedAttack;
+              
+              this.setState({ 
+                isRunning: false, 
+                progress: 100,
+                jobStatus: 'completed',
+                queuePosition: null,
+              });
+              
+              notification.success({
+                message: 'Attack Completed',
+                description: `${currentAttack.toUpperCase()} attack completed successfully for model ${currentModelId}`,
+                placement: 'topRight',
+                duration: 5,
+              });
+              
+              if (currentModelId && currentAttack) {
+                await this.fetchCSVPoisonedDataset(currentModelId, currentAttack);
+              }
+              
+            } else if (jobStatus.status === 'failed') {
+              clearInterval(this.intervalId);
+              this.intervalId = null;
+              this.setState({ 
+                isRunning: false,
+                jobStatus: 'failed',
+                queuePosition: null,
+              });
+              console.error('Attack failed:', jobStatus.failedReason);
+              notification.error({
+                message: 'Attack Failed',
+                description: jobStatus.failedReason || 'Unknown error occurred',
+                placement: 'topRight',
+                duration: 6,
+              });
+            }
+          } catch (error) {
+            console.error('Error polling attack job status:', error);
+            // Don't stop polling on transient errors
+          }
+        }, 5000); // Poll every 5 seconds
+        
+      } catch (error) {
+        console.error('Error queueing attack:', error);
+        this.setState({ 
+          isRunning: false,
+          jobStatus: 'failed',
+        });
+        notification.error({
+          message: 'Failed to Queue Attack',
+          description: error.message,
+          placement: 'topRight',
+          duration: 6,
+        });
+      }
     }
   }
 
@@ -215,6 +331,9 @@ class AttacksPage extends Component {
       selectedAttack,
       targetClass,
       isRunning,
+      jobStatus,
+      queuePosition,
+      progress,
     } = this.state;
     const {
       app,
@@ -313,10 +432,9 @@ class AttacksPage extends Component {
               />
             </Form.Item>
             
-            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '16px', marginTop: 24 }}>
               <Button 
                 type="primary"
-                icon={<PlayCircleOutlined />}
                 loading={isRunning}
                 onClick={() => {
                   console.log({ modelId, selectedAttack, poisoningRate, targetClass });
@@ -326,6 +444,16 @@ class AttacksPage extends Component {
                   (this.state.selectedAttack === 'tlf' && this.state.targetClass === null) }
               >
                 Perform Attack
+              </Button>
+              
+              <Button
+                type="primary"
+                onClick={() => {
+                  window.location.href = `/metrics/resilience/${modelId}?attack_type=${selectedAttack}`;
+                }}
+                disabled={!csvDataPoisoned || csvDataPoisoned.length === 0}
+              >
+                Compute Impact
               </Button>
             </div>
           </Form>
@@ -338,17 +466,11 @@ class AttacksPage extends Component {
         {csvDataPoisoned && csvDataPoisoned.length > 0 && (
           <>
             {/* Attack Summary Statistics */}
-            <Card 
-            bordered={false} 
-            style={{ marginBottom: 24 }}
-          >
-            <div style={{ marginBottom: 16 }}>
-              <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Attack Summary</h3>
-              <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
-                Key metrics showing the attack type, poisoning rate, and number of modified samples
-              </span>
-            </div>
-            <Row gutter={16}>
+            <Card style={{ marginBottom: 24 }}>
+              <div style={{ textAlign: 'center', marginBottom: 12 }}>
+                <strong style={{ fontSize: 16 }}>Attack Summary</strong>
+              </div>
+              <Row gutter={16}>
               <Col xs={24} sm={24} md={8}>
                 <Card hoverable style={{ textAlign: 'center' }}>
                   <Statistic
@@ -384,44 +506,38 @@ class AttacksPage extends Component {
                   />
                 </Card>
               </Col>
-            </Row>
-          </Card>
+              </Row>
+            </Card>
 
-          {/* Dataset Comparison */}
-          <Card
-            bordered={false}
-            style={{ marginBottom: 24 }}
-          >
-            <div style={{ marginBottom: 16 }}>
-              <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Dataset Comparison</h3>
-              <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
-                Label distribution comparison before and after attack, shown as percentages
-              </span>
-            </div>
-            <Row gutter={24}>
-              <Col xs={24} lg={16}>
-                <div style={{ padding: '20px' }}>
-                  <Column {...configLabelsColumn} />
-                </div>
-              </Col>
-              <Col xs={24} lg={8}>
-                <Space direction="vertical" size="large" style={{ width: '100%' }}>
-                  <Alert
-                    message="Dataset Statistics"
-                    description={
-                      <div>
-                        <p><strong>Original Dataset:</strong> {csvDataOriginal.length} samples</p>
-                        <p><strong>Poisoned Dataset:</strong> {csvDataPoisoned.length} samples</p>
-                        <p><strong>Modified Samples:</strong> {Math.round(csvDataOriginal.length * (poisoningRate / 100))} samples</p>
-                      </div>
-                    }
-                    type="info"
-                    showIcon
-                  />
-                </Space>
-              </Col>
-            </Row>
-          </Card>
+            {/* Dataset Comparison */}
+            <Card style={{ marginBottom: 24 }}>
+              <div style={{ textAlign: 'center', marginBottom: 12 }}>
+                <strong style={{ fontSize: 16 }}>Dataset Comparison</strong>
+              </div>
+              <Row gutter={24}>
+                <Col xs={24} lg={16}>
+                  <div style={{ padding: '20px' }}>
+                    <Column {...configLabelsColumn} />
+                  </div>
+                </Col>
+                <Col xs={24} lg={8}>
+                  <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                    <Alert
+                      message="Dataset Statistics"
+                      description={
+                        <div>
+                          <p><strong>Original Dataset:</strong> {csvDataOriginal.length} samples</p>
+                          <p><strong>Poisoned Dataset:</strong> {csvDataPoisoned.length} samples</p>
+                          <p><strong>Modified Samples:</strong> {Math.round(csvDataOriginal.length * (poisoningRate / 100))} samples</p>
+                        </div>
+                      }
+                      type="info"
+                      showIcon
+                    />
+                  </Space>
+                </Col>
+              </Row>
+            </Card>
           </>
         )}
       </LayoutPage>

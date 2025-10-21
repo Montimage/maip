@@ -11,6 +11,7 @@ const {
   queueFeatureExtraction,
   queueModelTraining,
   queuePrediction,
+  queueAttack,
   getJobStatus,
   cancelJob,
   getQueueStats
@@ -124,6 +125,45 @@ router.post('/prediction', async (req, res) => {
     
   } catch (error) {
     console.error('[Queue API] Prediction error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @route POST /api/queue/attack
+ * @desc Queue an adversarial attack job
+ * @body { modelId, selectedAttack, poisoningRate, targetClass, priority }
+ */
+router.post('/attack', async (req, res) => {
+  try {
+    const { modelId, selectedAttack, poisoningRate, targetClass, priority } = req.body;
+    
+    if (!modelId || !selectedAttack || poisoningRate === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: modelId, selectedAttack, poisoningRate'
+      });
+    }
+    
+    const result = await queueAttack({
+      modelId,
+      selectedAttack,
+      poisoningRate,
+      targetClass,
+      priority: priority || 5
+    });
+    
+    res.json({
+      success: true,
+      message: 'Attack job queued',
+      ...result
+    });
+    
+  } catch (error) {
+    console.error('[Queue API] Attack queueing error:', error);
     res.status(500).json({
       success: false,
       message: error.message

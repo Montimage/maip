@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
-import { Select, Col, Row, Button, Card, Statistic, Divider } from 'antd';
+import { Select, Col, Row, Button, Card, Statistic, Divider, message } from 'antd';
 import { Heatmap } from '@ant-design/plots';
 import {
   requestApp,
@@ -51,6 +51,8 @@ class ResilienceMetricsPage extends Component {
       attacksPredictions: [],
       attacksConfusionMatrix: null,
       isRunning: false,
+      currentJobId: null,  // For queue-based retraining
+      retrainId: null,     // Result from completed retrain
     }
   }
 
@@ -64,7 +66,26 @@ class ResilienceMetricsPage extends Component {
       console.log(buildConfig);
       const attacksDatasets = await requestAttacksDatasets(modelId);
       console.log(attacksDatasets);
-      this.setState({ buildConfig, attacksDatasets });
+      
+      // Check for attack_type parameter in URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const attackType = urlParams.get('attack_type');
+      
+      if (attackType) {
+        const attackDatasetMap = {
+          'rsl': 'rsl_poisoned_dataset.csv',
+          'tlf': 'tlf_poisoned_dataset.csv',
+          'ctgan': 'ctgan_poisoned_dataset.csv'
+        };
+        const dataset = attackDatasetMap[attackType];
+        if (dataset && attacksDatasets && attacksDatasets.includes(dataset)) {
+          this.setState({ buildConfig, attacksDatasets, selectedAttack: dataset });
+        } else {
+          this.setState({ buildConfig, attacksDatasets });
+        }
+      } else {
+        this.setState({ buildConfig, attacksDatasets });
+      }
     }
     this.props.fetchAllModels();
   }
@@ -91,7 +112,27 @@ class ResilienceMetricsPage extends Component {
       this.props.fetchModel(modelId);
       this.loadPredictions();
       const buildConfig = await requestBuildConfigModel(modelId);
-      this.setState({ buildConfig });
+      const attacksDatasets = await requestAttacksDatasets(modelId);
+      
+      // Check for attack_type parameter in URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const attackType = urlParams.get('attack_type');
+      
+      if (attackType) {
+        const attackDatasetMap = {
+          'rsl': 'rsl_poisoned_dataset.csv',
+          'tlf': 'tlf_poisoned_dataset.csv',
+          'ctgan': 'ctgan_poisoned_dataset.csv'
+        };
+        const dataset = attackDatasetMap[attackType];
+        if (dataset && attacksDatasets && attacksDatasets.includes(dataset)) {
+          this.setState({ buildConfig, attacksDatasets, selectedAttack: dataset });
+        } else {
+          this.setState({ buildConfig, attacksDatasets });
+        }
+      } else {
+        this.setState({ buildConfig, attacksDatasets });
+      }
       console.log(buildConfig);
     }
 
@@ -132,6 +173,40 @@ class ResilienceMetricsPage extends Component {
     });
   }
 
+  async loadRetrainedResults(retrainId, attackName) {
+    try {
+      const { requestRetrainedPredictions } = require('../api');
+      const predictionsValues = await requestRetrainedPredictions(retrainId);
+      
+      if (!predictionsValues || predictionsValues.trim() === '') {
+        throw new Error('No prediction data received');
+      }
+      
+      const predictions = predictionsValues.split('\n')
+        .filter(line => line.trim() !== '')
+        .map((d) => ({
+          prediction: parseFloat(d.split(',')[0]),
+          trueLabel: parseInt(d.split(',')[1]),
+        }));
+      
+      this.setState({ attacksPredictions: predictions });
+      const attCM = updateConfusionMatrix(this.props.app, predictions, this.state.cutoffProb);
+      
+      this.setState({
+        stats: attCM.stats,
+        attacksConfusionMatrix: attCM.confusionMatrix,
+        classificationData: attCM.classificationData,
+        selectedAttack: attackName
+      });
+      
+      message.success('Impact metrics computed successfully!');
+      
+    } catch (error) {
+      console.error('Error loading retrained results:', error);
+      message.error('Failed to load impact metrics: ' + error.message);
+    }
+  }
+
   async loadPredictions() {
     const { modelId, cutoffProb } = this.state;
 
@@ -167,24 +242,79 @@ class ResilienceMetricsPage extends Component {
 
     if (!isRunning) {
       this.setState({ isRunning: true });
-      console.log("update isRunning state!");
+      console.log("Starting queue-based retrain for impact metric computation");
 
-      if (isACApp(app)) {
-        this.props.fetchRetrainModelAC(
-          modelId, trainingDataset, testingDataset,
+      try {
+        const { requestRetrainOfflineQueued, requestRetrainJobStatus } = require('../api');
+        
+        let params = {};
+        if (!isACApp(app) && buildConfig) {
+          try {
+            const transformedBuildConfig = removeCsvPath(JSON.parse(buildConfig));
+            params = transformedBuildConfig.training_parameters || {};
+          } catch (e) {
+            params = {
+              nb_epoch_cnn: 50,
+              nb_epoch_sae: 50,
+              batch_size_cnn: 32,
+              batch_size_sae: 32
+            };
+          }
+        }
+        
+        // Queue the retrain job
+        const queueResponse = await requestRetrainOfflineQueued(
+          modelId, 
+          trainingDataset, 
+          testingDataset, 
+          params,
+          isACApp(app)
         );
-      } else {
-        const transformedBuildConfig = removeCsvPath(JSON.parse(buildConfig));
-        const { training_parameters } = transformedBuildConfig;
-        console.log(training_parameters);
-        this.props.fetchRetrainModel(
-          modelId, trainingDataset, testingDataset, training_parameters,
-        );
+        this.setState({ 
+          currentJobId: queueResponse.jobId,
+        });
+        
+        // Poll job status
+        this.intervalId = setInterval(async () => {
+          try {
+            const jobStatus = await requestRetrainJobStatus(this.state.currentJobId);
+            
+            if (jobStatus.status === 'completed') {
+              clearInterval(this.intervalId);
+              this.intervalId = null;
+              const retrainId = jobStatus.result?.retrainId;
+              
+              this.setState({ 
+                isRunning: false,
+                retrainId 
+              });
+              
+              message.success('Model retraining completed! Loading impact metrics...');
+              
+              // Load the confusion matrix from the retrained model
+              if (retrainId) {
+                this.loadRetrainedResults(retrainId, selectedAttack);
+              } else {
+                message.error('Failed to load retrain results: No retrainId found');
+              }
+              
+            } else if (jobStatus.status === 'failed') {
+              clearInterval(this.intervalId);
+              this.intervalId = null;
+              this.setState({ isRunning: false });
+              console.error('Retrain failed:', jobStatus.failedReason);
+              message.error('Retrain failed: ' + jobStatus.failedReason);
+            }
+          } catch (error) {
+            console.error('Error polling retrain job status:', error);
+          }
+        }, 5000); // Poll every 5 seconds
+        
+      } catch (error) {
+        console.error('Error starting retrain:', error);
+        this.setState({ isRunning: false });
+        message.error('Failed to start retrain: ' + error.message);
       }
-
-      this.intervalId = setInterval(() => {
-        isACApp(app) ? this.props.fetchRetrainStatusAC() : this.props.fetchRetrainStatus();
-      }, 3000);
     }
   }
 
@@ -270,6 +400,7 @@ class ResilienceMetricsPage extends Component {
                 allowClear
                 showSearch
                 placeholder="Select an attack ..."
+                disabled={new URLSearchParams(window.location.search).has('attack_type')}
                 onChange={value => {
                   if (value) {
                     this.setState({ selectedAttack: value });
@@ -309,7 +440,7 @@ class ResilienceMetricsPage extends Component {
                   <Col span={6}>
                     <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
                       <Statistic 
-                        title="Δ Accuracy" 
+                        title="Accuracy Drop" 
                         value={impact} 
                         precision={2} 
                         suffix="%" 

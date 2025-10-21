@@ -44,7 +44,7 @@ class XAIShapPage extends Component {
     this.state = {
       modelId: null,
       label: getLabelsListAppXAI(this.props.app)[1],
-      numberBackgroundSamples: 20,
+      numberBackgroundSamples: 10,
       numberExplainedSamples: 10,
       maxDisplay: 10,
       positiveChecked: true,
@@ -157,7 +157,7 @@ class XAIShapPage extends Component {
       this.setState({
         modelId: null,
         label: defaultLabel,
-        numberBackgroundSamples: 20,
+        numberBackgroundSamples: 10,
         numberExplainedSamples: 10,
         maxDisplay: 10,
         positiveChecked: true,

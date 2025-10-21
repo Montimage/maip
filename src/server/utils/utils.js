@@ -152,11 +152,13 @@ function replaceCommas(str) {
 
 /**
  * Replace , with ; of a csv file to better display
+ * Handles quoted fields properly to avoid breaking commas inside quotes
  */
 function replaceDelimiterInCsv(inputFilePath, outputFilePath) {
   const inputCsv = fs.readFileSync(inputFilePath, 'utf-8');
   const rows = inputCsv.split('\n');
-  const updatedRows = [replaceCommas(rows[0])].concat(rows.slice(1).map(row => row.replace(/,/g, ';')));
+  // Use replaceCommas for ALL rows to handle quoted fields properly
+  const updatedRows = rows.map(row => replaceCommas(row));
   const outputCsv = updatedRows.join('\n');
   fs.writeFileSync(outputFilePath, outputCsv, 'utf-8');
 }

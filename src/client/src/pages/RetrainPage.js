@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
 import { connect } from "react-redux";
-import { Row, Col, Card, Divider, Spin, Tooltip, Button, InputNumber, Form, Select, Statistic } from 'antd';
+import { Row, Col, Card, Divider, Spin, Tooltip, Button, InputNumber, Form, Select, Statistic, notification } from 'antd';
 import {
   requestApp,
   requestAllModels,
@@ -46,6 +46,9 @@ class RetrainPage extends Component {
         batch_size_sae: 16,
       },
       isRunning: isRunningApp(this.props.app, this.props.retrainACStatus, this.props.retrainStatus),
+      currentJobId: null,  // For queue-based retraining
+      retrainId: null,     // Result from completed retrain
+      retrainResult: null, // Full result data from retrain job
     };
     this.handleInputChange = this.handleInputChange.bind(this);
     this.handleButtonRetrain = this.handleButtonRetrain.bind(this);
@@ -71,46 +74,102 @@ class RetrainPage extends Component {
     this.props.fetchApp();
   }
 
-  handleButtonRetrain() {
+  async handleButtonRetrain() {
     const { modelId, trainingDataset, testingDataset, trainingParameters, isRunning } = this.state;
-    
-    console.log(isRunning);
-    console.log(this.props.app);
 
     if (!isRunning) {
       const fetchModelId = isModelIdPresent ? getLastPath() : modelId;
       
-      this.setState({ isRunning: true });     
-      // TODO: after changing the app, fetch status is not called even retraining model works   
-      this.intervalId = setInterval(() => { 
-        isACApp(this.props.app) ? this.props.fetchRetrainStatusAC() : this.props.fetchRetrainStatus();
-      }, 1000);
-      
-      // const retrainConfig = isACApp(this.props.app) ? 
-      //   { retrainConfig: { modelId: fetchModelId, datasetsConfig: { trainingDataset, testingDataset } } } :
-      //   { retrainConfig: { modelId: fetchModelId, trainingDataset, testingDataset, training_parameters: trainingParameters } };
-      // console.log(retrainConfig);
-      
-      isACApp(this.props.app) ? 
-        this.props.fetchRetrainModelAC(modelId, trainingDataset, testingDataset) :
-        this.props.fetchRetrainModel(modelId, trainingDataset, testingDataset, trainingParameters);
+      // Clear previous results and start new retrain
+      this.setState({ 
+        isRunning: true,
+        retrainResult: null,
+        retrainId: null
+      });
+
+      try {
+        const { requestRetrainOfflineQueued, requestRetrainJobStatus } = require('../api');
+        
+        // Queue the retrain job
+        const queueResponse = await requestRetrainOfflineQueued(
+          fetchModelId, 
+          trainingDataset, 
+          testingDataset, 
+          trainingParameters,
+          isACApp(this.props.app)
+        );
+        
+        this.setState({ 
+          currentJobId: queueResponse.jobId,
+        });
+        
+        notification.success({
+          message: 'Retrain Job Queued',
+          description: 'Model retraining has been queued successfully. You will be notified when it completes.',
+          placement: 'topRight',
+          duration: 4,
+        });
+        
+        // Poll job status
+        this.intervalId = setInterval(async () => {
+          try {
+            const jobStatus = await requestRetrainJobStatus(this.state.currentJobId);
+            
+            if (jobStatus.status === 'completed') {
+              clearInterval(this.intervalId);
+              this.intervalId = null;
+              this.setState({ 
+                isRunning: false,
+                retrainId: jobStatus.result?.retrainId,
+                retrainResult: jobStatus.result
+              });
+              
+              notification.success({
+                message: 'Retrain Completed',
+                description: `Model retrained successfully! View the results below.`,
+                placement: 'topRight',
+                duration: 6,
+              });
+              
+            } else if (jobStatus.status === 'failed') {
+              clearInterval(this.intervalId);
+              this.intervalId = null;
+              this.setState({ isRunning: false });
+              
+              notification.error({
+                message: 'Retrain Failed',
+                description: jobStatus.failedReason || 'Unknown error occurred',
+                placement: 'topRight',
+                duration: 6,
+              });
+            }
+          } catch (error) {
+            console.error('Error polling retrain job status:', error);
+          }
+        }, 5000); // Poll every 5 seconds
+        
+      } catch (error) {
+        console.error('Error starting retrain:', error);
+        this.setState({ isRunning: false });
+        notification.error({
+          message: 'Failed to Queue Retrain',
+          description: error.message,
+          placement: 'topRight',
+          duration: 6,
+        });
+      }
+    }
+  }
+
+  componentWillUnmount() {
+    // Clean up polling interval
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
     }
   }
 
   componentDidUpdate(prevProps) {
-    const isRunningProp = isACApp(this.props.app) ? 
-                            this.props.retrainACStatus.isRunning : 
-                            this.props.retrainStatus.isRunning;
-    
-    if ((prevProps.retrainStatus.isRunning !== isRunningProp || 
-        prevProps.retrainACStatus.isRunning !== isRunningProp) &&
-        this.state.isRunning !== isRunningProp) {
-      this.setState({ isRunning: isRunningProp });
-      if (!isRunningProp) {
-        clearInterval(this.intervalId);
-      }
-    }
-
+    // Clear state when app changes (e.g., switching between AD and AC)
     if (prevProps.app !== this.props.app) {
       clearInterval(this.intervalId);
       this.setState({ 
@@ -160,7 +219,8 @@ class RetrainPage extends Component {
       `Retrain the model ${modelId} using different datasets and hyperparameters` : 
       'Retrain models using different datasets and hyperparameters';
 
-    const isRunningNow = isRunningApp(this.props.app, this.props.retrainACStatus, this.props.retrainStatus);
+    // Use queue-based isRunning state
+    const isRunningNow = this.state.isRunning;
     const isReady = this.state.modelId && this.state.trainingDataset && this.state.testingDataset;
 
     return (
@@ -385,6 +445,69 @@ class RetrainPage extends Component {
             </Col>
           </Row>
         </Card>
+
+        {this.state.retrainResult && (
+          <>
+            <Divider orientation="left">
+              <h2 style={{ fontSize: '20px' }}>Retrain Results</h2>
+            </Divider>
+            
+            <Card style={{ marginBottom: 24 }}>
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Statistic
+                    title="Retrain ID"
+                    value={this.state.retrainId}
+                    valueStyle={{ fontSize: '14px', color: '#1890ff' }}
+                  />
+                </Col>
+                <Col span={8}>
+                  <Statistic
+                    title="Model"
+                    value={this.state.modelId}
+                    valueStyle={{ fontSize: '16px', color: '#722ed1' }}
+                  />
+                </Col>
+                <Col span={8}>
+                  <Statistic
+                    title="Status"
+                    value="Completed"
+                    valueStyle={{ fontSize: '16px', color: '#52c41a' }}
+                  />
+                </Col>
+              </Row>
+
+              <Divider />
+
+              <Row gutter={16}>
+                <Col span={24}>
+                  <p style={{ marginBottom: 16, color: '#595959' }}>
+                    The retrained model has been saved and is ready for evaluation. 
+                    Since retrained models are not automatically added to the model list, 
+                    you can view their accountability metrics directly using the button below.
+                  </p>
+                  <Button
+                    type="primary"
+                    size="large"
+                    onClick={() => {
+                      window.location.href = `/metrics/accountability/${this.state.retrainId}`;
+                    }}
+                  >
+                    View Accountability Metrics
+                  </Button>
+                  <Button
+                    style={{ marginLeft: 16 }}
+                    onClick={() => {
+                      window.open(`/metrics/resilience/${this.state.modelId}`, '_blank');
+                    }}
+                  >
+                    Compare with Original Model
+                  </Button>
+                </Col>
+              </Row>
+            </Card>
+          </>
+        )}
       </LayoutPage>
     );
   }

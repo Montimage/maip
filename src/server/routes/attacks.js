@@ -175,19 +175,25 @@ router.get('/poisoning/:typeAttack/:modelId/view', (req, res, next) => {
 
   const poisonedDatasetPath = `${ATTACKS_PATH}${modelId.replace('.h5', '')}/${typeAttack}_poisoned_dataset.csv`;
   const poisonedDatasetToViewPath = `${ATTACKS_PATH}${modelId.replace('.h5', '')}/${typeAttack}_poisoned_dataset_view.csv`;
-  replaceDelimiterInCsv(poisonedDatasetPath, poisonedDatasetToViewPath);
-  console.log(poisonedDatasetPath);
-
-  isFileExist(poisonedDatasetToViewPath, (ret) => {
-    if (!ret) {
-      res.status(401).send(`The poisoned training dataset of model ${modelId} does not exist`);
-    } else {
-      res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', `attachment; filename="${poisonedDatasetToViewPath}"`);
-      const fileStream = fs.createReadStream(poisonedDatasetToViewPath);
-      fileStream.pipe(res);
+  
+  if (!fs.existsSync(poisonedDatasetPath)) {
+    return res.status(404).send(`The poisoned dataset of model ${modelId} does not exist`);
+  }
+  
+  try {
+    replaceDelimiterInCsv(poisonedDatasetPath, poisonedDatasetToViewPath);
+    
+    if (!fs.existsSync(poisonedDatasetToViewPath)) {
+      return res.status(500).send('Failed to create view file');
     }
-  });
+    
+    const fileContent = fs.readFileSync(poisonedDatasetToViewPath, 'utf-8');
+    res.setHeader('Content-Type', 'text/csv');
+    res.send(fileContent);
+  } catch (error) {
+    console.error(`[Attacks] Error processing poisoned dataset:`, error);
+    res.status(500).send(`Error processing dataset: ${error.message}`);
+  }
 });
 
 

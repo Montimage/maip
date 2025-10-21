@@ -5,7 +5,7 @@
  * Just import existing functions and call them from workers
  */
 
-const { featureQueue, trainingQueue, predictionQueue, ruleBasedQueue, xaiQueue } = require('./job-queue');
+const { featureQueue, trainingQueue, predictionQueue, ruleBasedQueue, xaiQueue, attackQueue, retrainQueue } = require('./job-queue');
 const path = require('path');
 const fs = require('fs');
 
@@ -19,10 +19,17 @@ const {
   MODEL_PATH,
   PREDICTION_PATH,
   LOG_PATH,
+  TRAINING_PATH,
+  ATTACKS_PATH,
 } = require('../constants');
-const { listFilesByTypeAsync } = require('../utils/file-utils');
-const { spawnCommand } = require('../utils/utils');
+const { listFilesByTypeAsync, createFolderSync, writeTextFile, isFileExistSync } = require('../utils/file-utils');
+const { spawnCommand, getUniqueId } = require('../utils/utils');
 const { startMMTOffline, getMMTStatus } = require('../mmt/mmt-connector');
+const {
+  performPoisoningCTGAN,
+  performPoisoningRSL,
+  performPoisoningTLF,
+} = require('../deep-learning/attacks-connector');
 
 // Configuration
 const CONCURRENCY = {
@@ -30,7 +37,9 @@ const CONCURRENCY = {
   modelTraining: parseInt(process.env.TRAINING_WORKERS) || 2,
   prediction: parseInt(process.env.PREDICTION_WORKERS) || 3,
   ruleBasedDetection: parseInt(process.env.RULEBASED_WORKERS) || 2,
-  xaiExplanations: parseInt(process.env.XAI_WORKERS) || 1  // XAI is CPU intensive
+  xaiExplanations: parseInt(process.env.XAI_WORKERS) || 1,  // XAI is CPU intensive
+  adversarialAttacks: parseInt(process.env.ATTACK_WORKERS) || 2,  // Attacks are CPU/memory intensive
+  modelRetraining: parseInt(process.env.RETRAIN_WORKERS) || 2  // Retraining is very resource intensive
 };
 
 /**
@@ -787,6 +796,241 @@ xaiQueue.on('completed', (job, result) => {
 
 xaiQueue.on('failed', (job, err) => {
   console.error(`[Queue] XAI job ${job.id} failed:`, err.message);
+});
+
+/**
+ * Adversarial Attack Worker
+ * 
+ * Wraps existing attack code from deep-learning/attacks-connector.js
+ */
+attackQueue.process('*', CONCURRENCY.adversarialAttacks, async (job) => {
+  const { modelId, selectedAttack, poisoningRate, targetClass } = job.data;
+  
+  console.log(`[Worker] Processing ${selectedAttack} attack job ${job.id} for model ${modelId}`);
+  
+  try {
+    await job.progress(10);
+    
+    return new Promise((resolve, reject) => {
+      const executeAttack = (callback) => {
+        switch (selectedAttack) {
+          case 'ctgan':
+            const ctganConfig = {
+              poisoningAttacksConfig: {
+                modelId,
+                poisoningRate,
+              },
+            };
+            performPoisoningCTGAN(ctganConfig, callback);
+            break;
+          case 'rsl':
+            const rslConfig = {
+              poisoningAttacksConfig: {
+                modelId,
+                poisoningRate,
+              },
+            };
+            performPoisoningRSL(rslConfig, callback);
+            break;
+          case 'tlf':
+            const tlfConfig = {
+              poisoningAttacksConfig: {
+                modelId,
+                poisoningRate,
+              },
+              targetClass,
+            };
+            performPoisoningTLF(tlfConfig, callback);
+            break;
+          default:
+            callback({ error: `Unknown attack type: ${selectedAttack}` });
+        }
+      };
+      
+      executeAttack(async (result) => {
+        if (result.error) {
+          return reject(new Error(`Attack failed: ${result.error}`));
+        }
+        
+        await job.progress(100);
+        
+        console.log(`[Worker] ${selectedAttack} attack job ${job.id} completed for model ${modelId}`);
+        
+        resolve({
+          success: true,
+          selectedAttack,
+          modelId,
+          poisoningRate,
+          result,
+          message: `${selectedAttack.toUpperCase()} attack completed successfully`
+        });
+      });
+      
+      // Update progress periodically while running
+      const progressInterval = setInterval(async () => {
+        const currentProgress = await job.progress();
+        if (currentProgress < 90) {
+          await job.progress(currentProgress + 10);
+        } else {
+          clearInterval(progressInterval);
+        }
+      }, 5000);
+    });
+    
+  } catch (error) {
+    console.error(`[Worker] ${selectedAttack} attack job ${job.id} failed:`, error);
+    throw error;
+  }
+});
+
+attackQueue.on('completed', (job, result) => {
+  console.log(`[Queue] Attack job ${job.id} completed:`, result.selectedAttack);
+});
+
+attackQueue.on('failed', (job, err) => {
+  console.error(`[Queue] Attack job ${job.id} failed:`, err.message);
+});
+
+/**
+ * Model Retraining Worker (for Impact Metrics)
+ * 
+ * Wraps existing retraining code from deep-learning-connector.js
+ */
+retrainQueue.process('retrain', CONCURRENCY.modelRetraining, async (job) => {
+  const { modelId, trainingDataset, testingDataset, training_parameters, isACApp } = job.data;
+  
+  console.log(`[Worker] Processing retrain job ${job.id} for model ${modelId}`);
+  
+  try {
+    await job.progress(10);
+    
+    const retrainId = getUniqueId();
+    const retrainPath = path.join(TRAINING_PATH, retrainId, '/');
+    
+    // Create retrain directory
+    if (!fs.existsSync(retrainPath)) {
+      fs.mkdirSync(retrainPath, { recursive: true });
+    }
+    
+    // Save retrain config
+    const retrainConfig = {
+      modelId,
+      trainingDataset,
+      testingDataset,
+      training_parameters
+    };
+    
+    const retrainConfigPath = path.join(retrainPath, 'retrain-config.json');
+    fs.writeFileSync(retrainConfigPath, JSON.stringify(retrainConfig, null, 2), 'utf8');
+    
+    await job.progress(20);
+    
+    // Locate training and testing datasets
+    const attacksPath = path.join(ATTACKS_PATH, modelId.replace('.h5', ''), '/');
+    const trainingPath = path.join(TRAINING_PATH, modelId.replace('.h5', ''), 'datasets', '/');
+    
+    let trainingDatasetFile = null;
+    let testingDatasetFile = null;
+    
+    // Find training dataset (check attacks path first, then training path)
+    if (fs.existsSync(path.join(attacksPath, trainingDataset))) {
+      trainingDatasetFile = path.join(attacksPath, trainingDataset);
+    } else if (fs.existsSync(path.join(trainingPath, trainingDataset))) {
+      trainingDatasetFile = path.join(trainingPath, trainingDataset);
+    } else {
+      throw new Error(`Training dataset not found: ${trainingDataset}`);
+    }
+    
+    // Find testing dataset
+    if (fs.existsSync(path.join(trainingPath, testingDataset))) {
+      testingDatasetFile = path.join(trainingPath, testingDataset);
+    } else {
+      throw new Error(`Testing dataset not found: ${testingDataset}`);
+    }
+    
+    await job.progress(30);
+    
+    // Spawn Python retraining process
+    const { spawn } = require('child_process');
+    const logFile = path.join(retrainPath, `retrain_${retrainId}.log`);
+    
+    const retrainScript = path.join(DEEP_LEARNING_PATH, 'retrain.py');
+    
+    // Python script expects: train_data test_data result_path nb_epoch_cnn nb_epoch_sae batch_size_cnn batch_size_sae
+    const args = [
+      retrainScript,
+      trainingDatasetFile,
+      testingDatasetFile,
+      retrainPath,  // result/output path (NOT model path!)
+      training_parameters.nb_epoch_cnn || '50',
+      training_parameters.nb_epoch_sae || '50',
+      training_parameters.batch_size_cnn || '32',
+      training_parameters.batch_size_sae || '32'
+    ];
+    
+    await job.progress(40);
+    
+    const pythonProcess = spawn(PYTHON_CMD, args);
+    
+    let stdout = '';
+    let stderr = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      const output = data.toString();
+      stdout += output;
+      // Parse progress from Python output
+      const match = output.match(/Epoch\s+(\d+)\/(\d+)/i);
+      if (match) {
+        const current = parseInt(match[1]);
+        const total = parseInt(match[2]);
+        const progress = Math.min(40 + (current / total) * 55, 95);
+        job.progress(Math.floor(progress));
+      }
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    await new Promise((resolve, reject) => {
+      pythonProcess.on('close', (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`Retraining failed with code ${code}: ${stderr || 'No error details'}`));
+        }
+      });
+      
+      pythonProcess.on('error', (err) => {
+        reject(new Error(`Failed to start retrain process: ${err.message}`));
+      });
+    });
+    
+    await job.progress(100);
+    console.log(`[Worker] Retrain completed for job ${job.id}, retrain ID: ${retrainId}`);
+    
+    return {
+      success: true,
+      retrainId,
+      modelId,
+      retrainPath,
+      confusionMatrixFile: path.join(retrainPath, 'confusion_matrix.csv'),
+      metricsFile: path.join(retrainPath, 'metrics.json'),
+      message: 'Model retraining completed successfully'
+    };
+    
+  } catch (error) {
+    console.error(`[Worker] Retrain failed for job ${job.id}:`, error);
+    throw error;
+  }
+});
+
+retrainQueue.on('completed', (job, result) => {
+  console.log(`[Queue] Retrain job ${job.id} completed for model ${result.modelId}`);
+});
+
+retrainQueue.on('failed', (job, err) => {
+  console.error(`[Queue] Retrain job ${job.id} failed:`, err.message);
 });
 
 console.log('[Workers] Started with concurrency:', CONCURRENCY);

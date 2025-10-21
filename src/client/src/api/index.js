@@ -453,6 +453,56 @@ export const requestRetrainModel = async (modelId, trainingDataset, testingDatas
   return data;
 };
 
+export const requestRetrainOfflineQueued = async (modelId, trainingDataset, testingDataset, params, isACApp = false) => {
+  const url = `${SERVER_URL}/api/retrain/offline`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ 
+      modelId, 
+      trainingDataset, 
+      testingDataset, 
+      training_parameters: params,
+      isACApp,
+      useQueue: true 
+    })
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    try {
+      const errorData = JSON.parse(errorText);
+      throw new Error(errorData.message || errorData.error || errorText);
+    } catch (e) {
+      throw new Error(errorText);
+    }
+  }
+  return response.json();
+};
+
+export const requestRetrainJobStatus = async (jobId) => {
+  const url = `${SERVER_URL}/api/retrain/job/${jobId}`;
+  const response = await fetch(url, {
+    headers: {
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache'
+    },
+    cache: 'no-store'  // Force fresh fetch, no cache
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to get retrain job status: ${response.statusText}`);
+  }
+  return response.json();
+};
+
+export const requestRetrainedPredictions = async (retrainId) => {
+  const url = `${SERVER_URL}/api/retrain/predictions/${retrainId}`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to get retrained predictions: ${response.statusText}`);
+  }
+  return response.text();
+};
+
 export const requestMetricCurrentness = async (modelId) => {
   const url = `${SERVER_URL}/api/metrics/${modelId}/currentness`;
   const response = await fetch(url, {
@@ -541,6 +591,60 @@ export const requestPerformAttack = async (modelId, selectedAttack, poisoningRat
   const data = await response.json();
   console.log(`Perform attack ${selectedAttack} against the model ${modelId} on server`);
   return data;
+};
+
+// Queue-based attack API functions
+export const requestQueueAttack = async (modelId, selectedAttack, poisoningRate, targetClass) => {
+  const url = `${SERVER_URL}/api/queue/attack`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      modelId,
+      selectedAttack,
+      poisoningRate,
+      targetClass,
+      priority: 5, // Default priority
+    }),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to queue attack');
+  }
+  
+  const data = await response.json();
+  console.log(`Queued attack ${selectedAttack} for model ${modelId}, jobId: ${data.jobId}`);
+  
+  // Transform response to match expected format
+  return {
+    jobId: data.jobId,
+    position: data.position,
+    estimatedTime: data.estimatedWait?.seconds || 60,
+  };
+};
+
+export const requestAttackJobStatus = async (jobId) => {
+  const url = `${SERVER_URL}/api/queue/status/adversarial-attacks/${jobId}`;
+  const response = await fetch(url);
+  
+  if (!response.ok) {
+    throw new Error(`Failed to fetch attack job status for ${jobId}`);
+  }
+  
+  const data = await response.json();
+  
+  // Transform response to match expected format
+  return {
+    jobId: data.jobId,
+    status: data.status || data.state,  // Backend returns 'status', fallback to 'state'
+    progress: data.progress || 0,
+    queuePosition: data.position,
+    result: data.result,
+    failedReason: data.failedReason,
+  };
 };
 
 export const requestPredictStatus = async () => {
