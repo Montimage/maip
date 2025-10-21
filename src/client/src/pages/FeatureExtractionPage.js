@@ -63,7 +63,7 @@ class FeatureExtractionPage extends Component {
               if (result && result.csvContent) {
                 // Restore the features data
                 const csvText = result.csvContent;
-                const { rows, flowColumns } = buildAttackTable({ csvString: csvText, sortColumns: true });
+                const { rows, flowColumns } = buildAttackTable({ csvString: csvText, sortColumns: false });
                 
                 // Detect label choice based on presence of malware column
                 let detectedLabelChoice = 'none';
@@ -349,14 +349,7 @@ class FeatureExtractionPage extends Component {
     return Object.keys(rows[0]).map((key) => ({
       title: key,
       dataIndex: key,
-      sorter: (a, b) => {
-        const av = parseFloat(a[key]);
-        const bv = parseFloat(b[key]);
-        if (!isNaN(av) && !isNaN(bv)) return av - bv;
-        const as = (a[key] || '').toString();
-        const bs = (b[key] || '').toString();
-        return as.localeCompare(bs);
-      },
+      // Removed sorter to keep columns in correct order without sorting
     }));
   };
 

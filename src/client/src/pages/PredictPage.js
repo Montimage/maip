@@ -871,7 +871,13 @@ class PredictPage extends Component {
       const predictionId = this.props.predictStatus?.lastPredictedId || '';
       if (modelId && sessionId) {
         const qp = new URLSearchParams({ sampleId: String(sessionId) });
-        if (predictionId) qp.set('predictionId', predictionId);
+        // Always set predictionId or a flag to indicate this is from prediction context (not test dataset)
+        if (predictionId) {
+          qp.set('predictionId', predictionId);
+        } else {
+          // Use a flag to indicate this is from prediction flow (no ground truth available)
+          qp.set('fromPrediction', 'true');
+        }
         const base = key === 'explain-lime' ? '/xai/lime/' : '/xai/shap/';
         const target = `${base}${encodeURIComponent(modelId)}?${qp.toString()}`;
         window.location.href = target;
@@ -1202,8 +1208,6 @@ class PredictPage extends Component {
 
       const srcIpCounts = {};
       const dstIpCounts = {};
-      const dstPortCounts = {};
-      const protocolCounts = {};
 
       console.log('[Top Sources] Analyzing', attackRows.length, 'malicious flows');
       
@@ -1228,16 +1232,9 @@ class PredictPage extends Component {
           }
         }
         
-        // Extract ports from feature columns (dport_g, dport_le are part of the 83 features)
-        // Note: For online mode, port extraction may not be meaningful as features are aggregated
-        const dportG = row['dport_g'];
-        const dportLe = row['dport_le'];
-        const sportG = row['sport_g'];
-        const sportLe = row['sport_le'];
-        
         // Log first few extractions
         if (idx < 3) {
-          console.log(`[Top Sources] Row ${idx}:`, { srcIp, dstIp, dportG, dportLe, sportG, sportLe });
+          console.log(`[Top Sources] Row ${idx}:`, { srcIp, dstIp });
         }
         
         // Count source IPs
@@ -1249,43 +1246,13 @@ class PredictPage extends Component {
         if (dstIp && this.isValidIPv4(dstIp)) {
           dstIpCounts[dstIp] = (dstIpCounts[dstIp] || 0) + 1;
         }
-        
-        // Count destination ports - try both columns
-        [dportG, dportLe].forEach(dport => {
-          if (dport) {
-            const portNum = parseFloat(dport);
-            if (!isNaN(portNum) && portNum > 0 && portNum <= 65535 && portNum === Math.floor(portNum)) {
-              const portStr = String(Math.floor(portNum));
-              dstPortCounts[portStr] = (dstPortCounts[portStr] || 0) + 1;
-            }
-          }
-        });
-        
-        // Extract protocols from multiple possible columns
-        Object.keys(row).forEach(key => {
-          const keyLower = key.toLowerCase();
-          // Look for protocol-related columns
-          if ((keyLower.includes('proto') || keyLower.includes('protocol') || 
-               keyLower === 'l4' || keyLower === 'l7') && 
-              !key.startsWith('_')) {
-            const proto = row[key];
-            if (proto && String(proto).trim() !== '' && String(proto).trim() !== '0') {
-              const protoStr = String(proto).trim();
-              protocolCounts[protoStr] = (protocolCounts[protoStr] || 0) + 1;
-            }
-          }
-        });
       });
 
       console.log('[Top Sources] Found:', {
         srcIPs: Object.keys(srcIpCounts).length,
-        dstIPs: Object.keys(dstIpCounts).length,
-        ports: Object.keys(dstPortCounts).length,
-        protocols: Object.keys(protocolCounts).length
+        dstIPs: Object.keys(dstIpCounts).length
       });
       console.log('[Top Sources] srcIpCounts:', srcIpCounts);
-      console.log('[Top Sources] dstPortCounts:', dstPortCounts);
-      console.log('[Top Sources] protocolCounts:', protocolCounts);
 
       // Convert to sorted arrays (top 10)
       const topSrcIPs = Object.entries(srcIpCounts)
@@ -1301,20 +1268,8 @@ class PredictPage extends Component {
             .map(([ip, count]) => ({ name: ip, value: count }))
         : [];
 
-      const topDstPorts = Object.entries(dstPortCounts)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 10)
-        .map(([port, count]) => ({ name: `Port ${port}`, value: count }));
-
-      const topProtocols = Object.entries(protocolCounts)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 10)
-        .map(([proto, count]) => ({ name: proto, value: count }));
-
       const result = { 
-        topSrcIPs: topSrcIPs.length > 0 ? topSrcIPs : topDstIPs, 
-        topDstPorts, 
-        topProtocols 
+        topSrcIPs: topSrcIPs.length > 0 ? topSrcIPs : topDstIPs
       };
       
       console.log('[Top Sources] Final result:', result);
@@ -1750,68 +1705,6 @@ class PredictPage extends Component {
                     onChange={(pagination) => onSyncPaginate(pagination)}
                   />
                 </Card>
-              </>
-            )}
-            
-            {/* Additional Attack Analysis */}
-            {topSourcesData && (topSourcesData.topDstPorts.length > 0 || topSourcesData.topProtocols.length > 0) && (
-              <>
-                <Divider orientation="left">
-                  <h2 style={{ fontSize: '20px' }}>Attack Pattern Analysis</h2>
-                </Divider>
-                <Row gutter={16} style={{ marginBottom: 24 }}>
-                  {topSourcesData.topDstPorts.length > 0 && (
-                    <Col xs={24} lg={topSourcesData.topProtocols.length > 0 ? 12 : 24}>
-                      <Card>
-                        <div style={{ marginBottom: 16 }}>
-                          <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Top Destination Ports</h3>
-                          <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
-                            Most frequently targeted ports in malicious flows
-                          </span>
-                        </div>
-                        <Bar
-                          data={topSourcesData.topDstPorts}
-                          xField="value"
-                          yField="name"
-                          seriesField="name"
-                          legend={false}
-                          color="#fa8c16"
-                          label={{
-                            position: 'right',
-                            formatter: (datum) => datum.value,
-                          }}
-                          height={Math.max(topSourcesData.topDstPorts.length * 40, 280)}
-                        />
-                      </Card>
-                    </Col>
-                  )}
-                  
-                  {topSourcesData.topProtocols.length > 0 && (
-                    <Col xs={24} lg={topSourcesData.topDstPorts.length > 0 ? 12 : 24}>
-                      <Card>
-                        <div style={{ marginBottom: 16 }}>
-                          <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Top Protocols</h3>
-                          <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
-                            Protocols most frequently exploited in attacks
-                          </span>
-                        </div>
-                        <Bar
-                          data={topSourcesData.topProtocols}
-                          xField="value"
-                          yField="name"
-                          seriesField="name"
-                          legend={false}
-                          color="#722ed1"
-                          label={{
-                            position: 'right',
-                            formatter: (datum) => datum.value,
-                          }}
-                          height={Math.max(topSourcesData.topProtocols.length * 40, 280)}
-                        />
-                      </Card>
-                    </Col>
-                  )}
-                </Row>
               </>
             )}
             

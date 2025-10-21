@@ -399,7 +399,10 @@ class XAILimePage extends Component {
         label: label,
       }));
 
-    const isFlowBased = !!(new URLSearchParams(window.location.search).get('predictionId'));
+    // Check if this is from prediction context (either has predictionId or fromPrediction flag)
+    const urlParams = new URLSearchParams(window.location.search);
+    const isFlowBased = !!(urlParams.get('predictionId') || urlParams.get('fromPrediction'));
+    
     let sampleTrueLabel = "";
     if (!isFlowBased && predictions && Number.isInteger(sampleId) && sampleId >= 0) {
       sampleTrueLabel = getTrueLabel(modelId, predictions, sampleId);

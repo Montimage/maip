@@ -5,10 +5,12 @@ export function getFlowParams() {
   const params = new URLSearchParams(window.location.search);
   const sampleId = params.get('sampleId');
   const predictionId = params.get('predictionId');
+  const fromPrediction = params.get('fromPrediction');
   return {
-    isFlowBased: !!predictionId,
+    isFlowBased: !!(predictionId || fromPrediction),
     predictionId,
     sampleId,
+    fromPrediction,
   };
 }
 

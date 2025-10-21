@@ -288,7 +288,8 @@ class XAIShapPage extends Component {
 
     const modelsOptions = getFilteredModelsOptions(app, models);
     const params = new URLSearchParams(window.location.search);
-    const isFlowBased = !!params.get('predictionId');
+    // Check if this is from prediction context (either has predictionId or fromPrediction flag)
+    const isFlowBased = !!(params.get('predictionId') || params.get('fromPrediction'));
     const sampleIdParam = params.get('sampleId');
     const features = isModelIdPresent ?
                       getFilteredFeaturesModel(modelId) : getFilteredFeatures(app);
