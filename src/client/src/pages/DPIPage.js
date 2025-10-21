@@ -2636,11 +2636,6 @@ class DPIPage extends Component {
                             sessionId: null,
                             lastUpdate: null,
                           });
-                          notification.info({
-                            message: 'Upload Cleared',
-                            description: 'Switched back to PCAP file selection mode.',
-                            placement: 'topRight',
-                          });
                         }}
                       >
                         Clear Upload
