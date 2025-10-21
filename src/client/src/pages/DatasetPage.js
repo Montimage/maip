@@ -217,7 +217,13 @@ class DatasetPage extends Component {
         </Card>
 
         {/* Feature Charts */}
-        <FeatureCharts data={csvData} scatterConfigBuilder={scatterBuilder} showSectionTitle={false} />
+        <FeatureCharts 
+          data={csvData} 
+          scatterConfigBuilder={scatterBuilder} 
+          showSectionTitle={false}
+          barFeatureOptions={categoricalFeatures}
+          restrictBarToOptionsOnly={true}
+        />
         
       </LayoutPage>
     );

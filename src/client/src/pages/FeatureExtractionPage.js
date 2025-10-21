@@ -635,8 +635,10 @@ class FeatureExtractionPage extends Component {
                   Download Features CSV
                 </Button>
               </Tooltip>
-              <Tooltip title="Stream all flows to NATS in chunks">
-                <Button icon={<SendOutlined />} disabled={!this.state.featuresFileName || !this.state.featuresSessionId}
+              <Tooltip title={!this.props.userRole?.isAdmin ? "Admin access required" : "Stream all flows to NATS in chunks"}>
+                <Button 
+                  icon={!this.props.userRole?.isAdmin ? <LockOutlined /> : <SendOutlined />} 
+                  disabled={!this.state.featuresFileName || !this.state.featuresSessionId || !this.props.userRole?.isAdmin}
                   onClick={this.sendFeaturesToNatsStreaming}>
                   Send all to NATS
                 </Button>
@@ -678,12 +680,13 @@ class FeatureExtractionPage extends Component {
 const ConnectedFeatureExtractionPage = connect(() => ({}), () => ({}))(FeatureExtractionPage);
 
 const FeatureExtractionPageWithRole = (props) => {
-  const { isSignedIn, isLoaded } = useUserRole();
+  const userRole = useUserRole();
   return (
     <ConnectedFeatureExtractionPage
       {...props}
-      isSignedIn={isSignedIn}
-      isAuthLoaded={isLoaded}
+      userRole={userRole}
+      isSignedIn={userRole.isSignedIn}
+      isAuthLoaded={userRole.isLoaded}
     />
   );
 };
