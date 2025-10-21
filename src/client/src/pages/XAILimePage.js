@@ -413,6 +413,18 @@ class XAILimePage extends Component {
       data: pieData,
       angleField: 'value',
       colorField: 'type',
+      color: ({ type }) => {
+        // Check if the type indicates malware/attack (case-insensitive)
+        const typeLower = String(type).toLowerCase();
+        const isMalware = typeLower.includes('malware') || 
+                         typeLower.includes('attack') || 
+                         typeLower.includes('ddos') ||
+                         typeLower.includes('malicious') ||
+                         type === '1';
+        const color = isMalware ? '#ff4d4f' : '#1890ff';
+        console.log('[Pie Color]', { type, typeLower, isMalware, color });
+        return color;
+      },
       radius: 1,
       label: {
         type: 'inner',
@@ -525,7 +537,7 @@ class XAILimePage extends Component {
               <Form.Item label="id" name="id" noStyle>
                 <Tooltip title="Select a sample to be explained.">
                   {/* TODO: get errors if remove the number on form */}
-                  <InputNumber min={1} defaultValue={5}
+                  <InputNumber min={1} defaultValue={6}
                     value={this.state.sampleId}
                     onChange={v => this.setState({
                       sampleId: v,
@@ -626,13 +638,19 @@ class XAILimePage extends Component {
                   Model's predicted probabilities for normal and malicious traffic classes
                 </span>
               </div>
-              {!isFlowBased && sampleTrueLabel && (
-                <div style={{ marginBottom: 12, padding: '8px 12px', backgroundColor: '#f0f5ff', borderRadius: '4px', border: '1px solid #d6e4ff' }}>
-                  <Typography.Text style={{ fontSize: '13px', color: '#1890ff' }}>
-                    <strong>Ground Truth:</strong> {sampleTrueLabel}
-                  </Typography.Text>
-                </div>
-              )}
+              {!isFlowBased && sampleTrueLabel && (() => {
+                const isMalware = sampleTrueLabel.toLowerCase().includes('malware') || sampleTrueLabel === '1';
+                const bgColor = isMalware ? '#fff1f0' : '#f0f5ff';
+                const borderColor = isMalware ? '#ffccc7' : '#d6e4ff';
+                const textColor = isMalware ? '#ff4d4f' : '#1890ff';
+                return (
+                  <div style={{ marginBottom: 12, padding: '8px 12px', backgroundColor: bgColor, borderRadius: '4px', border: `1px solid ${borderColor}` }}>
+                    <Typography.Text style={{ fontSize: '13px', color: textColor }}>
+                      <strong>Ground Truth:</strong> {sampleTrueLabel}
+                    </Typography.Text>
+                  </div>
+                );
+              })()}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 {pieConfig && (
                   <>

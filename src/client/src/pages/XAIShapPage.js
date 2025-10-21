@@ -404,7 +404,7 @@ class XAIShapPage extends Component {
                 <div style={{ display: 'inline-flex' }}>
                   <Form.Item label="bg" name="bg" noStyle>
                     <Tooltip title="Select number of samples used for producing explanations (maximum is the length of the training dataset).">
-                      <InputNumber min={1} defaultValue={20}
+                      <InputNumber min={1} defaultValue={10}
                         value={this.state.numberBackgroundSamples}
                         onChange={v => this.setState({
                           numberBackgroundSamples: v,

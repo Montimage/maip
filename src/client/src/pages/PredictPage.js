@@ -103,27 +103,49 @@ class PredictPage extends Component {
   // Extract flow details (IPs, ports, rates, sessionId) from a record
   computeFlowDetails = (record) => {
     const keyList = Object.keys(record).filter(k => k !== 'key');
-    const findKey = (patterns) => keyList.find(k => patterns.some(p => p.test(k)));
-    const srcKey = findKey([
-      /src.*ip/i, /source.*ip/i, /^ip[_-]?src$/i, /^src[_-]?ip$/i, /(src|source).*addr/i, /^saddr$/i
-    ]);
-    const dstKey = findKey([
-      /dst.*ip/i, /dest.*ip/i, /destination.*ip/i, /^ip[_-]?dst$/i, /^dst[_-]?ip$/i, /(dst|dest|destination).*addr/i, /^daddr$/i
-    ]);
-    const combinedIpKey = (!srcKey && !dstKey) ? findKey([/^ip$/i, /ip.*pair/i, /ip.*addr/i, /address/i]) : null;
-    const deriveIps = (rec) => {
-      if (!combinedIpKey) return { srcIp: null, dstIp: null };
-      const text = String(rec[combinedIpKey] || '');
-      const ipv4s = text.match(/(?:\d{1,3}\.){3}\d{1,3}/g) || [];
-      return { srcIp: ipv4s[0] || null, dstIp: ipv4s[1] || null };
-    };
-    const derived = deriveIps(record);
-    const srcIp = srcKey ? record[srcKey] : (derived?.srcIp || null);
-    const dstIp = dstKey ? record[dstKey] : (derived?.dstIp || null);
+    
+    // First try to extract IPs from ip.pkts_per_flow column (format: "['ip1', 'ip2']")
+    let srcIp = null;
+    let dstIp = null;
+    const pktsPerFlow = record['ip.pkts_per_flow'];
+    if (pktsPerFlow && typeof pktsPerFlow === 'string') {
+      const matches = pktsPerFlow.match(/\['([^']+)',\s*'([^']+)'\]/);
+      if (matches && matches.length === 3) {
+        srcIp = matches[1];
+        dstIp = matches[2];
+      }
+    }
+    
+    // Fallback: Try to find separate IP columns if not found in ip.pkts_per_flow
+    if (!srcIp || !dstIp) {
+      const findKey = (patterns) => keyList.find(k => patterns.some(p => p.test(k)));
+      const srcKey = findKey([
+        /src.*ip/i, /source.*ip/i, /^ip[_-]?src$/i, /^src[_-]?ip$/i, /(src|source).*addr/i, /^saddr$/i
+      ]);
+      const dstKey = findKey([
+        /dst.*ip/i, /dest.*ip/i, /destination.*ip/i, /^ip[_-]?dst$/i, /^dst[_-]?ip$/i, /(dst|dest|destination).*addr/i, /^daddr$/i
+      ]);
+      const combinedIpKey = (!srcKey && !dstKey) ? findKey([/^ip$/i, /ip.*pair/i, /ip.*addr/i, /address/i]) : null;
+      
+      if (srcKey && !srcIp) srcIp = record[srcKey];
+      if (dstKey && !dstIp) dstIp = record[dstKey];
+      
+      // Try extracting from combined IP key
+      if (combinedIpKey && (!srcIp || !dstIp)) {
+        const text = String(record[combinedIpKey] || '');
+        const ipv4s = text.match(/(?:\d{1,3}\.){3}\d{1,3}/g) || [];
+        if (!srcIp) srcIp = ipv4s[0] || null;
+        if (!dstIp) dstIp = ipv4s[1] || null;
+      }
+    }
+    
     const sessionId = record['ip.session_id'] || record['session_id'] || null;
     const dport = record['dport_g'] ?? record['dport_le'] ?? record['dport'] ?? null;
     const pktsRate = record['pkts_rate'] ?? null;
     const byteRate = record['byte_rate'] ?? null;
+    
+    console.log('[computeFlowDetails]', { srcIp, dstIp, dport, pktsPerFlow: pktsPerFlow?.substring(0, 50) });
+    
     return { srcIp, dstIp, sessionId, dport, pktsRate, byteRate };
   }
 
@@ -136,6 +158,15 @@ class PredictPage extends Component {
       const n = Number(o);
       return n >= 0 && n <= 255 && String(n) === String(Number(o));
     });
+  }
+
+  // Validate port number (1-65535, integer)
+  isValidPort(port) {
+    if (port === null || port === undefined) return false;
+    const portNum = Number(port);
+    if (isNaN(portNum)) return false;
+    // Must be integer between 1 and 65535
+    return portNum >= 1 && portNum <= 65535 && portNum === Math.floor(portNum);
   }
 
   componentDidMount() {
@@ -473,6 +504,7 @@ class PredictPage extends Component {
                           const { srcIp, dstIp, dport } = this.computeFlowDetails(record);
                           const validSrc = this.isValidIPv4(srcIp);
                           const validDst = this.isValidIPv4(dstIp);
+                          const validPort = this.isValidPort(dport);
                           const { userRole } = this.props;
                           const assistantDisabled = !userRole?.isSignedIn || userRole?.tokenLimitReached;
                           return (
@@ -490,13 +522,17 @@ class PredictPage extends Component {
                               <Menu.Item key="block-dst-ip" disabled={!validDst}>
                                 {`Block destination IP${validDst ? ` ${dstIp}` : ''}`}
                               </Menu.Item>
-                              <Menu.Divider />
-                              <Menu.Item key="block-dst-port" disabled={!dport}>
-                                {`Block destination port${dport ? ` ${dport}/tcp` : ''}`}
-                              </Menu.Item>
+                              {validPort && (
+                                <>
+                                  <Menu.Divider />
+                                  <Menu.Item key="block-dst-port">
+                                    {`Block destination port ${dport}/tcp`}
+                                  </Menu.Item>
+                                </>
+                              )}
                               <Menu.Divider />
                               <Menu.Item key="drop-session" disabled={!(validSrc || validDst)}>
-                                {`Drop session${validDst ? ` ${dstIp}` : validSrc ? ` ${srcIp}` : ''}`}
+                                {`Drop session${validSrc ? ` ${srcIp}` : validDst ? ` ${dstIp}` : ''}`}
                               </Menu.Item>
                               <Menu.Divider />
                               <Menu.Item key="send-nats" disabled={!userRole?.isAdmin}>
@@ -652,6 +688,7 @@ class PredictPage extends Component {
                   const { srcIp, dstIp, dport } = this.computeFlowDetails(record);
                   const validSrc = this.isValidIPv4(srcIp);
                   const validDst = this.isValidIPv4(dstIp);
+                  const validPort = this.isValidPort(dport);
                   const { userRole } = this.props;
                   const assistantDisabled = !userRole?.isSignedIn || userRole?.tokenLimitReached;
                   const natsDisabled = !userRole?.isAdmin;
@@ -670,23 +707,33 @@ class PredictPage extends Component {
                       <Menu.Item key="block-dst-ip" disabled={!validDst}>
                         {`Block destination IP${validDst ? ` ${dstIp}` : ''}`}
                       </Menu.Item>
-                      <Menu.Divider />
-                      <Menu.Item key="block-dst-port" disabled={!dport}>
-                        {`Block destination port${dport ? ` ${dport}/tcp` : ''}`}
-                      </Menu.Item>
-                      <Menu.Item key="block-ip-port-src" disabled={!(validSrc && dport)}>
-                        {`Block${validSrc && dport ? ` ${srcIp}:${dport}/tcp` : ' srcIP:dstPort/tcp'}`}
-                      </Menu.Item>
-                      <Menu.Item key="block-ip-port-dst" disabled={!(validDst && dport)}>
-                        {`Block${validDst && dport ? ` ${dstIp}:${dport}/tcp` : ' dstIP:dstPort/tcp'}`}
-                      </Menu.Item>
+                      {validPort && (
+                        <>
+                          <Menu.Divider />
+                          <Menu.Item key="block-dst-port">
+                            {`Block destination port ${dport}/tcp`}
+                          </Menu.Item>
+                          {validSrc && (
+                            <Menu.Item key="block-ip-port-src">
+                              {`Block ${srcIp}:${dport}/tcp`}
+                            </Menu.Item>
+                          )}
+                          {validDst && (
+                            <Menu.Item key="block-ip-port-dst">
+                              {`Block ${dstIp}:${dport}/tcp`}
+                            </Menu.Item>
+                          )}
+                        </>
+                      )}
                       <Menu.Divider />
                       <Menu.Item key="drop-session" disabled={!(validSrc || validDst)}>
-                        {`Drop session${validDst ? ` ${dstIp}` : validSrc ? ` ${srcIp}` : ''}`}
+                        {`Drop session${validSrc ? ` ${srcIp}` : validDst ? ` ${dstIp}` : ''}`}
                       </Menu.Item>
-                      <Menu.Item key="rate-limit-src" disabled={!(validSrc && dport)}>
-                        {`Rate-limit source${validSrc && dport ? ` ${srcIp}:${dport}/tcp` : ''}`}
-                      </Menu.Item>
+                      {validPort && validSrc && (
+                        <Menu.Item key="rate-limit-src">
+                          {`Rate-limit source ${srcIp}:${dport}/tcp`}
+                        </Menu.Item>
+                      )}
                       <Menu.Divider />
                       <Menu.Item key="send-nats" disabled={natsDisabled}>
                         Send flow to NATS
@@ -743,6 +790,7 @@ class PredictPage extends Component {
             const { srcIp, dstIp, dport } = this.computeFlowDetails(record);
             const validSrc = this.isValidIPv4(srcIp);
             const validDst = this.isValidIPv4(dstIp);
+            const validPort = this.isValidPort(dport);
             const { userRole } = this.props;
             const assistantDisabled = !userRole?.isSignedIn || userRole?.tokenLimitReached;
             return (
@@ -756,13 +804,17 @@ class PredictPage extends Component {
                 <Menu.Divider />
                 <Menu.Item key="block-src-ip" disabled={!validSrc}>{`Block source IP${validSrc ? ` ${srcIp}` : ''}`}</Menu.Item>
                 <Menu.Item key="block-dst-ip" disabled={!validDst}>{`Block destination IP${validDst ? ` ${dstIp}` : ''}`}</Menu.Item>
+                {validPort && (
+                  <>
+                    <Menu.Divider />
+                    <Menu.Item key="block-dst-port">{`Block destination port ${dport}/tcp`}</Menu.Item>
+                    {validSrc && <Menu.Item key="block-ip-port-src">{`Block ${srcIp}:${dport}/tcp`}</Menu.Item>}
+                    {validDst && <Menu.Item key="block-ip-port-dst">{`Block ${dstIp}:${dport}/tcp`}</Menu.Item>}
+                  </>
+                )}
                 <Menu.Divider />
-                <Menu.Item key="block-dst-port" disabled={!dport}>{`Block destination port${dport ? ` ${dport}/tcp` : ''}`}</Menu.Item>
-                <Menu.Item key="block-ip-port-src" disabled={!(validSrc && dport)}>{`Block${validSrc && dport ? ` ${srcIp}:${dport}/tcp` : ' srcIP:dstPort/tcp'}`}</Menu.Item>
-                <Menu.Item key="block-ip-port-dst" disabled={!(validDst && dport)}>{`Block${validDst && dport ? ` ${dstIp}:${dport}/tcp` : ' dstIP:dstPort/tcp'}`}</Menu.Item>
-                <Menu.Divider />
-                <Menu.Item key="drop-session" disabled={!(validSrc || validDst)}>{`Drop session${validDst ? ` ${dstIp}` : validSrc ? ` ${srcIp}` : ''}`}</Menu.Item>
-                <Menu.Item key="rate-limit-src" disabled={!(validSrc && dport)}>{`Rate-limit source${validSrc && dport ? ` ${srcIp}:${dport}/tcp` : ''}`}</Menu.Item>
+                <Menu.Item key="drop-session" disabled={!(validSrc || validDst)}>{`Drop session${validSrc ? ` ${srcIp}` : validDst ? ` ${dstIp}` : ''}`}</Menu.Item>
+                {validPort && validSrc && <Menu.Item key="rate-limit-src">{`Rate-limit source ${srcIp}:${dport}/tcp`}</Menu.Item>}
                 <Menu.Divider />
                 <Menu.Item key="send-nats" disabled={!userRole?.isAdmin}>
                   Send flow to NATS
