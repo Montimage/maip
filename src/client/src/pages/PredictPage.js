@@ -505,6 +505,13 @@ class PredictPage extends Component {
                 currentPredictionId: queueResponse.predictionId
               });
               
+              notification.success({
+                message: 'Prediction Job Queued',
+                description: 'Prediction has been queued successfully.',
+                placement: 'topRight',
+                duration: 4,
+              });
+              
               // Poll job status instead of old predict status
               this.intervalId = setInterval(async () => {
               try {

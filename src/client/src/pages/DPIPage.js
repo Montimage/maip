@@ -709,6 +709,15 @@ class DPIPage extends Component {
           loading: false,
         });
         
+        notification.info({
+          message: 'DPI Analysis Started',
+          description: mode === 'offline' 
+            ? `Analyzing "${selectedPcap}"...`
+            : `Analyzing traffic on interface "${selectedInterface}"...`,
+          placement: 'topRight',
+          duration: 3,
+        });
+        
         // Save PCAP-to-sessionId mapping for later restoration
         if (mode === 'offline' && selectedPcap && data.sessionId) {
           try {

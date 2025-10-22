@@ -283,6 +283,13 @@ class ResilienceMetricsPage extends Component {
           currentJobId: queueResponse.jobId,
         });
         
+        notification.success({
+          message: 'Retrain Job Queued',
+          description: 'Model retraining has been queued successfully.',
+          placement: 'topRight',
+          duration: 4,
+        });
+        
         // Poll job status
         this.intervalId = setInterval(async () => {
           try {

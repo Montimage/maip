@@ -16,6 +16,7 @@ const {
   getUniqueId,
   interfaceExist,
 } = require('../utils/utils');
+const { resolvePcapPath } = require('../utils/pcapResolver');
 
 /**
  * mmtStatus contains the information of the last analysing session
@@ -47,8 +48,12 @@ const runOnDataset = (pcapFiles, datasetPath, outputDir, logFilePath, onFinishCa
 /**
  * Start analysing a traffic in given pcap file
  * @param {String} pcapFileName absoluted path of the pcap file
+ * @param {Function} callback callback function
+ * @param {String} overrideOutputSessionId optional session ID override
+ * @param {Boolean} skipLockCheck skip concurrent processing lock check
+ * @param {String} userId user ID for resolving user-specific pcap files
  */
-const startMMTOffline = (pcapFileName, callback, overrideOutputSessionId = null, skipLockCheck = false) => {
+const startMMTOffline = (pcapFileName, callback, overrideOutputSessionId = null, skipLockCheck = false, userId = null) => {
   console.log(mmtStatus);
   
   // Skip lock check if called from queue worker (allows concurrent processing)
@@ -59,7 +64,8 @@ const startMMTOffline = (pcapFileName, callback, overrideOutputSessionId = null,
     });
   }
   
-  const inputPcapFilePath = PCAP_PATH + pcapFileName;
+  // Resolve pcap path from samples or user uploads
+  const inputPcapFilePath = resolvePcapPath(pcapFileName, userId) || PCAP_PATH + pcapFileName;
   if (!fs.existsSync(inputPcapFilePath)) {
     return callback({
       error: `The given pcap file ${pcapFileName} does not exist`,

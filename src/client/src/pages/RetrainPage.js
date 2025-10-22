@@ -106,7 +106,7 @@ class RetrainPage extends Component {
         
         notification.success({
           message: 'Retrain Job Queued',
-          description: 'Model retraining has been queued successfully. You will be notified when it completes.',
+          description: 'Model retraining has been queued successfully.',
           placement: 'topRight',
           duration: 4,
         });

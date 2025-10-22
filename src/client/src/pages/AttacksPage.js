@@ -184,14 +184,14 @@ class AttacksPage extends Component {
           jobStatus: 'queued',
         });
         
-        if (position > 1) {
-          notification.info({
-            message: 'Attack Queued',
-            description: `Your attack is #${position} in queue. Estimated wait: ${estimatedTime}s`,
-            placement: 'topRight',
-            duration: 4,
-          });
-        }
+        notification.success({
+          message: 'Attack Job Queued',
+          description: position > 1 
+            ? `Your attack is #${position} in queue. Estimated wait: ${estimatedTime}s`
+            : 'Attack has been queued successfully.',
+          placement: 'topRight',
+          duration: 4,
+        });
         
         // Poll job status
         this.intervalId = setInterval(async () => {

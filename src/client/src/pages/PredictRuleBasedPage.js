@@ -381,6 +381,13 @@ class PredictRuleBasedPage extends Component {
     if (!pcapFile) return;
     try {
       this.setState({ offlineLoading: true });
+      
+      notification.info({
+        message: 'Rule-Based Detection Started',
+        description: `Analyzing "${pcapFile}" with security rules...`,
+        placement: 'topRight',
+        duration: 3,
+      });
       const data = await requestRuleOffline({ pcapFile, userRole: this.props.userRole });
       notification.success({
         message: 'Success',

@@ -252,6 +252,13 @@ class FeatureExtractionPage extends Component {
     }
     try {
       this.setState({ featuresLoading: true, featuresCsvText: '', featuresData: [], featuresFileName: null, featuresSessionId: null });
+      
+      notification.info({
+        message: 'Extracting Features',
+        description: `Processing "${uploadedPcapName}"...`,
+        placement: 'topRight',
+        duration: 3,
+      });
       const isMalicious = labelChoice === 'malicious' ? true : labelChoice === 'normal' ? false : undefined;
       const result = await requestExtractFeatures({ pcapFile: uploadedPcapName, isMalicious, userRole: this.props.userRole });
       if (!result || !result.csvContent) {
