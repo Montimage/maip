@@ -25,6 +25,7 @@ const {
 const { listFilesByTypeAsync, createFolderSync, writeTextFile, isFileExistSync } = require('../utils/file-utils');
 const { spawnCommand, getUniqueId } = require('../utils/utils');
 const { startMMTOffline, getMMTStatus } = require('../mmt/mmt-connector');
+const { resolvePcapPath } = require('../utils/pcapResolver');
 const {
   performPoisoningCTGAN,
   performPoisoningRSL,
@@ -48,7 +49,7 @@ const CONCURRENCY = {
  * Wraps your existing feature extraction code from routes/features.js
  */
 featureQueue.process('extract', CONCURRENCY.featureExtraction, async (job) => {
-  const { pcapFile, sessionId, isMalicious, jobType } = job.data;
+  const { pcapFile, sessionId, isMalicious, jobType, userId } = job.data;
   
   // Check if this is a DPI job or feature extraction job
   const isDPIJob = jobType === 'dpi';
@@ -57,7 +58,8 @@ featureQueue.process('extract', CONCURRENCY.featureExtraction, async (job) => {
   console.log(`[Worker] Processing ${jobTypeLabel} job ${job.id} for session ${sessionId}`);
   
   try {
-    const inputPcap = path.join(PCAP_PATH, pcapFile);
+    // Resolve pcap path from samples or user uploads
+    const inputPcap = resolvePcapPath(pcapFile, userId) || path.join(PCAP_PATH, pcapFile);
     if (!fs.existsSync(inputPcap)) {
       throw new Error(`PCAP not found: ${pcapFile}`);
     }
@@ -129,13 +131,14 @@ featureQueue.process('extract', CONCURRENCY.featureExtraction, async (job) => {
               });
             }
           }, intervalMs);
-        }, sessionId, true);  // Pass custom sessionId and skipLockCheck=true
+        }, sessionId, true, userId);  // Pass custom sessionId, skipLockCheck=true, and userId
       });
     }
 
     // For feature extraction jobs, continue with full pipeline
     return new Promise((resolve, reject) => {
-      // skipLockCheck=true allows concurrent processing with online DPI
+      // Pass skipLockCheck=true to allow concurrent offline processing
+      // Pass overrideOutputSessionId to use our custom session ID instead of MMT's
       startMMTOffline(pcapFile, async (status) => {
         if (status && status.error) {
           return reject(new Error(status.error));
@@ -262,7 +265,7 @@ featureQueue.process('extract', CONCURRENCY.featureExtraction, async (job) => {
             }
           }
         }, intervalMs);
-      }, sessionId, true);  // Pass custom sessionId from feature extraction, skipLockCheck=true
+      }, sessionId, true, userId);  // Pass custom sessionId from feature extraction, skipLockCheck=true, and userId
     });
     
   } catch (error) {

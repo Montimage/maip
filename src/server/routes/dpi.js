@@ -8,6 +8,11 @@ const { listFilesByTypeAsync } = require('../utils/file-utils');
 const { interfaceExist } = require('../utils/utils');
 const { queueFeatureExtraction } = require('../queue/job-queue');
 const sessionManager = require('../utils/sessionManager');
+const { identifyUser } = require('../middleware/userAuth');
+const { resolvePcapPath } = require('../utils/pcapResolver');
+
+// Apply user identification middleware to all routes
+router.use(identifyUser);
 
 // DEPRECATED: Old global state - kept for backward compatibility with online mode
 // Offline mode now uses sessionManager
@@ -724,13 +729,15 @@ router.get('/status', (req, res) => {
 router.post('/start/offline', async (req, res) => {
   try {
     const { pcapFile, useQueue } = req.body;
+    const userId = req.userId; // From identifyUser middleware
     
     if (!pcapFile) {
       return res.status(400).json({ error: 'Missing pcapFile parameter' });
     }
     
-    const inputPcap = path.join(PCAP_PATH, pcapFile);
-    if (!fs.existsSync(inputPcap)) {
+    // Resolve pcap path from samples or user uploads
+    const inputPcap = resolvePcapPath(pcapFile, userId);
+    if (!inputPcap || !fs.existsSync(inputPcap)) {
       return res.status(404).json({ error: `PCAP file not found: ${pcapFile}` });
     }
     
@@ -750,7 +757,8 @@ router.post('/start/offline', async (req, res) => {
         sessionId,
         isMalicious: null,
         priority: 5,
-        jobType: 'dpi' // Mark as DPI job
+        jobType: 'dpi', // Mark as DPI job
+        userId: userId // Pass userId for path resolution
       });
       
       const jobId = result.jobId;
@@ -792,7 +800,7 @@ router.post('/start/offline', async (req, res) => {
       });
       
       res.json({ success: true, sessionId: status.sessionId });
-    });
+    }, null, false, userId);
   } catch (error) {
     console.error('[DPI] Error starting offline analysis:', error);
     res.status(500).json({ error: error.message });

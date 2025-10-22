@@ -1,10 +1,11 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
 import { Button, Card, Select, Alert, Spin, Row, Col, Divider, Tree, Space, Tag, Table, Statistic, notification, message, Upload, Tooltip } from 'antd';
-import { PlayCircleOutlined, StopOutlined, DownOutlined, FolderOpenOutlined, LockOutlined, UploadOutlined, FileTextOutlined, ApartmentOutlined } from '@ant-design/icons';
+import { PlayCircleOutlined, StopOutlined, DownOutlined, FolderOpenOutlined, LockOutlined, UploadOutlined, FileTextOutlined, ApartmentOutlined, UserOutlined, DatabaseOutlined } from '@ant-design/icons';
 import { Line, Pie, Column, Area, Histogram } from '@ant-design/plots';
-import { SERVER_URL } from '../constants';
+import { SERVER_URL, MAX_PCAP_SIZE_BYTES, MAX_PCAP_SIZE_MB } from '../constants';
 import { useUserRole } from '../hooks/useUserRole';
+import { getUserHeaders, fetchWithAuth } from '../utils/fetchWithAuth';
 
 const { Option } = Select;
 
@@ -53,7 +54,10 @@ class DPIPage extends Component {
   }
 
   componentDidMount() {
-    this.loadPcapFiles();
+    // Only load files if auth is already loaded, otherwise wait for componentDidUpdate
+    if (this.props.isAuthLoaded) {
+      this.loadPcapFiles();
+    }
     this.loadInterfaces();
     
     // Check if navigated from Feature Extraction page
@@ -180,6 +184,13 @@ class DPIPage extends Component {
     }
   }
 
+  componentDidUpdate(prevProps) {
+    // Load files when auth finishes loading
+    if (!prevProps.isAuthLoaded && this.props.isAuthLoaded) {
+      this.loadPcapFiles();
+    }
+  }
+
   componentWillUnmount() {
     if (this.reloadInterval) {
       clearInterval(this.reloadInterval);
@@ -188,11 +199,14 @@ class DPIPage extends Component {
 
   loadPcapFiles = async () => {
     try {
-      const response = await fetch(`${SERVER_URL}/api/dpi/pcaps`);
+      const response = await fetchWithAuth(`${SERVER_URL}/api/pcaps`, {}, this.props.userRole);
       if (response.ok) {
         const data = await response.json();
-        this.setState({ 
+        // data now contains: { pcaps: [{name, type, path}], samples: [...], userUploads: [...] }
+        this.setState({
           pcapFiles: data.pcaps || [],
+          sampleFiles: data.samples || [],
+          userFiles: data.userUploads || [],
           // Do not auto-select a PCAP; keep current selection as-is
           selectedPcap: this.state.selectedPcap || null,
         });
@@ -203,43 +217,93 @@ class DPIPage extends Component {
   };
 
   beforeUploadPcap = (file) => {
-    const ok = file.name.endsWith('.pcap') || file.name.endsWith('.pcapng') || file.name.endsWith('.cap');
-    if (!ok) message.error(`${file.name} is not a pcap file`);
-    return ok ? true : Upload.LIST_IGNORE;
+    // Check file extension
+    const hasValidExtension = file.name.endsWith('.pcap') || file.name.endsWith('.pcapng') || file.name.endsWith('.cap');
+    if (!hasValidExtension) {
+      notification.error({
+        message: 'Invalid File Type',
+        description: `"${file.name}" is not a valid PCAP file. Only .pcap, .pcapng, and .cap files are allowed.`,
+        placement: 'topRight',
+        duration: 2,
+      });
+      return Upload.LIST_IGNORE;
+    }
+    
+    // Check file size
+    if (file.size > MAX_PCAP_SIZE_BYTES) {
+      notification.error({
+        message: 'File Too Large',
+        description: `"${file.name}" (${(file.size / (1024 * 1024)).toFixed(2)} MB) exceeds the maximum allowed size of ${MAX_PCAP_SIZE_MB} MB. Please use a smaller file.`,
+        placement: 'topRight',
+        duration: 2,
+      });
+      return Upload.LIST_IGNORE;
+    }
+    
+    return true;
   };
 
   processUploadPcap = async ({ file, onSuccess, onError }) => {
     try {
       const formData = new FormData();
       formData.append('pcapFile', file);
-      const res = await fetch(`${SERVER_URL}/api/pcaps`, { method: 'POST', body: formData });
-      if (!res.ok) throw new Error(await res.text());
+      
+      // Add user authentication headers
+      const userHeaders = getUserHeaders(this.props.userRole);
+      const res = await fetch(`${SERVER_URL}/api/pcaps`, { 
+        method: 'POST', 
+        body: formData,
+        headers: userHeaders,
+      });
+      
+      if (!res.ok) {
+        let errorData;
+        try {
+          errorData = await res.json();
+        } catch {
+          const errorText = await res.text();
+          errorData = { error: errorText };
+        }
+        throw new Error(errorData.error || errorData.message || 'Upload failed');
+      }
+      
       const data = await res.json();
       onSuccess(data, res);
     } catch (e) {
+      console.error('Upload error:', e);
       onError(e);
     }
   };
 
   handleUploadChange = (info) => {
-    const { status, response, name } = info.file;
+    const { status, response, name, error } = info.file;
     if (status === 'uploading') {
       // no-op
     } else if (status === 'done') {
       const uploaded = (response && response.pcapFile) || (info.file.response && info.file.response.pcapFile) || null;
+      const data = response || info.file.response || {};
       this.setState({ 
         uploadedPcapName: uploaded,
         selectedPcap: uploaded,
       });
+      const isDuplicate = data.alreadyExisted || false;
       notification.success({
-        message: 'PCAP Uploaded',
-        description: `File "${uploaded}" uploaded successfully and ready for DPI analysis.`,
+        message: isDuplicate ? 'PCAP Already Exists' : 'PCAP Uploaded',
+        description: isDuplicate 
+          ? `File "${uploaded}" already exists. Using existing file for DPI analysis.`
+          : `File "${uploaded}" uploaded successfully and ready for DPI analysis.`,
         placement: 'topRight',
       });
       // Reload the PCAP list to include the newly uploaded file
       this.loadPcapFiles();
     } else if (status === 'error') {
-      message.error('Upload failed');
+      const errorMsg = error?.message || 'Upload failed';
+      notification.error({
+        message: 'Upload Failed',
+        description: errorMsg,
+        placement: 'topRight',
+        duration: 2,
+      });
     }
   };
 
@@ -631,11 +695,11 @@ class DPIPage extends Component {
         ? { pcapFile: selectedPcap }
         : { interface: selectedInterface };
       
-      const response = await fetch(endpoint, {
+      const response = await fetchWithAuth(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-      });
+      }, this.props.userRole);
       
       if (response.ok) {
         const data = await response.json();
@@ -2664,24 +2728,54 @@ class DPIPage extends Component {
                         placeholder="Select a PCAP file..."
                         allowClear
                       >
-                        {pcapFiles.map(file => (
-                          <Option key={file} value={file}>{file}</Option>
-                        ))}
+                        {(() => {
+                          const entries = Array.isArray(pcapFiles) ? pcapFiles : [];
+                          const byName = new Map();
+                          for (const item of entries) {
+                            const f = typeof item === 'string' ? { name: item, type: 'sample', path: 'samples' } : item;
+                            const key = f.name;
+                            const existing = byName.get(key);
+                            if (!existing || (existing.type !== 'user' && f.type === 'user')) {
+                              byName.set(key, f);
+                            }
+                          }
+                          const users = [];
+                          const samples = [];
+                          for (const f of byName.values()) {
+                            if (f.type === 'user') users.push(f);
+                            else samples.push(f);
+                          }
+                          users.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+                          samples.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+                          const renderOption = (f) => (
+                            <Option key={f.name} value={f.name}>
+                              {f.type === 'user' && <UserOutlined style={{ marginRight: 8, color: '#1890ff' }} />}
+                              {f.type === 'sample' && <DatabaseOutlined style={{ marginRight: 8, color: '#52c41a' }} />}
+                              {f.name}
+                            </Option>
+                          );
+                          return [
+                            ...users.map(renderOption),
+                            ...samples.map(renderOption),
+                          ];
+                        })()}
                       </Select>
                       {this.props.isSignedIn && (
-                        <Upload
-                          beforeUpload={this.beforeUploadPcap}
-                          action={`${SERVER_URL}/api/pcaps`}
-                          onChange={this.handleUploadChange}
-                          customRequest={this.processUploadPcap}
-                          maxCount={1}
-                          disabled={isRunning}
-                          showUploadList={false}
-                        >
-                          <Button icon={<UploadOutlined />} disabled={isRunning}>
-                            Upload PCAP
-                          </Button>
-                        </Upload>
+                        <Tooltip title={`Upload your own PCAP file (max ${MAX_PCAP_SIZE_MB} MB)`} placement="top">
+                          <Upload
+                            beforeUpload={this.beforeUploadPcap}
+                            action={`${SERVER_URL}/api/pcaps`}
+                            onChange={this.handleUploadChange}
+                            customRequest={this.processUploadPcap}
+                            maxCount={1}
+                            disabled={isRunning}
+                            showUploadList={false}
+                          >
+                            <Button icon={<UploadOutlined />} disabled={isRunning}>
+                              Upload PCAP
+                            </Button>
+                          </Upload>
+                        </Tooltip>
                       )}
                       {!this.props.isSignedIn && (
                         <Tooltip title="Sign in required">
@@ -2916,8 +3010,9 @@ class DPIPage extends Component {
 
 // Wrap with role check
 const DPIPageWithRole = (props) => {
-  const { canPerformOnlineActions, isSignedIn, isLoaded } = useUserRole();
-  return <DPIPage {...props} canPerformOnlineActions={canPerformOnlineActions} isSignedIn={isSignedIn} isAuthLoaded={isLoaded} />;
+  const userRole = useUserRole();
+  const { canPerformOnlineActions, isSignedIn, isLoaded } = userRole;
+  return <DPIPage {...props} userRole={userRole} canPerformOnlineActions={canPerformOnlineActions} isSignedIn={isSignedIn} isAuthLoaded={isLoaded} />;
 };
 
 export default DPIPageWithRole;

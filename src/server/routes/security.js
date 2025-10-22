@@ -15,6 +15,8 @@ const {
 } = process.env;
 
 const { LOCAL_NATS_URL, TRAINING_PATH, REPORT_PATH, PCAP_PATH } = require('../constants');
+const { identifyUser } = require('../middleware/userAuth');
+const { resolvePcapPath } = require('../utils/pcapResolver');
 // Output folder for mmt_security CSVs
 const SECURITY_OUT_DIR = path.join(__dirname, '../mmt/outputs');
 // Import unified session manager
@@ -48,6 +50,9 @@ function isValidIPv4(ip) {
 // ------------------------------
 // Rule-based detection (mmt_security)
 // ------------------------------
+
+// Attach user identification to enable user-specific PCAP resolution
+router.use(identifyUser);
 
 // State for running mmt_security instance (online)
 let secState = {
@@ -482,9 +487,15 @@ router.post('/rule-based/online/stop', async (req, res) => {
 router.post('/rule-based/offline', async (req, res) => {
   try {
     const { pcapFile, filePath, verbose = false, excludeRules, cores, useQueue } = req.body || {};
+    const userId = req.userId;
     let inputPath = null;
-    if (filePath) inputPath = filePath;
-    if (!inputPath && pcapFile) inputPath = path.join(PCAP_PATH, pcapFile);
+    if (filePath) {
+      inputPath = filePath;
+    }
+    if (!inputPath && pcapFile) {
+      // Use unified resolver: checks user uploads -> samples -> legacy PCAP_PATH
+      inputPath = resolvePcapPath(pcapFile, userId);
+    }
     if (!inputPath) return res.status(400).send('Missing pcapFile or filePath');
     if (!fs.existsSync(inputPath)) return res.status(404).send(`PCAP not found: ${inputPath}`);
 

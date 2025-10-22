@@ -4,6 +4,8 @@ const DEFAULT_LOG_PATH = `${BASE_PATH}/logs/all-logs.log`;
 const MMT_PATH = `${BASE_PATH}/mmt/`;
 const REPORT_PATH = `${MMT_PATH}outputs/`;
 const PCAP_PATH = `${MMT_PATH}pcaps/`;
+const PCAP_SAMPLES_PATH = `${PCAP_PATH}samples/`;
+const PCAP_UPLOADS_PATH = `${PCAP_PATH}uploads/`;
 const MMT_PROBE_CONFIG_PATH = `${MMT_PATH}mmt-probe.conf`;
 const PCAP_EXTENSIONS = ['.pcap', '.pcapng', '.cap'];
 // Deep learning constants paths
@@ -32,6 +34,8 @@ module.exports = {
   LOG_PATH,
   DEFAULT_LOG_PATH,
   PCAP_PATH,
+  PCAP_SAMPLES_PATH,
+  PCAP_UPLOADS_PATH,
   MODEL_PATH,
   DEEP_LEARNING_PATH,
   PREDICTION_PATH,

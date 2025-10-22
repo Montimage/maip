@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
 import { Button, Card, Row, Col, Divider, Space, Alert, Spin, Upload, Tag, message, notification, Checkbox, Select, Statistic, Tooltip, Table } from 'antd';
-import { UploadOutlined, DownloadOutlined, ApartmentOutlined, FolderOpenOutlined, FileTextOutlined, DatabaseOutlined, CheckCircleOutlined, SendOutlined, LockOutlined } from '@ant-design/icons';
+import { UploadOutlined, DownloadOutlined, ApartmentOutlined, FolderOpenOutlined, FileTextOutlined, DatabaseOutlined, CheckCircleOutlined, SendOutlined, LockOutlined, UserOutlined } from '@ant-design/icons';
 import Papa from 'papaparse';
 import { connect } from 'react-redux';
 import { useUserRole } from '../hooks/useUserRole';
@@ -10,6 +10,8 @@ import {
   SERVER_URL,
   AD_FEATURES_DESCRIPTIONS,
   AC_FEATURES_DESCRIPTIONS,
+  MAX_PCAP_SIZE_BYTES,
+  MAX_PCAP_SIZE_MB,
 } from '../constants';
 import {
   requestExtractFeatures,
@@ -17,6 +19,7 @@ import {
 import { buildAttackTable } from '../utils/attacksTable';
 import FeatureCharts from '../components/FeatureCharts';
 import FeatureDescriptions from '../components/FeatureDescriptions';
+import { getUserHeaders, fetchWithAuth } from '../utils/fetchWithAuth';
 
 class FeatureExtractionPage extends Component {
   constructor(props) {
@@ -132,12 +135,22 @@ class FeatureExtractionPage extends Component {
       // ignore storage errors
     }
     // Load available PCAP files from server (similar to DPI page)
-    await this.loadPcapFiles();
+    // Only load if auth is already loaded, otherwise wait for componentDidUpdate
+    if (this.props.isAuthLoaded) {
+      await this.loadPcapFiles();
+    }
+  }
+
+  componentDidUpdate(prevProps) {
+    // Load files when auth finishes loading
+    if (!prevProps.isAuthLoaded && this.props.isAuthLoaded) {
+      this.loadPcapFiles();
+    }
   }
 
   loadPcapFiles = async () => {
     try {
-      const res = await fetch(`${SERVER_URL}/api/dpi/pcaps`);
+      const res = await fetchWithAuth(`${SERVER_URL}/api/pcaps`, {}, this.props.userRole);
       if (!res.ok) return;
       const data = await res.json();
       const pcaps = (data && data.pcaps) ? data.pcaps : [];
@@ -173,20 +186,60 @@ class FeatureExtractionPage extends Component {
   };
 
   beforeUploadPcap = (file) => {
-    const ok = file.name.endsWith('.pcap') || file.name.endsWith('.pcapng') || file.name.endsWith('.cap');
-    if (!ok) message.error(`${file.name} is not a pcap file`);
-    return ok ? true : Upload.LIST_IGNORE;
+    // Check file extension
+    const hasValidExtension = file.name.endsWith('.pcap') || file.name.endsWith('.pcapng') || file.name.endsWith('.cap');
+    if (!hasValidExtension) {
+      notification.error({
+        message: 'Invalid File Type',
+        description: `"${file.name}" is not a valid PCAP file. Only .pcap, .pcapng, and .cap files are allowed.`,
+        placement: 'topRight',
+        duration: 2,
+      });
+      return Upload.LIST_IGNORE;
+    }
+    
+    // Check file size
+    if (file.size > MAX_PCAP_SIZE_BYTES) {
+      notification.error({
+        message: 'File Too Large',
+        description: `"${file.name}" (${(file.size / (1024 * 1024)).toFixed(2)} MB) exceeds the maximum allowed size of ${MAX_PCAP_SIZE_MB} MB. Please use a smaller file.`,
+        placement: 'topRight',
+        duration: 2,
+      });
+      return Upload.LIST_IGNORE;
+    }
+    
+    return true;
   };
 
   processUploadPcap = async ({ file, onSuccess, onError }) => {
     try {
       const formData = new FormData();
       formData.append('pcapFile', file);
-      const res = await fetch(`${SERVER_URL}/api/pcaps`, { method: 'POST', body: formData });
-      if (!res.ok) throw new Error(await res.text());
+      
+      // Add user authentication headers
+      const userHeaders = getUserHeaders(this.props.userRole);
+      const res = await fetch(`${SERVER_URL}/api/pcaps`, { 
+        method: 'POST', 
+        body: formData,
+        headers: userHeaders,
+      });
+      
+      if (!res.ok) {
+        let errorData;
+        try {
+          errorData = await res.json();
+        } catch {
+          const errorText = await res.text();
+          errorData = { error: errorText };
+        }
+        throw new Error(errorData.error || errorData.message || 'Upload failed');
+      }
+      
       const data = await res.json();
       onSuccess(data, res);
     } catch (e) {
+      console.error('Upload error:', e);
       onError(e);
     }
   };
@@ -200,7 +253,7 @@ class FeatureExtractionPage extends Component {
     try {
       this.setState({ featuresLoading: true, featuresCsvText: '', featuresData: [], featuresFileName: null, featuresSessionId: null });
       const isMalicious = labelChoice === 'malicious' ? true : labelChoice === 'normal' ? false : undefined;
-      const result = await requestExtractFeatures({ pcapFile: uploadedPcapName, isMalicious });
+      const result = await requestExtractFeatures({ pcapFile: uploadedPcapName, isMalicious, userRole: this.props.userRole });
       if (!result || !result.csvContent) {
         throw new Error('No features CSV returned');
       }
@@ -304,19 +357,23 @@ class FeatureExtractionPage extends Component {
   }
 
   handleUploadChange = (info) => {
-    const { status, response, name } = info.file;
+    const { status, response, name, error } = info.file;
     if (status === 'uploading') {
       // no-op
     } else if (status === 'done') {
       const uploaded = (response && response.pcapFile) || (info.file.response && info.file.response.pcapFile) || null;
+      const data = response || info.file.response || {};
       this.setState({ 
         uploadedPcapName: uploaded,
         loadedFromDPI: false, // Reset DPI flag when uploading new file
         wasUploaded: true,
       });
+      const isDuplicate = data.alreadyExisted || false;
       notification.success({
-        message: 'PCAP Uploaded',
-        description: `File "${uploaded}" uploaded successfully and ready for feature extraction.`,
+        message: isDuplicate ? 'PCAP Already Exists' : 'PCAP Uploaded',
+        description: isDuplicate 
+          ? `File "${uploaded}" already exists. Using existing file for feature extraction.`
+          : `File "${uploaded}" uploaded successfully and ready for feature extraction.`,
         placement: 'topRight',
       });
       // Reload the PCAP list to include the newly uploaded file
@@ -337,7 +394,13 @@ class FeatureExtractionPage extends Component {
         // ignore storage errors
       }
     } else if (status === 'error') {
-      message.error('Upload failed');
+      const errorMsg = error?.message || 'Upload failed';
+      notification.error({
+        message: 'Upload Failed',
+        description: errorMsg,
+        placement: 'topRight',
+        duration: 2,
+      });
     }
   };
 
@@ -462,33 +525,69 @@ class FeatureExtractionPage extends Component {
                         });
                         await this.loadPcapFiles();
                       }}
-                      options={(pcapFiles || []).map(f => ({ value: f, label: f }))}
-                      filterOption={(input, option) => (option?.label || '').toLowerCase().includes(input.toLowerCase())}
-                    />
+                      filterOption={(input, option) => {
+                        return option.children.props?.children?.[1]?.toLowerCase().includes(input.toLowerCase()) || false;
+                      }}
+                    >
+                      {(() => {
+                        const entries = Array.isArray(pcapFiles) ? pcapFiles : [];
+                        const byName = new Map();
+                        for (const item of entries) {
+                          const f = typeof item === 'string' ? { name: item, type: 'sample', path: 'samples' } : item;
+                          const existing = byName.get(f.name);
+                          if (!existing || (existing.type !== 'user' && f.type === 'user')) {
+                            byName.set(f.name, f);
+                          }
+                        }
+                        const users = [];
+                        const samples = [];
+                        for (const f of byName.values()) {
+                          if (f.type === 'user') users.push(f);
+                          else samples.push(f);
+                        }
+                        users.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+                        samples.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+                        const renderOption = (f) => (
+                          <Select.Option key={f.name} value={f.name}>
+                            <span>
+                              {f.type === 'user' && <UserOutlined style={{ marginRight: 8, color: '#1890ff' }} />}
+                              {f.type === 'sample' && <DatabaseOutlined style={{ marginRight: 8, color: '#52c41a' }} />}
+                              {f.name}
+                            </span>
+                          </Select.Option>
+                        );
+                        return [
+                          ...users.map(renderOption),
+                          ...samples.map(renderOption),
+                        ];
+                      })()}
+                    </Select>
                     {this.props.isSignedIn && (
-                      <Upload
-                        beforeUpload={this.beforeUploadPcap}
-                        action={`${SERVER_URL}/api/pcaps`}
-                        onChange={this.handleUploadChange}
-                        customRequest={this.processUploadPcap}
-                        maxCount={1}
-                        disabled={this.state.featuresLoading}
-                        showUploadList={false}
-                        onRemove={() => {
-                          this.setState({
-                            uploadedPcapName: null,
-                            featuresCsvText: '',
-                            featuresData: [],
-                            featuresColumns: [],
-                            featuresFileName: null,
-                            featuresSessionId: null,
-                          }, async () => {
-                            await this.loadPcapFiles();
-                          });
-                        }}
-                      >
-                        <Button icon={<UploadOutlined />} disabled={this.state.featuresLoading}>Upload PCAP</Button>
-                      </Upload>
+                      <Tooltip title={`Upload your own PCAP file (max ${MAX_PCAP_SIZE_MB} MB)`} placement="top">
+                        <Upload
+                          beforeUpload={this.beforeUploadPcap}
+                          action={`${SERVER_URL}/api/pcaps`}
+                          onChange={this.handleUploadChange}
+                          customRequest={this.processUploadPcap}
+                          maxCount={1}
+                          disabled={this.state.featuresLoading}
+                          showUploadList={false}
+                          onRemove={() => {
+                            this.setState({
+                              uploadedPcapName: null,
+                              featuresCsvText: '',
+                              featuresData: [],
+                              featuresColumns: [],
+                              featuresFileName: null,
+                              featuresSessionId: null,
+                            }, async () => {
+                              await this.loadPcapFiles();
+                            });
+                          }}
+                        >
+                          <Button icon={<UploadOutlined />} disabled={this.state.featuresLoading}>Upload PCAP</Button>
+                        </Upload>
+                      </Tooltip>
                     )}
                     {!this.props.isSignedIn && (
                       <Tooltip title="Sign in required">

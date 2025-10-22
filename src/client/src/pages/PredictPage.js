@@ -3,14 +3,17 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import LayoutPage from './LayoutPage';
 import { Table, Tooltip, message, notification, Upload, Spin, Button, Form, Select, Menu, Modal, Divider, Card, Row, Col, Statistic, Tag, Space, InputNumber, Alert, Typography } from 'antd';
-import { UploadOutlined, CheckCircleOutlined, WarningOutlined, ClockCircleOutlined, PlayCircleOutlined, StopOutlined, LockOutlined, FileTextOutlined, SendOutlined } from "@ant-design/icons";
+import { UploadOutlined, CheckCircleOutlined, WarningOutlined, ClockCircleOutlined, PlayCircleOutlined, StopOutlined, LockOutlined, FileTextOutlined, SendOutlined, UserOutlined, DatabaseOutlined } from "@ant-design/icons";
 import { connect } from "react-redux";
 import { useUserRole } from '../hooks/useUserRole';
 import { Pie, RingProgress, Bar } from '@ant-design/plots';
 import {
   FORM_LAYOUT,
   SERVER_URL,
+  MAX_PCAP_SIZE_BYTES,
+  MAX_PCAP_SIZE_MB,
 } from "../constants";
+import { getUserHeaders, fetchWithAuth } from '../utils/fetchWithAuth';
 import {
   requestApp,
   requestBuildConfigModel,
@@ -198,7 +201,10 @@ class PredictPage extends Component {
     this.props.fetchAllReports();
     this.props.fetchAllModels();
     this.fetchInterfacesAndSetOptions();
-    this.fetchPcapFiles();
+    // Load PCAP files only after auth is loaded so x-user-id is sent
+    if (this.props.isAuthLoaded) {
+      this.fetchPcapFiles();
+    }
     
     // Load previously uploaded PCAPs for reuse
     try {
@@ -269,7 +275,7 @@ class PredictPage extends Component {
 
   async fetchPcapFiles() {
     try {
-      const res = await fetch(`${SERVER_URL}/api/pcaps`);
+      const res = await fetchWithAuth(`${SERVER_URL}/api/pcaps`, {}, this.props.userRole);
       if (!res.ok) return;
       const data = await res.json();
       this.setState({ pcapFiles: data.pcaps || [] });
@@ -297,7 +303,7 @@ class PredictPage extends Component {
     if (!pcapName) return null;
     const delay = (ms) => new Promise(res => setTimeout(res, ms));
     try {
-      const startStatus = await requestMMTOffline(pcapName);
+      const startStatus = await requestMMTOffline(pcapName, this.props.userRole);
       if (startStatus && startStatus.sessionId) {
         const targetSessionId = startStatus.sessionId;
         const maxAttempts = 60; // ~2 minutes
@@ -334,11 +340,26 @@ class PredictPage extends Component {
   }
 
   beforeUploadPcap = (file) => {
-    const isPCAP = file.name.endsWith('.pcap') || file.name.endsWith('.pcapng') || file.name.endsWith('.cap');
-    if (!isPCAP) {
-      message.error(`${file.name} is not a pcap file`);
+    const hasValidExtension = file && (file.name.endsWith('.pcap') || file.name.endsWith('.pcapng') || file.name.endsWith('.cap'));
+    if (!hasValidExtension) {
+      notification.error({
+        message: 'Invalid File Type',
+        description: `${file?.name || 'File'} is not a valid PCAP file. Only .pcap, .pcapng, and .cap files are allowed.`,
+        placement: 'topRight',
+        duration: 2,
+      });
+      return Upload.LIST_IGNORE;
     }
-    return isPCAP ? true : Upload.LIST_IGNORE;
+    if (file.size > MAX_PCAP_SIZE_BYTES) {
+      notification.error({
+        message: 'File Too Large',
+        description: `${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB) exceeds the maximum allowed size of ${MAX_PCAP_SIZE_MB} MB. Please use a smaller file.`,
+        placement: 'topRight',
+        duration: 2,
+      });
+      return Upload.LIST_IGNORE;
+    }
+    return true;
   }
 
   handleUploadPcap = async (info, typePcap) => {
@@ -362,6 +383,7 @@ class PredictPage extends Component {
       const response = await fetch(`${SERVER_URL}/api/pcaps`, {
         method: 'POST',
         body: formData,
+        headers: getUserHeaders(this.props.userRole),
       });
 
       if (response.ok) {
@@ -370,15 +392,33 @@ class PredictPage extends Component {
         this.setState({ testingPcapFile: data.pcapFile, wasUploaded: true });
         // Refresh PCAP files list
         this.fetchPcapFiles();
-        console.log(`Uploaded successfully ${file.name}`);
+        const isDuplicate = data.alreadyExisted || false;
+        notification.success({
+          message: isDuplicate ? 'PCAP Already Exists' : 'PCAP Uploaded',
+          description: isDuplicate 
+            ? `File "${data.pcapFile}" already exists. Using existing file for prediction.`
+            : `File "${data.pcapFile}" uploaded successfully and ready for prediction.`,
+          placement: 'topRight',
+        });
       } else {
-        const error = await response.text();
-        onError(new Error(error));
-        console.error(error);
+        let errorText = await response.text();
+        try { const j = JSON.parse(errorText); errorText = j.error || j.message || errorText; } catch {}
+        onError(new Error(errorText));
+        notification.error({
+          message: 'Upload Failed',
+          description: errorText,
+          placement: 'topRight',
+          duration: 2,
+        });
       }
     } catch (error) {
       onError(error);
-      console.error(error);
+      notification.error({
+        message: 'Upload Failed',
+        description: error.message || String(error),
+        placement: 'topRight',
+        duration: 2,
+      });
     }
   }
 
@@ -408,7 +448,7 @@ class PredictPage extends Component {
           this.setState({ testingDataset: updatedTestingDataset });
         } else {
           // Start offline analysis and get the sessionId immediately
-          const startStatus = await requestMMTOffline(testingPcapFile);
+          const startStatus = await requestMMTOffline(testingPcapFile, this.props.userRole);
           if (startStatus && startStatus.sessionId) {
             const targetSessionId = startStatus.sessionId;
             // Poll MMT status until analysis completes (isRunning becomes false)
@@ -630,6 +670,10 @@ class PredictPage extends Component {
   }
 
   async componentDidUpdate(prevProps, prevState) {
+    // When auth becomes loaded, refresh PCAP list with user headers
+    if (!prevProps.isAuthLoaded && this.props.isAuthLoaded) {
+      this.fetchPcapFiles();
+    }
     if (this.props.app !== prevProps.app && !isModelIdPresent) {
       this.setState({ modelId: null });
     }
@@ -1480,9 +1524,37 @@ class PredictPage extends Component {
                       showSearch allowClear
                       style={{ width: 280 }}
                     >
-                      {this.state.pcapFiles.map(file => (
-                        <Select.Option key={file} value={file}>{file}</Select.Option>
-                      ))}
+                      {(() => {
+                        const entries = Array.isArray(this.state.pcapFiles) ? this.state.pcapFiles : [];
+                        const byName = new Map();
+                        for (const item of entries) {
+                          const f = typeof item === 'string' ? { name: item, type: 'sample', path: 'samples' } : item;
+                          const existing = byName.get(f.name);
+                          if (!existing || (existing.type !== 'user' && f.type === 'user')) {
+                            byName.set(f.name, f);
+                          }
+                        }
+                        const users = [];
+                        const samples = [];
+                        for (const f of byName.values()) {
+                          if (f.type === 'user') users.push(f); else samples.push(f);
+                        }
+                        users.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+                        samples.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+                        const renderOption = (f) => (
+                          <Select.Option key={f.name} value={f.name}>
+                            <span>
+                              {f.type === 'user' && <UserOutlined style={{ marginRight: 8, color: '#1890ff' }} />}
+                              {f.type === 'sample' && <DatabaseOutlined style={{ marginRight: 8, color: '#52c41a' }} />}
+                              {f.name}
+                            </span>
+                          </Select.Option>
+                        );
+                        return [
+                          ...users.map(renderOption),
+                          ...samples.map(renderOption),
+                        ];
+                      })()}
                     </Select>
                   )}
                   <Upload

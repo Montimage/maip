@@ -1,6 +1,7 @@
 import {
   getLabelsListXAI,
 } from "../utils";
+import { fetchWithAuth } from '../utils/fetchWithAuth';
 
 const {
   SERVER_URL,
@@ -98,15 +99,16 @@ export const requestMMTStatus = async () => {
   return data.mmtStatus;
 };
 
-export const requestMMTOffline = async (file) => {
+export const requestMMTOffline = async (file, userRole) => {
   const url = `${SERVER_URL}/api/mmt/offline`;
-  const response = await fetch(url, {
+  const { fetchWithAuth } = require('../utils/fetchWithAuth');
+  const response = await fetchWithAuth(url, {
     method: "POST",
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ fileName: file }),
-  });
+  }, userRole);
   const data = await response.json();
   console.log(`MMT offline analysis of pcap file ${file}`);
   return data;
@@ -846,7 +848,7 @@ export const requestRuleOnlineStop = async () => {
   return res.json();
 };
 
-export const requestRuleOffline = async ({ pcapFile, filePath, verbose = false, excludeRules, cores } = {}) => {
+export const requestRuleOffline = async ({ pcapFile, filePath, verbose = false, excludeRules, cores, userRole } = {}) => {
   const url = `${SERVER_URL}/api/security/rule-based/offline`;
   const body = {};
   if (filePath) body.filePath = filePath;
@@ -854,27 +856,28 @@ export const requestRuleOffline = async ({ pcapFile, filePath, verbose = false, 
   if (verbose) body.verbose = true;
   if (excludeRules) body.excludeRules = excludeRules;
   if (cores) body.cores = cores;
-  const res = await fetch(url, {
+  const { fetchWithAuth } = require('../utils/fetchWithAuth');
+  const res = await fetchWithAuth(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
-  });
+  }, userRole);
   if (!res.ok) throw new Error(await res.text());
   return res.json(); // { ok, file, count, alerts }
 };
 
 // Feature extraction API: run end-to-end extraction on an uploaded PCAP
-export const requestExtractFeatures = async ({ pcapFile, isMalicious }) => {
+export const requestExtractFeatures = async ({ pcapFile, isMalicious, userRole } = {}) => {
   const url = `${SERVER_URL}/api/features/extract`;
   const body = { pcapFile };
   if (typeof isMalicious === 'boolean') {
     body.isMalicious = isMalicious;
   }
-  const response = await fetch(url, {
+  const response = await fetchWithAuth(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
-  });
+  }, userRole);
   if (!response.ok) {
     const text = await response.text();
     throw new Error(text || 'Feature extraction failed');

@@ -13,6 +13,11 @@ const {
 const { listFilesByTypeAsync } = require('../utils/file-utils');
 const { spawnCommand, getUniqueId } = require('../utils/utils');
 const { startMMTOffline, getMMTStatus } = require('../mmt/mmt-connector');
+const { identifyUser } = require('../middleware/userAuth');
+const { resolvePcapPath } = require('../utils/pcapResolver');
+
+// Apply user identification middleware to all routes
+router.use(identifyUser);
 
 // Import queue functions
 const {
@@ -27,12 +32,16 @@ const {
 router.post('/extract', async (req, res) => {
   try {
     const { pcapFile, isMalicious, useQueue } = req.body || {};
+    const userId = req.userId; // From identifyUser middleware
+    
     if (!pcapFile || typeof pcapFile !== 'string') {
       return res.status(400).send('Missing pcapFile');
     }
-    const inputPcap = path.join(PCAP_PATH, pcapFile);
-    if (!fs.existsSync(inputPcap)) {
-      return res.status(400).send(`PCAP not found: ${pcapFile}`);
+    
+    // Resolve pcap path from samples or user uploads
+    const inputPcap = resolvePcapPath(pcapFile, userId);
+    if (!inputPcap || !fs.existsSync(inputPcap)) {
+      return res.status(404).send(`PCAP not found: ${pcapFile}`);
     }
 
     // Queue-based approach is ENABLED BY DEFAULT for better performance with 30+ users
@@ -49,7 +58,8 @@ router.post('/extract', async (req, res) => {
         pcapFile,
         sessionId,
         isMalicious: isMalicious !== undefined ? isMalicious : null,
-        priority: 5
+        priority: 5,
+        userId: userId // Pass userId for path resolution
       });
       
       const jobId = result.jobId;
@@ -187,7 +197,7 @@ router.post('/extract', async (req, res) => {
           }
         }
       }, intervalMs);
-    });
+    }, null, false, userId);
   } catch (e) {
     console.error('[features] unexpected error:', e);
     res.status(500).send(e.message || 'Unexpected error');

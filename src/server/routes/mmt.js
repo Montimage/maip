@@ -9,8 +9,12 @@ const {
 const fs = require('fs');
 const path = require('path');
 const { PCAP_PATH } = require('../constants');
+const { identifyUser } = require('../middleware/userAuth');
 
 const router = express.Router();
+
+// Attach user identification to enable user-specific PCAP resolution in mmt-connector
+router.use(identifyUser);
 
 /* GET home page. */
 router.get('/', (req, res) => {
@@ -57,7 +61,7 @@ router.post('/offline', (req, res) => {
           console.log(mmtStatus);
           res.send(mmtStatus);
         }
-      }, outputSessionId || null);
+      }, outputSessionId || null, false, req.userId || null);
     } catch (e) {
       return res.status(401).send({ error: e.message || 'Failed to copy pcap' });
     }
@@ -72,7 +76,7 @@ router.post('/offline', (req, res) => {
       console.log(mmtStatus);
       res.send(mmtStatus);
     }
-  }, outputSessionId || null);
+  }, outputSessionId || null, false, req.userId || null);
 });
 
 router.get('/stop', (req, res) => {

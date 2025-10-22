@@ -3,13 +3,16 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import LayoutPage from './LayoutPage';
 import { Form, Select, Button, Table, Divider, Tooltip, Upload, Spin, message, notification, Dropdown, Menu, Modal, Card, Row, Col, Statistic, Tag, Space, Alert, Typography } from 'antd';
-import { UploadOutlined, DeleteOutlined, PlayCircleOutlined, StopOutlined, SendOutlined, LockOutlined, FileTextOutlined, CheckCircleOutlined, WarningOutlined } from '@ant-design/icons';
+import { UploadOutlined, DeleteOutlined, PlayCircleOutlined, StopOutlined, SendOutlined, LockOutlined, FileTextOutlined, CheckCircleOutlined, WarningOutlined, UserOutlined, DatabaseOutlined } from '@ant-design/icons';
 import { useUserRole } from '../hooks/useUserRole';
 import { Line } from '@ant-design/plots';
 import {
   FORM_LAYOUT,
   SERVER_URL,
+  MAX_PCAP_SIZE_BYTES,
+  MAX_PCAP_SIZE_MB,
 } from '../constants';
+import { getUserHeaders, fetchWithAuth } from '../utils/fetchWithAuth';
 import {
   requestRuleStatus,
   requestRuleAlerts,
@@ -113,7 +116,10 @@ class PredictRuleBasedPage extends Component {
 
   componentDidMount() {
     this.fetchInterfaces();
-    this.fetchPcapFiles();
+    // Load PCAP files only after auth is loaded so x-user-id is sent
+    if (this.props.isAuthLoaded) {
+      this.fetchPcapFiles();
+    }
     
     // Check if there's an existing online session
     this.pollStatus().then(() => {
@@ -126,6 +132,13 @@ class PredictRuleBasedPage extends Component {
     // Start a single conditional polling loop
     this.tick();
     this.timer = setInterval(this.tick, 3000);
+  }
+
+  componentDidUpdate(prevProps) {
+    // When auth becomes loaded, refresh PCAP list with user headers
+    if (!prevProps.isAuthLoaded && this.props.isAuthLoaded) {
+      this.fetchPcapFiles();
+    }
   }
 
   componentWillUnmount() {
@@ -149,7 +162,7 @@ class PredictRuleBasedPage extends Component {
 
   fetchPcapFiles = async () => {
     try {
-      const res = await fetch(`${SERVER_URL}/api/pcaps`);
+      const res = await fetchWithAuth(`${SERVER_URL}/api/pcaps`, {}, this.props.userRole);
       if (!res.ok) return;
       const data = await res.json();
       this.setState({ pcapFiles: data.pcaps || [] });
@@ -304,9 +317,26 @@ class PredictRuleBasedPage extends Component {
   }
 
   beforeUploadPcap = (file) => {
-    const ok = file && (file.name.endsWith('.pcap') || file.name.endsWith('.pcapng') || file.name.endsWith('.cap'));
-    if (!ok) message.error(`${file?.name || 'File'} is not a valid pcap`);
-    return ok ? true : Upload.LIST_IGNORE;
+    const hasValidExtension = file && (file.name.endsWith('.pcap') || file.name.endsWith('.pcapng') || file.name.endsWith('.cap'));
+    if (!hasValidExtension) {
+      notification.error({
+        message: 'Invalid File Type',
+        description: `${file?.name || 'File'} is not a valid PCAP file. Only .pcap, .pcapng, and .cap files are allowed.`,
+        placement: 'topRight',
+        duration: 2,
+      });
+      return Upload.LIST_IGNORE;
+    }
+    if (file.size > MAX_PCAP_SIZE_BYTES) {
+      notification.error({
+        message: 'File Too Large',
+        description: `${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB) exceeds the maximum allowed size of ${MAX_PCAP_SIZE_MB} MB. Please use a smaller file.`,
+        placement: 'topRight',
+        duration: 2,
+      });
+      return Upload.LIST_IGNORE;
+    }
+    return true;
   }
 
   processUploadPcap = async ({ file, onSuccess, onError }) => {
@@ -314,17 +344,35 @@ class PredictRuleBasedPage extends Component {
     try {
       const formData = new FormData();
       formData.append('pcapFile', file);
-      const response = await fetch(`${SERVER_URL}/api/pcaps`, { method: 'POST', body: formData });
-      if (!response.ok) throw new Error(await response.text());
+      const headers = getUserHeaders(this.props.userRole);
+      const response = await fetch(`${SERVER_URL}/api/pcaps`, { method: 'POST', body: formData, headers });
+      if (!response.ok) {
+        let errorText = await response.text();
+        try { const j = JSON.parse(errorText); errorText = j.error || j.message || errorText; } catch {}
+        throw new Error(errorText || 'Upload failed');
+      }
       const data = await response.json();
       onSuccess(data, response);
       this.setState({ pcapFile: data.pcapFile, uploading: false, wasUploaded: true });
+      const isDuplicate = data.alreadyExisted || false;
+      notification.success({
+        message: isDuplicate ? 'PCAP Already Exists' : 'PCAP Uploaded',
+        description: isDuplicate 
+          ? `File "${data.pcapFile}" already exists. Using existing file for detection.`
+          : `File "${data.pcapFile}" uploaded successfully and ready for detection.`,
+        placement: 'topRight',
+      });
       // Refresh PCAP files list
       this.fetchPcapFiles();
     } catch (e) {
       this.setState({ uploading: false });
       onError(e);
-      message.error(`Upload failed: ${e.message}`);
+      notification.error({
+        message: 'Upload Failed',
+        description: e.message || String(e),
+        placement: 'topRight',
+        duration: 2,
+      });
     }
   }
 
@@ -333,7 +381,7 @@ class PredictRuleBasedPage extends Component {
     if (!pcapFile) return;
     try {
       this.setState({ offlineLoading: true });
-      const data = await requestRuleOffline({ pcapFile });
+      const data = await requestRuleOffline({ pcapFile, userRole: this.props.userRole });
       notification.success({
         message: 'Success',
         description: `Offline detection finished: ${data.count} alerts`,
@@ -542,9 +590,37 @@ class PredictRuleBasedPage extends Component {
             showSearch allowClear
             style={{ width: 280 }}
           >
-            {pcapFiles.map(file => (
-              <Select.Option key={file} value={file}>{file}</Select.Option>
-            ))}
+            {(() => {
+              const entries = Array.isArray(pcapFiles) ? pcapFiles : [];
+              const byName = new Map();
+              for (const item of entries) {
+                const f = typeof item === 'string' ? { name: item, type: 'sample', path: 'samples' } : item;
+                const existing = byName.get(f.name);
+                if (!existing || (existing.type !== 'user' && f.type === 'user')) {
+                  byName.set(f.name, f);
+                }
+              }
+              const users = [];
+              const samples = [];
+              for (const f of byName.values()) {
+                if (f.type === 'user') users.push(f); else samples.push(f);
+              }
+              users.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+              samples.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+              const renderOption = (f) => (
+                <Select.Option key={f.name} value={f.name}>
+                  <span>
+                    {f.type === 'user' && <UserOutlined style={{ marginRight: 8, color: '#1890ff' }} />}
+                    {f.type === 'sample' && <DatabaseOutlined style={{ marginRight: 8, color: '#52c41a' }} />}
+                    {f.name}
+                  </span>
+                </Select.Option>
+              );
+              return [
+                ...users.map(renderOption),
+                ...samples.map(renderOption),
+              ];
+            })()}
           </Select>
         )}
         {!wasUploaded && this.props.isSignedIn && (
