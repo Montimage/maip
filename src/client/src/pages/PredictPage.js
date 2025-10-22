@@ -1035,13 +1035,10 @@ class PredictPage extends Component {
       }
       this.props.fetchPredict(this.state.modelId, groupedReportId, nextCsv);
       this.setState(prev => ({ processedCsvs: [...prev.processedCsvs, nextCsv] }));
-      if (!this.state.isRunning) {
-        this.setState({ isRunning: true });
-        if (this.predictTimer) clearInterval(this.predictTimer);
-        this.predictTimer = setInterval(() => {
-          this.props.fetchPredictStatus();
-        }, 2000);
-      }
+      
+      // Don't use predictTimer in online mode - we have manual polling loop below
+      // predictTimer is only needed for offline mode where Redux handles the prediction status
+      
       for (let i = 0; i < 20; i++) {
         try {
           const st = await apiRequestPredictStatus();
@@ -1398,7 +1395,7 @@ class PredictPage extends Component {
                   style={{ width: '100%', maxWidth: 500 }}
                   allowClear showSearch
                   value={this.state.modelId}
-                  disabled={isModelIdPresent}
+                  disabled={isModelIdPresent || isRunning}
                   onChange={(value) => {
                     this.setState({ modelId: value, predictStats: null });
                     console.log(`Select model ${value}`);
@@ -1420,7 +1417,8 @@ class PredictPage extends Component {
                         {this.state.testingPcapFile}
                       </Tag>
                       <Button 
-                        size="small" 
+                        size="small"
+                        disabled={isRunning}
                         onClick={() => {
                           this.setState({
                             testingPcapFile: null,
@@ -1441,6 +1439,7 @@ class PredictPage extends Component {
                     <Select
                       placeholder="Select a PCAP file..."
                       value={this.state.testingPcapFile}
+                      disabled={isRunning}
                       onChange={(value) => {
                         // Clear all results when pcap is cleared
                         if (!value) {
@@ -1492,8 +1491,9 @@ class PredictPage extends Component {
                     onChange={(info) => this.handleUploadPcap(info)}
                     customRequest={this.processUploadPcap}
                     showUploadList={false}
+                    disabled={isRunning}
                   >
-                    <Button icon={<UploadOutlined />} disabled={!!this.state.testingPcapFile} style={{ width: 212 }}>
+                    <Button icon={<UploadOutlined />} disabled={!!this.state.testingPcapFile || isRunning} style={{ width: 212 }}>
                       Upload PCAP
                     </Button>
                   </Upload>
@@ -1526,7 +1526,7 @@ class PredictPage extends Component {
                   style={{ width: '100%', maxWidth: 500 }}
                   allowClear showSearch
                   value={this.state.modelId}
-                  disabled={isModelIdPresent}
+                  disabled={isModelIdPresent || isCapturing}
                   onChange={(value) => {
                     this.setState({ modelId: value });
                     console.log(`Select model ${value}`);
@@ -1544,6 +1544,7 @@ class PredictPage extends Component {
                 <Select placeholder="Select a network interface ..."
                   style={{ width: '100%', maxWidth: 500 }}
                   allowClear showSearch
+                  disabled={isCapturing}
                   value={this.state.interface}
                   onChange={v => this.setState({ interface: v })}
                   options={this.state.interfacesOptions}
@@ -1559,6 +1560,7 @@ class PredictPage extends Component {
                 <InputNumber 
                   min={3} 
                   max={60} 
+                  disabled={isCapturing}
                   value={this.state.windowSec} 
                   defaultValue={10} 
                   onChange={(v) => this.setState({ windowSec: v || 10 })}
@@ -1575,6 +1577,7 @@ class PredictPage extends Component {
                 <InputNumber
                   min={this.state.windowSec}
                   max={3600}
+                  disabled={isCapturing}
                   value={this.state.totalDurationSec}
                   placeholder="Until Stop"
                   onChange={(v) => this.setState({ totalDurationSec: (v === undefined || v === null) ? null : v })}

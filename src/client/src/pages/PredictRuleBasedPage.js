@@ -505,7 +505,8 @@ class PredictRuleBasedPage extends Component {
               {pcapFile}
             </Tag>
             <Button 
-              size="small" 
+              size="small"
+              disabled={offlineLoading}
               onClick={() => {
                 this.setState({
                   pcapFile: null,
@@ -527,6 +528,7 @@ class PredictRuleBasedPage extends Component {
           <Select
             placeholder="Select a PCAP file..."
             value={pcapFile}
+            disabled={offlineLoading}
             onChange={(value) => this.setState({ 
               pcapFile: value,
               wasUploaded: false,
@@ -552,8 +554,9 @@ class PredictRuleBasedPage extends Component {
             action={`${SERVER_URL}/api/pcaps`}
             customRequest={this.processUploadPcap}
             showUploadList={false}
+            disabled={offlineLoading}
           >
-            <Button icon={<UploadOutlined />} loading={uploading} disabled={uploading}>
+            <Button icon={<UploadOutlined />} loading={uploading} disabled={uploading || offlineLoading}>
               Upload PCAP
             </Button>
           </Upload>
@@ -648,7 +651,7 @@ class PredictRuleBasedPage extends Component {
                   }));
                 }}
                 style={{ width: 180 }}
-                disabled={this.state.onlineRunning}
+                disabled={this.state.onlineRunning || this.state.offlineLoading}
               >
                 <Select.Option value="offline">Offline (PCAP)</Select.Option>
                 <Select.Option value="online" disabled={!this.props.canPerformOnlineActions}>
