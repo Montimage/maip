@@ -146,7 +146,7 @@ class DPIPage extends Component {
                 });
               });
             } else {
-              // No previous session found
+              // No previous session found - auto-start DPI analysis
               this.setState({ 
                 selectedPcap: pendingPcap,
                 mode: 'offline',
@@ -158,12 +158,16 @@ class DPIPage extends Component {
                 conversations: [],
                 packetSizes: [],
                 selectedProtocols: ['ETHERNET'],
-              });
-              localStorage.removeItem('pendingDPIPcap');
-              notification.info({
-                message: 'PCAP Loaded',
-                description: `Ready to analyze "${pendingPcap}" with DPI. Click Start to begin.`,
-                placement: 'topRight',
+              }, () => {
+                // Auto-start DPI analysis after state is set
+                localStorage.removeItem('pendingDPIPcap');
+                notification.info({
+                  message: 'Auto-starting DPI Analysis',
+                  description: `Automatically analyzing "${pendingPcap}" with DPI...`,
+                  placement: 'topRight',
+                });
+                // Trigger DPI analysis automatically
+                setTimeout(() => this.startAnalysis(), 1000);
               });
             }
           } catch (e) {

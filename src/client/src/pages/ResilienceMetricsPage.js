@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
-import { Select, Col, Row, Button, Card, Statistic, Divider, message } from 'antd';
+import { Select, Col, Row, Button, Card, Statistic, Divider, message, notification } from 'antd';
 import { Heatmap } from '@ant-design/plots';
 import {
   requestApp,
@@ -79,7 +79,16 @@ class ResilienceMetricsPage extends Component {
         };
         const dataset = attackDatasetMap[attackType];
         if (dataset && attacksDatasets && attacksDatasets.includes(dataset)) {
-          this.setState({ buildConfig, attacksDatasets, selectedAttack: dataset });
+          this.setState({ buildConfig, attacksDatasets, selectedAttack: dataset }, () => {
+            // Auto-trigger computation when navigating from Attack page
+            notification.info({
+              message: 'Auto-computing Impact',
+              description: `Automatically computing resilience metrics for ${attackType.toUpperCase()} attack...`,
+              placement: 'topRight',
+            });
+            // Trigger computation automatically after state is set
+            setTimeout(() => this.handleButtonComputeMetric(dataset), 1000);
+          });
         } else {
           this.setState({ buildConfig, attacksDatasets });
         }
