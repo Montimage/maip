@@ -93,7 +93,7 @@
 
 /* Submenu items indentation - only for nested items */
 .ant-layout-sider .ant-menu-inline .ant-menu-sub .ant-menu-item {
-    padding-left: 48px !important;
+    padding-left: 65px !important;
 }
 
 /* Submenu background */

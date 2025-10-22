@@ -74,7 +74,7 @@
 
 .projects-section {
   padding: 80px 24px;
-  background: #fff;
+  background: linear-gradient(to bottom, #f0f2f5, #fafafa);
 }
 
 /* Feature Cards */
@@ -82,6 +82,11 @@
   border-radius: 8px;
   transition: all 0.3s ease;
   border: 1px solid #f0f0f0;
+  padding: 20px !important;
+}
+
+.feature-card .ant-card-body {
+  padding: 0 !important;
 }
 
 .feature-card:hover {

@@ -134,7 +134,7 @@ const LandingPage = () => {
             <Title level={3} className="hero-subtitle" style={{ fontWeight: 400, color: '#595959' }}>
               AI-Powered Network Anomaly Detection with Explainable Intelligence
             </Title>
-            <Paragraph className="hero-description" style={{ fontSize: 18, marginTop: 24, maxWidth: 700, margin: '24px auto' }}>
+            <Paragraph className="hero-description" style={{ fontSize: 18, marginTop: 24, maxWidth: 900, margin: '24px auto' }}>
               Advanced Cybersecurity Analytics Service (ACAS) for AI-based analysis of network events captured by the Montimage Monitoring Tools (MMT). 
               Protect your network infrastructure with advanced machine learning models that detect and respond to 
               network threats and anomalies in real-time. Get early warnings, understand root causes, and automate responses.
@@ -187,7 +187,7 @@ const LandingPage = () => {
                   <Card 
                     hoverable 
                     className="feature-card"
-                    style={{ height: '100%', textAlign: 'center', minHeight: 300 }}
+                    style={{ height: '100%', textAlign: 'center' }}
                   >
                     <div style={{ marginBottom: 16 }}>
                       {feature.icon}
