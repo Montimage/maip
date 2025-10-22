@@ -232,9 +232,9 @@ class RetrainPage extends Component {
     };
 
     const overlayMessageStyle = {
-      position: 'absolute',
+      position: 'fixed',
       top: '50%',
-      left: '50%',
+      left: 'calc(50% + 125px)',
       transform: 'translate(-50%, -50%)',
       zIndex: 1000,
       background: 'rgba(255, 255, 255, 0.95)',
@@ -243,6 +243,7 @@ class RetrainPage extends Component {
       boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
       textAlign: 'center',
       border: '2px solid #ff4d4f',
+      maxWidth: '500px',
     };
 
     return (

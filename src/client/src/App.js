@@ -10,6 +10,7 @@ import {
 
 import ErrorBoundary from "antd/lib/alert/ErrorBoundary";
 import MAIPHeader from "./components/MAIPHeader";
+import MAIPSidebar from "./components/MAIPSidebar";
 import MAIPFooter from "./components/MAIPFooter";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
@@ -37,9 +38,13 @@ function App() {
   return (
     <Router>
       <ErrorBoundary>
-        <Layout className="layout" style={{ minHeight: "100vh", paddingBottom: 64 }}>
+        <Layout className="layout" style={{ minHeight: "100vh" }}>
           <MAIPHeader />
-          <Routes>
+          <Layout style={{ paddingTop: 64 }}>
+            <MAIPSidebar />
+            <Layout style={{ marginLeft: 250, background: '#fff' }}>
+              <Layout.Content style={{ padding: '24px', minHeight: 'calc(100vh - 64px - 64px)', background: '#fff' }}>
+                <Routes>
             {/* Public routes */}
             <Route path="/" element={<LandingPage />} />
             <Route path="/sign-in" element={<SignInPage />} />
@@ -131,8 +136,11 @@ function App() {
               path="/predict/early" 
               element={<EarlyPredictionPage />} 
             />
-          </Routes>
-          <MAIPFooter />
+                </Routes>
+              </Layout.Content>
+              <MAIPFooter />
+            </Layout>
+          </Layout>
         </Layout>
       </ErrorBoundary>
     </Router>

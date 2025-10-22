@@ -1,0 +1,120 @@
+/* Sidebar styling - lighter, modern look */
+.ant-layout-sider {
+  background: #f0f2f5;
+  border-right: 1px solid #d9d9d9;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.06);
+}
+
+/* Override Ant Design's dark theme since we're using light sidebar */
+.ant-layout-sider .ant-menu {
+  background: #f0f2f5 !important;
+}
+
+/* Menu items - force consistent alignment - lighter for non-selected */
+.ant-layout-sider .ant-menu-item,
+.ant-layout-sider .ant-menu-submenu-title {
+    color: #595959 !important;
+    font-size: 15px;
+    margin: 0 !important;
+    font-weight: 400;
+}
+
+/* Force ALL root level items to align from the left edge - same padding for all */
+.ant-layout-sider .ant-menu-inline > .ant-menu-item,
+.ant-layout-sider .ant-menu-inline > .ant-menu-submenu > .ant-menu-submenu-title {
+    padding-left: 24px !important;
+    padding-right: 24px !important;
+}
+
+/* Override Ant Design's level-based indentation */
+.ant-layout-sider .ant-menu-item[style*="padding-left"],
+.ant-layout-sider .ant-menu-submenu-title[style*="padding-left"] {
+    padding-left: 24px !important;
+}
+
+/* Override any inline padding that Ant Design might add */
+.ant-layout-sider .ant-menu-root > .ant-menu-item > span,
+.ant-layout-sider .ant-menu-root > .ant-menu-submenu > .ant-menu-submenu-title > span {
+    margin-left: 0 !important;
+}
+
+/* Selected items - bold and pure black for emphasis */
+.ant-layout-sider .ant-menu-item-selected,
+.ant-layout-sider .ant-menu-submenu-selected > .ant-menu-submenu-title {
+    color: #000000 !important;
+    font-weight: 700 !important;
+    background-color: transparent !important;
+}
+
+/* Hover effect - darker text with subtle grey background */
+.ant-layout-sider .ant-menu-item:hover,
+.ant-layout-sider .ant-menu-submenu-title:hover {
+    color: #262626 !important;
+    background-color: rgba(0, 0, 0, 0.04) !important;
+}
+
+/* Icons - ensure consistent spacing */
+.ant-layout-sider .ant-menu-item .anticon,
+.ant-layout-sider .ant-menu-submenu-title .anticon {
+    color: #8c8c8c;
+    font-size: 16px;
+    margin-right: 10px !important;
+}
+
+/* Selected item icons - darker */
+.ant-layout-sider .ant-menu-item-selected .anticon:not(.anticon-lock),
+.ant-layout-sider .ant-menu-submenu-selected .anticon:not(.anticon-lock) {
+    color: #000000 !important;
+}
+
+/* Lock icons should ALWAYS be red - even when selected */
+.ant-layout-sider .anticon-lock,
+.ant-layout-sider .ant-menu-item-selected .anticon-lock,
+.ant-layout-sider .ant-menu-submenu-selected .anticon-lock {
+    color: #ff4d4f !important;
+    vertical-align: middle !important;
+    margin-left: 6px !important;
+    margin-right: 0 !important;
+    position: relative !important;
+    top: -1px !important;
+}
+
+/* Ensure arrow icon doesn't affect alignment */
+.ant-layout-sider .ant-menu-submenu-arrow {
+    right: 16px;
+}
+
+/* Disabled items */
+.ant-layout-sider .ant-menu-item-disabled,
+.ant-layout-sider .ant-menu-submenu-disabled > .ant-menu-submenu-title {
+    color: rgba(0, 0, 0, 0.35) !important;
+    opacity: 0.6 !important;
+}
+
+/* Submenu items indentation - only for nested items */
+.ant-layout-sider .ant-menu-inline .ant-menu-sub .ant-menu-item {
+    padding-left: 48px !important;
+}
+
+/* Submenu background */
+.ant-layout-sider .ant-menu-sub {
+    background: #fafafa !important;
+}
+
+/* Final override - force all direct children to have same padding */
+.ant-layout-sider > .ant-menu > li {
+    padding-left: 24px !important;
+}
+
+/* Submenu items - lighter when not selected */
+.ant-layout-sider .ant-menu-sub .ant-menu-item {
+    font-size: 15px !important;
+    font-weight: 400 !important;
+    color: #595959 !important;
+}
+
+/* Selected submenu items - bold and black */
+.ant-layout-sider .ant-menu-sub .ant-menu-item-selected {
+    color: #000000 !important;
+    font-weight: 700 !important;
+}
