@@ -42,7 +42,7 @@ function App() {
           <MAIPHeader />
           <Layout style={{ paddingTop: 64 }}>
             <MAIPSidebar />
-            <Layout style={{ marginLeft: 250, background: '#fff' }}>
+            <Layout style={{ marginLeft: 270, background: '#fff' }}>
               <Layout.Content style={{ padding: '24px', minHeight: 'calc(100vh - 64px - 64px)', background: '#fff' }}>
                 <Routes>
             {/* Public routes */}

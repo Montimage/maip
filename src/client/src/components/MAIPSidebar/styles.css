@@ -24,6 +24,7 @@
 .ant-layout-sider .ant-menu-inline > .ant-menu-submenu > .ant-menu-submenu-title {
     padding-left: 24px !important;
     padding-right: 24px !important;
+    width: 100% !important;
 }
 
 /* Override Ant Design's level-based indentation */
@@ -70,13 +71,15 @@
 /* Lock icons should ALWAYS be red - even when selected */
 .ant-layout-sider .anticon-lock,
 .ant-layout-sider .ant-menu-item-selected .anticon-lock,
-.ant-layout-sider .ant-menu-submenu-selected .anticon-lock {
+.ant-layout-sider .ant-menu-submenu-selected .anticon-lock,
+.ant-layout-sider .ant-menu-sub .anticon-lock {
     color: #ff4d4f !important;
     vertical-align: middle !important;
-    margin-left: 6px !important;
+    margin-left: 8px !important;
     margin-right: 0 !important;
     position: relative !important;
     top: -1px !important;
+    font-size: 12px !important;
 }
 
 /* Ensure arrow icon doesn't affect alignment */

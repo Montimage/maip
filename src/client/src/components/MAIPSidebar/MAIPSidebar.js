@@ -42,7 +42,7 @@ class MAIPSidebar extends Component {
         label: (
           <>
             Build
-            {isLoaded && !isAdmin && <LockOutlined style={{ fontSize: '11px', color: '#ff4d4f', marginLeft: '8px' }} />}
+            {isLoaded && !isAdmin && <LockOutlined style={{ fontSize: '12px', color: '#ff4d4f', marginLeft: '8px' }} />}
           </>
         ),
         icon: <DeploymentUnitOutlined />,
@@ -70,7 +70,7 @@ class MAIPSidebar extends Component {
             label: (
               <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                 <span>Models Retraining</span>
-                {isLoaded && !isAdmin && <LockOutlined style={{ fontSize: '11px', color: '#ff4d4f', marginLeft: '8px' }} />}
+                {isLoaded && !isAdmin && <LockOutlined style={{ fontSize: '12px', color: '#ff4d4f', marginLeft: '8px' }} />}
               </span>
             ),
             link: MENU_OPTIONS[15].link,
@@ -99,7 +99,7 @@ class MAIPSidebar extends Component {
             label: (
               <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                 <span>Early Prediction</span>
-                {isLoaded && !isAdmin && <LockOutlined style={{ fontSize: '11px', color: '#ff4d4f', marginLeft: '8px' }} />}
+                {isLoaded && !isAdmin && <LockOutlined style={{ fontSize: '12px', color: '#ff4d4f', marginLeft: '8px' }} />}
               </span>
             ),
             link: MENU_OPTIONS[19].link,
@@ -174,6 +174,11 @@ class MAIPSidebar extends Component {
       }
     });
     
+    // Special handling for Anomaly Prediction - only if not rule-based or early
+    if (pathname.includes('/predict') && !pathname.includes('/rule-based') && !pathname.includes('/early') && !selectedKeys.includes('predict-unified')) {
+      selectedKeys.push('predict-unified');
+    }
+    
     // Determine which submenu should be open based on current path
     if (pathname.includes('/dpi') || pathname.includes('/features')) {
       openKeys.push('traffic-analysis');
@@ -189,7 +194,7 @@ class MAIPSidebar extends Component {
 
     return (
       <Sider
-        width={250}
+        width={270}
         style={{
           overflow: 'auto',
           height: '100vh',
@@ -205,7 +210,7 @@ class MAIPSidebar extends Component {
           mode="inline"
           selectedKeys={selectedKeys}
           defaultOpenKeys={openKeys}
-          style={{ height: '100%', borderRight: 0 }}
+          style={{ height: '100%', borderRight: 0, padding: 0 }}
           inlineIndent={24}
         >
           {menuItems.map((item) => {

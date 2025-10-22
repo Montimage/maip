@@ -234,7 +234,7 @@ class RetrainPage extends Component {
     const overlayMessageStyle = {
       position: 'fixed',
       top: '50%',
-      left: 'calc(50% + 125px)',
+      left: 'calc(50% + 135px)',
       transform: 'translate(-50%, -50%)',
       zIndex: 1000,
       background: 'rgba(255, 255, 255, 0.95)',
@@ -254,7 +254,7 @@ class RetrainPage extends Component {
             <LockOutlined style={{ fontSize: '48px', color: '#ff4d4f', marginBottom: '16px' }} />
             <h3 style={{ fontSize: '20px', marginBottom: '8px', fontWeight: 600 }}>Administrator Access Required</h3>
             <p style={{ fontSize: '14px', color: '#8c8c8c', marginBottom: 0 }}>
-              {isSignedIn ? 'Only administrators can retrain models' : 'Please sign in with administrator privileges to retrain models'}
+              Only administrators can retrain AI models
             </p>
           </div>
         )}
