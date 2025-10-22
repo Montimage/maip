@@ -2,6 +2,8 @@ import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
 import { connect } from "react-redux";
 import { Row, Col, Card, Divider, Spin, Tooltip, Button, InputNumber, Form, Select, Statistic, notification } from 'antd';
+import { LockOutlined, RocketOutlined } from '@ant-design/icons';
+import { useUserRole } from '../hooks/useUserRole';
 import {
   requestApp,
   requestAllModels,
@@ -25,7 +27,6 @@ import {
   isACApp,
   isRunningApp,
 } from "../utils";
-import { RocketOutlined } from "@ant-design/icons";
 
 let isModelIdPresent = getLastPath() !== "retrain";
 
@@ -192,7 +193,7 @@ class RetrainPage extends Component {
 
   render() {
     const { modelId, modelDatasets, attacksDatasets } = this.state;
-    const { app, models } = this.props;
+    const { app, models, isAdmin, isSignedIn } = this.props;
 
     let trainingDatasetsOptions = [], testingDatasetsOptions = []; 
     let allDatasets = [...modelDatasets];
@@ -223,8 +224,41 @@ class RetrainPage extends Component {
     const isRunningNow = this.state.isRunning;
     const isReady = this.state.modelId && this.state.trainingDataset && this.state.testingDataset;
 
+    // Frozen overlay style for non-admin users
+    const frozenOverlayStyle = {
+      position: 'relative',
+      pointerEvents: isAdmin ? 'auto' : 'none',
+      opacity: isAdmin ? 1 : 0.5,
+    };
+
+    const overlayMessageStyle = {
+      position: 'absolute',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      zIndex: 1000,
+      background: 'rgba(255, 255, 255, 0.95)',
+      padding: '24px 32px',
+      borderRadius: '8px',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+      textAlign: 'center',
+      border: '2px solid #ff4d4f',
+    };
+
     return (
       <LayoutPage pageTitle="Models Retraining" pageSubTitle={subTitle}>
+        {/* Overlay message for non-admin users */}
+        {!isAdmin && (
+          <div style={overlayMessageStyle}>
+            <LockOutlined style={{ fontSize: '48px', color: '#ff4d4f', marginBottom: '16px' }} />
+            <h3 style={{ fontSize: '20px', marginBottom: '8px', fontWeight: 600 }}>Administrator Access Required</h3>
+            <p style={{ fontSize: '14px', color: '#8c8c8c', marginBottom: 0 }}>
+              {isSignedIn ? 'Only administrators can retrain models' : 'Please sign in with administrator privileges to retrain models'}
+            </p>
+          </div>
+        )}
+        
+        <div style={frozenOverlayStyle}>
         
         <Divider orientation="left">
           <h2 style={{ fontSize: '20px' }}>Configuration</h2>
@@ -497,6 +531,7 @@ class RetrainPage extends Component {
             </Col>
           </Row>
         </Card>
+        </div>
       </LayoutPage>
     );
   }
@@ -517,4 +552,10 @@ const mapDispatchToProps = (dispatch) => ({
     dispatch(requestRetrainModelAC({ modelId, trainingDataset, testingDataset })),
 });
 
-export default connect(mapPropsToStates, mapDispatchToProps)(RetrainPage);
+// Wrap with role check
+const RetrainPageWithRole = (props) => {
+  const userRole = useUserRole();
+  return <RetrainPage {...props} isAdmin={userRole.isAdmin} isSignedIn={userRole.isSignedIn} />;
+};
+
+export default connect(mapPropsToStates, mapDispatchToProps)(RetrainPageWithRole);

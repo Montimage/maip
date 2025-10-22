@@ -1,7 +1,8 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
 import { Row, Col, Tooltip, notification, Spin, Button, InputNumber, Form, Select } from 'antd';
-import { RocketOutlined } from '@ant-design/icons';
+import { RocketOutlined, LockOutlined } from '@ant-design/icons';
+import { useUserRole } from '../hooks/useUserRole';
 import {
   requestApp,
   requestDatasetsAC,
@@ -97,7 +98,7 @@ class BuildACPage extends Component {
   }
 
   render() {
-    const { datasets } = this.props;
+    const { datasets, isAdmin, isSignedIn } = this.props;
     console.log(datasets);
     const { isRunning } = this.state;
     const modelTypesOptions = AI_MODEL_TYPES ? AI_MODEL_TYPES.map(feature => ({
@@ -113,8 +114,41 @@ class BuildACPage extends Component {
       label: feature,
     })) : [];
 
+    // Frozen overlay style for non-admin users
+    const frozenOverlayStyle = {
+      position: 'relative',
+      pointerEvents: isAdmin ? 'auto' : 'none',
+      opacity: isAdmin ? 1 : 0.5,
+    };
+
+    const overlayMessageStyle = {
+      position: 'absolute',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      zIndex: 1000,
+      background: 'rgba(255, 255, 255, 0.95)',
+      padding: '24px 32px',
+      borderRadius: '8px',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+      textAlign: 'center',
+      border: '2px solid #ff4d4f',
+    };
+
     return (
       <LayoutPage pageTitle="Build Models" pageSubTitle="Build a new AI model for activity classification">
+        {/* Overlay message for non-admin users */}
+        {!isAdmin && (
+          <div style={overlayMessageStyle}>
+            <LockOutlined style={{ fontSize: '48px', color: '#ff4d4f', marginBottom: '16px' }} />
+            <h3 style={{ fontSize: '20px', marginBottom: '8px', fontWeight: 600 }}>Administrator Access Required</h3>
+            <p style={{ fontSize: '14px', color: '#8c8c8c', marginBottom: 0 }}>
+              {isSignedIn ? 'Only administrators can build and train AI models' : 'Please sign in with administrator privileges to build models'}
+            </p>
+          </div>
+        )}
+        
+        <div style={frozenOverlayStyle}>
         <Row>
         <Col span={12}>
         <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 600, marginBottom: 10 }}>
@@ -179,6 +213,7 @@ class BuildACPage extends Component {
         </Form>
         </Col>
         </Row>
+        </div>
       </LayoutPage>
     );
   }
@@ -196,4 +231,10 @@ const mapDispatchToProps = (dispatch) => ({
     dispatch(requestBuildModelAC({ modelType, dataset, featuresList, trainingRatio })),
 });
 
-export default connect(mapPropsToStates, mapDispatchToProps)(BuildACPage);
+// Wrap with role check
+const BuildACPageWithRole = (props) => {
+  const userRole = useUserRole();
+  return <BuildACPage {...props} isAdmin={userRole.isAdmin} isSignedIn={userRole.isSignedIn} />;
+};
+
+export default connect(mapPropsToStates, mapDispatchToProps)(BuildACPageWithRole);

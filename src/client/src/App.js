@@ -53,22 +53,22 @@ function App() {
             <Route path="/models/datasets/:modelId/:datasetType" element={<DatasetPage />} />
             <Route path="/dpi" element={<DPIPage />} />
             
-            {/* Protected routes - require authentication */}
+            {/* Build and Retrain routes - accessible to all (pages have frozen overlays for non-admins) */}
             <Route 
               path="/models/retrain" 
-              element={<ProtectedRoute><RetrainPage /></ProtectedRoute>} 
+              element={<RetrainPage />} 
             />
             <Route 
               path="/models/retrain/:modelId" 
-              element={<ProtectedRoute><RetrainPage /></ProtectedRoute>} 
+              element={<RetrainPage />} 
             />
             <Route 
               path="/build/ad" 
-              element={<ProtectedRoute><BuildADPage app="ad" /></ProtectedRoute>} 
+              element={<BuildADPage app="ad" />} 
             />
             <Route 
               path="/build/ac" 
-              element={<ProtectedRoute><BuildACPage app="ac" /></ProtectedRoute>} 
+              element={<BuildACPage app="ac" />} 
             />
             
             {/* XAI routes - public */}
@@ -124,11 +124,13 @@ function App() {
             <Route path="/predict/offline" element={<PredictPage />} />
             <Route path="/predict/offline/:modelId" element={<PredictPage />} />
             <Route path="/predict/rule-based" element={<PredictRuleBasedPage />} />
+            <Route path="/predict/:modelId" element={<PredictPage />} />
+            
+            {/* Early Prediction route - accessible to all (page has frozen overlay for non-admins) */}
             <Route 
               path="/predict/early" 
-              element={<AdminRoute><EarlyPredictionPage /></AdminRoute>} 
+              element={<EarlyPredictionPage />} 
             />
-            <Route path="/predict/:modelId" element={<PredictPage />} />
           </Routes>
           <MAIPFooter />
         </Layout>

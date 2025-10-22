@@ -1395,7 +1395,7 @@ class PredictPage extends Component {
                   style={{ width: '100%', maxWidth: 500 }}
                   allowClear showSearch
                   value={this.state.modelId}
-                  disabled={isModelIdPresent || isRunning}
+                  disabled={isRunning}
                   onChange={(value) => {
                     this.setState({ modelId: value, predictStats: null });
                     console.log(`Select model ${value}`);

@@ -21,8 +21,6 @@ const SECURITY_OUT_DIR = path.join(__dirname, '../mmt/outputs');
 const sessionManager = require('../utils/sessionManager');
 // Import queue functions
 const { queueRuleBasedDetection, getJobStatus } = require('../queue/job-queue');
-// Import admin check middleware (optional - only if ADMIN_MODE is configured)
-const { requireAdminForOnline, checkAdmin, ADMIN_ENABLED } = require('../middleware/adminCheck');
 
 // Default to sudo unless explicitly disabled; use non-interactive to avoid blocking
 const SUDO = USE_SUDO === 'false' ? '' : 'sudo -n ';
@@ -228,7 +226,7 @@ function dedupeAlerts(list) {
   }
 }
 
-router.get('/rule-based/status', checkAdmin, async (req, res) => {
+router.get('/rule-based/status', async (req, res) => {
   try {
     const { sessionId, ownerToken } = req.query;
     const isAdmin = req.isAdmin || false;
@@ -302,7 +300,7 @@ router.get('/rule-based/alerts', async (req, res) => {
   }
 });
 
-router.post('/rule-based/online/start', requireAdminForOnline, async (req, res) => {
+router.post('/rule-based/online/start', async (req, res) => {
   try {
     const { iface, intervalSec = 5, verbose = true, excludeRules, cores } = req.body || {};
     if (!iface) return res.status(400).send('Missing iface');
@@ -439,7 +437,7 @@ router.post('/rule-based/online/start', requireAdminForOnline, async (req, res) 
   }
 });
 
-router.post('/rule-based/online/stop', requireAdminForOnline, async (req, res) => {
+router.post('/rule-based/online/stop', async (req, res) => {
   try {
     if (!secState.running) return res.send({ ok: true, stopped: false });
     

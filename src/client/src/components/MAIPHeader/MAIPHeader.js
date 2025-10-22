@@ -53,13 +53,13 @@ class MAIPHeader extends Component {
         label: (
           <>
             Build
-            {isLoaded && !isSignedIn && <LockOutlined style={{ fontSize: '11px', color: '#FFD700', marginLeft: '8px', display: 'inline-block', verticalAlign: 'middle', position: 'relative', top: '-1px' }} />}
+            {isLoaded && !isAdmin && <LockOutlined style={{ fontSize: '11px', color: '#FFD700', marginLeft: '8px', display: 'inline-block', verticalAlign: 'middle', position: 'relative', top: '-1px' }} />}
           </>
         ),
         icon: <DeploymentUnitOutlined />,
         link: `/build/ad`,
-        protected: true,
-        requireAuth: true,
+        protected: false,
+        requireAuth: false,
         //link: MENU_OPTIONS[0].link,
       },
       {
@@ -72,11 +72,6 @@ class MAIPHeader extends Component {
             label: 'All Models',
             link: MENU_OPTIONS[2].link,
           },
-          // {
-          //   key: MENU_OPTIONS[17].key,
-          //   label: 'Datasets',
-          //   link: MENU_OPTIONS[17].link,
-          // },
           {
             key: MENU_OPTIONS[3].key,
             label: 'Models Comparison',
@@ -87,12 +82,12 @@ class MAIPHeader extends Component {
             label: (
               <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                 <span>Models Retraining</span>
-                {isLoaded && !isSignedIn && <LockOutlined style={{ fontSize: '11px', color: '#FFD700', marginLeft: '8px', display: 'inline-block', position: 'relative', top: '1px' }} />}
+                {isLoaded && !isAdmin && <LockOutlined style={{ fontSize: '11px', color: '#FFD700', marginLeft: '8px', display: 'inline-block', position: 'relative', top: '1px' }} />}
               </span>
             ),
             link: MENU_OPTIONS[15].link,
-            protected: true,
-            requireAuth: true,
+            protected: false,
+            requireAuth: false,
           },
         ],
       },
@@ -120,7 +115,8 @@ class MAIPHeader extends Component {
               </span>
             ),
             link: MENU_OPTIONS[19].link,
-            protected: true,
+            protected: false,
+            requireAuth: false,
           },
         ],
       },

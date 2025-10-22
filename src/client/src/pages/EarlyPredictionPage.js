@@ -1,9 +1,10 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
 import { Button, Card, Table, Divider, Alert, Spin, notification, Statistic, Tag, Row, Col, Select } from 'antd';
-import { ReloadOutlined, PlayCircleOutlined, WarningOutlined, CheckCircleOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import { ReloadOutlined, PlayCircleOutlined, WarningOutlined, CheckCircleOutlined, ClockCircleOutlined, LockOutlined } from '@ant-design/icons';
 import { Line, Bar } from '@ant-design/plots';
 import { SERVER_URL } from '../constants';
+import { useUserRole } from '../hooks/useUserRole';
 
 const { Option } = Select;
 
@@ -792,6 +793,8 @@ class EarlyPredictionPage extends Component {
       errorMessage,
       lastUpdated,
     } = this.state;
+    
+    const { isAdmin, isSignedIn } = this.props;
 
     // Algorithm display names
     const algorithmNames = {
@@ -818,11 +821,44 @@ class EarlyPredictionPage extends Component {
 
     const hasArtifacts = contributions.length > 0 || detectedData.length > 0 || forecastChartData;
 
+    // Frozen overlay style for non-admin users
+    const frozenOverlayStyle = {
+      position: 'relative',
+      pointerEvents: isAdmin ? 'auto' : 'none',
+      opacity: isAdmin ? 1 : 0.5,
+    };
+
+    const overlayMessageStyle = {
+      position: 'absolute',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      zIndex: 1000,
+      background: 'rgba(255, 255, 255, 0.95)',
+      padding: '24px 32px',
+      borderRadius: '8px',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+      textAlign: 'center',
+      border: '2px solid #ff4d4f',
+    };
+
     return (
       <LayoutPage
         pageTitle="Early Prediction"
         pageSubTitle="Anomaly detection and short-term forecasting for staged attack prediction"
       >
+        {/* Overlay message for non-admin users */}
+        {!isAdmin && (
+          <div style={overlayMessageStyle}>
+            <LockOutlined style={{ fontSize: '48px', color: '#ff4d4f', marginBottom: '16px' }} />
+            <h3 style={{ fontSize: '20px', marginBottom: '8px', fontWeight: 600 }}>Administrator Access Required</h3>
+            <p style={{ fontSize: '14px', color: '#8c8c8c', marginBottom: 0 }}>
+              {isSignedIn ? 'Only administrators can access early prediction features' : 'Please sign in with administrator privileges to access early prediction'}
+            </p>
+          </div>
+        )}
+        
+        <div style={frozenOverlayStyle}>
         {/* Algorithm Comparison Summary Banner */}
         {!loading && comparisonData && (
           <Card size="small" style={{ marginBottom: 16, backgroundColor: '#f0f5ff' }}>
@@ -1176,9 +1212,16 @@ class EarlyPredictionPage extends Component {
 
           </>
         )}
+        </div>
       </LayoutPage>
     );
   }
 }
 
-export default EarlyPredictionPage;
+// Wrap with role check
+const EarlyPredictionPageWithRole = (props) => {
+  const userRole = useUserRole();
+  return <EarlyPredictionPage {...props} isAdmin={userRole.isAdmin} isSignedIn={userRole.isSignedIn} />;
+};
+
+export default EarlyPredictionPageWithRole;

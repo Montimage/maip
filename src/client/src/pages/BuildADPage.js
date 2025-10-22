@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import LayoutPage from './LayoutPage';
 import { connect } from "react-redux";
 import { Row, Col, Tooltip, message, notification, Upload, Spin, Button, InputNumber, Space, Form, Input, Select, Checkbox, Card, Divider, Tag, Statistic } from 'antd';
-import { UploadOutlined, RocketOutlined } from "@ant-design/icons";
+import { UploadOutlined, RocketOutlined, LockOutlined } from "@ant-design/icons";
+import { useUserRole } from '../hooks/useUserRole';
 import {
   requestMMTStatus,
   requestBuildModel,
@@ -271,7 +272,7 @@ class BuildADPage extends Component {
   }
 
   render() {
-    const { mmtStatus, buildStatus, reports } = this.props;
+    const { mmtStatus, buildStatus, reports, isSignedIn, isAdmin } = this.props;
     //console.log(reports);
     const {
       attackPcapFile,
@@ -291,8 +292,41 @@ class BuildADPage extends Component {
       label: feature,
     })) : [];
 
+    // Frozen overlay style for non-admin users
+    const frozenOverlayStyle = {
+      position: 'relative',
+      pointerEvents: isAdmin ? 'auto' : 'none',
+      opacity: isAdmin ? 1 : 0.5,
+    };
+
+    const overlayMessageStyle = {
+      position: 'absolute',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      zIndex: 1000,
+      background: 'rgba(255, 255, 255, 0.95)',
+      padding: '24px 32px',
+      borderRadius: '8px',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+      textAlign: 'center',
+      border: '2px solid #ff4d4f',
+    };
+
     return (
       <LayoutPage pageTitle="Build Models" pageSubTitle="Build a new AI model for anomaly detection">
+        {/* Overlay message for non-admin users */}
+        {!isAdmin && (
+          <div style={overlayMessageStyle}>
+            <LockOutlined style={{ fontSize: '48px', color: '#ff4d4f', marginBottom: '16px' }} />
+            <h3 style={{ fontSize: '20px', marginBottom: '8px', fontWeight: 600 }}>Administrator Access Required</h3>
+            <p style={{ fontSize: '14px', color: '#8c8c8c', marginBottom: 0 }}>
+              {isSignedIn ? 'Only administrators can build and train AI models' : 'Please sign in with administrator privileges to build models'}
+            </p>
+          </div>
+        )}
+        
+        <div style={frozenOverlayStyle}>
         
         <Divider orientation="left">
           <h2 style={{ fontSize: '20px' }}>Configuration</h2>
@@ -470,18 +504,21 @@ class BuildADPage extends Component {
             </Col>
           </Row>
           <div style={{ textAlign: 'center', marginTop: '24px' }}>
-            <Button
-              type="primary"
-              icon={<RocketOutlined />}
-              loading={isRunning}
-              disabled={ isRunning ||
-                !((this.state.attackDataset && this.state.normalDataset) ||
-                (this.state.attackPcapFile && this.state.normalPcapFile))
-              }
-              onClick={this.handleButtonBuild}
-            >
-              Build Model
-            </Button>
+            <Tooltip title={!this.props.isAdmin ? "Administrator privileges required to build models" : ""}>
+              <Button
+                type="primary"
+                icon={!this.props.isAdmin ? <LockOutlined /> : <RocketOutlined />}
+                loading={isRunning}
+                disabled={ isRunning ||
+                  !this.props.isAdmin ||
+                  !((this.state.attackDataset && this.state.normalDataset) ||
+                  (this.state.attackPcapFile && this.state.normalPcapFile))
+                }
+                onClick={this.handleButtonBuild}
+              >
+                Build Model {!this.props.isAdmin && '(Admin Only)'}
+              </Button>
+            </Tooltip>
           </div>
         </Form>
         </Card>
@@ -542,6 +579,7 @@ class BuildADPage extends Component {
             </Col>
           </Row>
         </Card>
+        </div>
       </LayoutPage>
     );
   }
@@ -567,4 +605,10 @@ function withNavigation(ComponentWithNav) {
   };
 }
 
-export default connect(mapPropsToStates, mapDispatchToProps)(withNavigation(BuildADPage));
+// Wrap with role check
+const BuildADPageWithRole = (props) => {
+  const userRole = useUserRole();
+  return <BuildADPage {...props} isAdmin={userRole.isAdmin} isSignedIn={userRole.isSignedIn} />;
+};
+
+export default connect(mapPropsToStates, mapDispatchToProps)(withNavigation(BuildADPageWithRole));
