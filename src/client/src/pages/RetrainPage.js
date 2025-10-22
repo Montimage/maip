@@ -248,7 +248,7 @@ class RetrainPage extends Component {
                 style={{ width: '100%' }}
                 allowClear showSearch
                 value={this.state.modelId}
-                disabled={isModelIdPresent}
+                disabled={isModelIdPresent || isRunningNow}
                 onClear={() => this.setState({ 
                   modelDatasets: [], attacksDatasets: [],
                   trainingDataset: null, testingDataset: null  
@@ -278,6 +278,7 @@ class RetrainPage extends Component {
               <Select
                 placeholder="Select a training dataset ..."
                 showSearch allowClear
+                disabled={isRunningNow}
                 value={this.state.trainingDataset}
                 onChange={value => this.setState({ trainingDataset: value })}
                 options={trainingDatasetsOptions}
@@ -291,6 +292,7 @@ class RetrainPage extends Component {
               <Select
                 placeholder="Select a testing dataset ..."
                 showSearch allowClear
+                disabled={isRunningNow}
                 value={this.state.testingDataset}
                 onChange={value => this.setState({ testingDataset: value })}
                 options={testingDatasetsOptions}
@@ -313,6 +315,7 @@ class RetrainPage extends Component {
           <Form.Item label={<strong>Feature List</strong>} name="featureList">
             <Tooltip title="Select feature lists used to build models.">
               <Select
+                disabled={isRunningNow}
                 value={this.state.featureList}
                 onChange={value => this.setState({ featureList: value })}
                 options={featureOptions}
@@ -330,6 +333,7 @@ class RetrainPage extends Component {
                     <Tooltip title="In convolutional neural networks (CNN), the number of epochs determines how many times the model will iterate over the training data during the training process.">
                       <InputNumber
                         name="nb_epoch_cnn"
+                        disabled={isRunningNow}
                         value={this.state.nb_epoch_cnn}
                         min={1} max={1000} defaultValue={2}
                         style={{ width: '100%' }}
@@ -347,6 +351,7 @@ class RetrainPage extends Component {
                     <Tooltip title="Batch size in CNN refers to the number of samples that are processed together in a single forward and backward pass during each epoch of training.">
                       <InputNumber
                         name="batch_size_cnn"
+                        disabled={isRunningNow}
                         value={this.state.batch_size_cnn}
                         min={1} max={1000} defaultValue={32}
                         style={{ width: '100%' }}
@@ -367,6 +372,7 @@ class RetrainPage extends Component {
                     <Tooltip title="In Stacked Autoencoder (SAE), the number of epochs determines how many times this encoding-decoding process is repeated during training.">
                       <InputNumber
                         name="nb_epoch_sae"
+                        disabled={isRunningNow}
                         value={this.state.nb_epoch_sae}
                         min={1} max={1000} defaultValue={5}
                         style={{ width: '100%' }}
@@ -384,6 +390,7 @@ class RetrainPage extends Component {
                     <Tooltip title="Batch size in a SAE determines the number of samples processed together in each training iteration.">
                       <InputNumber
                         name="batch_size_sae"
+                        disabled={isRunningNow}
                         value={this.state.batch_size_sae}
                         min={1} max={1000} defaultValue={16}
                         style={{ width: '100%' }}
@@ -400,7 +407,7 @@ class RetrainPage extends Component {
             </>
           )}
           
-          <div style={{ textAlign: 'center', marginTop: '24px' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '16px', marginTop: 24 }}>
             <Button
               type="primary"
               icon={<RocketOutlined />}
@@ -410,6 +417,17 @@ class RetrainPage extends Component {
             >
               Retrain Model
             </Button>
+            <Button
+              type="primary"
+              disabled={!this.state.retrainId}
+              onClick={() => {
+                const originalModelId = this.state.modelId;
+                const retrainId = this.state.retrainId;
+                window.location.href = `/models/comparison?model1=${originalModelId}&model2=${retrainId}`;
+              }}
+            >
+              Compare with Original Model
+            </Button>
           </div>
         </Form>
         </Card>
@@ -417,97 +435,68 @@ class RetrainPage extends Component {
         </Row>
         
         <Divider orientation="left">
-          <h2 style={{ fontSize: '20px' }}>Retraining Status</h2>
+          <h2 style={{ fontSize: '20px' }}>Retraining Results</h2>
         </Divider>
         
         <Card style={{ marginBottom: 24 }}>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Statistic
-                title="Status"
-                value={
-                  isRunningNow ? 'Retraining' : 
-                  isReady ? 'Ready' : 'Waiting'
-                }
-                valueStyle={{ 
-                  color: isRunningNow ? '#1890ff' : 
-                         isReady ? '#52c41a' : '#faad14',
-                  fontSize: '20px' 
-                }}
-              />
+          <div style={{ textAlign: 'center', marginBottom: 12 }}>
+            <strong style={{ fontSize: 16 }}>Retraining Summary</strong>
+          </div>
+          <Row gutter={12}>
+            <Col span={6}>
+              <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                <Statistic
+                  title="Status"
+                  value={
+                    isRunningNow ? 'Retraining' : 
+                    this.state.retrainId ? 'Completed' :
+                    isReady ? 'Ready' : 'Waiting'
+                  }
+                  valueStyle={{ 
+                    fontSize: 14,
+                    fontWeight: 'bold',
+                    color: isRunningNow ? '#1890ff' : 
+                           this.state.retrainId ? '#52c41a' :
+                           isReady ? '#52c41a' : '#faad14'
+                  }}
+                />
+              </Card>
             </Col>
-            <Col span={12}>
-              <Statistic
-                title="Model Type"
-                value={this.props.app === 'ad' ? 'Anomaly Detection' : 'Attack Classification'}
-                valueStyle={{ fontSize: '16px', color: '#722ed1' }}
-              />
+            <Col span={6}>
+              <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                <Statistic
+                  title="Model Type"
+                  value={this.props.app === 'ad' ? 'Anomaly Detection' : 'Attack Classification'}
+                  valueStyle={{ fontSize: 14, fontWeight: 'bold', color: '#722ed1' }}
+                />
+              </Card>
+            </Col>
+            <Col span={6}>
+              <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                <Statistic
+                  title="Original Model"
+                  value={this.state.modelId || 'Not Selected'}
+                  valueStyle={{ fontSize: 14, fontWeight: 'bold', color: '#1890ff' }}
+                />
+              </Card>
+            </Col>
+            <Col span={6}>
+              <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                <Statistic
+                  title="Retrain ID"
+                  value={this.state.retrainId || 'N/A'}
+                  valueStyle={{ 
+                    fontSize: 13, 
+                    fontWeight: 'bold',
+                    color: this.state.retrainId ? '#52c41a' : '#d9d9d9',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                  }}
+                />
+              </Card>
             </Col>
           </Row>
         </Card>
-
-        {this.state.retrainResult && (
-          <>
-            <Divider orientation="left">
-              <h2 style={{ fontSize: '20px' }}>Retrain Results</h2>
-            </Divider>
-            
-            <Card style={{ marginBottom: 24 }}>
-              <Row gutter={16}>
-                <Col span={8}>
-                  <Statistic
-                    title="Retrain ID"
-                    value={this.state.retrainId}
-                    valueStyle={{ fontSize: '14px', color: '#1890ff' }}
-                  />
-                </Col>
-                <Col span={8}>
-                  <Statistic
-                    title="Model"
-                    value={this.state.modelId}
-                    valueStyle={{ fontSize: '16px', color: '#722ed1' }}
-                  />
-                </Col>
-                <Col span={8}>
-                  <Statistic
-                    title="Status"
-                    value="Completed"
-                    valueStyle={{ fontSize: '16px', color: '#52c41a' }}
-                  />
-                </Col>
-              </Row>
-
-              <Divider />
-
-              <Row gutter={16}>
-                <Col span={24}>
-                  <p style={{ marginBottom: 16, color: '#595959' }}>
-                    The retrained model has been saved and is ready for evaluation. 
-                    Since retrained models are not automatically added to the model list, 
-                    you can view their accountability metrics directly using the button below.
-                  </p>
-                  <Button
-                    type="primary"
-                    size="large"
-                    onClick={() => {
-                      window.location.href = `/metrics/accountability/${this.state.retrainId}`;
-                    }}
-                  >
-                    View Accountability Metrics
-                  </Button>
-                  <Button
-                    style={{ marginLeft: 16 }}
-                    onClick={() => {
-                      window.open(`/metrics/resilience/${this.state.modelId}`, '_blank');
-                    }}
-                  >
-                    Compare with Original Model
-                  </Button>
-                </Col>
-              </Row>
-            </Card>
-          </>
-        )}
       </LayoutPage>
     );
   }

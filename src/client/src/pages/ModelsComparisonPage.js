@@ -54,12 +54,29 @@ class ModelListPage extends Component {
       buildConfigRight: null,
       cmConfigLeft: null,
       cmConfigRight: null,
+      isPreSelected: false, // Track if models were pre-selected from URL
     };
   }
 
   componentDidMount() {
     this.props.fetchApp();
     this.props.fetchAllModels();
+    
+    // Check for query parameters (model1, model2) to pre-select models
+    const urlParams = new URLSearchParams(window.location.search);
+    const model1 = urlParams.get('model1');
+    const model2 = urlParams.get('model2');
+    
+    if (model1 && model2) {
+      // Both models pre-selected - disable dropdowns
+      this.setState({ isPreSelected: true });
+      this.loadPredictions(model1, true);
+      this.loadPredictions(model2, false);
+    } else if (model1) {
+      this.loadPredictions(model1, true);
+    } else if (model2) {
+      this.loadPredictions(model2, false);
+    }
   }
 
   componentDidUpdate(prevProps) {
@@ -68,6 +85,7 @@ class ModelListPage extends Component {
       this.setState({
         selectedModelLeft: null,
         selectedModelRight: null,
+        isPreSelected: false, // Re-enable dropdowns when app changes
       });
     }
   }
@@ -78,25 +96,34 @@ class ModelListPage extends Component {
     console.log(buildConfig);
 
     let dataBuildConfig;
-    if (this.props.app === 'ad') {
-      const transformedBuildConfig = removeCsvPath(JSON.parse(buildConfig));
-      //console.log(transformedBuildConfig);
+    try {
+      if (this.props.app === 'ad') {
+        const transformedBuildConfig = removeCsvPath(JSON.parse(buildConfig));
+        //console.log(transformedBuildConfig);
 
-      const { datasets, training_ratio, training_parameters } = transformedBuildConfig;
+        const { datasets, training_ratio, training_parameters } = transformedBuildConfig;
 
+        dataBuildConfig = [
+          ...datasets.map(({ csvPath, isAttack }) => ({
+            parameter: isAttack ? 'attack dataset' : 'normal dataset',
+            value: csvPath,
+          })),
+          { parameter: 'training ratio', value: training_ratio },
+          ...Object.entries(training_parameters).map(([parameter, value]) => ({
+            parameter: parameter,
+            value: value,
+          })),
+        ];
+      } else {
+        dataBuildConfig = transformConfigStrToTableData(buildConfig);
+      }
+    } catch (error) {
+      console.error('Error parsing build config:', error);
+      // Provide default config for retrained models or invalid configs
       dataBuildConfig = [
-        ...datasets.map(({ csvPath, isAttack }) => ({
-          parameter: isAttack ? 'attack dataset' : 'normal dataset',
-          value: csvPath,
-        })),
-        { parameter: 'training ratio', value: training_ratio },
-        ...Object.entries(training_parameters).map(([parameter, value]) => ({
-          parameter: parameter,
-          value: value,
-        })),
+        { parameter: 'Model Type', value: 'Retrained Model' },
+        { parameter: 'Configuration', value: 'N/A' }
       ];
-    } else {
-      dataBuildConfig = transformConfigStrToTableData(buildConfig);
     }
     console.log(dataBuildConfig);
 
@@ -183,6 +210,7 @@ class ModelListPage extends Component {
                 <Select
                   showSearch 
                   allowClear
+                  disabled={this.state.isPreSelected}
                   value={this.state.selectedModelLeft}
                   placeholder="Select first model ..."
                   onChange={(modelId) => modelId && this.loadPredictions(modelId, true)}
@@ -208,6 +236,7 @@ class ModelListPage extends Component {
                 <Select
                   showSearch 
                   allowClear
+                  disabled={this.state.isPreSelected}
                   value={this.state.selectedModelRight}
                   placeholder="Select second model ..."
                   onChange={(modelId) => modelId && this.loadPredictions(modelId, false)}
@@ -233,6 +262,72 @@ class ModelListPage extends Component {
             <Divider orientation="left">
               <h2 style={{ fontSize: '20px' }}>Comparison Results</h2>
             </Divider>
+            
+            {/* Overall Performance Status */}
+            {dataStatsLeft && dataStatsRight && (() => {
+              const metrics = ['Accuracy', 'Precision', 'Recall', 'F1-Score'];
+              let leftWins = 0;
+              let rightWins = 0;
+              let ties = 0;
+              
+              metrics.forEach(metric => {
+                const getMetricValue = (stats, metricName) => {
+                  const row = stats.find(s => 
+                    s.metric && s.metric.toLowerCase() === metricName.toLowerCase()
+                  );
+                  if (!row) return 0;
+                  const classKeys = Object.keys(row).filter(k => k.startsWith('class'));
+                  if (classKeys.length === 0) return 0;
+                  const sum = classKeys.reduce((acc, key) => acc + (parseFloat(row[key]) || 0), 0);
+                  return sum / classKeys.length;
+                };
+                
+                const leftVal = getMetricValue(dataStatsLeft, metric);
+                const rightVal = getMetricValue(dataStatsRight, metric);
+                const threshold = 0.001;
+                
+                if (leftVal - rightVal > threshold) {
+                  leftWins++;
+                } else if (rightVal - leftVal > threshold) {
+                  rightWins++;
+                } else {
+                  ties++;
+                }
+              });
+              
+              let summaryText = '';
+              let summaryIcon = '';
+              let summaryColor = '#1890ff';
+              let backgroundColor = '#e6f7ff';
+              
+              if (leftWins > rightWins) {
+                summaryText = `${selectedModelLeft} performs better overall`;
+                summaryIcon = '🏆';
+                summaryColor = '#1890ff';
+                backgroundColor = '#e6f7ff';
+              } else if (rightWins > leftWins) {
+                summaryText = `${selectedModelRight} performs better overall`;
+                summaryIcon = '🏆';
+                summaryColor = '#52c41a';
+                backgroundColor = '#f6ffed';
+              } else {
+                summaryText = `Both models show comparable performance`;
+                summaryIcon = '🤝';
+                summaryColor = '#722ed1';
+                backgroundColor = '#f9f0ff';
+              }
+              
+              return (
+                <Card size="small" style={{ marginBottom: 12, backgroundColor, border: `1px solid ${summaryColor}` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px 0' }}>
+                    <span style={{ fontSize: '16px', marginRight: '6px' }}>{summaryIcon}</span>
+                    <span style={{ fontSize: '14px', fontWeight: 600, color: summaryColor }}>
+                      {summaryText}
+                    </span>
+                  </div>
+                </Card>
+              );
+            })()}
             
             {/* Model Configuration Comparison */}
             {dataBuildConfigLeft && dataBuildConfigRight && (
@@ -483,65 +578,6 @@ class ModelListPage extends Component {
                   pagination={false}
                   size="small"
                 />
-                
-                {/* Overall Winner Summary */}
-                <Card size="small" style={{ marginTop: 16, backgroundColor: '#f0f5ff', border: '1px solid #adc6ff' }}>
-                  {(() => {
-                    const metrics = ['Accuracy', 'Precision', 'Recall', 'F1-Score'];
-                    let leftWins = 0;
-                    let rightWins = 0;
-                    let ties = 0;
-                    
-                    metrics.forEach(metric => {
-                      const getMetricValue = (stats, metricName) => {
-                        const row = stats.find(s => 
-                          s.metric && s.metric.toLowerCase() === metricName.toLowerCase()
-                        );
-                        if (!row) return 0;
-                        const classKeys = Object.keys(row).filter(k => k.startsWith('class'));
-                        if (classKeys.length === 0) return 0;
-                        const sum = classKeys.reduce((acc, key) => acc + (parseFloat(row[key]) || 0), 0);
-                        return sum / classKeys.length;
-                      };
-                      
-                      const leftVal = getMetricValue(dataStatsLeft, metric);
-                      const rightVal = getMetricValue(dataStatsRight, metric);
-                      const threshold = 0.001;
-                      
-                      if (leftVal - rightVal > threshold) {
-                        leftWins++;
-                      } else if (rightVal - leftVal > threshold) {
-                        rightWins++;
-                      } else {
-                        ties++;
-                      }
-                    });
-                    
-                    let summaryText = '';
-                    let summaryIcon = '';
-                    let summaryColor = '#1890ff';
-                    
-                    if (leftWins > rightWins) {
-                      summaryText = `${selectedModelLeft} performs better overall, winning ${leftWins} out of ${metrics.length} metrics`;
-                      summaryIcon = '🏆';
-                      summaryColor = '#1890ff';
-                    } else if (rightWins > leftWins) {
-                      summaryText = `${selectedModelRight} performs better overall, winning ${rightWins} out of ${metrics.length} metrics`;
-                      summaryIcon = '🏆';
-                      summaryColor = '#52c41a';
-                    } else {
-                      summaryText = `Both models perform equally well with ${leftWins} wins each${ties > 0 ? ` and ${ties} tie(s)` : ''}`;
-                      summaryIcon = '🤝';
-                      summaryColor = '#8c8c8c';
-                    }
-                    
-                    return (
-                      <div style={{ fontSize: '13px', color: summaryColor, textAlign: 'center' }}>
-                        <strong>{summaryIcon} {summaryText}</strong>
-                      </div>
-                    );
-                  })()}
-                </Card>
               </>
             ) : (
               <div style={{ textAlign: 'center', padding: '40px 0', color: '#8c8c8c' }}>
