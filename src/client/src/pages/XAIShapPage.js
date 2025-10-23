@@ -4,7 +4,7 @@ import LayoutPage from './LayoutPage';
 import { Spin, Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Tooltip, Typography, Modal, Card, notification } from 'antd';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { QuestionOutlined, CameraOutlined } from "@ant-design/icons";
+import { QuestionOutlined, CameraOutlined, InfoCircleOutlined, WarningOutlined } from "@ant-design/icons";
 import { Bar } from '@ant-design/plots';
 import { useUserRole } from '../hooks/useUserRole';
 import {
@@ -91,7 +91,7 @@ class XAIShapPage extends Component {
             message: 'AI Explanation Generated',
             description: `Tokens used: ${thisRequest} - Unlimited (Admin)`,
             placement: 'topRight',
-            duration: 4,
+            duration: 2,
           });
         } else {
           const color = percentUsed >= 90 ? 'warning' : 'success';
@@ -367,8 +367,15 @@ class XAIShapPage extends Component {
           <h2 style={{ fontSize: '20px' }}>Configuration</h2>
         </Divider>
         
-        <Card style={{ marginBottom: 16 }}>
-          <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 600 }}>
+        <Row gutter={24} style={{ marginBottom: 24 }}>
+          <Col xs={24} lg={24}>
+            <Card
+              bordered={false}
+              style={{ height: '100%' }}
+            >
+              <Row gutter={24}>
+                <Col xs={24} lg={12} style={{ display: 'flex', justifyContent: 'center' }}>
+                  <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 560, width: '100%', margin: '0 auto' }}>
           <Form.Item name="model" label={<strong><span style={{ color: 'red' }}>* </span>Model</strong>}
               style={{ flex: 'none', marginBottom: 10 }}
             >
@@ -496,8 +503,29 @@ class XAIShapPage extends Component {
               </Button>
             </Tooltip>
           </div>
-          </Form>
-        </Card>
+                  </Form>
+                </Col>
+                <Col xs={24} lg={12} style={{ display: 'flex', justifyContent: 'center' }}>
+                  <div style={{ background: '#f0f5ff', border: '1px solid #adc6ff', borderRadius: 8, padding: 16, maxWidth: 560, width: '100%', margin: '0 auto' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                      <InfoCircleOutlined style={{ color: '#1677ff', fontSize: 18 }} />
+                      <Typography.Text strong style={{ color: '#1677ff', fontSize: 15 }}>SHAP Method Overview</Typography.Text>
+                    </div>
+                    <Typography.Paragraph style={{ color: '#0958d9', marginBottom: 8, lineHeight: 1.6 }}>
+                      <strong>SHapley Additive exPlanations (SHAP)</strong> uses Shapley values from cooperative game theory to quantify each feature's contribution to a prediction. It computes the average marginal contribution of each feature across all possible feature combinations, providing a theoretically sound and model-agnostic explanation.
+                    </Typography.Paragraph>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: '#fff7e6', border: '1px solid #ffd591', borderRadius: 6 }}>
+                      <WarningOutlined style={{ color: '#d48806', fontSize: 16, marginTop: 2 }} />
+                      <Typography.Text style={{ color: '#ad6800', fontSize: 13, lineHeight: 1.6 }}>
+                        <strong>Performance Warning:</strong> Running SHAP with a large number of background or explaining samples can be very slow and may take hours to complete. Start with small sample sizes (10-30) for testing.
+                      </Typography.Text>
+                    </div>
+                  </div>
+                </Col>
+              </Row>
+            </Card>
+          </Col>
+        </Row>
         
         <Divider orientation="left">
           <h2 style={{ fontSize: '20px' }}>SHAP Explanations</h2>

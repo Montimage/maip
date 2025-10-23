@@ -509,7 +509,7 @@ class PredictPage extends Component {
                 message: 'Prediction Job Queued',
                 description: 'Prediction has been queued successfully.',
                 placement: 'topRight',
-                duration: 4,
+                duration: 2,
               });
               
               // Poll job status instead of old predict status
@@ -946,7 +946,7 @@ class PredictPage extends Component {
               message: 'AI Explanation Generated',
               description: `Tokens used: ${thisRequest} - Unlimited (Admin)`,
               placement: 'topRight',
-              duration: 4,
+              duration: 2,
             });
           } else {
             const color = percentUsed >= 90 ? 'warning' : 'success';

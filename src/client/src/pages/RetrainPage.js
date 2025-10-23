@@ -108,7 +108,7 @@ class RetrainPage extends Component {
           message: 'Retrain Job Queued',
           description: 'Model retraining has been queued successfully.',
           placement: 'topRight',
-          duration: 4,
+          duration: 2,
         });
         
         // Poll job status

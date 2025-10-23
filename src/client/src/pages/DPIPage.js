@@ -715,7 +715,7 @@ class DPIPage extends Component {
             ? `Analyzing "${selectedPcap}"...`
             : `Analyzing traffic on interface "${selectedInterface}"...`,
           placement: 'topRight',
-          duration: 3,
+          duration: 2,
         });
         
         // Save PCAP-to-sessionId mapping for later restoration

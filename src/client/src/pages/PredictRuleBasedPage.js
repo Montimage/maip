@@ -84,7 +84,7 @@ class PredictRuleBasedPage extends Component {
               message: 'AI Explanation Generated',
               description: `Tokens used: ${thisRequest} - Unlimited (Admin)`,
               placement: 'topRight',
-              duration: 4,
+              duration: 2,
             });
           } else {
             const color = percentUsed >= 90 ? 'warning' : 'success';
@@ -386,7 +386,7 @@ class PredictRuleBasedPage extends Component {
         message: 'Rule-Based Detection Started',
         description: `Analyzing "${pcapFile}" with security rules...`,
         placement: 'topRight',
-        duration: 3,
+        duration: 2,
       });
       const data = await requestRuleOffline({ pcapFile, userRole: this.props.userRole });
       notification.success({

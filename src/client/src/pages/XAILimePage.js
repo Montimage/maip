@@ -4,7 +4,7 @@ import LayoutPage from './LayoutPage';
 import { Spin, Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Tooltip, Typography, Modal, Card, notification } from 'antd';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { QuestionOutlined, CameraOutlined } from '@ant-design/icons';
+import { QuestionOutlined, CameraOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { Bar, Pie } from '@ant-design/plots';
 import { useUserRole } from '../hooks/useUserRole';
 import {
@@ -91,7 +91,7 @@ class XAILimePage extends Component {
             message: 'AI Explanation Generated',
             description: `Tokens used: ${thisRequest} - Unlimited (Admin)`,
             placement: 'topRight',
-            duration: 4,
+            duration: 2,
           });
         } else {
           const color = percentUsed >= 90 ? 'warning' : 'success';
@@ -498,8 +498,15 @@ class XAILimePage extends Component {
           <h2 style={{ fontSize: '20px' }}>Configuration</h2>
         </Divider>
         
-        <Card style={{ marginBottom: 16 }}>
-          <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 600 }}>
+        <Row gutter={24} style={{ marginBottom: 24 }}>
+          <Col xs={24} lg={24}>
+            <Card
+              bordered={false}
+              style={{ height: '100%' }}
+            >
+              <Row gutter={24}>
+                <Col xs={24} lg={12} style={{ display: 'flex', justifyContent: 'center' }}>
+                  <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 560, width: '100%', margin: '0 auto' }}>
           <Form.Item name="model" label={<strong><span style={{ color: 'red' }}>* </span>Model</strong>}
             style={{ flex: 'none', marginBottom: 10 }}
           >
@@ -608,8 +615,23 @@ class XAILimePage extends Component {
               </Button>
             </Tooltip>
           </div>
-          </Form>
-        </Card>
+                  </Form>
+                </Col>
+                <Col xs={24} lg={12} style={{ display: 'flex', justifyContent: 'center' }}>
+                  <div style={{ background: '#f0f5ff', border: '1px solid #adc6ff', borderRadius: 8, padding: '10px 12px 8px 12px', maxWidth: 560, width: '100%', margin: '0 auto' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <InfoCircleOutlined style={{ color: '#1677ff', fontSize: 16 }} />
+                      <Typography.Text strong style={{ color: '#1677ff', fontSize: 14 }}>LIME Method Overview</Typography.Text>
+                    </div>
+                    <Typography.Paragraph style={{ color: '#0958d9', marginBottom: 0, lineHeight: 1.4, fontSize: 13 }}>
+                      <strong>Local Interpretable Model-Agnostic Explanations (LIME)</strong> trains a simple local surrogate model around a specific prediction to approximate the model's behavior. It perturbs the input data and observes how predictions change, then fits an interpretable model (like linear regression) to explain that single prediction.
+                    </Typography.Paragraph>
+                  </div>
+                </Col>
+              </Row>
+            </Card>
+          </Col>
+        </Row>
 
         <Divider orientation="left">
           <h2 style={{ fontSize: '20px' }}>LIME Explanations</h2>

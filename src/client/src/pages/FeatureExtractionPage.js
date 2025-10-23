@@ -257,7 +257,7 @@ class FeatureExtractionPage extends Component {
         message: 'Extracting Features',
         description: `Processing "${uploadedPcapName}"...`,
         placement: 'topRight',
-        duration: 3,
+        duration: 2,
       });
       const isMalicious = labelChoice === 'malicious' ? true : labelChoice === 'normal' ? false : undefined;
       const result = await requestExtractFeatures({ pcapFile: uploadedPcapName, isMalicious, userRole: this.props.userRole });

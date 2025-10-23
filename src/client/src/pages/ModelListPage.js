@@ -170,7 +170,7 @@ class ModelListPage extends Component {
       {
         title: "Model Id",
         key: "data",
-        width: '35%',
+        width: '25%',
         sorter: (a, b) => {
           if(a.modelId < b.modelId) return -1;
           if(a.modelId > b.modelId) return 1;
@@ -205,16 +205,17 @@ class ModelListPage extends Component {
                   </Button>
                 </div>
               ) : (
-                <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <div style={{ 
-                    fontSize: '14px', 
+                    fontSize: '13px', 
                     fontWeight: 500,
                     color: '#262626',
-                    wordBreak: 'break-word'
+                    wordBreak: 'break-word',
+                    lineHeight: '1.4'
                   }}>
                     {model.modelId}
                   </div>
-                  <Space size="small">
+                  <Space size="small" wrap>
                     <Tooltip title="Edit model name">
                       <Button
                         type="default"
@@ -246,7 +247,7 @@ class ModelListPage extends Component {
                       </Button>
                     </Tooltip>
                   </Space>
-                </>
+                </div>
               )}
             </div>
           );
@@ -260,21 +261,25 @@ class ModelListPage extends Component {
         render: (model) => {
           return moment(model.lastBuildAt).format('YYYY-MM-DD HH:mm:ss');
         },
-        width: '15%', /* reduced width */
+        width: '12%',
       },
       {
         title: "Training Dataset",
         key: "data",
         width: '20%',
         render: (model) => (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
-            <a href={`/models/datasets/${model.modelId}/train`} view>
-              <Button size="small" icon={<FolderViewOutlined />}>View</Button>
-            </a>
-            <Button size="small" icon={<DownloadOutlined />}
-              onClick={() => downloadDatasets(model.modelId, "train")}
-            >Download</Button>
-            <Button size="small" icon={<SendOutlined />}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <a href={`/models/datasets/${model.modelId}/train`} view>
+                <Button size="small" icon={<FolderViewOutlined />}>View</Button>
+              </a>
+              <Button size="small" icon={<DownloadOutlined />}
+                onClick={() => downloadDatasets(model.modelId, "train")}
+              >Download</Button>
+            </div>
+            <Button 
+              size="small" 
+              icon={<SendOutlined />}
               onClick={async () => {
                 try {
                   const res = await fetch(`${SERVER_URL}/api/security/nats-publish/dataset`, {
@@ -290,6 +295,7 @@ class ModelListPage extends Component {
                 }
               }}
               disabled={!this.props.isAdmin}
+              style={{ width: 'fit-content' }}
             >
               Send to NATS
             </Button>
@@ -301,14 +307,18 @@ class ModelListPage extends Component {
         key: "data",
         width: '20%',
         render: (model) => (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
-            <a href={`/models/datasets/${model.modelId}/test`} view>
-              <Button size="small" icon={<FolderViewOutlined />}>View</Button>
-            </a>
-            <Button size="small" icon={<DownloadOutlined />}
-              onClick={() => downloadDatasets(model.modelId, "test")}
-            >Download</Button>
-            <Button size="small" icon={<SendOutlined />}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <a href={`/models/datasets/${model.modelId}/test`} view>
+                <Button size="small" icon={<FolderViewOutlined />}>View</Button>
+              </a>
+              <Button size="small" icon={<DownloadOutlined />}
+                onClick={() => downloadDatasets(model.modelId, "test")}
+              >Download</Button>
+            </div>
+            <Button 
+              size="small" 
+              icon={<SendOutlined />}
               onClick={async () => {
                 try {
                   const res = await fetch(`${SERVER_URL}/api/security/nats-publish/dataset`, {
@@ -324,6 +334,7 @@ class ModelListPage extends Component {
                 }
               }}
               disabled={!this.props.isAdmin}
+              style={{ width: 'fit-content' }}
             >
               Send to NATS
             </Button>
@@ -333,7 +344,7 @@ class ModelListPage extends Component {
       {
         title: "Actions",
         key: "data",
-        width: '15%',
+        width: '23%',
         render: (model) => {
           const options = [
             {
@@ -438,9 +449,9 @@ class ModelListPage extends Component {
             }
           ];
           return (
-            <Select placeholder="Select an action ..."
-              style={{ width: 230 }}
-              popupMatchSelectWidth={false}  // Set to false so dropdown width doesn't follow the select width
+            <Select placeholder="Select action"
+              style={{ width: '100%', minWidth: 140 }}
+              popupMatchSelectWidth={false}
               value={selectedOption}
               onChange={(value, option) => handleOptionClick(option, model.modelId)}
             >
@@ -492,8 +503,12 @@ class ModelListPage extends Component {
 
     return (
       <LayoutPage pageTitle="All Models" pageSubTitle="All the machine learning models">
-        <Table columns={columns} dataSource={dataSource}
-          pagination={{ pageSize: 7 }}
+        <Table 
+          columns={columns} 
+          dataSource={dataSource}
+          pagination={{ pageSize: 10 }}
+          scroll={{ y: 'calc(100vh - 320px)' }}
+          size="middle"
           expandable={{
             expandedRowRender: (model) => {
               const buildConfig = convertBuildConfigStrToJson(this.props.app, model.buildConfig);
@@ -582,20 +597,22 @@ class ModelListPage extends Component {
           }}
         />
 
-        <Space wrap>
-          <Tooltip title={!this.props.isAdmin ? "Admin access required" : "Delete all models from the database"}>
-            <Button 
-              type="primary" 
-              danger 
-              icon={<DeleteOutlined />}
-              onClick={this.showDeleteAllModelsConfirm}
-              style={{ marginTop: '10px', marginBottom: '16px' }}
-              disabled={dataSource.length === 0 || !this.props.isAdmin}
-            >
-              Delete All Models
-            </Button>
-          </Tooltip>
-        </Space>
+        <div style={{ marginTop: '16px' }}>
+          <Space wrap>
+            <Tooltip title={!this.props.isAdmin ? "Admin access required" : "Delete all models from the database"}>
+              <Button 
+                type="primary" 
+                danger 
+                icon={<DeleteOutlined />}
+                onClick={this.showDeleteAllModelsConfirm}
+                style={{ marginTop: '10px', marginBottom: '16px' }}
+                disabled={dataSource.length === 0 || !this.props.isAdmin}
+              >
+                Delete All Models
+              </Button>
+            </Tooltip>
+          </Space>
+        </div>
       </LayoutPage>
     );
   }

@@ -22,14 +22,15 @@ import {
 } from "../api";
 import Papa from "papaparse";
 import { Column } from '@ant-design/plots';
-import { Spin, notification, Col, Row, Divider, Slider, Form, Button, Checkbox, Select, Tooltip, Card, Statistic, Space, Alert } from 'antd';
-import { WarningOutlined, ExperimentOutlined, PercentageOutlined, PlayCircleOutlined, LineChartOutlined } from "@ant-design/icons";
+import { Spin, notification, Col, Row, Divider, Slider, Form, Button, Checkbox, Select, Tooltip, Card, Statistic, Space, Alert, Typography } from 'antd';
+import { WarningOutlined, ExperimentOutlined, PercentageOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import {
-  FORM_LAYOUT, BOX_STYLE,
+  FORM_LAYOUT,
   ATTACK_OPTIONS, ATTACKS_SLIDER_MARKS, 
   AC_OUTPUT_LABELS, AD_OUTPUT_LABELS,
   AC_CLASS_MAPPING, AD_CLASS_MAPPING,
 } from "../constants";
+const { Text } = Typography;
 
 let isModelIdPresent = getLastPath() !== "attacks";
 
@@ -74,7 +75,7 @@ class AttacksPage extends Component {
         message: 'Invalid Selection',
         description: 'You can only select one option',
         placement: 'topRight',
-        duration: 4,
+        duration: 2,
       });
       this.setState({ targetClass: null, checkboxValues: [] });
     } else {
@@ -90,7 +91,7 @@ class AttacksPage extends Component {
               message: 'Invalid Option',
               description: `Invalid option for ${isACModel(modelId) ? 'AC' : 'AD'} model`,
               placement: 'topRight',
-              duration: 4,
+              duration: 2,
             });
         }
       }
@@ -190,7 +191,7 @@ class AttacksPage extends Component {
             ? `Your attack is #${position} in queue. Estimated wait: ${estimatedTime}s`
             : 'Attack has been queued successfully.',
           placement: 'topRight',
-          duration: 4,
+          duration: 2,
         });
         
         // Poll job status
@@ -356,12 +357,16 @@ class AttacksPage extends Component {
           <h2 style={{ fontSize: '20px' }}>Configuration</h2>
         </Divider>
         
-        {/* Attack Configuration Card */}
-        <Card
-          bordered={false}
-          style={{ marginBottom: 24 }}
-        >
-          <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 700 }}>
+        <Row gutter={24} style={{ marginBottom: 24 }}>
+          {/* Left: Attack Configuration (single card with overview) */}
+          <Col xs={24} lg={24}>
+            <Card
+              bordered={false}
+              style={{ height: '100%' }}
+            >
+              <Row gutter={24}>
+                <Col xs={24} lg={12} style={{ display: 'flex', justifyContent: 'center' }}>
+                  <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 560, width: '100%', margin: '0 auto' }}>
             <Form.Item 
               name="model" 
               label={<strong><span style={{ color: 'red' }}>* </span>Model</strong>}
@@ -456,8 +461,25 @@ class AttacksPage extends Component {
                 Compute Impact
               </Button>
             </div>
-          </Form>
-        </Card>
+                  </Form>
+                </Col>
+                <Col xs={24} lg={12} style={{ display: 'flex', justifyContent: 'center' }}>
+                  <div style={{ background: '#e6f4ff', border: '1px solid #91caff', borderRadius: 8, padding: '10px 12px', maxWidth: 560, width: '100%', margin: '0 auto' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <InfoCircleOutlined style={{ color: '#1677ff', fontSize: 16 }} />
+                      <Text strong style={{ color: '#1677ff', fontSize: 14 }}>Adversarial Attacks Overview</Text>
+                    </div>
+                    <ul style={{ margin: 0, marginBottom: 0, paddingLeft: 18, color: '#0958d9', lineHeight: 1.4, listStylePosition: 'outside' }}>
+                      <li style={{ marginBottom: 4, wordBreak: 'break-word', fontSize: 13 }}><strong>GAN-driven data poisoning:</strong> Generates synthetic adversarial samples to shift the training distribution and quietly degrade model reliability.</li>
+                      <li style={{ marginBottom: 4, wordBreak: 'break-word', fontSize: 13 }}><strong>Random swapping labels:</strong> Randomly exchanges labels between samples to inject noise and weaken the model's learning signal.</li>
+                      <li style={{ marginBottom: 0, wordBreak: 'break-word', fontSize: 13 }}><strong>Target labels flipping:</strong> Flips labels from/to a chosen class to bias predictions toward an attacker-defined outcome.</li>
+                    </ul>
+                  </div>
+                </Col>
+              </Row>
+            </Card>
+          </Col>
+        </Row>
 
         {/* Results Section */}
         <Divider orientation="left">
