@@ -165,7 +165,15 @@ router.post('/explain/flow', conditionalTokenLimit, async (req, res) => {
       }
     });
   } catch (e) {
-    res.status(500).send({ error: e.message || String(e) });
+    console.error('[Assistant] Error in /explain/flow:', e);
+    const errorMsg = e.message || String(e);
+    // Provide helpful error message for Ollama connection issues
+    if (errorMsg.includes('Ollama connection error')) {
+      return res.status(500).send({ 
+        error: 'Ollama is not running. Please start Ollama with: ollama serve'
+      });
+    }
+    res.status(500).send({ error: errorMsg });
   }
 });
 
@@ -213,7 +221,15 @@ router.post('/explain/xai', conditionalTokenLimit, async (req, res) => {
       }
     });
   } catch (e) {
-    res.status(500).send({ error: e.message || String(e) });
+    console.error('[Assistant] Error in /explain/xai:', e);
+    const errorMsg = e.message || String(e);
+    // Provide helpful error message for Ollama connection issues
+    if (errorMsg.includes('Ollama connection error')) {
+      return res.status(500).send({ 
+        error: 'Ollama is not running. Please start Ollama with: ollama serve'
+      });
+    }
+    res.status(500).send({ error: errorMsg });
   }
 });
 

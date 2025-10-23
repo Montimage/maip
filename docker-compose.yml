@@ -29,6 +29,8 @@ services:
       - "31057:31057"
     networks:
       - ndr_network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     env_file:
       - .env
     environment:
