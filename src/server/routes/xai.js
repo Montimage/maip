@@ -20,10 +20,9 @@ const {
 
 const {
   XAI_PATH,
+  AC_OUTPUT_LABELS,
+  AD_OUTPUT_LABELS_SHORT,
 } = require('../constants');
-const {
-  AC_OUTPUT_LABELS, AD_OUTPUT_LABELS_SHORT,
-} = require('../../client/src/constants');
 
 const isACModel = modelId => modelId && modelId.startsWith('ac-');
 

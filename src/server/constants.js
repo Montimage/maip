@@ -25,6 +25,11 @@ const OUTPUT_DIRS = [TRAINING_PATH, PREDICTION_PATH, XAI_PATH, ATTACKS_PATH];
 
 const LOCAL_NATS_URL = 'nats://localhost:4222';
 
+// Label constants for XAI and predictions
+const AD_OUTPUT_LABELS = ["Normal traffic", "Malware traffic"];
+const AD_OUTPUT_LABELS_SHORT = ["Normal", "Malware"];
+const AC_OUTPUT_LABELS = ["Web", "Interactive", "Video"];
+
 module.exports = {
   PYTHON_CMD,
   AC_PATH, AC_TRAINING_PATH,
@@ -46,4 +51,7 @@ module.exports = {
   PCAP_EXTENSIONS,
   OUTPUT_DIRS,
   LOCAL_NATS_URL,
+  AD_OUTPUT_LABELS,
+  AD_OUTPUT_LABELS_SHORT,
+  AC_OUTPUT_LABELS,
 };
