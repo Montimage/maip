@@ -1,6 +1,23 @@
-version: '3.3'
+version: '3.8'
 
 services:
+  redis:
+    container_name: mont_ndr_redis
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    networks:
+      - ndr_network
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
   ndr_server:
     container_name: mont_ndr_server
     image: mont/ndr-server
@@ -9,14 +26,34 @@ services:
       context: .
       dockerfile: Dockerfile.server
     ports:
-      - 31057:31057/tcp
+      - "31057:31057"
     networks:
       - ndr_network
     env_file:
       - .env
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - DOCKER_ENV=true
+      - USE_SUDO=false
     cap_add:
       - NET_ADMIN
       - NET_RAW
+    volumes:
+      - ./src/server/deep-learning/models:/ndr-app/src/server/deep-learning/models
+      - ./src/server/deep-learning/trainings:/ndr-app/src/server/deep-learning/trainings
+      - ./src/server/deep-learning/predictions:/ndr-app/src/server/deep-learning/predictions
+      - ./src/server/deep-learning/xai:/ndr-app/src/server/deep-learning/xai
+      - ./src/server/deep-learning/attacks:/ndr-app/src/server/deep-learning/attacks
+      - ./src/server/mmt/outputs:/ndr-app/src/server/mmt/outputs
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:31057/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   ndr_client:
     container_name: mont_ndr_client
@@ -26,12 +63,28 @@ services:
       context: .
       dockerfile: Dockerfile.client
       args:
-        REACT_APP_API_URL: ${REACT_APP_API_URL:-http://ndr_server:31057}
+        REACT_APP_API_URL: ${REACT_APP_API_URL}
+        REACT_APP_CLERK_PUBLISHABLE_KEY: ${REACT_APP_CLERK_PUBLISHABLE_KEY:-}
+        REACT_APP_ADMIN_EMAILS: ${REACT_APP_ADMIN_EMAILS:-}
+        REACT_APP_ADMIN_USER_IDS: ${REACT_APP_ADMIN_USER_IDS:-}
+        REACT_APP_ADMIN_ORG_ID: ${REACT_APP_ADMIN_ORG_ID:-}
     ports:
-      - 3000:3000/tcp
+      - "3000:3000"
     networks:
       - ndr_network
+    depends_on:
+      - ndr_server
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
 networks:
   ndr_network:
     driver: bridge
+
+volumes:
+  redis_data:
+    driver: local
