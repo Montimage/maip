@@ -917,6 +917,13 @@ export const requestTokenStats = async (userId, isAdmin) => {
   return response.json();
 };
 
+// Get assistant provider status (OpenAI or Ollama)
+export const requestAssistantStatus = async () => {
+  const url = `${ASSISTANT_URL}/`;
+  const response = await fetch(url);
+  return response.json();
+};
+
 /**
  * Request job status from queue
  */

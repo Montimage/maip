@@ -1564,18 +1564,29 @@ class PredictPage extends Component {
                       })()}
                     </Select>
                   )}
-                  <Upload
-                    beforeUpload={this.beforeUploadPcap}
-                    action={`${SERVER_URL}/api/pcaps`}
-                    onChange={(info) => this.handleUploadPcap(info)}
-                    customRequest={this.processUploadPcap}
-                    showUploadList={false}
-                    disabled={isRunning}
-                  >
-                    <Button icon={<UploadOutlined />} disabled={!!this.state.testingPcapFile || isRunning} style={{ width: 212 }}>
-                      Upload PCAP
-                    </Button>
-                  </Upload>
+                  {this.props.isSignedIn && (
+                    <Tooltip title={`Upload your own PCAP file (max ${MAX_PCAP_SIZE_MB} MB)`} placement="top">
+                      <Upload
+                        beforeUpload={this.beforeUploadPcap}
+                        action={`${SERVER_URL}/api/pcaps`}
+                        onChange={(info) => this.handleUploadPcap(info)}
+                        customRequest={this.processUploadPcap}
+                        showUploadList={false}
+                        disabled={isRunning}
+                      >
+                        <Button icon={<UploadOutlined />} disabled={!!this.state.testingPcapFile || isRunning} style={{ width: 212 }}>
+                          Upload PCAP
+                        </Button>
+                      </Upload>
+                    </Tooltip>
+                  )}
+                  {!this.props.isSignedIn && (
+                    <Tooltip title="Sign in required">
+                      <Button icon={<LockOutlined />} disabled style={{ width: 212 }}>
+                        Upload PCAP
+                      </Button>
+                    </Tooltip>
+                  )}
                 </div>
               </Col>
             </Row>

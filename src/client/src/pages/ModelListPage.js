@@ -18,14 +18,12 @@ import {
   requestDownloadModel,
   requestDownloadDatasets,
 } from "../actions";
-import { sendToNats } from "../utils/mitigation";
 import {
   getFilteredModels,
   convertBuildConfigStrToJson
 } from "../utils";
 import { SERVER_URL } from "../constants";
 import moment from "moment";
-const { Text } = Typography;
 const { Option, OptGroup } = Select;
 
 class ModelListPage extends Component {
@@ -216,12 +214,13 @@ class ModelListPage extends Component {
                     {model.modelId}
                   </div>
                   <Space size="small" wrap>
-                    <Tooltip title="Edit model name">
+                    <Tooltip title={!this.props.isAdmin ? "Admin access required" : "Edit model name"}>
                       <Button
                         type="default"
                         size="small"
                         icon={<EditOutlined />}
                         onClick={() => handleEditStart(model.modelId)}
+                        disabled={!this.props.isAdmin}
                       >
                         Edit
                       </Button>
@@ -503,6 +502,19 @@ class ModelListPage extends Component {
 
     return (
       <LayoutPage pageTitle="All Models" pageSubTitle="All the machine learning models">
+        <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+          <Tooltip title={!this.props.isAdmin ? "Admin access required" : "Delete all models from the database"}>
+            <Button 
+              type="primary" 
+              danger 
+              icon={<DeleteOutlined />}
+              onClick={this.showDeleteAllModelsConfirm}
+              disabled={dataSource.length === 0 || !this.props.isAdmin}
+            >
+              Delete All Models
+            </Button>
+          </Tooltip>
+        </div>
         <Table 
           columns={columns} 
           dataSource={dataSource}
@@ -529,7 +541,7 @@ class ModelListPage extends Component {
                   .replace(/&/g, '&amp;')
                   .replace(/</g, '&lt;')
                   .replace(/>/g, '&gt;')
-                  .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, (match) => {
+                  .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g, (match) => {
                     let cls = 'json-number';
                     if (/^"/.test(match)) {
                       if (/:$/.test(match)) {
@@ -596,23 +608,6 @@ class ModelListPage extends Component {
             emptyText: <h3>No models found! Let's build a new one!</h3>,
           }}
         />
-
-        <div style={{ marginTop: '16px' }}>
-          <Space wrap>
-            <Tooltip title={!this.props.isAdmin ? "Admin access required" : "Delete all models from the database"}>
-              <Button 
-                type="primary" 
-                danger 
-                icon={<DeleteOutlined />}
-                onClick={this.showDeleteAllModelsConfirm}
-                style={{ marginTop: '10px', marginBottom: '16px' }}
-                disabled={dataSource.length === 0 || !this.props.isAdmin}
-              >
-                Delete All Models
-              </Button>
-            </Tooltip>
-          </Space>
-        </div>
       </LayoutPage>
     );
   }

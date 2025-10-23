@@ -208,11 +208,19 @@ class ResilienceMetricsPage extends Component {
         selectedAttack: attackName
       });
       
-      message.success('Impact metrics computed successfully!');
+      notification.success({
+        message: 'Success',
+        description: 'Impact metrics computed successfully!',
+        placement: 'topRight',
+      });
       
     } catch (error) {
       console.error('Error loading retrained results:', error);
-      message.error('Failed to load impact metrics: ' + error.message);
+      notification.error({
+        message: 'Error',
+        description: 'Failed to load impact metrics: ' + error.message,
+        placement: 'topRight',
+      });
     }
   }
 
@@ -305,13 +313,15 @@ class ResilienceMetricsPage extends Component {
                 retrainId 
               });
               
-              message.success('Model retraining completed! Loading impact metrics...');
-              
               // Load the confusion matrix from the retrained model
               if (retrainId) {
                 this.loadRetrainedResults(retrainId, selectedAttack);
               } else {
-                message.error('Failed to load retrain results: No retrainId found');
+                notification.error({
+                  message: 'Error',
+                  description: 'Failed to load retrain results: No retrainId found',
+                  placement: 'topRight',
+                });
               }
               
             } else if (jobStatus.status === 'failed') {
@@ -319,7 +329,11 @@ class ResilienceMetricsPage extends Component {
               this.intervalId = null;
               this.setState({ isRunning: false });
               console.error('Retrain failed:', jobStatus.failedReason);
-              message.error('Retrain failed: ' + jobStatus.failedReason);
+              notification.error({
+                message: 'Retrain Failed',
+                description: jobStatus.failedReason,
+                placement: 'topRight',
+              });
             }
           } catch (error) {
             console.error('Error polling retrain job status:', error);
@@ -329,7 +343,11 @@ class ResilienceMetricsPage extends Component {
       } catch (error) {
         console.error('Error starting retrain:', error);
         this.setState({ isRunning: false });
-        message.error('Failed to start retrain: ' + error.message);
+        notification.error({
+          message: 'Error',
+          description: 'Failed to start retrain: ' + error.message,
+          placement: 'topRight',
+        });
       }
     }
   }

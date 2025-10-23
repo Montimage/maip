@@ -29,20 +29,34 @@ function loadTokenUsage() {
     }
 
     if (fs.existsSync(STORAGE_FILE)) {
-      const data = fs.readFileSync(STORAGE_FILE, 'utf8');
+      const data = fs.readFileSync(STORAGE_FILE, 'utf8').trim();
+      
+      // Handle empty file or whitespace-only file
+      if (!data || data === '') {
+        console.log('[TokenLimit] Token usage file is empty, starting fresh');
+        return;
+      }
+      
       const parsed = JSON.parse(data);
       
       // Restore Map from saved data
-      Object.entries(parsed).forEach(([userId, usage]) => {
-        userTokenUsage.set(userId, usage);
-      });
-      
-      console.log(`[TokenLimit] Loaded token usage for ${userTokenUsage.size} users`);
+      if (parsed && typeof parsed === 'object') {
+        Object.entries(parsed).forEach(([userId, usage]) => {
+          userTokenUsage.set(userId, usage);
+        });
+        console.log(`[TokenLimit] Loaded token usage for ${userTokenUsage.size} users`);
+      } else {
+        console.log('[TokenLimit] Invalid token usage data format, starting fresh');
+      }
     } else {
       console.log('[TokenLimit] No existing token usage file found, starting fresh');
+      // Initialize with empty object
+      saveTokenUsage();
     }
   } catch (error) {
     console.error('[TokenLimit] Error loading token usage:', error.message);
+    // Don't crash the server, just start with empty usage
+    console.log('[TokenLimit] Starting with empty token usage due to error');
   }
 }
 

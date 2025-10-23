@@ -89,15 +89,15 @@ class XAIShapPage extends Component {
         if (limit === Infinity) {
           notification.success({
             message: 'AI Explanation Generated',
-            description: `Tokens used: ${thisRequest} - Unlimited (Admin)`,
+            description: `Scroll down to view the explanation. Tokens used: ${thisRequest} - Unlimited (Admin)`,
             placement: 'topRight',
-            duration: 2,
+            duration: 5,
           });
         } else {
           const color = percentUsed >= 90 ? 'warning' : 'success';
           notification[color]({
             message: 'AI Explanation Generated',
-            description: `Tokens used: ${thisRequest} - Remaining: ${remaining.toLocaleString()}/${limit.toLocaleString()} (${percentUsed}% used)`,
+            description: `Scroll down to view the explanation. Tokens used: ${thisRequest} - Remaining: ${remaining != null ? remaining.toLocaleString() : 0}/${limit != null ? limit.toLocaleString() : 0} (${percentUsed}% used)`,
             placement: 'topRight',
             duration: 5,
           });
@@ -486,7 +486,7 @@ class XAIShapPage extends Component {
             >
               SHAP Explain
             </Button>
-            <Tooltip title={!this.props.userRole?.isSignedIn ? "Sign in to use AI Assistant" : 
+            <Tooltip title={!this.props.userRole?.isSignedIn ? "Sign in required" : 
                            this.props.userRole?.tokenLimitReached ? "Token limit reached" : 
                            "Get AI explanation of SHAP results"}>
               <Button 
@@ -610,8 +610,8 @@ class XAIShapPage extends Component {
                         <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
                           <strong>Token Usage:</strong> {this.state.assistantTokenInfo.thisRequest} tokens used this request
                           {this.state.assistantTokenInfo.limit !== Infinity && (
-                            <> - <strong>Total:</strong> {this.state.assistantTokenInfo.totalUsed.toLocaleString()}/{this.state.assistantTokenInfo.limit.toLocaleString()} 
-                            ({this.state.assistantTokenInfo.percentUsed}% used) - <strong>Remaining:</strong> {this.state.assistantTokenInfo.remaining.toLocaleString()} tokens</>
+                            <> - <strong>Total:</strong> {(this.state.assistantTokenInfo.totalUsed != null ? this.state.assistantTokenInfo.totalUsed : 0).toLocaleString()}/{(this.state.assistantTokenInfo.limit != null ? this.state.assistantTokenInfo.limit : 0).toLocaleString()} 
+                            ({this.state.assistantTokenInfo.percentUsed}% used) - <strong>Remaining:</strong> {(this.state.assistantTokenInfo.remaining != null ? this.state.assistantTokenInfo.remaining : 0).toLocaleString()} tokens</>
                           )}
                           {this.state.assistantTokenInfo.limit === Infinity && <> - <strong>Unlimited</strong> (Admin)</>}
                         </Typography.Text>
