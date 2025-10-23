@@ -81,9 +81,14 @@ app.use(fileUpload());
 // Define an array of allowed origins
 const allowedOrigins = [
   'http://maip.montimage.com',
+  'https://maip.montimage.com',
   'http://localhost:3000',
-  'http://0.0.0.0:3000', // Add more origins as needed
-  'http://3.91.51.170:3000', // Production frontend
+  'https://localhost:3000',
+  'http://0.0.0.0:3000',
+  'http://3.91.51.170:3000', // Production frontend (HTTP)
+  'https://3.91.51.170:3000', // Production frontend (HTTPS)
+  'http://ec2-3-91-51-170.compute-1.amazonaws.com',
+  'https://ec2-3-91-51-170.compute-1.amazonaws.com', // AWS domain (HTTPS)
 ];
 
 // Configure CORS with allowed origins
