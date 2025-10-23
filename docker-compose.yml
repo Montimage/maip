@@ -45,6 +45,7 @@ services:
       - ./src/server/deep-learning/xai:/ndr-app/src/server/deep-learning/xai
       - ./src/server/deep-learning/attacks:/ndr-app/src/server/deep-learning/attacks
       - ./src/server/mmt/outputs:/ndr-app/src/server/mmt/outputs
+      - ./src/server/mmt/pcaps:/ndr-app/src/server/mmt/pcaps
     depends_on:
       redis:
         condition: service_healthy
