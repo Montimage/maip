@@ -1895,10 +1895,45 @@ class DPIPage extends Component {
       );
     }
 
-    // Well-known application protocols to filter
-    const appProtocols = ['HTTP', 'HTTPS', 'SSH', 'FTP', 'DNS', 'SMTP', 'POP3', 'IMAP', 
-                          'TELNET', 'SNMP', 'LDAP', 'MYSQL', 'POSTGRESQL', 'MONGODB', 
-                          'REDIS', 'RDP', 'VNC', 'SMB', 'NTP', 'DHCP', 'TLS/SSL'];
+    // Comprehensive application protocols matching MMT-Operator
+    const appProtocols = [
+      // Web Protocols
+      'HTTP', 'HTTPS', 'HTTP2', 'HTTP-ALT', 'HTTPS-ALT', 'HTTP_PROXY',
+      // Mail Protocols
+      'SMTP', 'SMTPS', 'POP3', 'POP3S', 'IMAP', 'IMAPS',
+      // File Transfer
+      'FTP', 'FTP-DATA', 'TFTP', 'SMB', 'NFS', 'AFP',
+      // Database
+      'MYSQL', 'POSTGRESQL', 'MSSQL', 'MONGODB', 'ORACLE', 'REDIS', 'ELASTICSEARCH',
+      // Remote Access
+      'SSH', 'TELNET', 'RDP', 'VNC', 'TEAMVIEWER', 'LDAP', 'LDAPS',
+      // Network Services
+      'DNS', 'DHCP', 'NTP', 'SNMP', 'SYSLOG',
+      // Security & VPN
+      'TLS/SSL', 'SSL', 'IPSEC', 'PPTP', 'L2TP', 'KERBEROS',
+      // Messaging & Communication
+      'SKYPE', 'WHATSAPP', 'VIBER', 'WECHAT', 'LINE', 'TANGO', 'GTALK', 'AIM',
+      'FACETIME', 'YAHOOMSG', 'FBMSG',
+      // Streaming & Media
+      'RTP', 'RTSP', 'ICECAST', 'SHOUTCAST', 'SOPCAST', 'ZATTOO',
+      // P2P
+      'BITTORRENT', 'EDONKEY', 'GNUTELLA', 'DIRECTCONNECT', 'TORRENTZ',
+      // Gaming
+      'STEAM', 'XBOX', 'BATTLENET', 'LEAGUEOFLEGENDS', 'MINECRAFT', 'WORLDOFWARCRAFT',
+      // Social Networks
+      'FACEBOOK', 'TWITTER', 'INSTAGRAM', 'LINKEDIN', 'REDDIT', 'PINTEREST',
+      'YOUTUBE', 'VIMEO', 'DAILYMOTION', 'NETFLIX', 'SPOTIFY', 'SOUNDCLOUD',
+      // Cloud & CDN
+      'DROPBOX', 'BOX', 'SKYDRIVE', 'AKAMAI', 'CLOUDFRONT', 'FASTLY',
+      // VoIP & SIP
+      'SIP', 'SIPS', 'STUN',
+      // IoT & Industrial
+      'MQTT', 'COAP', 'MODBUS', 'S7COMM', 'NDN',
+      // Telecom
+      'GTP', 'GTPv2', 'DIAMETER', 'RADIUS', 'S1AP', 'NGAP', 'NAS-5G',
+      // Other
+      'QUIC', 'QUIC_IETF', 'DTLS', 'SCTP', 'SLL'
+    ];
 
     // Flatten hierarchy and filter for application protocols
     const flattenAndFilter = (nodes, result = []) => {

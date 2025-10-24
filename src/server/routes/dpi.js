@@ -10,6 +10,7 @@ const { queueFeatureExtraction } = require('../queue/job-queue');
 const sessionManager = require('../utils/sessionManager');
 const { identifyUser } = require('../middleware/userAuth');
 const { resolvePcapPath } = require('../utils/pcapResolver');
+const { identifyProtocolByPort } = require('../constants/protocols');
 
 // Apply user identification middleware to all routes
 router.use(identifyUser);
@@ -201,7 +202,7 @@ function parseProtocolHierarchy(csvFilePath, startLine = 0, session = null) {
           }
           
           // Determine application protocol based on port
-          const appProtocol = identifyApplicationProtocol(srcPort, destPort);
+          const appProtocol = identifyProtocolByPort(srcPort, destPort);
           
           if (sessionId && sessionProtocols[sessionId]) {
             // Only add TCP if not already in stack
@@ -288,7 +289,7 @@ function parseProtocolHierarchy(csvFilePath, startLine = 0, session = null) {
           }
           
           // Determine application protocol based on port
-          const appProtocol = identifyApplicationProtocol(srcPort, destPort);
+          const appProtocol = identifyProtocolByPort(srcPort, destPort);
           
           if (sessionId && sessionProtocols[sessionId]) {
             if (!sessionProtocols[sessionId].includes(protocol)) {
@@ -391,50 +392,7 @@ function parseProtocolHierarchy(csvFilePath, startLine = 0, session = null) {
   });
 }
 
-/**
- * Identify application protocol based on port numbers
- */
-function identifyApplicationProtocol(srcPort, destPort) {
-  const wellKnownPorts = {
-    20: 'FTP-DATA',
-    21: 'FTP',
-    22: 'SSH',
-    23: 'TELNET',
-    25: 'SMTP',
-    53: 'DNS',
-    67: 'DHCP',
-    68: 'DHCP',
-    69: 'TFTP',
-    80: 'HTTP',
-    110: 'POP3',
-    123: 'NTP',
-    143: 'IMAP',
-    161: 'SNMP',
-    162: 'SNMP',
-    389: 'LDAP',
-    443: 'HTTPS',
-    445: 'SMB',
-    465: 'SMTPS',
-    514: 'SYSLOG',
-    587: 'SMTP',
-    636: 'LDAPS',
-    993: 'IMAPS',
-    995: 'POP3S',
-    1433: 'MSSQL',
-    1521: 'ORACLE',
-    3306: 'MYSQL',
-    3389: 'RDP',
-    5432: 'POSTGRESQL',
-    5900: 'VNC',
-    6379: 'REDIS',
-    8080: 'HTTP-ALT',
-    8443: 'HTTPS-ALT',
-    9200: 'ELASTICSEARCH',
-    27017: 'MONGODB',
-  };
-  
-  return wellKnownPorts[destPort] || wellKnownPorts[srcPort] || null;
-}
+// identifyApplicationProtocol is now imported from protocols.js as identifyProtocolByPort
 
 /**
  * Build a tree structure from flat protocol data
