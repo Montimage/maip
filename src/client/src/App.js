@@ -31,6 +31,7 @@ import LandingPage from "./pages/LandingPage";
 import FeatureExtractionPage from "./pages/FeatureExtractionPage";
 import EarlyPredictionPage from "./pages/EarlyPredictionPage";
 import DPIPage from "./pages/DPIPage";
+import NetworkPage from "./pages/NetworkPage";
 import SignInPage from "./pages/SignInPage";
 import SignUpPage from "./pages/SignUpPage";
 
@@ -57,6 +58,7 @@ function App() {
             <Route path="/models/comparison" element={<ModelsComparisonPage />} />
             <Route path="/models/datasets/:modelId/:datasetType" element={<DatasetPage />} />
             <Route path="/dpi" element={<DPIPage />} />
+            <Route path="/network" element={<NetworkPage />} />
             
             {/* Build and Retrain routes - accessible to all (pages have frozen overlays for non-admins) */}
             <Route 

@@ -31,6 +31,11 @@ class MAIPSidebar extends Component {
             link: MENU_OPTIONS[20].link,
           },
           {
+            key: 'network-analysis',
+            label: 'Network Analysis',
+            link: '/network',
+          },
+          {
             key: MENU_OPTIONS[17].key,
             label: 'Feature Extraction',
             link: '/features',
@@ -174,13 +179,18 @@ class MAIPSidebar extends Component {
       }
     });
     
+    // Special handling for Network Analysis
+    if (pathname.includes('/network')) {
+      selectedKeys.push('network-analysis');
+    }
+    
     // Special handling for Anomaly Prediction - only if not rule-based or early
     if (pathname.includes('/predict') && !pathname.includes('/rule-based') && !pathname.includes('/early') && !selectedKeys.includes('predict-unified')) {
       selectedKeys.push('predict-unified');
     }
     
     // Determine which submenu should be open based on current path
-    if (pathname.includes('/dpi') || pathname.includes('/features')) {
+    if (pathname.includes('/dpi') || pathname.includes('/features') || pathname.includes('/network')) {
       openKeys.push('traffic-analysis');
     } else if (pathname.includes('/models') || pathname.includes('/build')) {
       openKeys.push(MENU_OPTIONS[1].key);

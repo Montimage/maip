@@ -30,6 +30,8 @@
     "redux-saga": "^1.2.3",
     "redux-starter-kit": "^2.0.0",
     "remark-gfm": "^3.0.1",
+    "vis-data": "^8.0.3",
+    "vis-network": "^10.0.2",
     "web-vitals": "^2.1.4"
   },
   "devDependencies": {
