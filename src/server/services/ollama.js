@@ -55,17 +55,25 @@ async function callOllamaChat({ model, messages, temperature = 0.2, max_tokens =
       'Content-Type': 'application/json',
       'Content-Length': Buffer.byteLength(payload),
     },
+    timeout: 60000, // 60 second timeout
   };
+
+  console.log(`[Ollama] Sending request to ${ollamaUrl} with model ${ollamaModel}`);
 
   return new Promise((resolve, reject) => {
     const req = http.request(options, (res) => {
       let data = '';
-      res.on('data', (chunk) => { data += chunk; });
+      res.on('data', (chunk) => { 
+        data += chunk;
+        console.log(`[Ollama] Received ${chunk.length} bytes...`);
+      });
       res.on('end', () => {
+        console.log(`[Ollama] Response complete, parsing...`);
         try {
           const json = JSON.parse(data);
           if (res.statusCode >= 200 && res.statusCode < 300) {
             const text = json.response || '';
+            console.log(`[Ollama] Generated ${text.length} characters`);
             
             // Estimate token usage (Ollama doesn't provide exact counts like OpenAI)
             // We'll use approximate counts for compatibility
@@ -93,11 +101,19 @@ async function callOllamaChat({ model, messages, temperature = 0.2, max_tokens =
     });
     
     req.on('error', (e) => {
+      console.error(`[Ollama] Connection error:`, e.message);
       reject(new Error(`Ollama connection error: ${e.message}. Make sure Ollama is running at ${ollamaUrl}`));
+    });
+    
+    req.on('timeout', () => {
+      console.error(`[Ollama] Request timeout after 60 seconds`);
+      req.destroy();
+      reject(new Error(`Ollama request timeout. The model may be too slow or not responding.`));
     });
     
     req.write(payload);
     req.end();
+    console.log(`[Ollama] Request sent, waiting for response...`);
   });
 }
 

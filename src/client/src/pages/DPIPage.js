@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
 import { Button, Card, Select, Alert, Spin, Row, Col, Divider, Tree, Space, Tag, Table, Statistic, notification, message, Upload, Tooltip } from 'antd';
-import { PlayCircleOutlined, StopOutlined, DownOutlined, FolderOpenOutlined, LockOutlined, UploadOutlined, FileTextOutlined, ApartmentOutlined, UserOutlined, DatabaseOutlined } from '@ant-design/icons';
+import { PlayCircleOutlined, StopOutlined, DownOutlined, FolderOpenOutlined, LockOutlined, UploadOutlined, FileTextOutlined, ApartmentOutlined, UserOutlined, DatabaseOutlined, ApiOutlined } from '@ant-design/icons';
 import { Line, Pie, Column, Area, Histogram } from '@ant-design/plots';
 import { SERVER_URL, MAX_PCAP_SIZE_BYTES, MAX_PCAP_SIZE_MB } from '../constants';
 import { useUserRole } from '../hooks/useUserRole';
@@ -767,6 +767,33 @@ class DPIPage extends Component {
           placement: 'topRight',
         });
         window.location.href = '/features';
+      } catch (e) {
+        notification.error({
+          message: 'Navigation failed',
+          description: e.message || String(e),
+          placement: 'topRight',
+        });
+      }
+    } else if (mode === 'offline') {
+      message.warning('Please select a PCAP file first');
+    }
+    // Online mode: button is disabled, so this won't be called
+  };
+
+  handleViewNetwork = () => {
+    const { mode, selectedPcap } = this.state;
+    
+    // Only works for offline mode with a selected PCAP
+    if (mode === 'offline' && selectedPcap) {
+      try {
+        localStorage.setItem('pendingNetworkPcap', selectedPcap);
+        localStorage.setItem('pendingNetworkFromDPI', 'true');
+        notification.success({
+          message: 'Navigating to Network Analysis',
+          description: `PCAP file "${selectedPcap}" will be loaded for network analysis.`,
+          placement: 'topRight',
+        });
+        window.location.href = '/network';
       } catch (e) {
         notification.error({
           message: 'Navigation failed',
@@ -2875,6 +2902,15 @@ class DPIPage extends Component {
                       Stop
                     </Button>
                   )}
+                  <Button
+                    type={mode === 'offline' && selectedPcap ? 'primary' : 'default'}
+                    icon={<ApiOutlined />}
+                    onClick={this.handleViewNetwork}
+                    disabled={mode === 'online' || !selectedPcap || isRunning}
+                    title={mode === 'online' ? 'Network analysis is only available for offline PCAP analysis' : (isRunning ? 'Please wait for DPI analysis to complete' : '')}
+                  >
+                    View Network
+                  </Button>
                   <Button
                     type={mode === 'offline' && selectedPcap ? 'primary' : 'default'}
                     icon={<FolderOpenOutlined />}

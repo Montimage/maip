@@ -5,6 +5,24 @@ const path = require('path');
 const { REPORT_PATH } = require('../constants');
 const { identifyUser } = require('../middleware/userAuth');
 const { listFilesByTypeAsync } = require('../utils/file-utils');
+const geoip = require('geoip-lite');
+
+// Country code to name mapping (common countries)
+const COUNTRY_NAMES = {
+  'CN': 'China', 'US': 'United States', 'IN': 'India', 'JP': 'Japan',
+  'DE': 'Germany', 'GB': 'United Kingdom', 'FR': 'France', 'BR': 'Brazil',
+  'IT': 'Italy', 'CA': 'Canada', 'KR': 'South Korea', 'RU': 'Russia',
+  'ES': 'Spain', 'AU': 'Australia', 'MX': 'Mexico', 'ID': 'Indonesia',
+  'NL': 'Netherlands', 'SA': 'Saudi Arabia', 'TR': 'Turkey', 'CH': 'Switzerland',
+  'PL': 'Poland', 'BE': 'Belgium', 'SE': 'Sweden', 'NG': 'Nigeria',
+  'AR': 'Argentina', 'NO': 'Norway', 'AT': 'Austria', 'AE': 'UAE',
+  'IL': 'Israel', 'IE': 'Ireland', 'PK': 'Pakistan', 'SG': 'Singapore',
+  'MY': 'Malaysia', 'HK': 'Hong Kong', 'DK': 'Denmark', 'FI': 'Finland',
+  'CL': 'Chile', 'CO': 'Colombia', 'PH': 'Philippines', 'EG': 'Egypt',
+  'VN': 'Vietnam', 'TH': 'Thailand', 'ZA': 'South Africa', 'PT': 'Portugal',
+  'GR': 'Greece', 'CZ': 'Czech Republic', 'RO': 'Romania', 'NZ': 'New Zealand',
+  'UA': 'Ukraine', 'HU': 'Hungary', 'BD': 'Bangladesh', 'KW': 'Kuwait',
+};
 
 // Apply user identification middleware to all routes
 router.use(identifyUser);
@@ -94,15 +112,18 @@ async function parseNetworkData(csvFilePath) {
         return reject(err);
       }
 
-      const lines = data.split('\n');
+      // Split by '1000,' pattern to handle CSV files where multiple records are on the same line
+      // This handles the mmt-probe output format where records may not be newline-separated
+      const records = data.split(/(?=1000,)/);
       const ipMap = {}; // Track per-IP statistics
       const linkMap = {}; // Track IP pair statistics
       const timestampIPMap = {}; // Map timestamp to IP addresses (for correlation)
 
-      console.log('[Network Parse] Processing', lines.length, 'lines');
+      console.log('[Network Parse] Processing', records.length, 'records');
 
       // Parse events
-      lines.forEach((line) => {
+      records.forEach((record) => {
+        const line = record.trim();
         if (!line.startsWith('1000,')) return; // Only process event lines
 
         const parts = line.split(',');
@@ -275,8 +296,7 @@ function updateLinkStats(linkMap, srcIP, dstIP, protocol, bytes, srcPort, destPo
 }
 
 /**
- * Get IP geolocation (placeholder)
- * In production, use geoip-lite or MaxMind GeoIP2
+ * Get IP geolocation using geoip-lite
  */
 function getIPLocation(ip) {
   // Check if private IP
@@ -289,17 +309,28 @@ function getIPLocation(ip) {
     };
   }
 
-  // Placeholder: Return null for now
-  // TODO: Implement actual geo-location using geoip-lite
-  // const geo = geoip.lookup(ip);
-  // return geo ? { country: geo.country, city: geo.city, ... } : null;
+  // Lookup IP geolocation
+  try {
+    const geo = geoip.lookup(ip);
+    if (geo) {
+      // Convert country code to full name
+      const countryCode = geo.country;
+      const countryName = COUNTRY_NAMES[countryCode] || countryCode;
+      
+      return {
+        country: countryName,
+        countryCode: countryCode,
+        city: geo.city || null,
+        latitude: geo.ll ? geo.ll[0] : null,
+        longitude: geo.ll ? geo.ll[1] : null,
+      };
+    }
+  } catch (error) {
+    console.error('[Network] GeoIP lookup error for', ip, ':', error.message);
+  }
 
-  return {
-    country: 'Unknown',
-    city: null,
-    latitude: null,
-    longitude: null,
-  };
+  // Return null if lookup fails
+  return null;
 }
 
 /**

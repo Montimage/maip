@@ -171,6 +171,8 @@ class NetworkPage extends Component {
       loading: false,
       error: null,
       lastUpdate: null,
+      fromDPI: false, // Track if navigated from DPI page
+      isDPIRunning: false, // Track if DPI analysis is currently running
       
       // Filters
       metricType: 'dataVolume', // 'dataVolume', 'packetCount', 'sessionCount'
@@ -184,6 +186,26 @@ class NetworkPage extends Component {
     // Only load files if auth is already loaded, otherwise wait for componentDidUpdate
     if (this.props.isAuthLoaded) {
       this.loadPcapFiles();
+    }
+    
+    // Check if navigated from DPI page
+    const pendingPcap = localStorage.getItem('pendingNetworkPcap');
+    const fromDPI = localStorage.getItem('pendingNetworkFromDPI');
+    
+    if (pendingPcap && fromDPI) {
+      // Clear the flags
+      localStorage.removeItem('pendingNetworkPcap');
+      localStorage.removeItem('pendingNetworkFromDPI');
+      
+      // Set the PCAP and trigger analysis
+      setTimeout(() => {
+        this.setState({ 
+          selectedPcap: pendingPcap,
+          fromDPI: true // Mark as coming from DPI
+        }, () => {
+          this.loadNetworkData();
+        });
+      }, 500);
     }
   }
 
@@ -216,6 +238,66 @@ class NetworkPage extends Component {
     }
   };
 
+  runDPIAnalysis = async (pcapFile) => {
+    try {
+      const endpoint = `${SERVER_URL}/api/dpi/start/offline`;
+      const body = { pcapFile };
+      
+      const response = await fetchWithAuth(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }, this.props.userRole);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('[Network] DPI analysis started:', data.sessionId);
+        
+        // Wait for DPI analysis to complete
+        await this.waitForDPICompletion(data.sessionId);
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to start DPI analysis');
+      }
+    } catch (error) {
+      console.error('[Network] Error running DPI analysis:', error);
+      throw error;
+    }
+  };
+
+  waitForDPICompletion = async (sessionId) => {
+    // Poll for DPI completion
+    const maxAttempts = 60; // 60 attempts * 2 seconds = 2 minutes max
+    let attempts = 0;
+    
+    while (attempts < maxAttempts) {
+      try {
+        const response = await fetch(`${SERVER_URL}/api/dpi/status?sessionId=${sessionId}`, {
+          headers: getUserHeaders(),
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (!data.isRunning) {
+            // DPI analysis completed
+            console.log('[Network] DPI analysis completed');
+            return;
+          }
+        }
+        
+        // Wait 2 seconds before next check
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        attempts++;
+      } catch (error) {
+        console.error('[Network] Error checking DPI status:', error);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        attempts++;
+      }
+    }
+    
+    throw new Error('DPI analysis timeout');
+  };
+
   loadNetworkData = async () => {
     const { selectedPcap } = this.state;
     
@@ -232,6 +314,12 @@ class NetworkPage extends Component {
 
       if (response.ok) {
         const data = await response.json();
+        console.log('[Network] Data loaded:', {
+          topUsers: data.topUsers?.length,
+          geoLocations: data.geoLocations?.length,
+          topologyNodes: data.topology?.nodes?.length,
+          topLinks: data.topLinks?.length,
+        });
         this.setState({
           topUsers: data.topUsers || [],
           geoLocations: data.geoLocations || [],
@@ -241,7 +329,89 @@ class NetworkPage extends Component {
           lastUpdate: new Date(),
         });
       } else {
-        throw new Error('Failed to load network data');
+        const errorData = await response.json();
+        // Check if DPI analysis needs to be run first
+        if (errorData.error && errorData.error.includes('DPI')) {
+          // Only run DPI if not already running
+          if (!this.state.isDPIRunning) {
+            this.setState({ isDPIRunning: true });
+            
+            notification.info({
+              message: 'Running DPI Analysis',
+              description: 'DPI analysis is being performed in the background. Network data will be available shortly.',
+              placement: 'topRight',
+              duration: 3,
+            });
+            
+            try {
+              // Trigger DPI analysis
+              await this.runDPIAnalysis(selectedPcap);
+              
+              // Wait a bit for CSV file to be written
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              
+              // After DPI completes, try loading network data again with retries
+              let retryResponse = null;
+              let retryCount = 0;
+              const maxRetries = 3;
+              
+              while (retryCount < maxRetries) {
+                retryResponse = await fetch(`${SERVER_URL}/api/network/analysis?pcap=${encodeURIComponent(selectedPcap)}`, {
+                  headers: getUserHeaders(),
+                });
+                
+                if (retryResponse.ok) {
+                  break;
+                }
+                
+                retryCount++;
+                if (retryCount < maxRetries) {
+                  console.log(`[Network] Retry ${retryCount}/${maxRetries} - waiting for CSV file...`);
+                  await new Promise(resolve => setTimeout(resolve, 2000));
+                }
+              }
+              
+              if (retryResponse && retryResponse.ok) {
+                const data = await retryResponse.json();
+                console.log('[Network] Data loaded after DPI:', {
+                  topUsers: data.topUsers?.length,
+                  geoLocations: data.geoLocations?.length,
+                  topologyNodes: data.topology?.nodes?.length,
+                  topLinks: data.topLinks?.length,
+                });
+                this.setState({
+                  topUsers: data.topUsers || [],
+                  geoLocations: data.geoLocations || [],
+                  topologyData: data.topology || { nodes: [], edges: [] },
+                  topLinks: data.topLinks || [],
+                  loading: false,
+                  lastUpdate: new Date(),
+                  isDPIRunning: false,
+                });
+                
+                notification.success({
+                  message: 'Network Data Loaded',
+                  description: 'Network analysis completed successfully.',
+                  placement: 'topRight',
+                  duration: 2,
+                });
+              } else {
+                const errorData = await retryResponse.json();
+                throw new Error(errorData.error || 'Failed to load network data after DPI analysis');
+              }
+            } catch (dpiError) {
+              console.error('[Network] DPI analysis error:', dpiError);
+              this.setState({
+                error: 'Failed to run DPI analysis: ' + dpiError.message,
+                loading: false,
+                isDPIRunning: false,
+              });
+            }
+          }
+          return; // Exit early to prevent further execution
+        } else {
+          throw new Error(errorData.error || 'Failed to load network data');
+        }
       }
     } catch (error) {
       console.error('[Network] Error loading network data:', error);
@@ -253,10 +423,24 @@ class NetworkPage extends Component {
   };
 
   handlePcapChange = (value) => {
-    this.setState({ 
-      selectedPcap: value,
-      uploadedPcapName: null,
-    });
+    // Clear results when dropdown is cleared
+    if (!value) {
+      this.setState({ 
+        selectedPcap: null,
+        uploadedPcapName: null,
+        topUsers: [],
+        geoLocations: [],
+        topologyData: { nodes: [], edges: [] },
+        topLinks: [],
+        lastUpdate: null,
+        error: null,
+      });
+    } else {
+      this.setState({ 
+        selectedPcap: value,
+        uploadedPcapName: null,
+      });
+    }
   };
 
   handleViewNetwork = () => {
@@ -277,11 +461,10 @@ class NetworkPage extends Component {
     }
     
     // Check file size
-    const isLt = file.size <= MAX_PCAP_SIZE_BYTES;
-    if (!isLt) {
+    if (file.size > MAX_PCAP_SIZE_BYTES) {
       notification.error({
         message: 'File Too Large',
-        description: `"${file.name}" exceeds the maximum file size of ${MAX_PCAP_SIZE_MB} MB.`,
+        description: `"${file.name}" (${(file.size / (1024 * 1024)).toFixed(2)} MB) exceeds the maximum allowed size of ${MAX_PCAP_SIZE_MB} MB. Please use a smaller file.`,
         placement: 'topRight',
         duration: 2,
       });
@@ -292,55 +475,64 @@ class NetworkPage extends Component {
   };
 
   processUploadPcap = async ({ file, onSuccess, onError }) => {
-    const formData = new FormData();
-    formData.append('pcap', file);
-
     try {
-      const response = await fetch(`${SERVER_URL}/api/pcaps`, {
-        method: 'POST',
-        headers: getUserHeaders(),
+      const formData = new FormData();
+      formData.append('pcapFile', file);
+      
+      // Add user authentication headers
+      const userHeaders = getUserHeaders(this.props.userRole);
+      const res = await fetch(`${SERVER_URL}/api/pcaps`, { 
+        method: 'POST', 
         body: formData,
+        headers: userHeaders,
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        notification.success({
-          message: 'Upload Successful',
-          description: `"${file.name}" has been uploaded successfully.`,
-          placement: 'topRight',
-        });
-        this.setState({
-          uploadedPcapName: file.name,
-          selectedPcap: file.name,
-        });
-        // Reload the PCAP list to include the newly uploaded file
-        this.loadPcapFiles();
-        onSuccess(data, file);
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Upload failed');
+      
+      if (!res.ok) {
+        let errorData;
+        try {
+          errorData = await res.json();
+        } catch {
+          const errorText = await res.text();
+          errorData = { error: errorText };
+        }
+        throw new Error(errorData.error || errorData.message || 'Upload failed');
       }
-    } catch (error) {
-      console.error('[Network] Upload error:', error);
-      const errorMsg = error?.message || 'Upload failed';
-      notification.error({
-        message: 'Upload Failed',
-        description: errorMsg,
-        placement: 'topRight',
-      });
-      onError(error);
+      
+      const data = await res.json();
+      onSuccess(data, res);
+    } catch (e) {
+      console.error('[Network] Upload error:', e);
+      onError(e);
     }
   };
 
   handleUploadChange = (info) => {
-    const { status } = info.file;
-    
+    const { status, response, name, error } = info.file;
     if (status === 'uploading') {
-      this.setState({ loading: true });
+      // no-op
     } else if (status === 'done') {
-      this.setState({ loading: false });
+      const uploaded = (response && response.pcapFile) || (info.file.response && info.file.response.pcapFile) || null;
+      const data = response || info.file.response || {};
+      this.setState({ 
+        uploadedPcapName: uploaded,
+        selectedPcap: uploaded,
+      });
+      const isDuplicate = data.alreadyExisted || false;
+      notification.success({
+        message: isDuplicate ? 'PCAP Already Exists' : 'PCAP Uploaded',
+        description: isDuplicate 
+          ? `File "${uploaded}" already exists. Using existing file for network analysis.`
+          : `File "${uploaded}" uploaded successfully and ready for network analysis.`,
+        placement: 'topRight',
+      });
+      // Reload the PCAP list to include the newly uploaded file
+      this.loadPcapFiles();
     } else if (status === 'error') {
-      this.setState({ loading: false });
+      notification.error({
+        message: 'Upload Failed',
+        description: error?.message || 'Failed to upload PCAP file',
+        placement: 'topRight',
+      });
     }
   };
 
@@ -398,7 +590,7 @@ class NetworkPage extends Component {
         ellipsis: true,
         render: (ip) => (
           <Tooltip title={ip}>
-            <Tag color="blue" style={{ fontFamily: 'monospace' }}>{ip}</Tag>
+            <span>{ip}</span>
           </Tooltip>
         ),
       },
@@ -756,7 +948,7 @@ class NetworkPage extends Component {
         ellipsis: true,
         render: (ip) => (
           <Tooltip title={ip}>
-            <Tag color="green" style={{ fontFamily: 'monospace' }}>{ip}</Tag>
+            <span>{ip}</span>
           </Tooltip>
         ),
       },
@@ -775,7 +967,7 @@ class NetworkPage extends Component {
         ellipsis: true,
         render: (ip) => (
           <Tooltip title={ip}>
-            <Tag color="orange" style={{ fontFamily: 'monospace' }}>{ip}</Tag>
+            <span>{ip}</span>
           </Tooltip>
         ),
       },
@@ -882,7 +1074,7 @@ class NetworkPage extends Component {
   };
 
   render() {
-    const { pcapFiles, selectedPcap, uploadedPcapName, loading, error, lastUpdate, topUsers, geoLocations, topologyData, topLinks } = this.state;
+    const { pcapFiles, selectedPcap, uploadedPcapName, loading, error, lastUpdate, topUsers, geoLocations, topologyData, topLinks, fromDPI } = this.state;
 
     const hasData = topUsers.length > 0 || geoLocations.length > 0 || topLinks.length > 0;
 
@@ -897,11 +1089,11 @@ class NetworkPage extends Component {
           </Divider>
           
           <Card style={{ marginBottom: 16 }}>
-            <Row gutter={4} align="middle" justify="space-between">
+            <Row gutter={16} align="middle">
               <Col flex="none">
-                <strong style={{ marginRight: 4 }}><span style={{ color: 'red' }}>* </span>PCAP File:</strong>
+                <strong><span style={{ color: 'red' }}>* </span>PCAP File:</strong>
               </Col>
-              <Col flex="none">
+              <Col flex="auto">
                 {uploadedPcapName ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <Tag color="green" style={{ margin: 0, padding: '4px 12px', fontSize: '14px' }}>
@@ -924,13 +1116,22 @@ class NetworkPage extends Component {
                     >
                       Clear Upload
                     </Button>
+                    <Button 
+                      type="primary"
+                      icon={<ApiOutlined />}
+                      onClick={this.handleViewNetwork}
+                      loading={loading}
+                      disabled={!selectedPcap}
+                    >
+                      View Network
+                    </Button>
                   </div>
                 ) : (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <Select
                       value={selectedPcap || undefined}
                       onChange={this.handlePcapChange}
-                      style={{ width: 300 }}
+                      style={{ minWidth: 300, maxWidth: 500 }}
                       disabled={loading}
                       placeholder="Select a PCAP file..."
                       allowClear
@@ -991,20 +1192,17 @@ class NetworkPage extends Component {
                         </Button>
                       </Tooltip>
                     )}
+                    <Button 
+                      type="primary"
+                      icon={<ApiOutlined />}
+                      onClick={this.handleViewNetwork}
+                      loading={loading}
+                      disabled={!selectedPcap}
+                    >
+                      View Network
+                    </Button>
                   </div>
                 )}
-              </Col>
-              
-              <Col flex="none" style={{ marginLeft: 12 }}>
-                <Button 
-                  type="primary"
-                  icon={<ApiOutlined />}
-                  onClick={this.handleViewNetwork}
-                  loading={loading}
-                  disabled={!selectedPcap}
-                >
-                  View Network
-                </Button>
               </Col>
             </Row>
           </Card>
@@ -1021,117 +1219,76 @@ class NetworkPage extends Component {
             />
           )}
 
-          {/* Results Section */}
-          {hasData && (
-            <>
-              <Divider orientation="left">
-                <h2 style={{ fontSize: '20px' }}>Network Analysis Results</h2>
-              </Divider>
+          {/* Results Section - Always visible */}
+          <Divider orientation="left">
+            <h2 style={{ fontSize: '20px' }}>Network Analysis Results</h2>
+          </Divider>
 
-              <Row gutter={[16, 16]}>
-                {/* Top Users Card */}
-                <Col xs={24}>
-                  <Card 
-                    title={
-                      <div>
-                        <div>
-                          <UserOutlined style={{ marginRight: 8 }} />
-                          Top Users
-                        </div>
-                        <div style={{ fontSize: '12px', fontWeight: 'normal', color: '#666', marginTop: 4 }}>
-                          Most active IP addresses by data volume and packet count
-                        </div>
-                      </div>
-                    }
-                  >
-                    {this.renderTopUsersTable()}
-                  </Card>
-                </Col>
-
-                {/* Geographic Distribution Card */}
-                <Col xs={24}>
-                  <Card 
-                    title={
-                      <div>
-                        <div>
-                          <GlobalOutlined style={{ marginRight: 8 }} />
-                          Geographic Distribution
-                        </div>
-                        <div style={{ fontSize: '12px', fontWeight: 'normal', color: '#666', marginTop: 4 }}>
-                          Traffic distribution across countries and cities
-                        </div>
-                      </div>
-                    }
-                  >
-                    {this.renderGeoLocationMap()}
-                  </Card>
-                </Col>
-
-                {/* Network Topology Card */}
-                <Col xs={24}>
-                  <Card 
-                    title={
-                      <div>
-                        <div>
-                          <ApartmentOutlined style={{ marginRight: 8 }} />
-                          Network Topology
-                        </div>
-                        <div style={{ fontSize: '12px', fontWeight: 'normal', color: '#666', marginTop: 4 }}>
-                          Interactive visualization of network connections and nodes
-                        </div>
-                      </div>
-                    }
-                  >
-                    {this.renderNetworkTopology()}
-                  </Card>
-                </Col>
-
-                {/* Top Communication Links Card */}
-                <Col xs={24}>
-                  <Card 
-                    title={
-                      <div>
-                        <div>
-                          <SwapOutlined style={{ marginRight: 8 }} />
-                          Top Communication Links
-                        </div>
-                        <div style={{ fontSize: '12px', fontWeight: 'normal', color: '#666', marginTop: 4 }}>
-                          Most active communication pairs with protocol and traffic details
-                        </div>
-                      </div>
-                    }
-                  >
-                    {this.renderTopLinksTable()}
-                  </Card>
-                </Col>
-              </Row>
-            </>
-          )}
-
-          {/* No Data Message */}
-          {!hasData && !loading && selectedPcap && (
-            <Card style={{ marginTop: 16 }}>
-              <Empty 
-                description={
-                  <span>
-                    No network data available for this PCAP file.<br />
-                    Please ensure DPI analysis has been completed first.
+          <Row gutter={[16, 16]}>
+            {/* Top Users Card */}
+            <Col xs={24}>
+              <Card style={{ marginBottom: 16 }}>
+                <div style={{ marginBottom: 16 }}>
+                  <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>
+                    <UserOutlined style={{ marginRight: 8 }} />
+                    Top Users
+                  </h3>
+                  <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+                    Most active IP addresses by data volume and packet count
                   </span>
-                }
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-              />
-            </Card>
-          )}
+                </div>
+                {this.renderTopUsersTable()}
+              </Card>
+            </Col>
 
-          {/* Initial State Message */}
-          {!hasData && !loading && !selectedPcap && (
-            <Card style={{ marginTop: 16 }}>
-              <Empty 
-                description="Select a PCAP file and click 'View Network' to analyze network patterns"
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-              />
-            </Card>
-          )}
+            {/* Geographic Distribution Card */}
+            <Col xs={24}>
+              <Card style={{ marginBottom: 16 }}>
+                <div style={{ marginBottom: 16 }}>
+                  <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>
+                    <GlobalOutlined style={{ marginRight: 8 }} />
+                    Geographic Distribution
+                  </h3>
+                  <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+                    Traffic distribution across countries and cities
+                  </span>
+                </div>
+                {this.renderGeoLocationMap()}
+              </Card>
+            </Col>
+
+            {/* Network Topology Card */}
+            <Col xs={24}>
+              <Card style={{ marginBottom: 16 }}>
+                <div style={{ marginBottom: 16 }}>
+                  <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>
+                    <ApartmentOutlined style={{ marginRight: 8 }} />
+                    Network Topology
+                  </h3>
+                  <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+                    Interactive visualization of network connections and nodes
+                  </span>
+                </div>
+                {this.renderNetworkTopology()}
+              </Card>
+            </Col>
+
+            {/* Top Communication Links Card */}
+            <Col xs={24}>
+              <Card style={{ marginBottom: 16 }}>
+                <div style={{ marginBottom: 16 }}>
+                  <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>
+                    <SwapOutlined style={{ marginRight: 8 }} />
+                    Top Communication Links
+                  </h3>
+                  <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+                    Most active communication pairs with protocol and traffic details
+                  </span>
+                </div>
+                {this.renderTopLinksTable()}
+              </Card>
+            </Col>
+          </Row>
       </LayoutPage>
     );
   }
