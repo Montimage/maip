@@ -10,7 +10,7 @@ import {
 //   setApp,
 // } from "../../actions";
 import "./styles.css";
-import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react';
+import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from '@clerk/clerk-react';
 import { useUserRole } from '../../hooks/useUserRole';
 
 // Determine if Clerk is configured at build time
@@ -67,14 +67,21 @@ class MAIPHeader extends Component {
           {/* User avatar when signed in */}
           {HAS_CLERK_KEY && (
             <SignedIn>
-              <UserButton 
-                afterSignOutUrl="/"
-                appearance={{
-                  elements: {
-                    avatarBox: "width-32 height-32"
-                  }
-                }}
-              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                {this.props.user && (
+                  <span style={{ color: '#fff', fontSize: '16px' }}>
+                    Welcome, {this.props.user.firstName || this.props.user.username || 'User'}
+                  </span>
+                )}
+                <UserButton 
+                  afterSignOutUrl="/"
+                  appearance={{
+                    elements: {
+                      avatarBox: "width-32 height-32"
+                    }
+                  }}
+                />
+              </div>
             </SignedIn>
           )}
         </div>
@@ -87,11 +94,12 @@ const mapPropsToStates = ({ app, requesting }) => ({
   app, requesting,
 });
 
-// HOC to inject user role into class component
+// HOC to inject user role and user info into class component
 function withUserRole(Component) {
   return function WrappedComponent(props) {
     const userRole = useUserRole();
-    return <Component {...props} isAdmin={userRole.isAdmin} isSignedIn={userRole.isSignedIn} isLoaded={userRole.isLoaded} />;
+    const { user } = useUser();
+    return <Component {...props} isAdmin={userRole.isAdmin} isSignedIn={userRole.isSignedIn} isLoaded={userRole.isLoaded} user={user} />;
   };
 }
 
