@@ -1,3 +1,8 @@
+#!/usr/bin/env python3
+# Fix sys.path BEFORE any imports to prevent TensorFlow errors
+import sys
+sys.path = [str(p) if not isinstance(p, str) else p for p in sys.path]
+
 import json
 import os
 import shutil
@@ -9,8 +14,16 @@ import matplotlib.pyplot as plt
 import timeit
 
 from pathlib import Path
+
+# Fix sys.path again before importing local modules that might modify it
+sys.path = [str(p) if not isinstance(p, str) else p for p in sys.path]
+
 from trafficToFeature import trafficToFeatures
 from createDatasetMMT import createTrainTestSet
+
+# Fix sys.path one more time right before TensorFlow import
+sys.path = [str(p) if not isinstance(p, str) else p for p in sys.path]
+
 from tensorflow.keras.models import load_model
 from pydoc import classname
 from datetime import datetime
@@ -73,7 +86,9 @@ if __name__ == "__main__":
   if len(sys.argv) != 5:
     print('Invalid inputs')
     print('python xai-shap.py modelId numberBackgroundSamples numberExplainedSamples maxDisplay')
-  else:
+    sys.exit(1)
+  
+  try:
     modelId = sys.argv[1]
     numberBackgroundSamples = sys.argv[2]
     numberExplainedSamples = sys.argv[3]
@@ -117,3 +132,12 @@ if __name__ == "__main__":
     with open(statsfile, "w") as f:
       f.write(str(time_taken))
       f.close()
+    
+    print("SHAP explanations generated successfully")
+    sys.exit(0)
+  
+  except Exception as e:
+    print(f"Error generating SHAP explanations: {str(e)}")
+    import traceback
+    traceback.print_exc()
+    sys.exit(1)
