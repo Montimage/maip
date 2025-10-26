@@ -78,23 +78,47 @@ app.use(express.urlencoded({ extended: true, limit: '200mb' }));
 app.use(cookieParser());
 app.use(fileUpload());
 // Set up CORS
-//app.use(cors());
-// Define an array of allowed origins
+// Build allowed origins from environment variables
 const allowedOrigins = [
-  'http://maip.montimage.com',
-  'https://maip.montimage.com',
   'http://localhost:3000',
   'https://localhost:3000',
   'http://0.0.0.0:3000',
-  'http://3.91.51.170:3000', // Production frontend (HTTP)
-  'https://3.91.51.170:3000', // Production frontend (HTTPS)
-  'http://ec2-3-91-51-170.compute-1.amazonaws.com',
-  'https://ec2-3-91-51-170.compute-1.amazonaws.com', // AWS domain (HTTPS)
 ];
+
+// Add custom origins from environment variable (comma-separated)
+if (process.env.CORS_ALLOWED_ORIGINS) {
+  const customOrigins = process.env.CORS_ALLOWED_ORIGINS.split(',').map(o => o.trim());
+  allowedOrigins.push(...customOrigins);
+}
+
+// Automatically derive origins from REACT_APP_API_URL if present
+if (API_URL_STR) {
+  try {
+    const parsed = new URL(API_URL_STR);
+    const baseOrigin = `${parsed.protocol}//${parsed.hostname}`;
+    
+    // Add the base domain with common ports
+    allowedOrigins.push(baseOrigin);
+    allowedOrigins.push(`http://${parsed.hostname}:3000`);
+    allowedOrigins.push(`https://${parsed.hostname}:3000`);
+    
+    // If there's a port in the URL, add that too
+    if (parsed.port) {
+      allowedOrigins.push(`${parsed.protocol}//${parsed.hostname}:${parsed.port}`);
+    }
+  } catch (e) {
+    console.warn(`[CORS] Failed to derive origins from REACT_APP_API_URL: ${e.message}`);
+  }
+}
+
+// Remove duplicates
+const uniqueOrigins = [...new Set(allowedOrigins)];
+
+console.log('[CORS] Allowed origins:', uniqueOrigins);
 
 // Configure CORS with allowed origins
 app.use(cors({
-  origin: allowedOrigins,
+  origin: uniqueOrigins,
   methods: ['GET', 'POST', 'DELETE', 'PUT'],
 }));
 /* // Add headers
