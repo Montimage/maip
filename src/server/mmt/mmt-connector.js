@@ -30,8 +30,12 @@ let mmtStatus = {
   startedAt: null,
 };
 
+// Logging configuration
+const VERBOSE_LOGGING = process.env.NODE_ENV !== 'production' && process.env.VERBOSE_LOGS === 'true';
+const logInfo = (...args) => VERBOSE_LOGGING && console.log(...args);
+
 const runOnDataset = (pcapFiles, datasetPath, outputDir, logFilePath, onFinishCallback = null) => {
-  console.log(`runOnDataset : ${pcapFiles.length}`);
+  logInfo(`runOnDataset : ${pcapFiles.length}`);
   if (pcapFiles.length === 0) {
     if (onFinishCallback) onFinishCallback();
   } else {
@@ -39,7 +43,7 @@ const runOnDataset = (pcapFiles, datasetPath, outputDir, logFilePath, onFinishCa
     const currentPcapFile = newPcapFiles.pop();
     const inputPcapFilePath = `${datasetPath}/${currentPcapFile}`;
     spawnCommand('mmt-probe', ['-c', MMT_PROBE_CONFIG_PATH, '-t', inputPcapFilePath, '-X', `file-output.output-dir=${outputDir}`, '-X', `file-output.output-file=${currentPcapFile}.csv`], logFilePath, () => {
-      console.log('Finished analysing file: ', currentPcapFile);
+      logInfo('Finished analysing file: ', currentPcapFile);
       return runOnDataset(newPcapFiles, datasetPath, outputDir, logFilePath, onFinishCallback);
     });
   }
@@ -54,11 +58,11 @@ const runOnDataset = (pcapFiles, datasetPath, outputDir, logFilePath, onFinishCa
  * @param {String} userId user ID for resolving user-specific pcap files
  */
 const startMMTOffline = (pcapFileName, callback, overrideOutputSessionId = null, skipLockCheck = false, userId = null) => {
-  console.log(mmtStatus);
+  logInfo(mmtStatus);
   
   // Skip lock check if called from queue worker (allows concurrent processing)
   if (!skipLockCheck && mmtStatus.isRunning && mmtStatus.isOnlineMode) {
-    console.warn('An online analysis process is on going. Cannot start offline analysis.');
+    logInfo('An online analysis process is on going. Cannot start offline analysis.');
     return callback({
       error: 'An online analysis process is on going',
     });
@@ -86,7 +90,7 @@ const startMMTOffline = (pcapFileName, callback, overrideOutputSessionId = null,
       };
       spawnCommand('mmt-probe', ['-c', MMT_PROBE_CONFIG_PATH, '-t', inputPcapFilePath, '-X', `file-output.output-dir=${outputDir}`, '-X', `file-output.output-file=${pcapFileName}.csv`], logFilePath, () => {
         mmtStatus.isRunning = false;
-      });
+      }, { suppressOutput: true });  // Suppress verbose mmt-probe output
     }
     return callback(mmtStatus);
   });
@@ -97,9 +101,9 @@ const startMMTOffline = (pcapFileName, callback, overrideOutputSessionId = null,
  * @param {String} pcapFileName absoluted path of the pcap file
  */
 const startMMTForDataset = (datasetName, callback) => {
-  console.log(mmtStatus);
+  logInfo(mmtStatus);
   if (mmtStatus.isRunning) {
-    console.warn('An analysing process is on going. Only one process can be run at a time');
+    logInfo('An analysing process is on going. Only one process can be run at a time');
     return callback({
       error: 'An analysis process is on going',
     });
@@ -130,7 +134,7 @@ const startMMTForDataset = (datasetName, callback) => {
           startedAt: Date.now(),
         };
         runOnDataset(pcapFiles, datasetPath, outputDir, logFilePath, () => {
-          console.log('All pcap files have been analyzed');
+          logInfo('All pcap files have been analyzed');
           mmtStatus.isRunning = false;
         });
       }
@@ -144,9 +148,9 @@ const startMMTForDataset = (datasetName, callback) => {
  * @param {String} interface the network interface name on which the mmt will listen
  */
 const startMMTOnline = (netInf, callback) => {
-  console.log(mmtStatus);
+  logInfo(mmtStatus);
   if (mmtStatus.isRunning) {
-    console.warn('An analysing process is on going. Only one process can be run at a time');
+    logInfo('An analysing process is on going. Only one process can be run at a time');
     return callback({
       error: 'An analysis process is on going',
     });
@@ -171,7 +175,7 @@ const startMMTOnline = (netInf, callback) => {
   };
   spawnCommand('sudo', ['mmt-probe', '-c', MMT_PROBE_CONFIG_PATH, '-i', netInf, '-X', 'input.mode=ONLINE', '-X', `file-output.output-dir=${outputDir}`, '-X', 'file-output.sample-file=true'], logFilePath, () => {
     mmtStatus.isRunning = false;
-  });
+  }, { suppressOutput: true });  // Suppress verbose mmt-probe output
   return callback(mmtStatus);
 };
 
@@ -179,15 +183,15 @@ const startMMTOnline = (netInf, callback) => {
  * Stop a running MMT instance
  */
 const stopMMT = (callback) => {
-  console.log(mmtStatus);
+  logInfo(mmtStatus);
   if (mmtStatus.isRunning) {
     const logFilePath = `${LOG_PATH + mmtStatus.sessionId}.log`;
     return spawnCommand('sudo', ['killall', 'mmt-probe'], logFilePath, () => {
       mmtStatus.isRunning = false;
       return callback(mmtStatus);
-    });
+    }, { suppressOutput: true });  // Suppress verbose killall output
   }
-  console.warn('MMT is not running');
+  logInfo('MMT is not running');
   return callback(null);
 };
 

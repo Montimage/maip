@@ -43,6 +43,11 @@ const CONCURRENCY = {
   modelRetraining: parseInt(process.env.RETRAIN_WORKERS) || 2  // Retraining is very resource intensive
 };
 
+// Logging configuration - disable verbose logging in production
+const VERBOSE_LOGGING = process.env.NODE_ENV !== 'production' && process.env.VERBOSE_LOGS === 'true';
+const logInfo = (...args) => VERBOSE_LOGGING && console.log(...args);
+const logError = (...args) => console.error(...args);
+
 /**
  * Feature Extraction Worker
  * 
@@ -55,7 +60,7 @@ featureQueue.process('extract', CONCURRENCY.featureExtraction, async (job) => {
   const isDPIJob = jobType === 'dpi';
   const jobTypeLabel = isDPIJob ? 'DPI analysis' : 'feature extraction';
   
-  console.log(`[Worker] Processing ${jobTypeLabel} job ${job.id} for session ${sessionId}`);
+  logInfo(`[Worker] Processing ${jobTypeLabel} job ${job.id} for session ${sessionId}`);
   
   try {
     // Resolve pcap path from samples or user uploads
@@ -82,14 +87,14 @@ featureQueue.process('extract', CONCURRENCY.featureExtraction, async (job) => {
             return reject(new Error('Failed to start MMT offline'));
           }
 
-          console.log(`[Worker] DPI job ${job.id} - MMT started with session: ${mmtSessionId}`);
+          logInfo(`[Worker] DPI job ${job.id} - MMT started with session: ${mmtSessionId}`);
           await job.progress(50);
           
           const outputDir = path.join(REPORT_PATH, `report-${mmtSessionId}`);
           
-          // Poll for MMT completion
-          const intervalMs = 2000;
-          const maxAttempts = 150;
+          // Poll for MMT completion (optimized intervals)
+          const intervalMs = 5000;
+          const maxAttempts = 60;
           let attempts = 0;
           
           const poll = setInterval(async () => {
@@ -104,11 +109,11 @@ featureQueue.process('extract', CONCURRENCY.featureExtraction, async (job) => {
               clearInterval(poll);
               
               if (!fs.existsSync(outputDir)) {
-                console.log(`[Worker] Waiting for output directory: ${outputDir}`);
+                logInfo(`[Worker] Waiting for output directory: ${outputDir}`);
                 // Give it a bit more time
                 setTimeout(() => {
                   if (fs.existsSync(outputDir)) {
-                    console.log(`[Worker] DPI job ${job.id} completed for session ${mmtSessionId}`);
+                    logInfo(`[Worker] DPI job ${job.id} completed for session ${mmtSessionId}`);
                     resolve({
                       success: true,
                       sessionId: mmtSessionId,
@@ -154,9 +159,9 @@ featureQueue.process('extract', CONCURRENCY.featureExtraction, async (job) => {
         const outputDir = path.join(REPORT_PATH, `report-${mmtSessionId}`);
         const logFile = path.join(outputDir, `features_${mmtSessionId}.log`);
         
-        // Poll for MMT completion
-        const intervalMs = 2000;
-        const maxAttempts = 150;
+        // Poll for MMT completion (optimized intervals for feature extraction)
+        const intervalMs = 3000;  // Faster polling for feature extraction (was 5000)
+        const maxAttempts = 100;  // More attempts for complex processing (was 60)
         let attempts = 0;
         
         const poll = setInterval(async () => {
@@ -244,7 +249,7 @@ featureQueue.process('extract', CONCURRENCY.featureExtraction, async (job) => {
                     
                     await job.progress(100);
                     
-                    console.log(`[Worker] Feature extraction completed for job ${job.id}: ${featureCount} features`);
+                    logInfo(`[Worker] Feature extraction completed for job ${job.id}: ${featureCount} features`);
                     
                     resolve({
                       success: true,
@@ -269,7 +274,7 @@ featureQueue.process('extract', CONCURRENCY.featureExtraction, async (job) => {
     });
     
   } catch (error) {
-    console.error(`[Worker] Feature extraction failed for job ${job.id}:`, error);
+    logError(`[Worker] Feature extraction failed for job ${job.id}:`, error);
     throw error;
   }
 });
@@ -282,7 +287,7 @@ featureQueue.process('extract', CONCURRENCY.featureExtraction, async (job) => {
 trainingQueue.process('train', CONCURRENCY.modelTraining, async (job) => {
   const { sessionId, modelName, datasetPath, algorithm } = job.data;
   
-  console.log(`[Worker] Processing training job ${job.id} for model ${modelName}`);
+  logInfo(`[Worker] Processing training job ${job.id} for model ${modelName}`);
   
   try {
     await job.progress(10);
@@ -334,7 +339,7 @@ trainingQueue.process('train', CONCURRENCY.modelTraining, async (job) => {
     
     await job.progress(100);
     
-    console.log(`[Worker] Training completed for job ${job.id}`);
+    logInfo(`[Worker] Training completed for job ${job.id}`);
     
     return {
       success: true,
@@ -359,7 +364,7 @@ trainingQueue.process('train', CONCURRENCY.modelTraining, async (job) => {
 predictionQueue.process('predict', CONCURRENCY.prediction, async (job) => {
   const { modelId, reportId, reportFileName, predictionId } = job.data;
   
-  console.log(`[Worker] Processing prediction job ${job.id} for model ${modelId}, prediction ${predictionId}`);
+  logInfo(`[Worker] Processing prediction job ${job.id} for model ${modelId}, prediction ${predictionId}`);
   
   try {
     await job.progress(10);
@@ -380,7 +385,7 @@ predictionQueue.process('predict', CONCURRENCY.prediction, async (job) => {
         const featuresCsv = files.find(f => f.endsWith('.features.csv'));
         
         if (featuresCsv) {
-          console.log(`[Worker] Using features CSV: ${featuresCsv} instead of ${reportFileName}`);
+          logInfo(`[Worker] Using features CSV: ${featuresCsv} instead of ${reportFileName}`);
           csvPath = path.join(reportDir, featuresCsv);
         }
       }
@@ -389,11 +394,7 @@ predictionQueue.process('predict', CONCURRENCY.prediction, async (job) => {
     const predictionPath = path.join(PREDICTION_PATH, predictionId, '/');
     const logFile = path.join(LOG_PATH, `predict_${predictionId}.log`);
     
-    console.log(`[Worker] Prediction paths:
-      - Report Dir: ${reportDir}
-      - Model: ${modelPath}
-      - CSV: ${csvPath}
-      - Output: ${predictionPath}`);
+    logInfo(`[Worker] Prediction paths: Report=${reportDir}, Model=${modelPath}, CSV=${csvPath}`);
     
     // Verify model exists
     if (!fs.existsSync(modelPath)) {
@@ -438,7 +439,7 @@ predictionQueue.process('predict', CONCURRENCY.prediction, async (job) => {
     
     pythonProcess.stderr.on('data', (data) => {
       stderr += data.toString();
-      console.log(`[Worker] Prediction stderr: ${data}`);
+      logInfo(`[Worker] Prediction stderr: ${data}`);
     });
     
     await new Promise((resolve, reject) => {
@@ -457,7 +458,7 @@ predictionQueue.process('predict', CONCURRENCY.prediction, async (job) => {
     
     await job.progress(100);
     
-    console.log(`[Worker] Prediction completed for job ${job.id}, prediction ${predictionId}`);
+    logInfo(`[Worker] Prediction completed for job ${job.id}, prediction ${predictionId}`);
     
     return {
       success: true,
@@ -481,7 +482,7 @@ predictionQueue.process('predict', CONCURRENCY.prediction, async (job) => {
 ruleBasedQueue.process('detect', CONCURRENCY.ruleBasedDetection, async (job) => {
   const { pcapFile, filePath, sessionId, verbose = false, excludeRules, cores } = job.data;
   
-  console.log(`[Worker] Processing rule-based detection job ${job.id} for session ${sessionId}`);
+  logInfo(`[Worker] Processing rule-based detection job ${job.id} for session ${sessionId}`);
   
   try {
     const { exec } = require('child_process');
@@ -526,7 +527,7 @@ ruleBasedQueue.process('detect', CONCURRENCY.ruleBasedDetection, async (job) => 
     args.push('-f', `${outDir}/`);
     
     const cmd = `${bin} ${args.map(a => (a.includes(' ') ? `"${a}"` : a)).join(' ')}`;
-    console.log(`[Worker] Executing rule-based detection: ${cmd}`);
+    logInfo(`[Worker] Executing rule-based detection: ${cmd}`);
     
     await job.progress(20);
     
@@ -575,7 +576,7 @@ ruleBasedQueue.process('detect', CONCURRENCY.ruleBasedDetection, async (job) => 
     
     await job.progress(100);
     
-    console.log(`[Worker] Rule-based detection job ${job.id} completed for session ${sessionId}`);
+    logInfo(`[Worker] Rule-based detection job ${job.id} completed for session ${sessionId}`);
     
     return {
       success: true,
@@ -594,7 +595,7 @@ ruleBasedQueue.process('detect', CONCURRENCY.ruleBasedDetection, async (job) => 
 
 // Event listeners for monitoring
 featureQueue.on('completed', (job, result) => {
-  console.log(`[Queue] Feature extraction job ${job.id} completed`);
+  logInfo(`[Queue] Feature extraction job ${job.id} completed`);
 });
 
 featureQueue.on('failed', (job, err) => {
@@ -602,7 +603,7 @@ featureQueue.on('failed', (job, err) => {
 });
 
 trainingQueue.on('completed', (job, result) => {
-  console.log(`[Queue] Training job ${job.id} completed`);
+  logInfo(`[Queue] Training job ${job.id} completed`);
 });
 
 trainingQueue.on('failed', (job, err) => {
@@ -610,7 +611,7 @@ trainingQueue.on('failed', (job, err) => {
 });
 
 predictionQueue.on('completed', (job, result) => {
-  console.log(`[Queue] Prediction job ${job.id} completed`);
+  logInfo(`[Queue] Prediction job ${job.id} completed`);
 });
 
 predictionQueue.on('failed', (job, err) => {
@@ -618,7 +619,7 @@ predictionQueue.on('failed', (job, err) => {
 });
 
 ruleBasedQueue.on('completed', (job, result) => {
-  console.log(`[Queue] Rule-based detection job ${job.id} completed`);
+  logInfo(`[Queue] Rule-based detection job ${job.id} completed`);
 });
 
 ruleBasedQueue.on('failed', (job, err) => {
@@ -633,7 +634,7 @@ ruleBasedQueue.on('failed', (job, err) => {
 xaiQueue.process('*', CONCURRENCY.xaiExplanations, async (job) => {
   const { xaiType, modelId, config } = job.data;
   
-  console.log(`[Worker] Processing ${xaiType} job ${job.id} for model ${modelId}`);
+  logInfo(`[Worker] Processing ${xaiType} job ${job.id} for model ${modelId}`);
   
   try {
     const modelPath = path.join(MODEL_PATH, modelId);
@@ -766,7 +767,7 @@ xaiQueue.process('*', CONCURRENCY.xaiExplanations, async (job) => {
         
         await job.progress(100);
         
-        console.log(`[Worker] ${xaiType.toUpperCase()} job ${job.id} completed for model ${modelId}`);
+        logInfo(`[Worker] ${xaiType.toUpperCase()} job ${job.id} completed for model ${modelId}`);
         
         resolve({
           success: true,
@@ -794,7 +795,7 @@ xaiQueue.process('*', CONCURRENCY.xaiExplanations, async (job) => {
 });
 
 xaiQueue.on('completed', (job, result) => {
-  console.log(`[Queue] XAI job ${job.id} completed:`, result.xaiType);
+  logInfo(`[Queue] XAI job ${job.id} completed:`, result.xaiType);
 });
 
 xaiQueue.on('failed', (job, err) => {
@@ -809,7 +810,7 @@ xaiQueue.on('failed', (job, err) => {
 attackQueue.process('*', CONCURRENCY.adversarialAttacks, async (job) => {
   const { modelId, selectedAttack, poisoningRate, targetClass } = job.data;
   
-  console.log(`[Worker] Processing ${selectedAttack} attack job ${job.id} for model ${modelId}`);
+  logInfo(`[Worker] Processing ${selectedAttack} attack job ${job.id} for model ${modelId}`);
   
   try {
     await job.progress(10);
@@ -857,7 +858,7 @@ attackQueue.process('*', CONCURRENCY.adversarialAttacks, async (job) => {
         
         await job.progress(100);
         
-        console.log(`[Worker] ${selectedAttack} attack job ${job.id} completed for model ${modelId}`);
+        logInfo(`[Worker] ${selectedAttack} attack job ${job.id} completed for model ${modelId}`);
         
         resolve({
           success: true,
@@ -887,7 +888,7 @@ attackQueue.process('*', CONCURRENCY.adversarialAttacks, async (job) => {
 });
 
 attackQueue.on('completed', (job, result) => {
-  console.log(`[Queue] Attack job ${job.id} completed:`, result.selectedAttack);
+  logInfo(`[Queue] Attack job ${job.id} completed:`, result.selectedAttack);
 });
 
 attackQueue.on('failed', (job, err) => {
@@ -902,7 +903,7 @@ attackQueue.on('failed', (job, err) => {
 retrainQueue.process('retrain', CONCURRENCY.modelRetraining, async (job) => {
   const { modelId, trainingDataset, testingDataset, training_parameters, isACApp } = job.data;
   
-  console.log(`[Worker] Processing retrain job ${job.id} for model ${modelId}`);
+  logInfo(`[Worker] Processing retrain job ${job.id} for model ${modelId}`);
   
   try {
     await job.progress(10);
@@ -1010,7 +1011,7 @@ retrainQueue.process('retrain', CONCURRENCY.modelRetraining, async (job) => {
     });
     
     await job.progress(100);
-    console.log(`[Worker] Retrain completed for job ${job.id}, retrain ID: ${retrainId}`);
+    logInfo(`[Worker] Retrain completed for job ${job.id}, retrain ID: ${retrainId}`);
     
     return {
       success: true,
@@ -1029,7 +1030,7 @@ retrainQueue.process('retrain', CONCURRENCY.modelRetraining, async (job) => {
 });
 
 retrainQueue.on('completed', (job, result) => {
-  console.log(`[Queue] Retrain job ${job.id} completed for model ${result.modelId}`);
+  logInfo(`[Queue] Retrain job ${job.id} completed for model ${result.modelId}`);
 });
 
 retrainQueue.on('failed', (job, err) => {
@@ -1037,6 +1038,9 @@ retrainQueue.on('failed', (job, err) => {
 });
 
 console.log('[Workers] Started with concurrency:', CONCURRENCY);
+if (!VERBOSE_LOGGING) {
+  console.log('[Workers] Verbose logging disabled for better performance. Set VERBOSE_LOGS=true to enable.');
+}
 
 module.exports = {
   // Workers are automatically started when this module is loaded

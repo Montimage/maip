@@ -13,8 +13,13 @@ const {
 
 let allInterfaces = null;
 
-const spawnCommand = (cmd, params, logFilePath, onCloseCallback = null) => {
-  console.log('Command to be executed:', `${cmd} ${params.join(' ')}`);
+const spawnCommand = (cmd, params, logFilePath, onCloseCallback = null, options = {}) => {
+  const commandStr = `${cmd} ${params.join(' ')}`;
+
+  // Only log command in development or if explicitly requested
+  if (process.env.NODE_ENV !== 'production' || process.env.VERBOSE_SPAWN === 'true') {
+    console.log('Command to be executed:', commandStr);
+  }
 
   // Create log file stream
   const logFile = fs.createWriteStream(logFilePath, {
@@ -22,26 +27,42 @@ const spawnCommand = (cmd, params, logFilePath, onCloseCallback = null) => {
   });
 
   // Execute command
-  const proc = spawn(cmd, params);
+  // Always PIPE so proc.stdout/proc.stderr are available (avoids null .on error)
+  // We control console verbosity below without using stdio: 'inherit'
+  const proc = spawn(cmd, params, {
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
 
   // Handle stdout
   proc.stdout.on('data', (data) => {
     const output = data.toString();
-    console.log('Python output:', output);  // Show in console
-    logFile.write(output);  // Write to log file
+    logFile.write(output);  // Always write to log file
+
+    // Only show in console if not suppressed and not production
+    if (!options.suppressOutput && (process.env.NODE_ENV !== 'production' || process.env.VERBOSE_SPAWN === 'true')) {
+      console.log('Python output:', output);
+    }
   });
 
   // Handle stderr
   proc.stderr.on('data', (data) => {
     const error = data.toString();
-    console.error('Python error:', error);  // Show in console
-    logFile.write(error);  // Write to log file
+    logFile.write(error);  // Always write to log file
+
+    // Only show in console if not suppressed and not production
+    if (!options.suppressOutput && (process.env.NODE_ENV !== 'production' || process.env.VERBOSE_SPAWN === 'true')) {
+      console.error('Python error:', error);
+    }
   });
 
   // Handle process completion
   proc.on('close', (code) => {
-    console.log(`Process completed with code: ${code}`);
     logFile.end();
+
+    // Only log completion in development
+    if (process.env.NODE_ENV !== 'production' || process.env.VERBOSE_SPAWN === 'true') {
+      console.log(`Process completed with code: ${code}`);
+    }
 
     if (onCloseCallback) {
       return onCloseCallback(code !== 0 ? new Error(`Exit code: ${code}`) : null);
@@ -49,15 +70,13 @@ const spawnCommand = (cmd, params, logFilePath, onCloseCallback = null) => {
     return null;
   });
 
-  // Handle spawn errors
-  proc.on('error', (err) => {
-    console.error('Failed to spawn process:', err);
-    logFile.write(`Error: ${err.toString()}\n`);
+  // Handle errors
+  proc.on('error', (error) => {
     logFile.end();
+    console.error(`Failed to start process ${cmd}:`, error);
     if (onCloseCallback) {
-      return onCloseCallback(err);
+      onCloseCallback(error);
     }
-    return null;
   });
 };
 

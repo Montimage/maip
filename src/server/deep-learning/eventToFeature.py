@@ -8,6 +8,11 @@ import argparse
 
 sys.path.append(sys.path[0] + '/..')
 
+# Add parent directory to path for imports
+sys.path.append(Path(__file__).parent.parent.parent)
+from python_logger import get_logger
+
+logger = get_logger('eventToFeature')
 
 def calculateFeatures(ip_traffic, tcp_traffic, tls_traffic):
     """
@@ -20,8 +25,6 @@ def calculateFeatures(ip_traffic, tcp_traffic, tls_traffic):
     :param tls_traffic:
     :return: Ip of flows and dataframe with ML features (per flow+direction)
     """
-
-    # print("Extracting features " + str(len(feature_names)))
 
     # Bins of packet lengths and time between packets based on
     # "MalDetect: A Structure of Encrypted Malware Traffic Detection" by Jiyuan Liu et al.
@@ -437,16 +440,16 @@ def eventsToFeatures(in_csv):
     :param in_csv: input .csv report file
     :return: ips, p1_features - Dataframe of calculated ML features per flow and direction and IPs matching the flows
     """
-    print(f"Convert from events to features {in_csv}")
+    logger.debug(f"Convert from events to features {in_csv}")
     ip_traffic, tcp_traffic, tls_traffic = readAndExtractEvents(in_csv)
     if not ip_traffic.empty:
-        print("eventsToFeatures")
+        logger.debug("eventsToFeatures")
         ips, p1_features = calculateFeatures(ip_traffic, tcp_traffic, tls_traffic)
         p1_features = p1_features.fillna(0)
-        print("Extracted {} features".format(p1_features.shape[0]))
+        logger.info(f"Extracted {p1_features.shape[0]} features")
         return ips, p1_features
     else:
-        print("There is no ip traffic")
+        logger.warning("There is no ip traffic")
         return {},{}
 
 # Update function for testing ModBus dataset
@@ -456,19 +459,18 @@ def eventsToFeatures1(in_csv, out_csv):
     :param in_csv: input .csv report file
     :return: ips, p1_features - Dataframe of calculated ML features per flow and direction and IPs matching the flows
     """
-    print(f"Convert from events to features {in_csv}")
+    logger.debug(f"Convert from events to features {in_csv}")
     ip_traffic, tcp_traffic, tls_traffic = readAndExtractEvents(in_csv)
     if not ip_traffic.empty:
-        print("eventsToFeatures")
+        logger.debug("eventsToFeatures")
         ips, p1_features = calculateFeatures(ip_traffic, tcp_traffic, tls_traffic)
         p1_features = p1_features.fillna(0)
-        print("Extracted {} features".format(p1_features.shape[0]))
-        print(p1_features)
+        logger.info(f"Extracted {p1_features.shape[0]} features")
         # Save p1_features to CSV
         p1_features.to_csv(out_csv, index=False)
         return ips, p1_features
     else:
-        print("There is no ip traffic")
+        logger.warning("There is no ip traffic")
         return {},{}
 
 def main(input_csv, output_csv):
@@ -477,8 +479,9 @@ def main(input_csv, output_csv):
     :param input_csv: Input .csv report file
     :param output_csv: Output file to save p1_features
     """
+    logger.info("Processing CSV file for feature extraction...")
     ips, p1_features = eventsToFeatures1(input_csv, output_csv)
-    print("Finished processing.")
+    logger.info("Finished processing.")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process input CSV file and save p1_features to output CSV file.")
