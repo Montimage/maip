@@ -34,11 +34,11 @@ const LandingPage = () => {
       website: 'https://spatial-h2020.eu/'
     },
     {
-      name: 'CyberSuite',
-      grantNumber: '101145861',
-      description: 'Uptake of Innovative Security-as-a-Service Solutions for SMEs, providing an easily accessible marketplace for cybersecurity services with seamless integration.',
-      logo: '/img/logo-cybersuite.png',
-      website: 'https://cybersuiteproject.eu/'
+      name: 'AI4CYBER',
+      grantNumber: '101070450',
+      description: 'AI-powered cybersecurity solutions for enhanced threat detection and response capabilities.',
+      logo: '/img/logo-ai4cyber.png',
+      website: 'https://ai4cyber.eu/'
     },
     {
       name: 'PUZZLE',
@@ -46,6 +46,13 @@ const LandingPage = () => {
       description: 'Pluggable Social Platform focusing on cybersecurity analytics, blockchain technologies, threat intelligence, and distributed machine learning for SMEs.',
       logo: '/img/logo-puzzle.svg',
       website: 'https://puzzle-h2020.com/'
+    },
+    {
+      name: 'CyberSuite',
+      grantNumber: '101145861',
+      description: 'Uptake of Innovative Security-as-a-Service Solutions for SMEs, providing an easily accessible marketplace for cybersecurity services with seamless integration.',
+      logo: '/img/logo-cybersuite.png',
+      website: 'https://cybersuiteproject.eu/'
     },
     {
       name: 'ResilMesh',
