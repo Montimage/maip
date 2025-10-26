@@ -42,8 +42,3 @@ ndr.montimage.eu {
         reverse_proxy ndr_client:3000
     }
 }
-
-# Optional: Redirect www to non-www
-www.ndr.montimage.eu {
-    redir https://ndr.montimage.eu{uri} permanent
-}
