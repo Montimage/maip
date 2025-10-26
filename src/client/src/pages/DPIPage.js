@@ -60,11 +60,12 @@ class DPIPage extends Component {
     }
     this.loadInterfaces();
     
-    // Check if navigated from Feature Extraction page
+    // Check if navigated from Feature Extraction or Network page
     const pendingPcap = localStorage.getItem('pendingDPIPcap');
+    const fromNetwork = localStorage.getItem('pendingDPIFromNetwork');
     
     if (!pendingPcap) {
-      // Only load status if NOT coming from Feature Extraction
+      // Only load status if NOT coming from another page
       this.loadStatus();
     }
     
@@ -73,7 +74,7 @@ class DPIPage extends Component {
     // 2. When starting analysis (in startAnalysis)
     // 3. During active analysis (via auto-reload)
     
-    // If navigated from Feature Extraction page
+    // If navigated from Feature Extraction or Network page
     try {
       if (pendingPcap) {
         // Wait for pcapFiles to load, then check for existing session
@@ -89,7 +90,7 @@ class DPIPage extends Component {
                 this.setState({ 
                   selectedPcap: pendingPcap,
                   mode: 'offline',
-                  loadedFromFeatureExtraction: true,
+                  loadedFromFeatureExtraction: !fromNetwork, // Only show tag if from Feature Extraction
                   isRunning: statusData.isRunning || statusData.mmtRunning,
                   sessionId: statusData.sessionId,
                   loading: false,
@@ -97,6 +98,7 @@ class DPIPage extends Component {
                 });
                 
                 localStorage.removeItem('pendingDPIPcap');
+                localStorage.removeItem('pendingDPIFromNetwork');
                 
                 notification.success({
                   message: 'DPI Session Restored',
@@ -124,11 +126,12 @@ class DPIPage extends Component {
               this.setState({ 
                 selectedPcap: pendingPcap,
                 mode: 'offline',
-                loadedFromFeatureExtraction: true,
+                loadedFromFeatureExtraction: !fromNetwork, // Only show tag if from Feature Extraction
                 sessionId: savedSessionId,
                 loading: true,
               });
               localStorage.removeItem('pendingDPIPcap');
+              localStorage.removeItem('pendingDPIFromNetwork');
               
               // Try to load the data for this session
               this.loadData().then(() => {
@@ -138,23 +141,39 @@ class DPIPage extends Component {
                   placement: 'topRight',
                 });
               }).catch(() => {
-                // Failed to load data, session might be expired
+                // Failed to load data, session might be expired - auto-start DPI analysis
                 this.setState({
+                  selectedPcap: pendingPcap,
+                  mode: 'offline',
                   loading: false,
                   sessionId: null,
-                });
-                notification.warning({
-                  message: 'Previous Session Expired',
-                  description: `Ready to analyze "${pendingPcap}" with DPI. Click Start to begin.`,
-                  placement: 'topRight',
+                  hierarchyData: [],
+                  trafficData: [],
+                  statistics: null,
+                  conversations: [],
+                  packetSizes: [],
+                  selectedProtocols: ['ETHERNET'],
+                }, () => {
+                  localStorage.removeItem('pendingDPIPcap');
+                  localStorage.removeItem('pendingDPIFromNetwork');
+                  // Only show notification if coming from Feature Extraction, not from Network
+                  if (!fromNetwork) {
+                    notification.info({
+                      message: 'Auto-starting DPI Analysis',
+                      description: `Previous session expired. Automatically analyzing "${pendingPcap}" with DPI...`,
+                      placement: 'topRight',
+                    });
+                  }
+                  // Trigger DPI analysis automatically
+                  setTimeout(() => this.startAnalysis(), 1000);
                 });
               });
             } else {
-              // No previous session found - auto-start DPI analysis
+              // No previous session found - auto-start DPI analysis for both Network and Feature Extraction
               this.setState({ 
                 selectedPcap: pendingPcap,
                 mode: 'offline',
-                loadedFromFeatureExtraction: true,
+                loadedFromFeatureExtraction: !fromNetwork, // Only show tag if from Feature Extraction
                 loading: false,
                 hierarchyData: [],
                 trafficData: [],
@@ -165,11 +184,15 @@ class DPIPage extends Component {
               }, () => {
                 // Auto-start DPI analysis after state is set
                 localStorage.removeItem('pendingDPIPcap');
-                notification.info({
-                  message: 'Auto-starting DPI Analysis',
-                  description: `Automatically analyzing "${pendingPcap}" with DPI...`,
-                  placement: 'topRight',
-                });
+                localStorage.removeItem('pendingDPIFromNetwork');
+                // Only show notification if coming from Feature Extraction, not from Network
+                if (!fromNetwork) {
+                  notification.info({
+                    message: 'Auto-starting DPI Analysis',
+                    description: `Automatically analyzing "${pendingPcap}" with DPI...`,
+                    placement: 'topRight',
+                  });
+                }
                 // Trigger DPI analysis automatically
                 setTimeout(() => this.startAnalysis(), 1000);
               });
@@ -521,6 +544,8 @@ class DPIPage extends Component {
             error: errorData.error || 'Failed to load data',
             loading: false 
           });
+          // Reject the promise so .catch() handlers can detect the failure
+          throw new Error(errorData.error || 'Failed to load data');
         }
       }
     } catch (error) {
@@ -529,6 +554,8 @@ class DPIPage extends Component {
         error: error.message,
         loading: false 
       });
+      // Re-throw to propagate to .catch() handlers
+      throw error;
     }
   };
 
@@ -2707,16 +2734,10 @@ class DPIPage extends Component {
           </Divider>
           
           <Card style={{ marginBottom: 16 }}>
-            {loadedFromFeatureExtraction && selectedPcap && (
-              <div style={{ marginBottom: 12 }}>
-                <Tag color="blue" icon={<FolderOpenOutlined />}>
-                  Loaded from Feature Extraction
-                </Tag>
-              </div>
-            )}
-            <Row gutter={4} align="middle" justify="space-between">
+            {/* Mode selection on first line */}
+            <Row gutter={16} align="middle" style={{ marginBottom: 16 }}>
               <Col flex="none">
-                <strong style={{ marginRight: 4 }}>Mode:</strong>
+                <strong style={{ marginRight: 8 }}>Mode:</strong>
               </Col>
               <Col flex="none">
                 <Select
@@ -2738,7 +2759,7 @@ class DPIPage extends Component {
                       lastUpdate: null,
                     });
                   }}
-                  style={{ width: 180 }}
+                  style={{ width: 200 }}
                   disabled={isRunning}
                 >
                   <Option value="offline">Offline (PCAP)</Option>
@@ -2749,8 +2770,14 @@ class DPIPage extends Component {
                   </Option>
                 </Select>
               </Col>
-              
-              <Col flex="none" style={{ marginLeft: 12 }}>
+            </Row>
+            
+            {/* Divider */}
+            <Divider style={{ margin: '16px 0' }} />
+            
+            {/* Rest of controls on second line */}
+            <Row gutter={4} align="middle" justify="space-between">
+              <Col flex="none">
                 <strong style={{ marginRight: 4 }}><span style={{ color: 'red' }}>* </span>{mode === 'offline' ? 'PCAP File:' : 'Interface:'}</strong>
               </Col>
               <Col flex="none">
@@ -2921,15 +2948,6 @@ class DPIPage extends Component {
                     Extract Features
                   </Button>
                 </Space>
-              </Col>
-              
-              <Col flex="none" style={{ marginLeft: 24 }}>
-                <strong style={{ marginRight: 4 }}>Status:</strong>
-              </Col>
-              <Col flex="none">
-                <Tag color={isRunning ? 'green' : 'default'}>
-                  {isRunning ? 'Running' : 'Stopped'}
-                </Tag>
               </Col>
               
               {lastUpdate && mode === 'online' && (

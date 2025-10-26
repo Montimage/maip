@@ -169,6 +169,8 @@ class NetworkPage extends Component {
       isRunning: false,
       sessionId: null,
       loading: false,
+      loadingNetwork: false, // Track View Network button loading
+      loadingDPI: false, // Track View DPI button loading
       error: null,
       lastUpdate: null,
       fromDPI: false, // Track if navigated from DPI page
@@ -253,6 +255,18 @@ class NetworkPage extends Component {
         const data = await response.json();
         console.log('[Network] DPI analysis started:', data.sessionId);
         
+        // Save PCAP-to-sessionId mapping for later use in DPI page
+        if (pcapFile && data.sessionId) {
+          try {
+            const mapping = JSON.parse(localStorage.getItem('dpiPcapSessions') || '{}');
+            mapping[pcapFile] = data.sessionId;
+            localStorage.setItem('dpiPcapSessions', JSON.stringify(mapping));
+            console.log('[Network] Saved DPI session mapping:', pcapFile, '→', data.sessionId);
+          } catch (e) {
+            console.error('[Network] Failed to save DPI session mapping:', e);
+          }
+        }
+        
         // Wait for DPI analysis to complete
         await this.waitForDPICompletion(data.sessionId);
       } else {
@@ -326,8 +340,19 @@ class NetworkPage extends Component {
           topologyData: data.topology || { nodes: [], edges: [] },
           topLinks: data.topLinks || [],
           loading: false,
+          loadingNetwork: false,
           lastUpdate: new Date(),
         });
+        
+        // Show notification if coming from DPI page
+        if (this.state.fromDPI) {
+          notification.success({
+            message: 'Network Analysis Loaded',
+            description: `Showing network analysis for "${selectedPcap}"`,
+            placement: 'topRight',
+          });
+          this.setState({ fromDPI: false }); // Reset flag
+        }
       } else {
         const errorData = await response.json();
         // Check if DPI analysis needs to be run first
@@ -385,6 +410,7 @@ class NetworkPage extends Component {
                   topologyData: data.topology || { nodes: [], edges: [] },
                   topLinks: data.topLinks || [],
                   loading: false,
+                  loadingNetwork: false,
                   lastUpdate: new Date(),
                   isDPIRunning: false,
                 });
@@ -404,6 +430,7 @@ class NetworkPage extends Component {
               this.setState({
                 error: 'Failed to run DPI analysis: ' + dpiError.message,
                 loading: false,
+                loadingNetwork: false,
                 isDPIRunning: false,
               });
             }
@@ -418,6 +445,7 @@ class NetworkPage extends Component {
       this.setState({
         error: error.message,
         loading: false,
+        loadingNetwork: false,
       });
     }
   };
@@ -444,7 +472,35 @@ class NetworkPage extends Component {
   };
 
   handleViewNetwork = () => {
+    this.setState({ loadingNetwork: true });
     this.loadNetworkData();
+  };
+
+  handleViewDPI = () => {
+    const { selectedPcap } = this.state;
+    
+    if (selectedPcap) {
+      try {
+        this.setState({ loadingDPI: true });
+        localStorage.setItem('pendingDPIPcap', selectedPcap);
+        localStorage.setItem('pendingDPIFromNetwork', 'true'); // Flag to indicate coming from Network page
+        notification.success({
+          message: 'Navigating to DPI Analysis',
+          description: `PCAP file "${selectedPcap}" will be loaded for DPI analysis.`,
+          placement: 'topRight',
+        });
+        window.location.href = '/dpi';
+      } catch (e) {
+        this.setState({ loadingDPI: false });
+        notification.error({
+          message: 'Navigation failed',
+          description: e.message || String(e),
+          placement: 'topRight',
+        });
+      }
+    } else {
+      message.warning('Please select a PCAP file first');
+    }
   };
 
   beforeUploadPcap = (file) => {
@@ -1120,10 +1176,19 @@ class NetworkPage extends Component {
                       type="primary"
                       icon={<ApiOutlined />}
                       onClick={this.handleViewNetwork}
-                      loading={loading}
-                      disabled={!selectedPcap}
+                      loading={this.state.loadingNetwork}
+                      disabled={!selectedPcap || this.state.loadingDPI}
                     >
                       View Network
+                    </Button>
+                    <Button 
+                      type="primary"
+                      icon={<ApartmentOutlined />}
+                      onClick={this.handleViewDPI}
+                      loading={this.state.loadingDPI}
+                      disabled={!selectedPcap || this.state.loadingNetwork}
+                    >
+                      View DPI
                     </Button>
                   </div>
                 ) : (
@@ -1196,10 +1261,19 @@ class NetworkPage extends Component {
                       type="primary"
                       icon={<ApiOutlined />}
                       onClick={this.handleViewNetwork}
-                      loading={loading}
-                      disabled={!selectedPcap}
+                      loading={this.state.loadingNetwork}
+                      disabled={!selectedPcap || this.state.loadingDPI}
                     >
                       View Network
+                    </Button>
+                    <Button 
+                      type="primary"
+                      icon={<ApartmentOutlined />}
+                      onClick={this.handleViewDPI}
+                      loading={this.state.loadingDPI}
+                      disabled={!selectedPcap || this.state.loadingNetwork}
+                    >
+                      View DPI
                     </Button>
                   </div>
                 )}

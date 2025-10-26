@@ -456,13 +456,6 @@ class FeatureExtractionPage extends Component {
         </Divider>
         
         <Card style={{ marginBottom: 16 }}>
-          {loadedFromDPI && uploadedPcapName && (
-            <div style={{ marginBottom: 12 }}>
-              <Tag color="blue" icon={<ApartmentOutlined />}>
-                Loaded from DPI Analysis
-              </Tag>
-            </div>
-          )}
           <Row gutter={8} align="middle" justify="space-between">
             <Col flex="auto">
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'nowrap' }}>
