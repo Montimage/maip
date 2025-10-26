@@ -25,11 +25,14 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.server
-    network_mode: "host"
+    ports:
+      - "31057:31057"
+    networks:
+      - ndr_network
     env_file:
       - .env
     environment:
-      - REDIS_URL=redis://localhost:6379
+      - REDIS_URL=redis://ndr_redis:6379
       - DOCKER_ENV=true
       - USE_SUDO=false
     cap_add:
