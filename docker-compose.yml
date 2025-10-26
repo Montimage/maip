@@ -31,10 +31,6 @@ services:
       - ndr_network
     env_file:
       - .env
-    environment:
-      - REDIS_URL=redis://ndr_redis:6379
-      - DOCKER_ENV=true
-      - USE_SUDO=false
     cap_add:
       - NET_ADMIN
       - NET_RAW
