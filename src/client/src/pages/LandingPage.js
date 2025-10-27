@@ -13,7 +13,11 @@ import {
   FileSearchOutlined,
   InteractionOutlined,
   RadarChartOutlined,
-  BulbOutlined
+  BulbOutlined,
+  FileTextOutlined,
+  PlayCircleOutlined,
+  LoginOutlined,
+  BlockOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import './LandingPage.css';
@@ -146,34 +150,60 @@ const LandingPage = () => {
               Protect your network infrastructure with advanced machine learning models that detect and respond to 
               network threats and anomalies in real-time. Get early warnings, understand root causes, and automate responses.
             </Paragraph>
-            <Space size="large" style={{ marginTop: 32 }} wrap>
+            <Space size="large" style={{ marginTop: 32, display: 'flex', justifyContent: 'center' }} wrap>
               <Button 
                 size="large" 
+                icon={<ApiOutlined />}
                 onClick={() => navigate('/dpi')}
-                style={{ height: 48, padding: '0 32px', fontSize: 16, background: '#fff', color: '#1890ff', border: '1px solid #1890ff' }}
+                style={{ height: 48, padding: '0 32px', fontSize: 16, background: '#fff', color: '#1890ff', border: '1px solid #1890ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
                 Try Traffic Analysis
               </Button>
               <Button 
                 size="large" 
+                icon={<BlockOutlined />}
                 onClick={() => navigate('/models/all')}
-                style={{ height: 48, padding: '0 32px', fontSize: 16, background: '#fff', color: '#1890ff', border: '1px solid #1890ff' }}
+                style={{ height: 48, padding: '0 32px', fontSize: 16, background: '#fff', color: '#1890ff', border: '1px solid #1890ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
                 Explore Models
               </Button>
               <Button 
                 size="large" 
+                icon={<LineChartOutlined />}
                 onClick={() => navigate('/predict')}
-                style={{ height: 48, padding: '0 32px', fontSize: 16, background: '#fff', color: '#1890ff', border: '1px solid #1890ff' }}
+                style={{ height: 48, padding: '0 32px', fontSize: 16, background: '#fff', color: '#1890ff', border: '1px solid #1890ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
                 Try Prediction
               </Button>
               <Button 
                 size="large" 
+                icon={<LoginOutlined />}
                 onClick={() => navigate('/sign-in')}
-                style={{ height: 48, padding: '0 32px', fontSize: 16, background: '#fff', color: '#1890ff', border: '1px solid #1890ff' }}
+                style={{ height: 48, padding: '0 32px', fontSize: 16, background: '#fff', color: '#1890ff', border: '1px solid #1890ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
                 Login
+              </Button>
+            </Space>
+            <Space size="large" style={{ marginTop: 16, display: 'flex', justifyContent: 'center' }} wrap>
+              <Button 
+                size="large" 
+                icon={<FileTextOutlined />}
+                href="https://strongcourage.notion.site/Hands-On-ACAS-Tool-Testing-2991f0954df88047a537e2a585e857f8"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ height: 48, padding: '0 32px', fontSize: 16, background: '#fff', color: '#1890ff', border: '1px solid #1890ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                Documentation
+              </Button>
+              <Button 
+                size="large" 
+                icon={<PlayCircleOutlined />}
+                href="#"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ height: 48, padding: '0 32px', fontSize: 16, background: '#fff', color: '#1890ff', border: '1px solid #1890ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                Video Demo
               </Button>
             </Space>
           </div>
