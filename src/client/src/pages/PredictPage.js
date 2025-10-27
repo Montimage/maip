@@ -950,9 +950,11 @@ class PredictPage extends Component {
             });
           } else {
             const color = percentUsed >= 90 ? 'warning' : 'success';
+            const remainingStr = remaining != null && remaining !== Infinity ? remaining.toLocaleString() : '0';
+            const limitStr = limit != null && limit !== Infinity ? limit.toLocaleString() : '0';
             notification[color]({
               message: 'AI Explanation Generated',
-              description: `Tokens used: ${thisRequest} - Remaining: ${remaining.toLocaleString()}/${limit.toLocaleString()} (${percentUsed}% used)`,
+              description: `Tokens used: ${thisRequest} - Remaining: ${remainingStr}/${limitStr} (${percentUsed}% used)`,
               placement: 'topRight',
               duration: 5,
             });
@@ -1892,11 +1894,11 @@ class PredictPage extends Component {
                     <div style={{ marginTop: 16, padding: '12px', backgroundColor: '#f6f8fa', borderRadius: '4px' }}>
                       <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
                         <strong>Token Usage:</strong> {this.state.assistantTokenInfo.thisRequest} tokens used this request
-                        {this.state.assistantTokenInfo.limit !== Infinity && (
-                          <> - <strong>Total:</strong> {this.state.assistantTokenInfo.totalUsed.toLocaleString()}/{this.state.assistantTokenInfo.limit.toLocaleString()} 
-                          ({this.state.assistantTokenInfo.percentUsed}% used) - <strong>Remaining:</strong> {this.state.assistantTokenInfo.remaining.toLocaleString()} tokens</>
+                        {this.state.assistantTokenInfo.limit !== Infinity && this.state.assistantTokenInfo.limit != null && (
+                          <> - <strong>Total:</strong> {(this.state.assistantTokenInfo.totalUsed || 0).toLocaleString()}/{this.state.assistantTokenInfo.limit.toLocaleString()} 
+                          ({this.state.assistantTokenInfo.percentUsed}% used) - <strong>Remaining:</strong> {(this.state.assistantTokenInfo.remaining || 0).toLocaleString()} tokens</>
                         )}
-                        {this.state.assistantTokenInfo.limit === Infinity && <> - <strong>Unlimited</strong> (Admin)</>}
+                        {(this.state.assistantTokenInfo.limit === Infinity || this.state.assistantTokenInfo.limit == null) && <> - <strong>Unlimited</strong> (Admin)</>}
                       </Typography.Text>
                     </div>
                   )}

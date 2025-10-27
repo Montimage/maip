@@ -95,9 +95,11 @@ class XAILimePage extends Component {
           });
         } else {
           const color = percentUsed >= 90 ? 'warning' : 'success';
+          const remainingStr = remaining != null && remaining !== Infinity ? remaining.toLocaleString() : '0';
+          const limitStr = limit != null && limit !== Infinity ? limit.toLocaleString() : '0';
           notification[color]({
             message: 'AI Explanation Generated',
-            description: `Scroll down to view the explanation. Tokens used: ${thisRequest} - Remaining: ${remaining != null ? remaining.toLocaleString() : 0}/${limit != null ? limit.toLocaleString() : 0} (${percentUsed}% used)`,
+            description: `Scroll down to view the explanation. Tokens used: ${thisRequest} - Remaining: ${remainingStr}/${limitStr} (${percentUsed}% used)`,
             placement: 'topRight',
             duration: 5,
           });
