@@ -198,7 +198,7 @@ const LandingPage = () => {
               <Button 
                 size="large" 
                 icon={<PlayCircleOutlined />}
-                href="#"
+                href="https://drive.google.com/file/d/1BG1DVjE6xJM97UyN5vWRvpKUH_d9lrSa/view"
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ height: 48, padding: '0 32px', fontSize: 16, background: '#fff', color: '#1890ff', border: '1px solid #1890ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
