@@ -2,51 +2,8 @@
 Network Detection and Response (NDR) component provides an anomaly detection and response capability for (encrypted) network traffic. NDR includes an Explainable AI (XAI) capability to enable root cause analysis (RCA) of detected anomalies. Responses can be automatically triggered through the Mitigation Manager.
 
 ## Installation
-### Build from source
-Tested environment: Ubuntu 20.04.6 LTS - focal.
-```
-git clone https://github.com/resilmesh2/Network-Detection-Response.git
-cd Network-Detection-Response 
-
-# Install some packages
-sudo apt-get update -y
-sudo apt install -y git wget cmake gcc g++ cpp curl software-properties-common
-
-# Install Python ML libraries (Python 3.8.10, pip 20.0.2)
-sudo apt install -y python3-pip graphviz
-pip3 install src/server/deep-learning/requirements.txt
-
-# Install MMT tools
-sudo apt install -y libconfuse-dev libpcap-dev libxml2-dev net-tools
-sudo ldconfig
-sudo dpkg -i src/server/mmt-packages/mmt-dpi*.deb
-sudo dpkg -i src/server/mmt-packages/mmt-security*.deb
-sudo dpkg -i src/server/mmt-packages/mmt-probe*.deb 2>/dev/null||true
-
-# Install Node.js v19.9.0
-sudo apt-get update -y
-curl -sL https://deb.nodesource.com/setup_19.x | bash
-sudo apt install -y nodejs
-
-# Install the server
-cd src/server
-npm install
-cd -
-cp env.example .env
-
-# Install the client
-cd src/client
-npm install --force
-cd -
-
-# Run the application
-./start-ndr.sh
-
-# Access the application on http://localhost:3000
-```
-
 ### Build from Docker
-```
+```bash
 # Clone the repo and checkout the latest tag
 git clone https://github.com/resilmesh2/Network-Detection-Response.git
 cd Network-Detection-Response
@@ -54,11 +11,17 @@ git fetch --tags --force
 LATEST_TAG=$(git describe --tags "$(git rev-list --tags --max-count=1)")
 git checkout "$LATEST_TAG"
 
-# Create and edit the .env file (see env.example) with values appropriate for your deployment (optional)
+# Copy the Docker configuration template
+cp env.docker .env
+
+# (Optional) Edit .env if you need to customize:
+# - NATS_URL: If using NATS messaging (default: nats://nats:4222)
+# - NATS_SUBJECT: Topic for publishing data
+# - REACT_APP_API_URL: If accessing from other machines (default: http://localhost:31057)
 
 # Build and run the Docker stack
-sudo docker-compose build
-sudo docker-compose up -d
+docker-compose build
+docker-compose up -d
 
 # Access the application on http://localhost:3000
 ```
