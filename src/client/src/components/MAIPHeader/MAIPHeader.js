@@ -4,17 +4,25 @@ import { Layout, Row, Col } from "antd";
 import {
   LoginOutlined,
 } from "@ant-design/icons";
-// import {
-//   setNotification,
-//   requestApp,
-//   setApp,
-// } from "../../actions";
 import "./styles.css";
-import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from '@clerk/clerk-react';
 import { useUserRole } from '../../hooks/useUserRole';
 
 // Determine if Clerk is configured at build time
 const HAS_CLERK_KEY = !!(process.env.REACT_APP_CLERK_PUBLISHABLE_KEY || process.env.VITE_CLERK_PUBLISHABLE_KEY);
+
+// Conditionally import Clerk components only if key is present
+let SignedIn, SignedOut, SignInButton, UserButton;
+if (HAS_CLERK_KEY) {
+  try {
+    const clerkReact = require('@clerk/clerk-react');
+    SignedIn = clerkReact.SignedIn;
+    SignedOut = clerkReact.SignedOut;
+    SignInButton = clerkReact.SignInButton;
+    UserButton = clerkReact.UserButton;
+  } catch (error) {
+    console.warn('[MAIPHeader] Clerk not available:', error);
+  }
+}
 
 const { Header } = Layout;
 
@@ -98,8 +106,8 @@ const mapPropsToStates = ({ app, requesting }) => ({
 function withUserRole(Component) {
   return function WrappedComponent(props) {
     const userRole = useUserRole();
-    const { user } = useUser();
-    return <Component {...props} isAdmin={userRole.isAdmin} isSignedIn={userRole.isSignedIn} isLoaded={userRole.isLoaded} user={user} />;
+    // user is already in userRole, no need to call useUser separately
+    return <Component {...props} isAdmin={userRole.isAdmin} isSignedIn={userRole.isSignedIn} isLoaded={userRole.isLoaded} user={userRole.user} />;
   };
 }
 
