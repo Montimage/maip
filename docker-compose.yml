@@ -65,9 +65,9 @@ services:
         REACT_APP_ADMIN_EMAILS: ${REACT_APP_ADMIN_EMAILS:-}
         REACT_APP_ADMIN_USER_IDS: ${REACT_APP_ADMIN_USER_IDS:-}
         REACT_APP_ADMIN_ORG_ID: ${REACT_APP_ADMIN_ORG_ID:-}
-    # Port 3000 now only exposed internally to Caddy
-    expose:
-      - "3000"
+    # Port 3000 exposed to host for direct access (Caddy optional)
+    ports:
+      - "3000:3000"
     networks:
       - ndr_network
     depends_on:
