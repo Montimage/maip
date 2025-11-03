@@ -1,5 +1,4 @@
 import React from 'react';
-import { useAuth } from '@clerk/clerk-react';
 import { Navigate } from 'react-router-dom';
 import { Spin } from 'antd';
 import { useUserRole } from '../hooks/useUserRole';
@@ -9,12 +8,11 @@ import { useUserRole } from '../hooks/useUserRole';
  * Only renders children if user is an admin, otherwise redirects to home
  */
 const AdminRoute = ({ children }) => {
-  const { isLoaded, isSignedIn } = useAuth();
-  const { isAdmin } = useUserRole();
+  const { isLoaded, isSignedIn, isAdmin } = useUserRole();
 
   // Check if Clerk is configured
   const hasClerkKey = !!(
-    process.env.REACT_APP_CLERK_PUBLISHABLE_KEY || 
+    process.env.REACT_APP_CLERK_PUBLISHABLE_KEY ||
     process.env.VITE_CLERK_PUBLISHABLE_KEY
   );
 
@@ -26,11 +24,11 @@ const AdminRoute = ({ children }) => {
   // Show loading spinner while authentication state is loading
   if (!isLoaded) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        minHeight: '400px' 
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '400px'
       }}>
         <Spin size="large" />
       </div>

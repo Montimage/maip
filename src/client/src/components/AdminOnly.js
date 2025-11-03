@@ -1,17 +1,17 @@
 import React from 'react';
-import { useAuth } from '@clerk/clerk-react';
 import { Alert } from 'antd';
+import { useUserRole } from '../hooks/useUserRole';
 
 /**
  * Component that only renders children if user is an admin
  * Shows access denied message for non-admin users
  */
 const AdminOnly = ({ children, fallback = null, showMessage = false }) => {
-  const { isLoaded, isSignedIn, orgRole, userId } = useAuth();
+  const { isLoaded, isSignedIn, isAdmin } = useUserRole();
 
   // Check if Clerk is configured
   const hasClerkKey = !!(
-    process.env.REACT_APP_CLERK_PUBLISHABLE_KEY || 
+    process.env.REACT_APP_CLERK_PUBLISHABLE_KEY ||
     process.env.VITE_CLERK_PUBLISHABLE_KEY
   );
 
@@ -40,22 +40,6 @@ const AdminOnly = ({ children, fallback = null, showMessage = false }) => {
     }
     return fallback;
   }
-
-  // Check if user is admin (you can customize this logic)
-  // Option 1: Use Clerk roles (requires setting up roles in dashboard)
-  // const isAdmin = orgRole === 'admin';
-  
-  // Option 2: Use specific user IDs (simpler, for small teams)
-  // Replace with your actual Clerk user ID
-  const adminUserIds = [
-    // Add your user ID here after you sign in
-    // You can find it in Clerk Dashboard → Users → Your Account
-    // Example: 'user_2xxxxxxxxxxxxxxxxxxxxx'
-  ];
-  const isAdmin = adminUserIds.includes(userId);
-
-  // Option 3: Use email domain check (requires public metadata)
-  // This would need additional setup in Clerk
 
   if (!isAdmin) {
     if (showMessage) {

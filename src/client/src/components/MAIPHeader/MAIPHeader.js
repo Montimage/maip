@@ -50,11 +50,11 @@ class MAIPHeader extends Component {
         
         <div style={{ display: 'flex', alignItems: 'center' }}>
           {/* Clerk Authentication - Sign in button */}
-          {HAS_CLERK_KEY && (
+          {HAS_CLERK_KEY && SignedOut && SignInButton && (
             <SignedOut>
               <SignInButton mode="modal">
-                <span style={{ 
-                  color: '#fff', 
+                <span style={{
+                  color: '#fff',
                   cursor: 'pointer',
                   fontSize: '14px',
                   display: 'flex',
@@ -71,9 +71,9 @@ class MAIPHeader extends Component {
               </SignInButton>
             </SignedOut>
           )}
-          
+
           {/* User avatar when signed in */}
-          {HAS_CLERK_KEY && (
+          {HAS_CLERK_KEY && SignedIn && UserButton && (
             <SignedIn>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 {this.props.user && (
@@ -81,7 +81,7 @@ class MAIPHeader extends Component {
                     Welcome, {this.props.user.firstName || this.props.user.username || 'User'}
                   </span>
                 )}
-                <UserButton 
+                <UserButton
                   afterSignOutUrl="/"
                   appearance={{
                     elements: {
