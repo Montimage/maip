@@ -20,8 +20,12 @@ cp env.docker .env
 # - REACT_APP_API_URL: If accessing from other machines (default: http://localhost:31057)
 
 # Build and run the Docker stack
-docker-compose build
-docker-compose up -d
+# docker-compose build
+# docker-compose up -d
+
+# Build and run with Resilmesh integration
+docker-compose -f docker-compose.resilmesh.yml build
+docker-compose -f docker-compose.resilmesh.yml up -d
 
 # Access the application on http://localhost:3000
 ```
