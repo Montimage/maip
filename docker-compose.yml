@@ -1,15 +1,13 @@
-version: '3.8'
-
 services:
   redis:
-    container_name: mont_ndr_redis
+    container_name: resilmesh_sap_ndr_redis
     image: redis:7-alpine
     restart: unless-stopped
     command: redis-server --appendonly yes
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"  # Bind to localhost only
     networks:
-      - ndr_network
+      - resilmesh_network
     volumes:
       - redis_data:/data
     healthcheck:
@@ -19,16 +17,16 @@ services:
       retries: 3
 
   ndr_server:
-    container_name: mont_ndr_server
+    container_name: resilmesh_sap_ndr_server
     image: mont/ndr-server
     restart: unless-stopped
     build:
       context: .
       dockerfile: Dockerfile.server
     ports:
-      - "31057:31057"
+      - "31057:31057"  # Keep accessible for API access
     networks:
-      - ndr_network
+      - resilmesh_network
     env_file:
       - .env
     cap_add:
@@ -53,7 +51,7 @@ services:
       start_period: 60s
 
   ndr_client:
-    container_name: mont_ndr_client
+    container_name: resilmesh_sap_ndr_client
     image: mont/ndr-client
     restart: unless-stopped
     build:
@@ -67,9 +65,9 @@ services:
         REACT_APP_ADMIN_ORG_ID: ${REACT_APP_ADMIN_ORG_ID:-}
     # Port 3000 exposed to host for direct access (Caddy optional)
     ports:
-      - "3000:3000"
+      - "3000:3000"  # Keep accessible for direct frontend access
     networks:
-      - ndr_network
+      - resilmesh_network
     depends_on:
       - ndr_server
     healthcheck:
@@ -80,7 +78,7 @@ services:
       start_period: 30s
 
   caddy:
-    container_name: mont_ndr_caddy
+    container_name: resilmesh_sap_ndr_caddy
     image: caddy:2-alpine
     restart: unless-stopped
     ports:
@@ -88,7 +86,7 @@ services:
       - "443:443"   # HTTPS
       - "443:443/udp" # HTTP/3 (QUIC)
     networks:
-      - ndr_network
+      - resilmesh_network
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -102,10 +100,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
-
-networks:
-  ndr_network:
-    driver: bridge
 
 volumes:
   redis_data:

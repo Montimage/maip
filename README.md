@@ -12,7 +12,7 @@ LATEST_TAG=$(git describe --tags "$(git rev-list --tags --max-count=1)")
 git checkout "$LATEST_TAG"
 
 # Copy the Docker configuration template
-cp env.docker .env
+cp env.example .env
 
 # (Optional) Edit .env if you need to customize:
 # - NATS_URL: If using NATS messaging (default: nats://nats:4222)
@@ -20,12 +20,8 @@ cp env.docker .env
 # - REACT_APP_API_URL: If accessing from other machines (default: http://localhost:31057)
 
 # Build and run the Docker stack
-# docker-compose build
-# docker-compose up -d
-
-# Build and run with Resilmesh integration
-docker-compose -f docker-compose.resilmesh.yml build
-docker-compose -f docker-compose.resilmesh.yml up -d
+docker-compose build
+docker-compose up -d
 
 # Access the application on http://localhost:3000
 ```
