@@ -174,10 +174,13 @@ app.use('/api/early-prediction', earlyPredictionRouter);
 app.use('/api/dpi', dpiRouter);
 app.use('/api/network', networkRouter);
 
-// Swagger UI documentation (requires authentication)
-app.use('/docs', identifyUser, requireAuth, swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
+// Swagger UI documentation (public - but API endpoints are still protected)
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
   customCss: '.swagger-ui .topbar { display: none }',
-  customSiteTitle: 'NDR API Documentation'
+  customSiteTitle: 'NDR API Documentation',
+  swaggerOptions: {
+    supportedSubmitMethods: [] // Disable "Try it out" - documentation only
+  }
 }));
 
 // Serve early-prediction artifacts (figures and JSON) as static assets
@@ -200,8 +203,8 @@ if (MODE === 'SERVER') {
     res.sendFile(path.join(__dirname, '../public', 'index.html'));
   });
 } else if (MODE === 'API') {
-  // start Swagger API server (requires authentication)
-  app.use('/', identifyUser, requireAuth, swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+  // start Swagger API server (public - but API endpoints are still protected)
+  app.use('/', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
   app.use(express.static(path.join(__dirname, 'swagger')));
   module.exports = app;
 }
