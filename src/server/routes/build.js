@@ -9,6 +9,10 @@ const {
 } = require('../constants');
 const fs = require('fs');
 const router = express.Router();
+const { identifyUser, requireAuth, requireAdmin } = require('../middleware/userAuth');
+
+// Apply user identification middleware to all routes
+router.use(identifyUser);
 
 /* GET home page. */
 router.get('/', (req, res) => {
@@ -17,7 +21,7 @@ router.get('/', (req, res) => {
   });
 });
 
-router.post('/', (req, res) => {
+router.post('/', requireAdmin, (req, res) => {
   const {
     buildConfig,
   } = req.body;

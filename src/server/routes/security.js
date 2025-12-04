@@ -15,7 +15,7 @@ const {
 } = process.env;
 
 const { LOCAL_NATS_URL, TRAINING_PATH, REPORT_PATH, PCAP_PATH } = require('../constants');
-const { identifyUser } = require('../middleware/userAuth');
+const { identifyUser, requireAdmin } = require('../middleware/userAuth');
 const { resolvePcapPath } = require('../utils/pcapResolver');
 // Output folder for mmt_security CSVs
 const SECURITY_OUT_DIR = path.join(__dirname, '../mmt/outputs');
@@ -648,7 +648,7 @@ router.post('/rule-based/offline', async (req, res) => {
   }
 });
 
-router.post('/block-ip', async (req, res) => {
+router.post('/block-ip', requireAdmin, async (req, res) => {
   try {
     const { ip, direction } = req.body || {};
     if (!isValidIPv4(ip)) {
@@ -858,7 +858,7 @@ router.post('/nats-publish/dataset', async (req, res) => {
   }
 });
 
-router.post('/block-port', async (req, res) => {
+router.post('/block-port', requireAdmin, async (req, res) => {
   try {
     const { port, protocol = 'tcp' } = req.body || {};
     const p = Number(port);
@@ -879,7 +879,7 @@ router.post('/block-port', async (req, res) => {
   }
 });
 
-router.post('/block-ip-port', async (req, res) => {
+router.post('/block-ip-port', requireAdmin, async (req, res) => {
   try {
     const { ip, port, protocol = 'tcp' } = req.body || {};
     const p = Number(port);
@@ -902,7 +902,7 @@ router.post('/block-ip-port', async (req, res) => {
   }
 });
 
-router.post('/drop-session', async (req, res) => {
+router.post('/drop-session', requireAdmin, async (req, res) => {
   try {
     const { ip } = req.body || {};
     if (!isValidIPv4(ip)) return res.status(400).send('Invalid IPv4 address');
@@ -920,7 +920,7 @@ router.post('/drop-session', async (req, res) => {
   }
 });
 
-router.post('/rate-limit', async (req, res) => {
+router.post('/rate-limit', requireAdmin, async (req, res) => {
   try {
     const { ip, port, protocol = 'tcp', limit = '5/sec', burst = 10, direction = 'in' } = req.body || {};
     if (!isValidIPv4(ip)) return res.status(400).send('Invalid IPv4 address');

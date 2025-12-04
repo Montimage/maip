@@ -21,6 +21,10 @@ const {
 const {
   replaceDelimiterInCsv
 } = require('../utils/utils');
+const { identifyUser, requireAuth, requireAdmin } = require('../middleware/userAuth');
+
+// Apply user identification middleware to all routes
+router.use(identifyUser);
 
 router.get('/', (_, res) => {
   res.send({
@@ -47,7 +51,7 @@ router.get('/:modelId/datasets', async (req, res, next) => {
   }
 });
 
-router.delete('/:modelId/datasets', async (req, res, next) => {
+router.delete('/:modelId/datasets', requireAdmin, async (req, res, next) => {
   const { modelId } = req.params;
   const poisonedDatasetsPath = path.join(ATTACKS_PATH, modelId.replace('.h5', ''));
   try {
@@ -67,7 +71,7 @@ router.delete('/:modelId/datasets', async (req, res, next) => {
   }
 });
 
-router.post('/ctgan', (req, res) => {
+router.post('/ctgan', requireAdmin, (req, res) => {
   const {
     ctganConfig,
   } = req.body;
@@ -108,7 +112,7 @@ router.get('/ctgan/:modelId/download', (req, res, next) => {
   });
 });
 
-router.post('/poisoning/ctgan', async (req, res) => {
+router.post('/poisoning/ctgan', requireAdmin, async (req, res) => {
   const {
     ctganConfig,
   } = req.body;
@@ -123,7 +127,7 @@ router.post('/poisoning/ctgan', async (req, res) => {
   }
 });
 
-router.post('/poisoning/random-swapping-labels', async (req, res) => {
+router.post('/poisoning/random-swapping-labels', requireAdmin, async (req, res) => {
   const {
     randomSwappingLabelsConfig,
   } = req.body;
@@ -138,7 +142,7 @@ router.post('/poisoning/random-swapping-labels', async (req, res) => {
   }
 });
 
-router.post('/poisoning/target-label-flipping', async (req, res) => {
+router.post('/poisoning/target-label-flipping', requireAdmin, async (req, res) => {
   const {
     targetLabelFlippingConfig,
   } = req.body;

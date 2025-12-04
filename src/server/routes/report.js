@@ -11,6 +11,10 @@ const {
   readTextFile,
   isFileExist,
 } = require('../utils/file-utils');
+const { identifyUser, requireAuth, requireAdmin } = require('../middleware/userAuth');
+
+// Apply user identification middleware to all routes
+router.use(identifyUser);
 
 router.get('/', (req, res) => {
   listFiles(REPORT_PATH, 'report-', (files) => {
@@ -20,7 +24,7 @@ router.get('/', (req, res) => {
   });
 });
 
-router.delete('/', (req, res, next) => {
+router.delete('/', requireAdmin, (req, res, next) => {
   listDirectories(REPORT_PATH, (directories) => {
     try {
       directories.forEach(dir => {

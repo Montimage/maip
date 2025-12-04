@@ -18,6 +18,10 @@ const {
 const {
   replaceDelimiterInCsv
 } = require('../utils/utils');
+const { identifyUser, requireAuth, requireAdmin } = require('../middleware/userAuth');
+
+// Apply user identification middleware to all routes
+router.use(identifyUser);
 
 /* GET built models with lastBuildAt */
 router.get('/', async (req, res, next) => {
@@ -48,7 +52,7 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-router.delete('/app/:app', async (req, res, next) => {
+router.delete('/app/:app', requireAdmin, async (req, res, next) => {
   const { app } = req.params;
 
   try {
@@ -347,7 +351,7 @@ router.get('/:modelId/predictions', (req, res, next) => {
   }
 });
 
-router.put('/:modelId', async (req, res, next) => {
+router.put('/:modelId', requireAdmin, async (req, res, next) => {
   const { modelId } = req.params;
   const { newModelId } = req.body;
   const modelFilePath = `${MODEL_PATH}${modelId}`;
@@ -387,7 +391,7 @@ router.put('/:modelId', async (req, res, next) => {
   }
 });
 
-router.delete('/:modelId', async (req, res, next) => {
+router.delete('/:modelId', requireAdmin, async (req, res, next) => {
   const { modelId } = req.params;
   const modelFilePath = `${MODEL_PATH}${modelId}`;
   console.log(modelFilePath);

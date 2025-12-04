@@ -22,6 +22,10 @@ const {
   getRetrainStatusAC,
   startRetrainModelAC,
 } = require('../activity-classification/ac-connector');
+const { identifyUser, requireAdmin } = require('../middleware/userAuth');
+
+// Apply user identification middleware to all routes
+router.use(identifyUser);
 
 router.get('/datasets', async (req, res, next) => {
   try {
@@ -43,7 +47,7 @@ router.get('/build', (req, res) => {
   });
 });
 
-router.post('/build', async (req, res, next) => {
+router.post('/build', requireAdmin, async (req, res, next) => {
   const {
     buildACConfig,
   } = req.body;
@@ -88,7 +92,7 @@ router.get('/retrain', (req, res) => {
   });
 });
 
-router.post('/retrain', async (req, res, next) => {
+router.post('/retrain', requireAdmin, async (req, res, next) => {
   const {
     retrainACConfig,
   } = req.body;
@@ -118,7 +122,7 @@ router.post('/retrain', async (req, res, next) => {
   }
 });
 
-router.post('/retrain/:modelId', (req, res) => {
+router.post('/retrain/:modelId', requireAdmin, (req, res) => {
   const { modelId } = req.params;
   const {
     datasetsConfig,

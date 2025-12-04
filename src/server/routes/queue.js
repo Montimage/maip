@@ -16,6 +16,10 @@ const {
   cancelJob,
   getQueueStats
 } = require('../queue/job-queue');
+const { identifyUser, requireAuth } = require('../middleware/userAuth');
+
+// Apply user identification middleware to all routes
+router.use(identifyUser);
 
 /**
  * @route POST /api/queue/feature-extraction
@@ -199,7 +203,7 @@ router.get('/status/:queueName/:jobId', async (req, res) => {
  * @route DELETE /api/queue/cancel/:queueName/:jobId
  * @desc Cancel a queued job
  */
-router.delete('/cancel/:queueName/:jobId', async (req, res) => {
+router.delete('/cancel/:queueName/:jobId', requireAuth, async (req, res) => {
   try {
     const { queueName, jobId } = req.params;
     

@@ -61,6 +61,9 @@ const earlyPredictionRouter = require('./routes/early-prediction');
 const dpiRouter = require('./routes/dpi');
 const networkRouter = require('./routes/network');
 
+// Authentication middleware
+const { identifyUser, requireAuth } = require('./middleware/userAuth');
+
 // Initialize queue workers (this starts all background workers)
 require('./queue/workers');
 
@@ -171,8 +174,8 @@ app.use('/api/early-prediction', earlyPredictionRouter);
 app.use('/api/dpi', dpiRouter);
 app.use('/api/network', networkRouter);
 
-// Swagger UI documentation (available in all modes)
-app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
+// Swagger UI documentation (requires authentication)
+app.use('/docs', identifyUser, requireAuth, swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
   customCss: '.swagger-ui .topbar { display: none }',
   customSiteTitle: 'NDR API Documentation'
 }));
@@ -197,8 +200,8 @@ if (MODE === 'SERVER') {
     res.sendFile(path.join(__dirname, '../public', 'index.html'));
   });
 } else if (MODE === 'API') {
-  // start Swagger API server
-  app.use('/', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+  // start Swagger API server (requires authentication)
+  app.use('/', identifyUser, requireAuth, swaggerUi.serve, swaggerUi.setup(swaggerDocument));
   app.use(express.static(path.join(__dirname, 'swagger')));
   module.exports = app;
 }

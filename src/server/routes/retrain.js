@@ -4,8 +4,12 @@ const {
   retrainModel,
 } = require('../deep-learning/deep-learning-connector');
 const { queueRetrain, getJobStatus } = require('../queue/job-queue');
+const { identifyUser, requireAuth, requireAdmin } = require('../middleware/userAuth');
 
 const router = express.Router();
+
+// Apply user identification middleware to all routes
+router.use(identifyUser);
 
 router.get('/', (req, res) => {
   res.send({
@@ -13,7 +17,7 @@ router.get('/', (req, res) => {
   });
 });
 
-router.post('/', (req, res) => {
+router.post('/', requireAdmin, (req, res) => {
   const {
     retrainConfig,
   } = req.body;
@@ -49,7 +53,7 @@ router.post('/', (req, res) => {
  * Body: { modelId, trainingDataset, testingDataset, training_parameters, isACApp?, useQueue? }
  * IMPORTANT: Must be BEFORE /:modelId route to avoid matching "offline" as modelId
  */
-router.post('/offline', async (req, res) => {
+router.post('/offline', requireAdmin, async (req, res) => {
   try {
     const { modelId, trainingDataset, testingDataset, training_parameters, isACApp, useQueue } = req.body || {};
     
@@ -186,7 +190,7 @@ router.get('/job/:jobId', async (req, res) => {
  * Legacy endpoint for backward compatibility
  * Body: { retrainADConfig }
  */
-router.post('/:modelId', (req, res) => {
+router.post('/:modelId', requireAdmin, (req, res) => {
   const { modelId } = req.params;
   const {
     retrainADConfig,
