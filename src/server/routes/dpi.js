@@ -1091,11 +1091,31 @@ router.get('/data', async (req, res) => {
 // GET /api/dpi/pcaps - List available PCAP files
 router.get('/pcaps', (req, res) => {
   try {
-    const pcapFiles = listFilesByTypeAsync(PCAP_PATH, '.pcap') || [];
-    const pcapngFiles = listFilesByTypeAsync(PCAP_PATH, '.pcapng') || [];
-    const allFiles = [...pcapFiles, ...pcapngFiles];
-    
-    res.json({ pcaps: allFiles });
+    const userId = req.userId; // From identifyUser middleware
+    const allFiles = [];
+
+    // Helper function to recursively find pcap files
+    const findPcapFiles = (dir, prefix = '') => {
+      if (!fs.existsSync(dir)) return;
+
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+
+      entries.forEach(entry => {
+        if (entry.isDirectory()) {
+          // Recursively search subdirectories
+          findPcapFiles(path.join(dir, entry.name), prefix ? `${prefix}/${entry.name}` : entry.name);
+        } else if (entry.isFile() && (entry.name.endsWith('.pcap') || entry.name.endsWith('.pcapng'))) {
+          // Add pcap file with relative path
+          const fileName = prefix ? `${prefix}/${entry.name}` : entry.name;
+          allFiles.push(fileName);
+        }
+      });
+    };
+
+    // Search the pcaps directory recursively
+    findPcapFiles(PCAP_PATH);
+
+    res.json({ pcaps: allFiles.sort() });
   } catch (error) {
     console.error('[DPI] Error listing PCAP files:', error);
     res.status(500).json({ error: error.message });
