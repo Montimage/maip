@@ -28,6 +28,17 @@ ndr.montimage.eu {
         format json
     }
     
+    # Swagger API Documentation
+    handle /api-docs* {
+        reverse_proxy ndr_server:31057
+    }
+
+    # Alternative path for Swagger UI (cleaner URL)
+    handle /docs* {
+        rewrite * /api-docs{uri}
+        reverse_proxy ndr_server:31057
+    }
+
     # API proxy (if your backend is on a different port)
     handle /api/* {
         reverse_proxy ndr_server:31057

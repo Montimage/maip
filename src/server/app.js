@@ -171,6 +171,12 @@ app.use('/api/early-prediction', earlyPredictionRouter);
 app.use('/api/dpi', dpiRouter);
 app.use('/api/network', networkRouter);
 
+// Swagger UI documentation (available in all modes)
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'NDR API Documentation'
+}));
+
 // Serve early-prediction artifacts (figures and JSON) as static assets
 // Path: src/server/early-prediction/figures -> /static/early-prediction
 try {
