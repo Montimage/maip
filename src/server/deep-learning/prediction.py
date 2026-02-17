@@ -22,6 +22,24 @@ def predict(csv_path, model_path, result_path):
     print("Going to test the prediction")
     model = load_model(model_path)
     print("Model has been loaded from")
+    
+    # Check if feature dimensions match the model's expected input
+    expected_features = model.input_shape[1]
+    current_features = features.shape[1]
+    
+    if current_features != expected_features:
+        print(f"Warning: Feature mismatch - Model expects {expected_features} features, but got {current_features}")
+        
+        if current_features > expected_features:
+            # Too many features - select the first N features
+            print(f"Selecting first {expected_features} features to match model input")
+            features = features.iloc[:, :expected_features]
+        else:
+            # Too few features - pad with zeros
+            print(f"Padding with {expected_features - current_features} zero columns")
+            padding = pd.DataFrame(np.zeros((features.shape[0], expected_features - current_features)))
+            features = pd.concat([features, padding], axis=1)
+    
     y_pred = model.predict(features)
     y_pred = np.transpose(np.round(y_pred)).reshape(y_pred.shape[0], )
     preds = np.array([y_pred]).T
@@ -33,16 +51,21 @@ def predict(csv_path, model_path, result_path):
         os.makedirs(result_path)
     dataFrame = pd.DataFrame(res)
     print("Total flows: "+ str(len(dataFrame.index)))
-    last_column_index = len(constants.AD_FEATURES_OUTPUT)-1
-    dataFrame.to_csv(f"{result_path}/predictions.csv", index=False, header=constants.AD_FEATURES_OUTPUT)
+    
+    # Use only the header values that match the actual DataFrame columns
+    num_cols = len(dataFrame.columns)
+    header = constants.AD_FEATURES_OUTPUT[:num_cols] if num_cols <= len(constants.AD_FEATURES_OUTPUT) else None
+    last_column_index = num_cols - 1
+    
+    dataFrame.to_csv(f"{result_path}/predictions.csv", index=False, header=header)
 
     attackDF = dataFrame[dataFrame[last_column_index] > 0]
     print("Number of attacks: " + str(len(attackDF.index)))
-    attackDF.to_csv(f"{result_path}/attacks.csv", index=False, header=constants.AD_FEATURES_OUTPUT)
+    attackDF.to_csv(f"{result_path}/attacks.csv", index=False, header=header)
 
     normalDF = dataFrame[dataFrame[last_column_index] == 0]
     print("Number of normals: " + str(len(normalDF.index)))
-    normalDF.to_csv(f"{result_path}/normals.csv", index=False, header=constants.AD_FEATURES_OUTPUT)
+    normalDF.to_csv(f"{result_path}/normals.csv", index=False, header=header)
 
     statsArray =np.array([[len(normalDF.index), len(attackDF.index), len(dataFrame.index)]])
     pd.DataFrame(statsArray).to_csv(f"{result_path}/stats.csv", index=False)

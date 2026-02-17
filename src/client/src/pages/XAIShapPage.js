@@ -1,15 +1,20 @@
 import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
-import { Spin, Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Tooltip, Typography } from 'antd';
-import { QuestionOutlined, CameraOutlined } from "@ant-design/icons";
+import { Spin, Table, Col, Row, Divider, Slider, Form, InputNumber, Button, Checkbox, Select, Tooltip, Typography, Modal, Card, notification } from 'antd';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { QuestionOutlined, CameraOutlined, InfoCircleOutlined, WarningOutlined } from "@ant-design/icons";
 import { Bar } from '@ant-design/plots';
+import { useUserRole } from '../hooks/useUserRole';
 import {
   requestApp,
   requestAllModels,
   requestRunShap,
   requestXAIStatus,
 } from "../actions";
+import { requestAssistantExplainXAI } from "../api";
+import { getFlowParams, runFlowAndPoll } from "../utils/xaiFlowHelpers";
 import {
   getFilteredModelsOptions,
   getFilteredFeatures,
@@ -40,7 +45,7 @@ class XAIShapPage extends Component {
       modelId: null,
       label: getLabelsListAppXAI(this.props.app)[1],
       numberBackgroundSamples: 20,
-      numberExplainedSamples: 10,
+      numberExplainedSamples: 1,
       maxDisplay: 10,
       positiveChecked: true,
       negativeChecked: true,
@@ -48,15 +53,91 @@ class XAIShapPage extends Component {
       isRunning: props.xaiStatus.isRunning,
       shapValues: [],
       isLabelEnabled: false,
+      assistantText: '',
+      assistantLoading: false,
+      assistantTokenInfo: null,
     };
     this.handleContributionsChange = this.handleContributionsChange.bind(this);
     this.handleShapClick = this.handleShapClick.bind(this);
   }
 
-  componentDidMount() {
+  handleAskAssistantShap = async () => {
+    const { modelId, label, shapValues, maxDisplay } = this.state;
+    const { userRole } = this.props;
+    if (!modelId || !shapValues || shapValues.length === 0) return;
+    // Build concise explanation payload (top maxDisplay items)
+    const topItems = shapValues.slice(0, maxDisplay);
+    this.setState({ assistantLoading: true, assistantText: '', assistantTokenInfo: null });
+    try {
+      const resp = await requestAssistantExplainXAI({
+        method: 'shap',
+        modelId,
+        label,
+        explanation: topItems,
+        userId: userRole?.userId,
+        isAdmin: userRole?.isAdmin,
+      });
+      this.setState({ 
+        assistantText: resp.text, 
+        assistantLoading: false,
+        assistantTokenInfo: resp.tokenUsage 
+      });
+      
+      // Show token usage notification
+      if (resp.tokenUsage) {
+        const { thisRequest, totalUsed, remaining, limit, percentUsed } = resp.tokenUsage;
+        if (limit === Infinity) {
+          notification.success({
+            message: 'AI Explanation Generated',
+            description: `Scroll down to view the explanation. Tokens used: ${thisRequest} - Unlimited (Admin)`,
+            placement: 'topRight',
+            duration: 5,
+          });
+        } else {
+          const color = percentUsed >= 90 ? 'warning' : 'success';
+          const remainingStr = remaining != null && remaining !== Infinity ? remaining.toLocaleString() : '0';
+          const limitStr = limit != null && limit !== Infinity ? limit.toLocaleString() : '0';
+          notification[color]({
+            message: 'AI Explanation Generated',
+            description: `Scroll down to view the explanation. Tokens used: ${thisRequest} - Remaining: ${remainingStr}/${limitStr} (${percentUsed}% used)`,
+            placement: 'topRight',
+            duration: 5,
+          });
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      this.setState({ assistantText: `Error: ${e.message}`, assistantLoading: false });
+      notification.error({
+        message: 'AI Assistant Error',
+        description: e.message,
+        placement: 'topRight',
+      });
+    }
+  }
+
+  // Flow-based SHAP trigger
+  async handleShapFlow(modelId, predictionId, sessionId) {
+    const { maxDisplay } = this.state;
+    this.setState({ isRunning: true, shapValues: [], isLabelEnabled: false });
+    const payload = { shapFlowConfig: { modelId, predictionId, sessionId: Number(sessionId), numberFeature: maxDisplay } };
+    this.intervalId = await runFlowAndPoll({
+      endpointUrl: `${SHAP_URL}/flow`,
+      payload,
+      fetchXAIStatus: this.props.fetchXAIStatus,
+      pollMs: 1000,
+    });
+  }
+
+  async componentDidMount() {
     const modelId = getLastPath();
+    const { sampleId: sampleIdParam, predictionId: predictionIdParam } = getFlowParams();
     if (isModelIdPresent) {
       this.setState({ modelId, label: getLabelsListXAI(modelId)[1] });
+      if (predictionIdParam && sampleIdParam !== null) {
+        // Flow-based: auto-run SHAP for this instance
+        await this.handleShapFlow(modelId, predictionIdParam, sampleIdParam);
+      }
     }
     this.props.fetchApp();
     this.props.fetchAllModels();
@@ -69,7 +150,7 @@ class XAIShapPage extends Component {
   };
 
   async componentDidUpdate(prevProps, prevState) {
-    const { modelId, label, shapValues, isRunning } = this.state;
+    const { modelId, label, shapValues, isRunning, maxDisplay } = this.state;
     const { app, xaiStatus } = this.props;
 
     if (app !== prevProps.app && !isModelIdPresent) {
@@ -78,7 +159,7 @@ class XAIShapPage extends Component {
       this.setState({
         modelId: null,
         label: defaultLabel,
-        numberBackgroundSamples: 20,
+        numberBackgroundSamples: 10,
         numberExplainedSamples: 10,
         maxDisplay: 10,
         positiveChecked: true,
@@ -94,9 +175,17 @@ class XAIShapPage extends Component {
     }
 
     if (prevProps.xaiStatus.isRunning === true && xaiStatus.isRunning === false) {
-      console.log('isRunning has been changed from true to false');
+      console.log('[SHAP componentDidUpdate] isRunning changed from true to false');
+      console.log('[SHAP componentDidUpdate] modelId:', modelId, 'label:', label);
+      // Clear any old polling interval if it exists
+      if (this.intervalId) {
+        clearInterval(this.intervalId);
+        this.intervalId = null;
+      }
       this.setState({ isRunning: false, isLabelEnabled: true });
+      console.log('[SHAP componentDidUpdate] About to call fetchNewValues');
       await this.fetchNewValues(modelId, label);
+      console.log('[SHAP componentDidUpdate] fetchNewValues completed');
     }
 
     // Check if shapValues state is updated and clear the interval if it is
@@ -104,12 +193,22 @@ class XAIShapPage extends Component {
       this.setState({ isLabelEnabled: true });
       clearInterval(this.intervalId);
     }
+
+    // In flow-based mode, if user changes 'Features to display', re-run SHAP for the new count
+    const { predictionId: predictionIdParam, sampleId: sampleIdParam } = getFlowParams();
+    if (
+      predictionIdParam && sampleIdParam !== null &&
+      prevState.maxDisplay !== maxDisplay &&
+      !this.state.isRunning && modelId
+    ) {
+      await this.handleShapFlow(modelId, predictionIdParam, sampleIdParam);
+    }
   }
 
   // Pay attention to re-render
   shouldComponentUpdate(nextProps, nextState) {
     const { app, models, xaiStatus } = this.props;
-    const { modelId, label, shapValues, positiveChecked, negativeChecked, maxDisplay, maskedFeatures} = this.state;
+    const { modelId, label, shapValues, positiveChecked, negativeChecked, maxDisplay, maskedFeatures, assistantModalVisible, assistantLoading, assistantText } = this.state;
 
     return (
       app !== nextProps.app ||
@@ -118,6 +217,9 @@ class XAIShapPage extends Component {
       label !== nextState.label ||
       shapValues !== nextState.shapValues ||
       xaiStatus.isRunning !== nextProps.xaiStatus.isRunning ||
+      assistantModalVisible !== nextState.assistantModalVisible ||
+      assistantLoading !== nextState.assistantLoading ||
+      assistantText !== nextState.assistantText ||
       (shapValues === nextState.shapValues &&
         (positiveChecked !== nextState.positiveChecked ||
           negativeChecked !== nextState.negativeChecked ||
@@ -128,49 +230,49 @@ class XAIShapPage extends Component {
 
   async handleShapClick() {
     const { modelId, numberBackgroundSamples, numberExplainedSamples, maxDisplay } = this.state;
-    const shapConfig = {
-      "modelId": modelId,
-      "numberBackgroundSamples": numberBackgroundSamples,
-      "numberExplainedSamples": numberExplainedSamples,
-      "maxDisplay": maxDisplay,
-    };
+    
     this.setState({
+      maskedFeatures: [],
+      assistantText: '',
+      assistantTokenInfo: null,
+      assistantLoading: false,
       isRunning: true,
       shapValues: [],
       isLabelEnabled: false
     });
-
-    const response = await fetch(SHAP_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ shapConfig }),
-    });
-    const data = await response.json();
-
+    
     console.log(`Building SHAP values of the model ${modelId}`);
-    //console.log(JSON.stringify(data));
-    this.intervalId = setInterval(() => { // start interval when button is clicked
-      this.props.fetchXAIStatus();
-    }, 1000);
+    
+    // Use Redux action which handles queue-based processing
+    // The saga will handle polling and updating status
+    this.props.fetchRunShap(modelId, numberBackgroundSamples, numberExplainedSamples, maxDisplay);
   }
 
   async fetchNewValues(modelId, label) {
+    console.log('[SHAP fetchNewValues] Called with modelId:', modelId, 'label:', label);
     const labelsList = getLabelsListXAI(this.state.modelId);
     const labelIndex = labelsList.indexOf(label);
 
     if (labelIndex === -1) {
-      console.error(`Invalid label: ${label}`);
+      console.error(`[SHAP fetchNewValues] Invalid label: ${label}, labelsList:`, labelsList);
       return;
     }
 
     const shapValuesUrl = `${SHAP_URL}/explanations/${modelId}/${labelIndex}`;
-    const shapValues = await fetch(shapValuesUrl).then(res => res.json());
-    console.log(`Get new SHAP values of the model ${modelId} for label ${label} (index ${labelIndex}) from server`);
+    console.log('[SHAP fetchNewValues] Fetching from:', shapValuesUrl);
+    
+    try {
+      const shapValues = await fetch(shapValuesUrl).then(res => res.json());
+      console.log(`[SHAP fetchNewValues] Got SHAP values:`, shapValues);
 
-    if (JSON.stringify(shapValues) !== JSON.stringify(this.state.shapValues)) {
-      this.setState({ shapValues });
+      if (JSON.stringify(shapValues) !== JSON.stringify(this.state.shapValues)) {
+        console.log('[SHAP fetchNewValues] Setting new SHAP values in state');
+        this.setState({ shapValues });
+      } else {
+        console.log('[SHAP fetchNewValues] SHAP values unchanged, skipping setState');
+      }
+    } catch (error) {
+      console.error('[SHAP fetchNewValues] Error fetching SHAP values:', error);
     }
   }
 
@@ -187,6 +289,10 @@ class XAIShapPage extends Component {
     const { app, models } = this.props;
 
     const modelsOptions = getFilteredModelsOptions(app, models);
+    const params = new URLSearchParams(window.location.search);
+    // Check if this is from prediction context (either has predictionId or fromPrediction flag)
+    const isFlowBased = !!(params.get('predictionId') || params.get('fromPrediction'));
+    const sampleIdParam = params.get('sampleId');
     const features = isModelIdPresent ?
                       getFilteredFeaturesModel(modelId) : getFilteredFeatures(app);
     getFilteredFeatures(app);
@@ -219,13 +325,31 @@ class XAIShapPage extends Component {
       yField: 'feature',
       //seriesField: 'feature',
       label: false,
+      color: (d) => {
+        return d.importance_value > 0 ? "#0693e3" : "#EB144C";
+      },
       barStyle: (d) => {
         //console.log(d)
         return {
+          /* https://casesandberg.github.io/react-color/ */
+          //color: d.importance_value > 0 ? "#0693e3" : "#EB144C",
           fill: d.importance_value > 0 ? "#0693e3" : "#EB144C"
         };
       },
-      interactions: [{ type: 'element-active' }],
+      legend: false,
+      tooltip: {
+        showMarkers: false,
+        customItems: (items) => {
+          return items.map((it) => {
+            const val = it?.data?.importance_value ?? 0;
+            return {
+              ...it,
+              color: val > 0 ? '#0693e3' : '#EB144C',
+            };
+          });
+        },
+      },
+      interactions: [],
     };
 
     const topFeatures = toDisplayShap.map((item, index) => ({
@@ -240,18 +364,22 @@ class XAIShapPage extends Component {
 
     return (
       <LayoutPage pageTitle="Explainable AI with SHapley Additive exPlanations (SHAP)" pageSubTitle={subTitle}>
+        
         <Divider orientation="left">
-          <h1 style={{ fontSize: '24px' }}>SHAP Parameters</h1>
+          <h2 style={{ fontSize: '20px' }}>Configuration</h2>
         </Divider>
-        <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 600 }}>
-          <Form.Item name="model" label="Model"
+        
+        <Row gutter={24} style={{ marginBottom: 24 }}>
+          <Col xs={24} lg={24}>
+            <Card
+              bordered={false}
+              style={{ height: '100%' }}
+            >
+              <Row gutter={24}>
+                <Col xs={24} lg={12} style={{ display: 'flex', justifyContent: 'center' }}>
+                  <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 560, width: '100%', margin: '0 auto' }}>
+          <Form.Item name="model" label={<strong><span style={{ color: 'red' }}>* </span>Model</strong>}
               style={{ flex: 'none', marginBottom: 10 }}
-              rules={[
-                {
-                  required: true,
-                  message: 'Please select a model!',
-                },
-              ]}
             >
               <Tooltip title="Select a model to perform SHAP method.">
                 <Select placeholder="Select a model ..."
@@ -268,7 +396,10 @@ class XAIShapPage extends Component {
                     this.setState({
                       modelId: value,
                       shapValues: [],
-                      isLabelEnabled: false
+                      isLabelEnabled: false,
+                      assistantText: '',
+                      assistantTokenInfo: null,
+                      assistantLoading: false
                     });
                     console.log(`Select model ${value}`);
                   }}
@@ -276,39 +407,43 @@ class XAIShapPage extends Component {
                 />
               </Tooltip>
             </Form.Item>
-          <Form.Item label="Background samples" style={{ marginBottom: 10 }} >
-            <div style={{ display: 'inline-flex' }}>
-              <Form.Item label="bg" name="bg" noStyle>
-                <Tooltip title="Select number of samples used for producing explanations (maximum is the length of the training dataset).">
-                  <InputNumber min={1} defaultValue={20}
-                    value={this.state.numberBackgroundSamples}
-                    onChange={v => this.setState({
-                      numberBackgroundSamples: v,
-                      shapValues: [],
-                      isLabelEnabled: false
-                    })}
-                  />
-                </Tooltip>
+          {!isFlowBased && (
+            <>
+              <Form.Item label={<strong>Background samples</strong>} style={{ marginBottom: 10 }} >
+                <div style={{ display: 'inline-flex' }}>
+                  <Form.Item label="bg" name="bg" noStyle>
+                    <Tooltip title="Select number of samples used for producing explanations (maximum is the length of the training dataset).">
+                      <InputNumber min={1} defaultValue={10}
+                        value={this.state.numberBackgroundSamples}
+                        onChange={v => this.setState({
+                          numberBackgroundSamples: v,
+                          shapValues: [],
+                          isLabelEnabled: false
+                        })}
+                      />
+                    </Tooltip>
+                  </Form.Item>
+                </div>
               </Form.Item>
-            </div>
-          </Form.Item>
-          <Form.Item label="Explained samples" style={{ marginBottom: 10 }} >
-            <div style={{ display: 'inline-flex' }}>
-              <Form.Item label="ex" name="ex" noStyle>
-                <Tooltip title="Select number of samples to be explained (maximum is the length of the testing dataset).">
-                  <InputNumber min={1} defaultValue={10}
-                    value={this.state.numberExplainedSamples}
-                    onChange={v => this.setState({
-                      numberExplainedSamples: v,
-                      shapValues: [],
-                      isLabelEnabled: false
-                    })}
-                  />
-                </Tooltip>
+              <Form.Item label={<strong>Explained samples</strong>} style={{ marginBottom: 10 }} >
+                <div style={{ display: 'inline-flex' }}>
+                  <Form.Item label="ex" name="ex" noStyle>
+                    <Tooltip title="Select number of samples to be explained (maximum is the length of the testing dataset).">
+                      <InputNumber min={1} defaultValue={10}
+                        value={this.state.numberExplainedSamples}
+                        onChange={v => this.setState({
+                          numberExplainedSamples: v,
+                          shapValues: [],
+                          isLabelEnabled: false
+                        })}
+                      />
+                    </Tooltip>
+                  </Form.Item>
+                </div>
               </Form.Item>
-            </div>
-          </Form.Item>
-          <Form.Item name="slider" label="Features to display"
+            </>
+          )}
+          <Form.Item name="slider" label={<strong>Features to display</strong>}
             style={{ marginBottom: -5 }}
           >
             <Slider
@@ -318,7 +453,7 @@ class XAIShapPage extends Component {
               onChange={v => this.setState({ maxDisplay: v })}
             />
           </Form.Item>
-          <Form.Item name="checkbox" label="Contributions to display"
+          <Form.Item name="checkbox" label={<strong>Contributions to display</strong>}
             valuePropName="checked"
             style={{ flex: 'none', marginBottom: 10 }}
           >
@@ -329,7 +464,7 @@ class XAIShapPage extends Component {
               onChange={this.handleContributionsChange}
             />
           </Form.Item>
-          <Form.Item name="select" label="Feature(s) to mask"
+          <Form.Item name="select" label={<strong>Feature(s) to mask</strong>}
             style={{ flex: 'none', marginBottom: 10 }}
           >
             <Select
@@ -349,39 +484,63 @@ class XAIShapPage extends Component {
             <Button type="primary"
               onClick={this.handleShapClick}
               disabled={isRunning || !this.state.modelId}
-              >SHAP Explain
-              {isRunning &&
-                <Spin size="large" style={{ marginBottom: '8px' }}>
-                  <div className="content" />
-                </Spin>
-              }
+              loading={isRunning}
+            >
+              SHAP Explain
             </Button>
+            <Tooltip title={!this.props.userRole?.isSignedIn ? "Sign in required" : 
+                           this.props.userRole?.tokenLimitReached ? "Token limit reached" : 
+                           "Get AI explanation of SHAP results"}>
+              <Button 
+                style={{ marginLeft: 8 }} 
+                htmlType="button" 
+                type="primary"
+                onClick={() => this.handleAskAssistantShap()}
+                disabled={!this.state.modelId || this.state.shapValues.length === 0 || 
+                         !this.props.userRole?.isSignedIn || 
+                         this.props.userRole?.tokenLimitReached}
+                loading={this.state.assistantLoading}
+              >
+                Ask Assistant
+              </Button>
+            </Tooltip>
           </div>
-        </Form>
+                  </Form>
+                </Col>
+                <Col xs={24} lg={12} style={{ display: 'flex', justifyContent: 'center' }}>
+                  <div style={{ background: '#f0f5ff', border: '1px solid #adc6ff', borderRadius: 8, padding: 16, maxWidth: 560, width: '100%', margin: '0 auto' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                      <InfoCircleOutlined style={{ color: '#1677ff', fontSize: 18 }} />
+                      <Typography.Text strong style={{ color: '#1677ff', fontSize: 15 }}>SHAP Method Overview</Typography.Text>
+                    </div>
+                    <Typography.Paragraph style={{ color: '#0958d9', marginBottom: 8, lineHeight: 1.6 }}>
+                      <strong>SHapley Additive exPlanations (SHAP)</strong> uses Shapley values from cooperative game theory to quantify each feature's contribution to a prediction. It computes the average marginal contribution of each feature across all possible feature combinations, providing a theoretically sound and model-agnostic explanation.
+                    </Typography.Paragraph>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: '#fff7e6', border: '1px solid #ffd591', borderRadius: 6 }}>
+                      <WarningOutlined style={{ color: '#d48806', fontSize: 16, marginTop: 2 }} />
+                      <Typography.Text style={{ color: '#ad6800', fontSize: 13, lineHeight: 1.6 }}>
+                        <strong>Performance Warning:</strong> Running SHAP with a large number of background or explaining samples can be very slow and may take hours to complete. Start with small sample sizes (10-30) for testing.
+                      </Typography.Text>
+                    </div>
+                  </div>
+                </Col>
+              </Row>
+            </Card>
+          </Col>
+        </Row>
+        
         <Divider orientation="left">
-          <h1 style={{ fontSize: '24px' }}>SHAP Explanations</h1>
+          <h2 style={{ fontSize: '20px' }}>SHAP Explanations</h2>
         </Divider>
-        <Row gutter={24}>
-          <Col className="gutter-row" span={12}>
-            <div style={BOX_STYLE}>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <h2>&nbsp;&nbsp;&nbsp;Feature Importances</h2>
-                {/* TODO: make position of buttons are flexible */}
-                <div style={{ position: 'absolute', top: 10, right: 10 }}>
-                  <Tooltip title="Download plot as png">
-                    <Button
-                      type="link"
-                      icon={<CameraOutlined />}
-                      style={{
-                        marginLeft: '20rem',
-                      }}
-                      onClick={downloadShapImage}
-                    />
-                  </Tooltip>
-                  <Tooltip title="Feature importances plot displays the sum of individual contributions, computed on the complete dataset.">
-                    <Button type="link" icon={<QuestionOutlined />} />
-                  </Tooltip>
-                </div>
+        
+        <Row gutter={16}>
+          <Col span={12}>
+            <Card style={{ marginBottom: 16 }}>
+              <div style={{ marginBottom: 16 }}>
+                <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Feature Importances{isFlowBased && sampleIdParam ? ` - Flow sample ID ${sampleIdParam}` : ''}</h3>
+                <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+                  Shows the average impact of each feature on model predictions across the complete dataset
+                </span>
               </div>
               &nbsp;&nbsp;&nbsp;
               <Tooltip title="Select a label">
@@ -412,20 +571,58 @@ class XAIShapPage extends Component {
               <Typography.Title level={4} style={{ textAlign: 'center', fontSize: '16px', marginTop: '10px' }}>
                 Mean absolute SHAP value
               </Typography.Title>
-            </div>
+            </Card>
           </Col>
-          <Col className="gutter-row" span={12}>
-            <div style={BOX_STYLE}>
-              <h2>&nbsp;&nbsp;&nbsp;{`Top ${maxDisplay} most important features`}</h2>
-              <div style={{ position: 'absolute', top: 10, right: 10 }}>
-                <Tooltip title={`Displays the top ${maxDisplay} most important features with detailed description.`}>
-                  <Button type="link" icon={<QuestionOutlined />} />
-                </Tooltip>
+          
+          <Col span={12}>
+            <Card style={{ marginBottom: 16 }}>
+              <div style={{ marginBottom: 16 }}>
+                <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>{`Top ${maxDisplay} most important features`}</h3>
+                <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+                  Details of the most influential features with their technical descriptions
+                </span>
               </div>
               <Table dataSource={topFeatures} columns={COLUMNS_TOP_FEATURES}
-                size="small" style={{ marginTop: '20px', marginBottom: 0 }}
+                size="small"
               />
-            </div>
+            </Card>
+            
+            {/* AI Assistant Explanation Card - Right Side */}
+            {(this.state.assistantText || this.state.assistantLoading) && (
+              <Card>
+                <div style={{ marginBottom: 16 }}>
+                  <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>AI Assistant Explanation</h3>
+                  <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+                    AI-generated explanation of the SHAP results to help interpret feature importance
+                  </span>
+                </div>
+                {this.state.assistantLoading ? (
+                  <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
+                    <Spin size="large" />
+                  </div>
+                ) : (
+                  <>
+                    <div className="assistant-markdown">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {this.state.assistantText || ''}
+                      </ReactMarkdown>
+                    </div>
+                    {this.state.assistantTokenInfo && (
+                      <div style={{ marginTop: 16, padding: '12px', backgroundColor: '#f6f8fa', borderRadius: '4px' }}>
+                        <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
+                          <strong>Token Usage:</strong> {this.state.assistantTokenInfo.thisRequest} tokens used this request
+                          {this.state.assistantTokenInfo.limit !== Infinity && (
+                            <> - <strong>Total:</strong> {(this.state.assistantTokenInfo.totalUsed != null ? this.state.assistantTokenInfo.totalUsed : 0).toLocaleString()}/{(this.state.assistantTokenInfo.limit != null ? this.state.assistantTokenInfo.limit : 0).toLocaleString()} 
+                            ({this.state.assistantTokenInfo.percentUsed}% used) - <strong>Remaining:</strong> {(this.state.assistantTokenInfo.remaining != null ? this.state.assistantTokenInfo.remaining : 0).toLocaleString()} tokens</>
+                          )}
+                          {this.state.assistantTokenInfo.limit === Infinity && <> - <strong>Unlimited</strong> (Admin)</>}
+                        </Typography.Text>
+                      </div>
+                    )}
+                  </>
+                )}
+              </Card>
+            )}
           </Col>
           {/* <Col span={12} style={{ marginTop: "24px" }}>
             <div style={BOX_STYLE}>
@@ -445,9 +642,14 @@ const mapPropsToStates = ({ app, models, xaiStatus }) => ({
 const mapDispatchToProps = (dispatch) => ({
   fetchApp: () => dispatch(requestApp()),
   fetchAllModels: () => dispatch(requestAllModels()),
-  fetchXAIStatus: () => dispatch(requestXAIStatus()),
   fetchRunShap: (modelId, numberBackgroundSamples, numberExplainedSamples, maxDisplay) =>
     dispatch(requestRunShap({ modelId, numberBackgroundSamples, numberExplainedSamples, maxDisplay })),
 });
 
-export default connect(mapPropsToStates, mapDispatchToProps)(XAIShapPage);
+// HOC to inject userRole
+const XAIShapPageWithUserRole = (props) => {
+  const userRole = useUserRole();
+  return <XAIShapPage {...props} userRole={userRole} />;
+};
+
+export default connect(mapPropsToStates, mapDispatchToProps)(XAIShapPageWithUserRole);

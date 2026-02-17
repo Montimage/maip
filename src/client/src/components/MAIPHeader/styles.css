@@ -2,17 +2,44 @@ header {
     font-size: 1.6rem;
     font-family: 'Pacifico';
     text-align: center;
-    padding: 6px 24px;
+    padding: 0 24px;
     /* color: #424242; */
     box-shadow: 1px 1px 8px rgba(0, 0, 0, 0.1);
-    position: sticky;
+    position: fixed;
     top: 0;
-    /* background: #fff; */
-    z-index: 10;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: 64px;
+    background: #001529;
+    z-index: 1001;
 }
 
 .selectedMenuItem {
     color: white !important;
+    font-weight: 600 !important;
+}
+
+/* Increase brightness of menu items */
+.ant-menu-dark .ant-menu-item,
+.ant-menu-dark .ant-menu-submenu-title {
+    color: rgba(255, 255, 255, 0.9) !important;
+}
+
+/* Increase brightness of selected items - make them bolder */
+.ant-menu-dark .ant-menu-item-selected,
+.ant-menu-dark .ant-menu-submenu-selected > .ant-menu-submenu-title,
+.ant-menu-submenu-popup .ant-menu-item-selected {
+    color: #ffffff !important;
+    font-weight: 700 !important;
+}
+
+/* Ensure disabled items are still visible */
+.ant-menu-dark .ant-menu-item-disabled,
+.ant-menu-dark .ant-menu-submenu-disabled > .ant-menu-submenu-title,
+.ant-menu-submenu-popup .ant-menu-item-disabled {
+    color: rgba(255, 255, 255, 0.7) !important;
+    opacity: 0.75 !important;
 }
 
 .selectApp .ant-select-selector {
@@ -22,4 +49,17 @@ header {
 
 .ant-menu-dark .ant-menu-item-selected, .ant-menu-dark .ant-menu-item:active, .ant-menu-dark .ant-menu-submenu-title:active, .ant-menu-dark .ant-menu-item:hover, .ant-menu-dark .ant-menu-submenu-title:hover, .ant-menu-dark .ant-menu-submenu-active, .ant-menu-dark .ant-menu-submenu-open, .ant-menu-dark .ant-menu-submenu-selected, .ant-menu-dark .ant-menu-item:focus, .ant-menu-dark .ant-menu-submenu-title:focus {
     background-color: transparent !important;
+}
+
+/* Make submenu fit content */
+.ant-menu-submenu-popup .ant-menu-sub {
+    min-width: fit-content !important;
+    width: auto !important;
+}
+
+.ant-menu-submenu-popup .ant-menu-item {
+    width: auto !important;
+    min-width: fit-content !important;
+    padding-left: 24px !important;
+    padding-right: 24px !important;
 }

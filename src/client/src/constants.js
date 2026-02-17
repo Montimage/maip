@@ -1,7 +1,5 @@
-//const SERVER_HOST = "0.0.0.0";
-//const SERVER_PORT = 31057;
-//const SERVER_URL = `http://${SERVER_HOST}:${SERVER_PORT}`;
-const SERVER_URL = "";
+// Use REACT_APP_API_URL if set, else default to localhost for local dev
+const SERVER_URL = process.env.REACT_APP_API_URL || "http://localhost:31057";
 
 const MENU_OPTIONS = [
   { key: '0', link: '/build' },
@@ -21,6 +19,10 @@ const MENU_OPTIONS = [
   { key: '14', link: '/reports' },
   { key: '15', link: '/models/retrain' },
   { key: '16', link: '/about' },
+  { key: '17', link: '/features' },
+  { key: '18', link: '/predict/rule-based' },
+  { key: '19', link: '/predict/early' },
+  { key: '20', link: '/dpi' }
 ];
 
 const AD_FEATURES_DESCRIPTIONS = {
@@ -116,6 +118,54 @@ const AD_FEATURES_DESCRIPTIONS = {
     description: 'Sequence of Packet Time (STP) of bin 11',
     type: 'categorical',
   },
+  '(450, 600]': {
+    description: 'Sequence of Packet Time (STP) of bin 12',
+    type: 'categorical',
+  },
+  '(600, 750]': {
+    description: 'Sequence of Packet Time (STP) of bin 13',
+    type: 'categorical',
+  },
+  '(750, 900]': {
+    description: 'Sequence of Packet Time (STP) of bin 14',
+    type: 'categorical',
+  },
+  '(0, 50]': {
+    description: 'Sequence of Packet Time (STP) of bin 1',
+    type: 'categorical',
+  },
+  '(50, 100]': {
+    description: 'Sequence of Packet Time (STP) of bin 2',
+    type: 'categorical',
+  },
+  '(100, 150]': {
+    description: 'Sequence of Packet Time (STP) of bin 3',
+    type: 'categorical',
+  },
+  '(150, 200]': {
+    description: 'Sequence of Packet Time (STP) of bin 4',
+    type: 'categorical',
+  },
+  '(200, 250]': {
+    description: 'Sequence of Packet Time (STP) of bin 5',
+    type: 'categorical',
+  },
+  '(250, 300]': {
+    description: 'Sequence of Packet Time (STP) of bin 6',
+    type: 'categorical',
+  },
+  '(300, 350]': {
+    description: 'Sequence of Packet Time (STP) of bin 7',
+    type: 'categorical',
+  },
+  '(350, 400]': {
+    description: 'Sequence of Packet Time (STP) of bin 8',
+    type: 'categorical',
+  },
+  '(400, 450]': {
+    description: 'Sequence of Packet Time (STP) of bin 9',
+    type: 'categorical',
+  },
   'tcp_pkts_per_flow': {
     description: 'Total number of TCP packets',
     type: 'numerical',
@@ -182,6 +232,74 @@ const AD_FEATURES_DESCRIPTIONS = {
   },
   '(1500.0, 10000.0]': {
     description: 'Sequence of Packet Length (STL) of bin 11',
+    type: 'categorical',
+  },
+  '(0, 150]': {
+    description: 'Sequence of Packet Length (STL) of bin 1',
+    type: 'categorical',
+  },
+  '(150, 300]': {
+    description: 'Sequence of Packet Length (STL) of bin 2',
+    type: 'categorical',
+  },
+  '(300, 450]': {
+    description: 'Sequence of Packet Length (STL) of bin 3',
+    type: 'categorical',
+  },
+  '(450, 600]': {
+    description: 'Sequence of Packet Length (STL) of bin 4',
+    type: 'categorical',
+  },
+  '(600, 750]': {
+    description: 'Sequence of Packet Length (STL) of bin 5',
+    type: 'categorical',
+  },
+  '(750, 900]': {
+    description: 'Sequence of Packet Length (STL) of bin 6',
+    type: 'categorical',
+  },
+  '(900, 1050]': {
+    description: 'Sequence of Packet Length (STL) of bin 7',
+    type: 'categorical',
+  },
+  '(1050, 1200]': {
+    description: 'Sequence of Packet Length (STL) of bin 8',
+    type: 'categorical',
+  },
+  '(1200, 1350]': {
+    description: 'Sequence of Packet Length (STL) of bin 9',
+    type: 'categorical',
+  },
+  '(1350, 1500]': {
+    description: 'Sequence of Packet Length (STL) of bin 10',
+    type: 'categorical',
+  },
+  '(1500, 10000]': {
+    description: 'Sequence of Packet Length (STL) of bin 11',
+    type: 'categorical',
+  },
+  '(450, 500]': {
+    description: 'Sequence of Packet Time (STP) of bin 10',
+    type: 'categorical',
+  },
+  '(500, 550]': {
+    description: 'Sequence of Packet Time (STP) of bin 11',
+    type: 'categorical',
+  },
+  '(550, 600]': {
+    description: 'Sequence of Packet Time (STP) of bin 12',
+    type: 'categorical',
+  },
+  '(550.0, 600.0]': {
+    description: 'Sequence of Packet Time (STP) of bin 12',
+    type: 'categorical',
+  },
+  '(900, 1800]': {
+    description: 'Sequence of Packet Time (STP) of bin 15',
+    type: 'categorical',
+  },
+  '(900.0, 1800.0]': {
+    description: 'Sequence of Packet Time (STP) of bin 15',
     type: 'categorical',
   },
   'tcp.fin': {
@@ -606,7 +724,7 @@ const RES_METRICS_MENU_ITEMS = [
   },
 ];
 
-const HEADER_ACCURACY_STATS = ["precision", "recall", "f1score", "support"];
+const HEADER_ACCURACY_STATS = ["precision", "recall", "f1-score", "support"];
 
 // XAIShapPage.js
 const SHAP_URL = `${SERVER_URL}/api/xai/shap`;
@@ -647,6 +765,8 @@ const AC_OUTPUT_LABELS = ["Web", "Interactive", "Video"];
 
 // XAILimePage.js
 const LIME_URL = `${SERVER_URL}/api/xai/lime`;
+// Assistant API (LLM explanations)
+const ASSISTANT_URL = `${SERVER_URL}/api/assistant`;
 
 const COLUMNS_TABLE_PROBS = [
   {
@@ -734,24 +854,50 @@ const LABEL_MAPPING_AD = {
   "1": { label: "Malware traffic" }
 };
 
-module.exports = {
+// File upload constraints
+const MAX_PCAP_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+const MAX_PCAP_SIZE_MB = 10;
+
+export {
   MENU_OPTIONS,
-  FORM_LAYOUT, BOX_STYLE,
+  FORM_LAYOUT,
+  BOX_STYLE,
   AI_MODEL_TYPES,
-  //SERVER_HOST, SERVER_PORT,
   SERVER_URL,
-  AD_FEATURES_DESCRIPTIONS, FEATURES_OPTIONS,
+  AD_FEATURES_DESCRIPTIONS,
+  FEATURES_OPTIONS,
   AC_FEATURES_DESCRIPTIONS,
-  CRITERIA_LIST, TABLE_BUILD_CONFIGS, AC_COLUMNS_PERF_STATS, AD_COLUMNS_PERF_STATS,
-  ATTACK_OPTIONS, ATTACK_DATASETS_MAPPING,
-  BIN_CHOICES, DATASET_TABLE_STATS, DATASET_MENU_ITEMS,
-  COLUMNS_CURRENTNESS_METRICS, ACC_METRICS_MENU_ITEMS,
-  RES_METRICS_MENU_ITEMS, HEADER_ACCURACY_STATS,
-  SHAP_URL, COLUMNS_TOP_FEATURES, XAI_SLIDER_MARKS,
-  AD_OUTPUT_LABELS, AC_OUTPUT_LABELS,
-  LIME_URL, COLUMNS_TABLE_PROBS,
-  ATTACKS_SLIDER_MARKS, AD_CLASS_MAPPING, AC_CLASS_MAPPING,
+  CRITERIA_LIST,
+  TABLE_BUILD_CONFIGS,
+  AC_COLUMNS_PERF_STATS,
+  AD_COLUMNS_PERF_STATS,
+  ATTACK_OPTIONS,
+  ATTACK_DATASETS_MAPPING,
+  BIN_CHOICES,
+  DATASET_TABLE_STATS,
+  DATASET_MENU_ITEMS,
+  COLUMNS_CURRENTNESS_METRICS,
+  ACC_METRICS_MENU_ITEMS,
+  RES_METRICS_MENU_ITEMS,
+  HEADER_ACCURACY_STATS,
+  SHAP_URL,
+  COLUMNS_TOP_FEATURES,
+  XAI_SLIDER_MARKS,
+  AD_OUTPUT_LABELS,
+  AC_OUTPUT_LABELS,
+  LIME_URL,
+  COLUMNS_TABLE_PROBS,
+  ASSISTANT_URL,
+  ATTACKS_SLIDER_MARKS,
+  AD_CLASS_MAPPING,
+  AC_CLASS_MAPPING,
   COLUMNS_ALL_FEATURES,
-  LABEL_COLORS_AC, LABEL_COLORS_AD, LABEL_MAPPING_AC, LABEL_MAPPING_AD,
-  AD_OUTPUT_LABELS_XAI, AD_OUTPUT_LABELS_SHORT
+  LABEL_COLORS_AC,
+  LABEL_COLORS_AD,
+  LABEL_MAPPING_AC,
+  LABEL_MAPPING_AD,
+  AD_OUTPUT_LABELS_XAI,
+  AD_OUTPUT_LABELS_SHORT,
+  MAX_PCAP_SIZE_BYTES,
+  MAX_PCAP_SIZE_MB
 };

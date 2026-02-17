@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#000000" />
     <meta
       name="description"
-      content="Montimage AI Platform"
+      content="Network Detection and Response"
     />
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <!--
@@ -24,7 +24,28 @@
       work correctly both with client-side routing and a non-root public URL.
       Learn how to configure a non-root public URL by running `npm run build`.
     -->
-    <title>MAIP App</title>
+    <title>NDR App</title>
+    
+    <!-- Suppress ResizeObserver errors (loads before React) -->
+    <script>
+      // This catches ResizeObserver errors at the earliest possible stage
+      window.addEventListener('error', function(e) {
+        if (e.message && e.message.includes('ResizeObserver loop')) {
+          e.stopImmediatePropagation();
+          e.preventDefault();
+          return false;
+        }
+      });
+      
+      // Override console.error before React loads
+      const originalError = console.error;
+      console.error = function(...args) {
+        if (typeof args[0] === 'string' && args[0].includes('ResizeObserver loop')) {
+          return; // Suppress
+        }
+        originalError.apply(console, args);
+      };
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>

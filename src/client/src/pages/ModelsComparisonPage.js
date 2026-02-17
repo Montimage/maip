@@ -1,8 +1,9 @@
 import React, { Component } from "react";
 import { connect } from "react-redux";
-import { Row, Col, Tooltip, Table, Select } from "antd";
+import { Row, Col, Tooltip, Table, Select, Card, Divider, Tag } from "antd";
 import LayoutPage from "./LayoutPage";
-import { Heatmap } from '@ant-design/plots';
+import { Heatmap, Column } from '@ant-design/plots';
+import { SwapOutlined } from '@ant-design/icons';
 import {
   requestApp,
   requestAllModels,
@@ -24,10 +25,19 @@ import {
 import './styles.css';
 
 const {
-  BOX_STYLE,
-  CRITERIA_LIST, TABLE_BUILD_CONFIGS,
+  CRITERIA_LIST, 
+  TABLE_BUILD_CONFIGS,
 } = require('../constants');
 const { Option } = Select;
+
+// Extended criteria list with new comparison options
+const EXTENDED_CRITERIA_LIST = [
+  "Model Configuration", // Merged: Build Config + Metadata
+  "Model Performance",
+  "Confusion Matrix",
+  "Performance Summary",
+  "Visual Metrics"
+];
 
 // TODO: add Grouped Column plot to compare model performance of 2 models?
 
@@ -44,14 +54,29 @@ class ModelListPage extends Component {
       buildConfigRight: null,
       cmConfigLeft: null,
       cmConfigRight: null,
-      selectedOption: null,
-      selectedCriteria: null,
+      isPreSelected: false, // Track if models were pre-selected from URL
     };
   }
 
   componentDidMount() {
     this.props.fetchApp();
     this.props.fetchAllModels();
+    
+    // Check for query parameters (model1, model2) to pre-select models
+    const urlParams = new URLSearchParams(window.location.search);
+    const model1 = urlParams.get('model1');
+    const model2 = urlParams.get('model2');
+    
+    if (model1 && model2) {
+      // Both models pre-selected - disable dropdowns
+      this.setState({ isPreSelected: true });
+      this.loadPredictions(model1, true);
+      this.loadPredictions(model2, false);
+    } else if (model1) {
+      this.loadPredictions(model1, true);
+    } else if (model2) {
+      this.loadPredictions(model2, false);
+    }
   }
 
   componentDidUpdate(prevProps) {
@@ -60,7 +85,7 @@ class ModelListPage extends Component {
       this.setState({
         selectedModelLeft: null,
         selectedModelRight: null,
-        selectedCriteria: null,
+        isPreSelected: false, // Re-enable dropdowns when app changes
       });
     }
   }
@@ -71,25 +96,34 @@ class ModelListPage extends Component {
     console.log(buildConfig);
 
     let dataBuildConfig;
-    if (this.props.app === 'ad') {
-      const transformedBuildConfig = removeCsvPath(JSON.parse(buildConfig));
-      //console.log(transformedBuildConfig);
+    try {
+      if (this.props.app === 'ad') {
+        const transformedBuildConfig = removeCsvPath(JSON.parse(buildConfig));
+        //console.log(transformedBuildConfig);
 
-      const { datasets, training_ratio, training_parameters } = transformedBuildConfig;
+        const { datasets, training_ratio, training_parameters } = transformedBuildConfig;
 
+        dataBuildConfig = [
+          ...datasets.map(({ csvPath, isAttack }) => ({
+            parameter: isAttack ? 'attack dataset' : 'normal dataset',
+            value: csvPath,
+          })),
+          { parameter: 'training ratio', value: training_ratio },
+          ...Object.entries(training_parameters).map(([parameter, value]) => ({
+            parameter: parameter,
+            value: value,
+          })),
+        ];
+      } else {
+        dataBuildConfig = transformConfigStrToTableData(buildConfig);
+      }
+    } catch (error) {
+      console.error('Error parsing build config:', error);
+      // Provide default config for retrained models or invalid configs
       dataBuildConfig = [
-        ...datasets.map(({ csvPath, isAttack }) => ({
-          parameter: isAttack ? 'attack dataset' : 'normal dataset',
-          value: csvPath,
-        })),
-        { parameter: 'training ratio', value: training_ratio },
-        ...Object.entries(training_parameters).map(([parameter, value]) => ({
-          parameter: parameter,
-          value: value,
-        })),
+        { parameter: 'Model Type', value: 'Retrained Model' },
+        { parameter: 'Configuration', value: 'N/A' }
       ];
-    } else {
-      dataBuildConfig = transformConfigStrToTableData(buildConfig);
     }
     console.log(dataBuildConfig);
 
@@ -160,29 +194,30 @@ class ModelListPage extends Component {
 
     return (
       <LayoutPage pageTitle="Models Comparison" pageSubTitle="Comparing models based on performance metrics">
-        <div style={BOX_STYLE}>
-          <Row gutter={24}>
-            <Col className="gutter-row" span={8} style={{ display: 'flex', justifyContent: 'center' }}>
-              <div><h3>Model 1:</h3></div>
-            </Col>
-            <Col className="gutter-row" span={8} style={{ display: 'flex', justifyContent: 'center' }}>
-              <div><h3>Comparison Criteria:</h3></div>
-            </Col>
-            <Col className="gutter-row" span={8} style={{ display: 'flex', justifyContent: 'center' }}>
-              <div><h3>Model 2:</h3></div>
-            </Col>
-
-            <Col className="gutter-row" span={8} style={{ display: 'flex', justifyContent: 'center', marginTop: '-10px' }}>
-              <Tooltip title="Select a model to compare.">
+        
+        {/* Configuration Section */}
+        <Divider orientation="left">
+          <h2 style={{ fontSize: '20px' }}>Configuration</h2>
+        </Divider>
+        
+        <Card style={{ marginBottom: 16 }}>
+          <Row gutter={16}>
+            <Col span={12}>
+              <div style={{ marginBottom: 8 }}>
+                <strong>Model 1</strong>
+              </div>
+              <Tooltip title="Select the first model to compare">
                 <Select
-                  showSearch allowClear
+                  showSearch 
+                  allowClear
+                  disabled={this.state.isPreSelected}
                   value={this.state.selectedModelLeft}
-                  placeholder="Select a model ..."
+                  placeholder="Select first model ..."
                   onChange={(modelId) => modelId && this.loadPredictions(modelId, true)}
                   onClear={() => this.setState({ selectedModelLeft: null })}
                   optionFilterProp="children"
                   filterOption={(input, option) => (option?.value ?? '').includes(input)}
-                  style={{ width: 350, marginTop: '15px', marginBottom: '15px' }}
+                  style={{ width: '100%' }}
                 >
                   {modelIds.map((modelId) => (
                     <Option key={modelId} value={modelId}>
@@ -193,38 +228,22 @@ class ModelListPage extends Component {
               </Tooltip>
             </Col>
 
-            <Col className="gutter-row" span={8} style={{ display: 'flex', justifyContent: 'center', marginTop: '-10px' }}>
-              <Tooltip title="Select a criteria for comparing the two selected models.">
+            <Col span={12}>
+              <div style={{ marginBottom: 8 }}>
+                <strong>Model 2</strong>
+              </div>
+              <Tooltip title="Select the second model to compare">
                 <Select
-                  showSearch allowClear
-                  value={this.state.selectedCriteria}
-                  placeholder="Select a criteria ..."
-                  onChange={(criteria) => this.setState({ selectedCriteria: criteria })}
-                  onClear={() => this.setState({ selectedCriteria: null })}
-                  optionFilterProp="children"
-                  filterOption={(input, option) => (option?.value ?? '').includes(input)}
-                  style={{ width: 350, marginTop: '15px', marginBottom: '15px' }}
-                >
-                  {CRITERIA_LIST.map((criteria) => (
-                    <Option key={criteria} value={criteria}>
-                      {criteria}
-                    </Option>
-                  ))}
-                </Select>
-              </Tooltip>
-            </Col>
-
-            <Col className="gutter-row" span={8} style={{ display: 'flex', justifyContent: 'center', marginTop: '-10px' }}>
-              <Tooltip title="Select a model to compare.">
-                <Select
-                  showSearch allowClear
+                  showSearch 
+                  allowClear
+                  disabled={this.state.isPreSelected}
                   value={this.state.selectedModelRight}
-                  placeholder="Select a model ..."
+                  placeholder="Select second model ..."
                   onChange={(modelId) => modelId && this.loadPredictions(modelId, false)}
                   onClear={() => this.setState({ selectedModelRight: null })}
                   optionFilterProp="children"
                   filterOption={(input, option) => (option?.value ?? '').includes(input)}
-                  style={{ width: 350, marginTop: '15px', marginBottom: '15px' }}
+                  style={{ width: '100%' }}
                 >
                   {modelIds.map((modelId) => (
                     <Option key={modelId} value={modelId}>
@@ -235,67 +254,440 @@ class ModelListPage extends Component {
               </Tooltip>
             </Col>
           </Row>
-          <Row gutter={24}>
-            <Col className="gutter-row" span={12}>
-              {selectedModelLeft && dataBuildConfigLeft && (selectedCriteria === "Build Configuration") &&
-                <div style={{ marginBottom: '20px', marginTop: '30px' }}>
-                  <Table columns={TABLE_BUILD_CONFIGS} dataSource={dataBuildConfigLeft} pagination={false}
-                  />
-                </div>
+        </Card>
+        
+        {/* Results Section */}
+        {selectedModelLeft && selectedModelRight && (
+          <>
+            <Divider orientation="left">
+              <h2 style={{ fontSize: '20px' }}>Comparison Results</h2>
+            </Divider>
+            
+            {/* Overall Performance Status */}
+            {dataStatsLeft && dataStatsRight && (() => {
+              const metrics = ['Accuracy', 'Precision', 'Recall', 'F1-Score'];
+              let leftWins = 0;
+              let rightWins = 0;
+              let ties = 0;
+              
+              metrics.forEach(metric => {
+                const getMetricValue = (stats, metricName) => {
+                  const row = stats.find(s => 
+                    s.metric && s.metric.toLowerCase() === metricName.toLowerCase()
+                  );
+                  if (!row) return 0;
+                  const classKeys = Object.keys(row).filter(k => k.startsWith('class'));
+                  if (classKeys.length === 0) return 0;
+                  const sum = classKeys.reduce((acc, key) => acc + (parseFloat(row[key]) || 0), 0);
+                  return sum / classKeys.length;
+                };
+                
+                const leftVal = getMetricValue(dataStatsLeft, metric);
+                const rightVal = getMetricValue(dataStatsRight, metric);
+                const threshold = 0.001;
+                
+                if (leftVal - rightVal > threshold) {
+                  leftWins++;
+                } else if (rightVal - leftVal > threshold) {
+                  rightWins++;
+                } else {
+                  ties++;
+                }
+              });
+              
+              let summaryText = '';
+              let summaryIcon = '';
+              let summaryColor = '#1890ff';
+              let backgroundColor = '#e6f7ff';
+              
+              if (leftWins > rightWins) {
+                summaryText = `${selectedModelLeft} performs better overall`;
+                summaryIcon = '🏆';
+                summaryColor = '#1890ff';
+                backgroundColor = '#e6f7ff';
+              } else if (rightWins > leftWins) {
+                summaryText = `${selectedModelRight} performs better overall`;
+                summaryIcon = '🏆';
+                summaryColor = '#52c41a';
+                backgroundColor = '#f6ffed';
+              } else {
+                summaryText = `Both models show comparable performance`;
+                summaryIcon = '🤝';
+                summaryColor = '#722ed1';
+                backgroundColor = '#f9f0ff';
               }
-            </Col>
-            <Col className="gutter-row" span={12}>
-              {selectedModelRight &&dataBuildConfigRight && (selectedCriteria === "Build Configuration") &&
-                <div style={{ marginBottom: '20px', marginTop: '30px' }}>
-                  <Table columns={TABLE_BUILD_CONFIGS} dataSource={dataBuildConfigRight} pagination={false}
-                  />
-                </div>
-              }
-            </Col>
-          </Row>
-          <Row gutter={24}>
-            <Col className="gutter-row" span={12}>
-              {selectedModelLeft && dataStatsLeft && (selectedCriteria === "Model Performance") &&
-                <div style={{marginBottom: '20px', marginTop: '30px'}}>
-                  <Table columns={columnsPerfStats} dataSource={dataStatsLeft} pagination={false}
-                  />
-                </div>
-              }
-            </Col>
-            <Col className="gutter-row" span={12}>
-              {selectedModelRight && dataStatsRight && (selectedCriteria === "Model Performance") &&
-                <div style={{marginBottom: '20px', marginTop: '30px'}}>
-                  <Table columns={columnsPerfStats} dataSource={dataStatsRight} pagination={false}
-                  />
-                </div>
-              }
-            </Col>
-          </Row>
-          <Row gutter={24}>
-            <Col className="gutter-row" span={12}>
-              {selectedModelLeft && cmConfigLeft && (selectedCriteria === "Confusion Matrix") &&
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'center', width: '100%', flex: 1, flexWrap: 'wrap', marginTop: '40px', marginBottom: '10px' }}>
-                    <div className={cmStyle}>
-                      <Heatmap {...cmConfigLeft}/>
-                    </div>
+              
+              return (
+                <Card size="small" style={{ marginBottom: 12, backgroundColor, border: `1px solid ${summaryColor}` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px 0' }}>
+                    <span style={{ fontSize: '16px', marginRight: '6px' }}>{summaryIcon}</span>
+                    <span style={{ fontSize: '14px', fontWeight: 600, color: summaryColor }}>
+                      {summaryText}
+                    </span>
                   </div>
-                </div>
-              }
-            </Col>
-            <Col className="gutter-row" span={12}>
-              {selectedModelRight && cmConfigRight && (selectedCriteria === "Confusion Matrix") &&
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'center', width: '100%', flex: 1, flexWrap: 'wrap', marginTop: '40px', marginBottom: '10px' }}>
-                    <div className={cmStyle}>
-                      <Heatmap {...cmConfigRight}/>
+                </Card>
+              );
+            })()}
+            
+            {/* Model Configuration Comparison */}
+            {dataBuildConfigLeft && dataBuildConfigRight && (
+          <Card style={{ marginBottom: 16 }}>
+            <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Model Configuration Comparison</h3>
+            <div style={{ marginBottom: 12, fontSize: '13px', color: '#8c8c8c' }}>
+              Compare all model configurations including training parameters, datasets, algorithms, features, and scalers
+            </div>
+            <Row gutter={16}>
+              <Col span={12}>
+                {selectedModelLeft && dataBuildConfigLeft ? (
+                  <>
+                    <div style={{ marginBottom: 12, fontSize: '13px', fontWeight: 600, color: '#595959' }}>
+                      <Tag color="blue">{selectedModelLeft}</Tag>
                     </div>
+                    <Table 
+                      columns={TABLE_BUILD_CONFIGS} 
+                      dataSource={dataBuildConfigLeft} 
+                      pagination={false}
+                      size="small"
+                    />
+                  </>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '40px 0', color: '#8c8c8c' }}>
+                    Select Model 1 to view configuration
                   </div>
-                </div>
-              }
-            </Col>
-          </Row>
-        </div>
+                )}
+              </Col>
+              <Col span={12}>
+                {selectedModelRight && dataBuildConfigRight ? (
+                  <>
+                    <div style={{ marginBottom: 12, fontSize: '13px', fontWeight: 600, color: '#595959' }}>
+                      <Tag color="green">{selectedModelRight}</Tag>
+                    </div>
+                    <Table 
+                      columns={TABLE_BUILD_CONFIGS} 
+                      dataSource={dataBuildConfigRight} 
+                      pagination={false}
+                      size="small"
+                    />
+                  </>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '40px 0', color: '#8c8c8c' }}>
+                    Select Model 2 to view configuration
+                  </div>
+                )}
+              </Col>
+            </Row>
+          </Card>
+            )}
+            
+            {/* Model Performance Comparison */}
+            {dataStatsLeft && dataStatsRight && (
+          <Card style={{ marginBottom: 16 }}>
+            <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Performance Metrics Comparison</h3>
+            <div style={{ marginBottom: 12, fontSize: '13px', color: '#8c8c8c' }}>
+              Detailed performance statistics including precision, recall, and F1-score for each class
+            </div>
+            <Row gutter={16}>
+              <Col span={12}>
+                {selectedModelLeft && dataStatsLeft ? (
+                  <>
+                    <div style={{ marginBottom: 12, fontSize: '13px', color: '#8c8c8c' }}>
+                      Performance for <Tag color="blue">{selectedModelLeft}</Tag>
+                    </div>
+                    <Table 
+                      columns={columnsPerfStats} 
+                      dataSource={dataStatsLeft} 
+                      pagination={false}
+                      size="small"
+                    />
+                  </>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '40px 0', color: '#8c8c8c' }}>
+                    Select Model 1 to view performance
+                  </div>
+                )}
+              </Col>
+              <Col span={12}>
+                {selectedModelRight && dataStatsRight ? (
+                  <>
+                    <div style={{ marginBottom: 12, fontSize: '13px', color: '#8c8c8c' }}>
+                      Performance for <Tag color="green">{selectedModelRight}</Tag>
+                    </div>
+                    <Table 
+                      columns={columnsPerfStats} 
+                      dataSource={dataStatsRight} 
+                      pagination={false}
+                      size="small"
+                    />
+                  </>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '40px 0', color: '#8c8c8c' }}>
+                    Select Model 2 to view performance
+                  </div>
+                )}
+              </Col>
+            </Row>
+          </Card>
+            )}
+            
+            {/* Confusion Matrix Comparison */}
+            {cmConfigLeft && cmConfigRight && (
+          <Card style={{ marginBottom: 16 }}>
+            <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Confusion Matrix Comparison</h3>
+            <div style={{ marginBottom: 12, fontSize: '13px', color: '#8c8c8c' }}>
+              Visual heatmap comparison showing true vs predicted classifications for each model
+            </div>
+            <Row gutter={16}>
+              <Col span={12}>
+                {selectedModelLeft && cmConfigLeft ? (
+                  <>
+                    <div style={{ marginBottom: 12, fontSize: '13px', color: '#8c8c8c', textAlign: 'center' }}>
+                      Confusion Matrix for <Tag color="blue">{selectedModelLeft}</Tag>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+                      <div className={cmStyle}>
+                        <Heatmap {...cmConfigLeft}/>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '40px 0', color: '#8c8c8c' }}>
+                    Select Model 1 to view confusion matrix
+                  </div>
+                )}
+              </Col>
+              <Col span={12}>
+                {selectedModelRight && cmConfigRight ? (
+                  <>
+                    <div style={{ marginBottom: 12, fontSize: '13px', color: '#8c8c8c', textAlign: 'center' }}>
+                      Confusion Matrix for <Tag color="green">{selectedModelRight}</Tag>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+                      <div className={cmStyle}>
+                        <Heatmap {...cmConfigRight}/>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '40px 0', color: '#8c8c8c' }}>
+                    Select Model 2 to view confusion matrix
+                  </div>
+                )}
+              </Col>
+            </Row>
+          </Card>
+            )}
+            
+            {/* Performance Summary & Visual Metrics - Side by Side */}
+            {dataStatsLeft && dataStatsRight && (
+              <Row gutter={16} style={{ marginBottom: 16 }}>
+                <Col span={12}>
+                  <Card style={{ height: '100%' }}>
+                    <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Performance Summary</h3>
+                    <div style={{ marginBottom: 12, fontSize: '13px', color: '#8c8c8c' }}>
+                      Head-to-head comparison showing which model wins in each key performance metric
+                    </div>
+            {selectedModelLeft && selectedModelRight && dataStatsLeft && dataStatsRight ? (
+              <>
+                <Table
+                  dataSource={(() => {
+                    // Extract key metrics from dataStatsLeft and dataStatsRight
+                    // Data structure: { key, metric, class0, class1, ... }
+                    const getMetricValue = (stats, metricName) => {
+                      const row = stats.find(s => 
+                        s.metric && s.metric.toLowerCase() === metricName.toLowerCase()
+                      );
+                      if (!row) return 0;
+                      
+                      // Average across all classes
+                      const classKeys = Object.keys(row).filter(k => k.startsWith('class'));
+                      if (classKeys.length === 0) return 0;
+                      
+                      const sum = classKeys.reduce((acc, key) => acc + (parseFloat(row[key]) || 0), 0);
+                      return sum / classKeys.length;
+                    };
+                    
+                    const metrics = ['Accuracy', 'Precision', 'Recall', 'F1-Score'];
+                    return metrics.map((metric, index) => {
+                      const leftVal = getMetricValue(dataStatsLeft, metric);
+                      const rightVal = getMetricValue(dataStatsRight, metric);
+                      let winner = 'Tie';
+                      let winnerColor = 'default';
+                      
+                      const threshold = 0.001; // Consider values within 0.1% as tie
+                      if (leftVal - rightVal > threshold) {
+                        winner = selectedModelLeft;
+                        winnerColor = 'blue';
+                      } else if (rightVal - leftVal > threshold) {
+                        winner = selectedModelRight;
+                        winnerColor = 'green';
+                      }
+                      
+                      return {
+                        key: index,
+                        metric,
+                        model1: leftVal.toFixed(4),
+                        model2: rightVal.toFixed(4),
+                        winner,
+                        winnerColor,
+                        diff: Math.abs(leftVal - rightVal).toFixed(4)
+                      };
+                    });
+                  })()}
+                  columns={[
+                    {
+                      title: 'Metric',
+                      dataIndex: 'metric',
+                      key: 'metric',
+                      render: (text) => <strong>{text}</strong>
+                    },
+                    {
+                      title: <Tag color="blue">{selectedModelLeft}</Tag>,
+                      dataIndex: 'model1',
+                      key: 'model1',
+                      align: 'center',
+                    },
+                    {
+                      title: <Tag color="green">{selectedModelRight}</Tag>,
+                      dataIndex: 'model2',
+                      key: 'model2',
+                      align: 'center',
+                    },
+                    {
+                      title: 'Difference',
+                      dataIndex: 'diff',
+                      key: 'diff',
+                      align: 'center',
+                      render: (text) => <span style={{ color: '#8c8c8c' }}>±{text}</span>
+                    },
+                    {
+                      title: 'Winner',
+                      dataIndex: 'winner',
+                      key: 'winner',
+                      align: 'center',
+                      render: (text, record) => (
+                        record.winner === 'Tie' ? (
+                          <Tag color="default">🤝 Tie</Tag>
+                        ) : (
+                          <Tag color={record.winnerColor}>
+                            🏆 {text}
+                          </Tag>
+                        )
+                      )
+                    },
+                  ]}
+                  pagination={false}
+                  size="small"
+                />
+              </>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '40px 0', color: '#8c8c8c' }}>
+                Select both models to see performance summary
+              </div>
+            )}
+                  </Card>
+                </Col>
+                
+                <Col span={12}>
+                  <Card style={{ height: '100%' }}>
+                    <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Visual Performance Comparison</h3>
+                    <div style={{ marginBottom: 12, fontSize: '13px', color: '#8c8c8c' }}>
+                      Side-by-side bar chart visualization of accuracy, precision, recall, and F1-score
+                    </div>
+            {selectedModelLeft && selectedModelRight && dataStatsLeft && dataStatsRight ? (
+              <>
+                <Column
+                  data={(() => {
+                    // Data structure: { key, metric, class0, class1, ... }
+                    const getMetricValue = (stats, metricName) => {
+                      const row = stats.find(s => 
+                        s.metric && s.metric.toLowerCase() === metricName.toLowerCase()
+                      );
+                      if (!row) return 0;
+                      
+                      // Average across all classes
+                      const classKeys = Object.keys(row).filter(k => k.startsWith('class'));
+                      if (classKeys.length === 0) return 0;
+                      
+                      const sum = classKeys.reduce((acc, key) => acc + (parseFloat(row[key]) || 0), 0);
+                      return sum / classKeys.length;
+                    };
+                    
+                    const metrics = ['Accuracy', 'Precision', 'Recall', 'F1-Score'];
+                    const chartData = [];
+                    
+                    metrics.forEach(metric => {
+                      chartData.push({
+                        metric,
+                        value: getMetricValue(dataStatsLeft, metric),
+                        model: selectedModelLeft,
+                        modelGroup: 'Model 1'
+                      });
+                      chartData.push({
+                        metric,
+                        value: getMetricValue(dataStatsRight, metric),
+                        model: selectedModelRight,
+                        modelGroup: 'Model 2'
+                      });
+                    });
+                    
+                    return chartData;
+                  })()}
+                  xField="metric"
+                  yField="value"
+                  seriesField="modelGroup"
+                  isGroup={true}
+                  columnStyle={{
+                    radius: [8, 8, 0, 0],
+                  }}
+                  color={['#1890ff', '#52c41a']}
+                  legend={{
+                    position: 'top-right',
+                  }}
+                  label={{
+                    position: 'top',
+                    style: {
+                      fill: '#000000',
+                      opacity: 0.6,
+                      fontSize: 12,
+                    },
+                    formatter: (datum) => datum.value.toFixed(3),
+                  }}
+                  yAxis={{
+                    max: 1,
+                    label: {
+                      formatter: (v) => `${(v * 100).toFixed(0)}%`,
+                    },
+                  }}
+                  tooltip={{
+                    formatter: (datum) => {
+                      return {
+                        name: datum.model,
+                        value: (datum.value * 100).toFixed(2) + '%',
+                      };
+                    },
+                  }}
+                />
+              </>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '40px 0', color: '#8c8c8c' }}>
+                Select both models to see visual comparison
+              </div>
+            )}
+                  </Card>
+                </Col>
+              </Row>
+            )}
+          </>
+        )}
+        
+        {(!selectedModelLeft || !selectedModelRight) && (
+          <Card style={{ marginBottom: 16, marginTop: 16 }}>
+            <div style={{ textAlign: 'center', padding: '60px 20px', color: '#8c8c8c' }}>
+              <SwapOutlined style={{ fontSize: '48px', marginBottom: '16px', color: '#d9d9d9' }} />
+              <h3 style={{ fontSize: '16px', fontWeight: 400 }}>Select two models to view comparison results</h3>
+            </div>
+          </Card>
+        )}
       </LayoutPage>
     );
   }

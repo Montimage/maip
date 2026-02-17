@@ -1,11 +1,12 @@
 import React, { Component } from "react";
 import { connect } from "react-redux";
-import { Modal, Tooltip, Typography, Table, Space, Button, Select, notification } from "antd";
+import { Modal, Tooltip, Typography, Table, Space, Button, Select, notification, Tag, Card, Input } from "antd";
 import LayoutPage from "./LayoutPage";
+import { useUserRole } from '../hooks/useUserRole';
 import {
-  FolderViewOutlined, DownloadOutlined, DeleteOutlined,
+  FolderViewOutlined, DownloadOutlined, DeleteOutlined, SendOutlined,
   LineChartOutlined, SolutionOutlined, BugOutlined, ExperimentOutlined,
-  HourglassOutlined, RestOutlined, CopyOutlined, HighlightOutlined
+  HourglassOutlined, RestOutlined, CopyOutlined, EditOutlined, LockOutlined
 } from '@ant-design/icons';
 import {
   requestApp,
@@ -21,8 +22,8 @@ import {
   getFilteredModels,
   convertBuildConfigStrToJson
 } from "../utils";
+import { SERVER_URL } from "../constants";
 import moment from "moment";
-const { Text } = Typography;
 const { Option, OptGroup } = Select;
 
 class ModelListPage extends Component {
@@ -40,6 +41,8 @@ class ModelListPage extends Component {
       cmConfigRight: null,
       selectedOption: null,
       selectedCriteria: null,
+      editingModelId: null,
+      editingValue: '',
     };
   }
 
@@ -103,57 +106,151 @@ class ModelListPage extends Component {
     const dataSource = filteredModels.length ?
                     filteredModels.map((model, index) => ({ ...model, key: index })) :
                     [];
+    const handleCopyModelId = (modelId) => {
+      navigator.clipboard.writeText(modelId);
+      notification.success({
+        message: 'Copied to clipboard',
+        description: `Model ID: ${modelId}`,
+        placement: 'topRight',
+        duration: 2,
+      });
+    };
+
+    const handleEditStart = (modelId) => {
+      this.setState({ 
+        editingModelId: modelId, 
+        editingValue: modelId 
+      });
+    };
+
+    const handleEditCancel = () => {
+      this.setState({ 
+        editingModelId: null, 
+        editingValue: '' 
+      });
+    };
+
+    const handleEditSave = (oldModelId) => {
+      const newModelId = this.state.editingValue.trim();
+      
+      if (!newModelId) {
+        notification.error({
+          message: 'Invalid model name',
+          description: 'Model name cannot be empty',
+          placement: 'topRight',
+        });
+        return;
+      }
+
+      if (this.props.app === 'ac' && !newModelId.startsWith('ac-')) {
+        notification.error({
+          message: 'Invalid model name',
+          description: `AC model names must start with 'ac-'`,
+          placement: 'topRight',
+        });
+        return;
+      }
+
+      updateModel(oldModelId, newModelId);
+      notification.success({
+        message: 'Model name updated',
+        description: `${oldModelId} → ${newModelId}`,
+        placement: 'topRight',
+      });
+      
+      this.setState({ 
+        editingModelId: null, 
+        editingValue: '' 
+      });
+    };
+
     const columns = [
       {
         title: "Model Id",
         key: "data",
-        width: '30%',
+        width: '25%',
         sorter: (a, b) => {
           if(a.modelId < b.modelId) return -1;
           if(a.modelId > b.modelId) return 1;
           return 0;
         },
-        render: (model) => (
-          <Text
-            copyable={{
-              text: model.modelId,
-              tooltip: 'Copy',
-              icon: <CopyOutlined style={{ fontSize: '16px' }} />,
-            }}
-            editable={{
-              icon: <HighlightOutlined style={{ fontSize: '16px' }}/>,
-              tooltip: 'Edit',
-              onChange: (newModelId) => {
-                if (this.props.app === 'ac' && !newModelId.startsWith('ac-')) {
-                  notification.error({
-                    type: 'error',
-                    message: `AC model names must start with 'ac-'`,
-                    placement: 'topRight',
-                  });
-                } else {
-                  updateModel(model.modelId, newModelId);
-                  notification.success({
-                    type: 'success',
-                    message: `Model ${model.modelId} name has been updated to ${newModelId}`,
-                    placement: 'topRight',
-                  });
-                }
-              },
-            }}
-            keyboard
-            style={{ display: 'flex', alignItems: 'center', gap: '24px' }}
-          >
-            {model.modelId}
-            <span style={{ marginLeft: '10px' }}>
-              <Tooltip title="Download">
-                <a href="#" title="Download"
-                  onClick={() => downloadModel(model.modelId)}>
-                  <DownloadOutlined style={{ fontSize: '16px' }} />
-                </a>
-              </Tooltip>
-            </span>
-          </Text>
-        ),
+        render: (model) => {
+          const isEditing = this.state.editingModelId === model.modelId;
+          
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {isEditing ? (
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <Input
+                    value={this.state.editingValue}
+                    onChange={(e) => this.setState({ editingValue: e.target.value })}
+                    onPressEnter={() => handleEditSave(model.modelId)}
+                    style={{ flex: 1 }}
+                    autoFocus
+                  />
+                  <Button 
+                    type="primary" 
+                    size="small"
+                    onClick={() => handleEditSave(model.modelId)}
+                  >
+                    Save
+                  </Button>
+                  <Button 
+                    size="small"
+                    onClick={handleEditCancel}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ 
+                    fontSize: '13px', 
+                    fontWeight: 500,
+                    color: '#262626',
+                    wordBreak: 'break-word',
+                    lineHeight: '1.4'
+                  }}>
+                    {model.modelId}
+                  </div>
+                  <Space size="small" wrap>
+                    <Tooltip title={!this.props.isAdmin ? "Admin access required" : "Edit model name"}>
+                      <Button
+                        type="default"
+                        size="small"
+                        icon={<EditOutlined />}
+                        onClick={() => handleEditStart(model.modelId)}
+                        disabled={!this.props.isAdmin}
+                      >
+                        Edit
+                      </Button>
+                    </Tooltip>
+                    <Tooltip title="Copy model ID">
+                      <Button
+                        type="default"
+                        size="small"
+                        icon={<CopyOutlined />}
+                        onClick={() => handleCopyModelId(model.modelId)}
+                      >
+                        Copy
+                      </Button>
+                    </Tooltip>
+                    <Tooltip title="Download model">
+                      <Button
+                        type="default"
+                        size="small"
+                        icon={<DownloadOutlined />}
+                        onClick={() => downloadModel(model.modelId)}
+                      >
+                        Download
+                      </Button>
+                    </Tooltip>
+                  </Space>
+                </div>
+              )}
+            </div>
+          );
+        },
       },
       {
         title: "Built At",
@@ -161,27 +258,46 @@ class ModelListPage extends Component {
         sorter: (a, b) => a.lastBuildAt - b.lastBuildAt,
         defaultSortOrder: 'descend',
         render: (model) => {
-          return moment(model.lastBuildAt).format("MMMM Do YYYY, h:mm:ss a");
+          return moment(model.lastBuildAt).format('YYYY-MM-DD HH:mm:ss');
         },
-        width: '20%', /* width: 300, */
+        width: '12%',
       },
       {
         title: "Training Dataset",
         key: "data",
         width: '20%',
         render: (model) => (
-          <div>
-            <a href={`/models/datasets/${model.modelId}/train`} view>
-              <Space wrap>
-                <Button icon={<FolderViewOutlined />}>View</Button>
-              </Space>
-            </a>
-            &nbsp;&nbsp;
-            <Space wrap>
-              <Button icon={<DownloadOutlined />}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <a href={`/models/datasets/${model.modelId}/train`} view>
+                <Button size="small" icon={<FolderViewOutlined />}>View</Button>
+              </a>
+              <Button size="small" icon={<DownloadOutlined />}
                 onClick={() => downloadDatasets(model.modelId, "train")}
               >Download</Button>
-            </Space>
+            </div>
+            <Button 
+              size="small" 
+              icon={<SendOutlined />}
+              onClick={async () => {
+                try {
+                  const res = await fetch(`${SERVER_URL}/api/security/nats-publish/dataset`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ modelId: model.modelId, datasetType: 'train', chunkLines: 1000 }),
+                  });
+                  if (!res.ok) throw new Error(await res.text());
+                  const data = await res.json();
+                  notification.success({ message: 'Sent training dataset to NATS', description: `Published in ${data.chunks} chunk(s)`, placement: 'topRight' });
+                } catch (e) {
+                  notification.error({ message: 'Failed to send training dataset to NATS', description: e.message || String(e), placement: 'topRight' });
+                }
+              }}
+              disabled={!this.props.isAdmin}
+              style={{ width: 'fit-content' }}
+            >
+              Send to NATS
+            </Button>
           </div>
         ),
       },
@@ -190,57 +306,70 @@ class ModelListPage extends Component {
         key: "data",
         width: '20%',
         render: (model) => (
-          <div>
-            <a href={`/models/datasets/${model.modelId}/test`} view>
-                <Space wrap>
-                  <Button icon={<FolderViewOutlined />}>View</Button>
-                </Space>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <a href={`/models/datasets/${model.modelId}/test`} view>
+                <Button size="small" icon={<FolderViewOutlined />}>View</Button>
               </a>
-              &nbsp;&nbsp;
-              <Space wrap>
-                <Button icon={<DownloadOutlined />}
-                  onClick={() => downloadDatasets(model.modelId, "test")}
-                >Download</Button>
-            </Space>
+              <Button size="small" icon={<DownloadOutlined />}
+                onClick={() => downloadDatasets(model.modelId, "test")}
+              >Download</Button>
+            </div>
+            <Button 
+              size="small" 
+              icon={<SendOutlined />}
+              onClick={async () => {
+                try {
+                  const res = await fetch(`${SERVER_URL}/api/security/nats-publish/dataset`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ modelId: model.modelId, datasetType: 'test', chunkLines: 1000 }),
+                  });
+                  if (!res.ok) throw new Error(await res.text());
+                  const data = await res.json();
+                  notification.success({ message: 'Sent testing dataset to NATS', description: `Published in ${data.chunks} chunk(s)`, placement: 'topRight' });
+                } catch (e) {
+                  notification.error({ message: 'Failed to send testing dataset to NATS', description: e.message || String(e), placement: 'topRight' });
+                }
+              }}
+              disabled={!this.props.isAdmin}
+              style={{ width: 'fit-content' }}
+            >
+              Send to NATS
+            </Button>
           </div>
         ),
       },
       {
         title: "Actions",
         key: "data",
-        width: '15%',
+        width: '23%',
         render: (model) => {
           const options = [
             {
-              label: 'Retrain',
+              label: (
+                <span>
+                  Retrain
+                  {!this.props.isAdmin && (
+                    <LockOutlined style={{ fontSize: '11px', color: '#faad14', marginLeft: '6px' }} />
+                  )}
+                </span>
+              ),
               icon: <HourglassOutlined />,
               url: `/retrain/${model.modelId}`,
+              disabled: !this.props.isAdmin,
+              tooltip: !this.props.isAdmin ? "Admin access required" : "Retrain this model with new data",
               onClick: () => {
                 window.location.href = `/models/retrain/${model.modelId}`;
               }
             },
             {
-              label: (
-                <span style={{ fontSize: '16px' }}>Predict</span>
-              ),
-              options: [
-                /* {
-                  label: 'Online',
-                  icon: <LineChartOutlined />,
-                  url: `/predict/online/${model.modelId}`,
-                  onClick: () => {
-                    window.location.href = `/predict/online/${model.modelId}`;
-                  }
-                }, */
-                {
-                  label: 'Offline',
-                  icon: <LineChartOutlined />,
-                  url: `/predict/offline/${model.modelId}`,
-                  onClick: () => {
-                    window.location.href = `/predict/offline/${model.modelId}`;
-                  }
-                },
-              ]
+              label: 'Predict',
+              icon: <LineChartOutlined />,
+              url: `/predict/${model.modelId}`,
+              onClick: () => {
+                window.location.href = `/predict/${model.modelId}`;
+              }
             },
             {
               label: (
@@ -297,8 +426,17 @@ class ModelListPage extends Component {
               ]
             },
             {
-              label: 'Delete',
+              label: (
+                <span>
+                  Delete
+                  {!this.props.isAdmin && (
+                    <LockOutlined style={{ fontSize: '11px', color: '#faad14', marginLeft: '6px' }} />
+                  )}
+                </span>
+              ),
               icon: <RestOutlined />,
+              disabled: !this.props.isAdmin,
+              tooltip: !this.props.isAdmin ? "Admin access required" : "Permanently delete this model from the database",
               onClick: () => {
                 deleteModel(model.modelId);
                 notification.success({
@@ -310,9 +448,9 @@ class ModelListPage extends Component {
             }
           ];
           return (
-            <Select placeholder="Select an action ..."
-              style={{ width: 230 }}
-              popupMatchSelectWidth={false}  // Set to false so dropdown width doesn't follow the select width
+            <Select placeholder="Select action"
+              style={{ width: '100%', minWidth: 140 }}
+              popupMatchSelectWidth={false}
               value={selectedOption}
               onChange={(value, option) => handleOptionClick(option, model.modelId)}
             >
@@ -331,12 +469,27 @@ class ModelListPage extends Component {
                     </OptGroup>
                   );
                 } else {
+                  const optionContent = (
+                    <Space wrap>
+                      {option.icon}
+                      {option.label}
+                    </Space>
+                  );
+                  
                   return (
-                    <Option key={option.label} value={option.url} onClick={option.onClick}>
-                      <Space wrap>
-                        {option.icon}
-                        {option.label}
-                      </Space>
+                    <Option 
+                      key={option.label} 
+                      value={option.url} 
+                      onClick={option.onClick}
+                      disabled={option.disabled}
+                    >
+                      {option.tooltip ? (
+                        <Tooltip title={option.tooltip} placement="left">
+                          {optionContent}
+                        </Tooltip>
+                      ) : (
+                        optionContent
+                      )}
                     </Option>
                   );
                 }
@@ -349,31 +502,112 @@ class ModelListPage extends Component {
 
     return (
       <LayoutPage pageTitle="All Models" pageSubTitle="All the machine learning models">
-        <Table columns={columns} dataSource={dataSource}
-          pagination={{ pageSize: 5 }}
+        <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+          <Tooltip title={!this.props.isAdmin ? "Admin access required" : "Delete all models from the database"}>
+            <Button 
+              type="primary" 
+              danger 
+              icon={<DeleteOutlined />}
+              onClick={this.showDeleteAllModelsConfirm}
+              disabled={dataSource.length === 0 || !this.props.isAdmin}
+            >
+              Delete All Models
+            </Button>
+          </Tooltip>
+        </div>
+        <Table 
+          columns={columns} 
+          dataSource={dataSource}
+          pagination={{ pageSize: 10 }}
+          scroll={{ y: 'calc(100vh - 320px)' }}
+          size="middle"
           expandable={{
-            expandedRowRender: (model) =>
-              <p style={{ margin: 0 }}>
-                <h3><b>Build config:</b></h3>
-                <pre style={{ fontSize: "12px" }}>
-                  {convertBuildConfigStrToJson(this.props.app, model.buildConfig)}
-                </pre>
-              </p>,
+            expandedRowRender: (model) => {
+              const buildConfig = convertBuildConfigStrToJson(this.props.app, model.buildConfig);
+              let parsedConfig;
+              let formattedJson;
+              
+              try {
+                parsedConfig = JSON.parse(buildConfig);
+                formattedJson = JSON.stringify(parsedConfig, null, 2);
+              } catch (e) {
+                parsedConfig = null;
+                formattedJson = buildConfig;
+              }
+              
+              // Syntax highlighting for JSON
+              const highlightJson = (json) => {
+                return json
+                  .replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;')
+                  .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g, (match) => {
+                    let cls = 'json-number';
+                    if (/^"/.test(match)) {
+                      if (/:$/.test(match)) {
+                        cls = 'json-key';
+                      } else {
+                        cls = 'json-string';
+                      }
+                    } else if (/true|false/.test(match)) {
+                      cls = 'json-boolean';
+                    } else if (/null/.test(match)) {
+                      cls = 'json-null';
+                    }
+                    return `<span class="${cls}">${match}</span>`;
+                  });
+              };
+              
+              return (
+                <Card 
+                  title={
+                    <span style={{ fontSize: '16px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      📋 Build Configuration
+                      <Tag color="blue" style={{ fontSize: '11px' }}>JSON</Tag>
+                    </span>
+                  }
+                  bordered={false}
+                  size="small"
+                  style={{ 
+                    background: 'linear-gradient(to bottom, #fafafa, #f5f5f5)',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+                  }}
+                >
+                  <div style={{
+                    background: '#ffffff',
+                    border: '1px solid #e8e8e8',
+                    borderRadius: '6px',
+                    padding: '16px',
+                    overflow: 'auto',
+                    maxHeight: '600px',
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.08)'
+                  }}>
+                    <pre 
+                      style={{ 
+                        margin: 0,
+                        fontSize: '13px',
+                        lineHeight: '1.6',
+                        color: '#2c3e50',
+                        fontFamily: "'Fira Code', 'Consolas', 'Monaco', monospace"
+                      }}
+                      dangerouslySetInnerHTML={{ __html: highlightJson(formattedJson) }}
+                    />
+                  </div>
+                  <style>{`
+                    .json-key { color: #c7254e; font-weight: 600; }
+                    .json-string { color: #0d8050; }
+                    .json-number { color: #ff6b35; }
+                    .json-boolean { color: #0066cc; font-weight: 600; }
+                    .json-null { color: #9b59b6; font-style: italic; }
+                  `}</style>
+                </Card>
+              );
+            },
           }}
           locale={{
             emptyText: <h3>No models found! Let's build a new one!</h3>,
           }}
         />
-
-        <Space wrap>
-          <Button type="primary" danger icon={<DeleteOutlined />}
-            onClick={this.showDeleteAllModelsConfirm}
-            style={{ marginTop: '10px', marginBottom: '16px' }}
-            disabled={dataSource.length === 0}
-          >
-            Delete All Models
-          </Button>
-        </Space>
       </LayoutPage>
     );
   }
@@ -398,4 +632,12 @@ const mapDispatchToProps = (dispatch) => ({
   },
 });
 
-export default connect(mapPropsToStates, mapDispatchToProps)(ModelListPage);
+// HOC to inject user role into class component
+function withUserRole(Component) {
+  return function WrappedComponent(props) {
+    const userRole = useUserRole();
+    return <Component {...props} isAdmin={userRole.isAdmin} />;
+  };
+}
+
+export default connect(mapPropsToStates, mapDispatchToProps)(withUserRole(ModelListPage));

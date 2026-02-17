@@ -1,6 +1,8 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
 import { Row, Col, Tooltip, notification, Spin, Button, InputNumber, Form, Select } from 'antd';
+import { RocketOutlined, LockOutlined } from '@ant-design/icons';
+import { useUserRole } from '../hooks/useUserRole';
 import {
   requestApp,
   requestDatasetsAC,
@@ -28,27 +30,48 @@ class BuildACPage extends Component {
   }
 
   componentDidMount() {
-    this.props.fetchApp();
     this.props.fetchDatasetsAC();
   }
 
   async handleButtonBuild() {
     const { modelType, dataset, featureList, trainingRatio, isRunning } = this.state;
-    const buildACConfig = {
-      buildACConfig: {
-        modelType, dataset, featureList, trainingRatio
-      }
-    };
-    console.log(buildACConfig);
-
+    
     if (!isRunning) {
-      console.log("update isRunning state!");
-      this.setState({ isRunning: true });        
-      this.intervalId = setInterval(() => { // start interval when button is clicked
-        this.props.fetchBuildStatusAC();
-      }, 3000);   
+      // Disable button and show spinner immediately
+      this.setState({ isRunning: true });
+      
+      try {
+        const buildACConfig = {
+          buildACConfig: {
+            modelType,
+            dataset,
+            features: featureList,
+            training_ratio: trainingRatio,
+          }
+        };
+        console.log(buildACConfig);
+        
+        // Start polling for build status
+        this.intervalId = setInterval(() => {
+          this.props.fetchBuildACStatus();
+        }, 5000);
 
-      this.props.fetchBuildModelAC(modelType, dataset, featureList, trainingRatio);
+        // Dispatch build model action
+        this.props.fetchBuildModelAC(modelType, dataset, featureList, trainingRatio);
+        // isRunning is already set to true at the beginning
+        
+      } catch (error) {
+        console.error('Error during model building:', error);
+        notification.error({
+          message: 'Build Failed',
+          description: error.message || 'An error occurred while building the model.',
+          placement: 'topRight',
+        });
+        this.setState({ isRunning: false });
+        if (this.intervalId) {
+          clearInterval(this.intervalId);
+        }
+      }
     }
   }
 
@@ -75,7 +98,7 @@ class BuildACPage extends Component {
   }
 
   render() {
-    const { datasets } = this.props;
+    const { datasets, isAdmin, isSignedIn } = this.props;
     console.log(datasets);
     const { isRunning } = this.state;
     const modelTypesOptions = AI_MODEL_TYPES ? AI_MODEL_TYPES.map(feature => ({
@@ -91,18 +114,46 @@ class BuildACPage extends Component {
       label: feature,
     })) : [];
 
+    // Frozen overlay style for non-admin users
+    const frozenOverlayStyle = {
+      position: 'relative',
+      pointerEvents: isAdmin ? 'auto' : 'none',
+      opacity: isAdmin ? 1 : 0.5,
+    };
+
+    const overlayMessageStyle = {
+      position: 'fixed',
+      top: '50%',
+      left: 'calc(50% + 135px)',
+      transform: 'translate(-50%, -50%)',
+      zIndex: 1000,
+      background: 'rgba(255, 255, 255, 0.95)',
+      padding: '24px 32px',
+      borderRadius: '8px',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+      textAlign: 'center',
+      border: '2px solid #ff4d4f',
+      maxWidth: '500px',
+    };
+
     return (
       <LayoutPage pageTitle="Build Models" pageSubTitle="Build a new AI model for activity classification">
+        {/* Overlay message for non-admin users */}
+        {!isAdmin && (
+          <div style={overlayMessageStyle}>
+            <LockOutlined style={{ fontSize: '48px', color: '#ff4d4f', marginBottom: '16px' }} />
+            <h3 style={{ fontSize: '20px', marginBottom: '8px', fontWeight: 600 }}>Administrator Access Required</h3>
+            <p style={{ fontSize: '14px', color: '#8c8c8c', marginBottom: 0 }}>
+              Only administrators can build and train AI models
+            </p>
+          </div>
+        )}
+        
+        <div style={frozenOverlayStyle}>
         <Row>
         <Col span={12}>
         <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 600, marginBottom: 10 }}>
-          <Form.Item label="Model Type" name="modelType"
-            rules={[
-              {
-                required: true,
-                message: 'Please select a type of AI models!',
-              },
-            ]}
+          <Form.Item label={<strong><span style={{ color: 'red' }}>* </span>Model Type</strong>} name="modelType"
           >
             <Tooltip title="Select a model type.">
               <Select
@@ -115,13 +166,7 @@ class BuildACPage extends Component {
             </Tooltip>
           </Form.Item>
 
-          <Form.Item label="Dataset" name="dataset"
-            rules={[
-              {
-                required: true,
-                message: 'Please select a dataset!',
-              },
-            ]}
+          <Form.Item label={<strong><span style={{ color: 'red' }}>* </span>Dataset</strong>} name="dataset"
           >
             <Tooltip title="Select a dataset.">
               <Select
@@ -158,20 +203,18 @@ class BuildACPage extends Component {
           <div style={{ textAlign: 'center' }}>
             <Button
               type="primary"
+              icon={<RocketOutlined />}
+              loading={isRunning}
               disabled={ isRunning || !this.state.modelType || !this.state.dataset }
               onClick={this.handleButtonBuild}
             >
               Build Model
-              {isRunning && 
-                <Spin size="large" style={{ marginBottom: '8px' }}>
-                  <div className="content" />
-                </Spin>
-              }
             </Button>
           </div>
         </Form>
         </Col>
         </Row>
+        </div>
       </LayoutPage>
     );
   }
@@ -189,4 +232,10 @@ const mapDispatchToProps = (dispatch) => ({
     dispatch(requestBuildModelAC({ modelType, dataset, featuresList, trainingRatio })),
 });
 
-export default connect(mapPropsToStates, mapDispatchToProps)(BuildACPage);
+// Wrap with role check
+const BuildACPageWithRole = (props) => {
+  const userRole = useUserRole();
+  return <BuildACPage {...props} isAdmin={userRole.isAdmin} isSignedIn={userRole.isSignedIn} />;
+};
+
+export default connect(mapPropsToStates, mapDispatchToProps)(BuildACPageWithRole);

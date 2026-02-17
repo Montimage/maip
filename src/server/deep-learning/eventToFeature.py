@@ -4,9 +4,15 @@ from pathlib import Path
 import pandas as pd
 from scipy.stats import entropy
 import constants
+import argparse
 
 sys.path.append(sys.path[0] + '/..')
 
+# Add parent directory to path for imports
+sys.path.append(Path(__file__).parent.parent.parent)
+from python_logger import get_logger
+
+logger = get_logger('eventToFeature')
 
 def calculateFeatures(ip_traffic, tcp_traffic, tls_traffic):
     """
@@ -19,8 +25,6 @@ def calculateFeatures(ip_traffic, tcp_traffic, tls_traffic):
     :param tls_traffic:
     :return: Ip of flows and dataframe with ML features (per flow+direction)
     """
-
-    # print("Extracting features " + str(len(feature_names)))
 
     # Bins of packet lengths and time between packets based on
     # "MalDetect: A Structure of Encrypted Malware Traffic Detection" by Jiyuan Liu et al.
@@ -129,9 +133,17 @@ def calculateFeatures(ip_traffic, tcp_traffic, tls_traffic):
     time_between_pkts_std = time_between_pkts_std[0:0]
 
     #print("SPTime Sequence")
-    time = df.groupby(['ip.session_id', 'meta.direction'])['delta'].value_counts(bins=bins_time, sort=False).to_frame()
+    # Fix for pandas compatibility: use apply instead of value_counts with groupby
+    def count_time_bins(x):
+        return pd.cut(x, bins=bins_time, duplicates='drop').value_counts(sort=False)
+    
+    time = df.groupby(['ip.session_id', 'meta.direction'])['delta'].apply(count_time_bins)
     df = df.iloc[0:0]
-    time = time.rename(columns={'delta': 'county'}).reset_index()
+    
+    # Convert the result to a proper DataFrame for pivot_table
+    time = time.reset_index()
+    time.columns = ['ip.session_id', 'meta.direction', 'delta', 'county']
+    
     sptime = time.pivot_table(index=['ip.session_id', 'meta.direction'], columns='delta',
                               values='county')  # ,fill_value=0)
     sptime.columns = sptime.columns.astype(str)
@@ -180,9 +192,16 @@ def calculateFeatures(ip_traffic, tcp_traffic, tls_traffic):
         # print("tcp_traffic - number of columns: " + str(len(tcp_traffic.columns)))
         # print("tcp_traffic - number of rows: " + str(len(tcp_traffic.index)))
         # tcp_traffic.to_csv('tcp_traffic.csv')
-        packet_len = tcp_traffic.groupby(['ip.session_id', 'meta.direction'])['tcp.payload_len'].value_counts(bins=bins_len,
-                                                                                                       sort=False).to_frame()
-        packet_len = packet_len.rename(columns={'tcp.payload_len': 'county'}).reset_index()
+        
+        # Fix for pandas compatibility: use apply instead of value_counts with groupby
+        def count_bins(x):
+            return pd.cut(x, bins=bins_len, duplicates='drop').value_counts(sort=False)
+        
+        packet_len = tcp_traffic.groupby(['ip.session_id', 'meta.direction'])['tcp.payload_len'].apply(count_bins)
+        
+        # Convert the result to a proper DataFrame for pivot_table
+        packet_len = packet_len.reset_index()
+        packet_len.columns = ['ip.session_id', 'meta.direction', 'tcp.payload_len', 'county']
 
         # pivot_table to get columns out of segregated and divided packet lengths
         spl = packet_len.pivot_table(index=['ip.session_id', 'meta.direction'], columns='tcp.payload_len',
@@ -421,14 +440,53 @@ def eventsToFeatures(in_csv):
     :param in_csv: input .csv report file
     :return: ips, p1_features - Dataframe of calculated ML features per flow and direction and IPs matching the flows
     """
-    print(f"Convert from events to features {in_csv}")
+    logger.debug(f"Convert from events to features {in_csv}")
     ip_traffic, tcp_traffic, tls_traffic = readAndExtractEvents(in_csv)
     if not ip_traffic.empty:
-        print("eventsToFeatures")
+        logger.debug("eventsToFeatures")
         ips, p1_features = calculateFeatures(ip_traffic, tcp_traffic, tls_traffic)
         p1_features = p1_features.fillna(0)
-        print("Extracted {} features".format(p1_features.shape[0]))
+        logger.info(f"Extracted {p1_features.shape[0]} features")
         return ips, p1_features
     else:
-        print("There is no ip traffic")
+        logger.warning("There is no ip traffic")
         return {},{}
+
+# Update function for testing ModBus dataset
+def eventsToFeatures1(in_csv, out_csv):
+    """
+    Based on .csv mmt-probe report extracts the report attributes, and calculates ML features.
+    :param in_csv: input .csv report file
+    :return: ips, p1_features - Dataframe of calculated ML features per flow and direction and IPs matching the flows
+    """
+    logger.debug(f"Convert from events to features {in_csv}")
+    ip_traffic, tcp_traffic, tls_traffic = readAndExtractEvents(in_csv)
+    if not ip_traffic.empty:
+        logger.debug("eventsToFeatures")
+        ips, p1_features = calculateFeatures(ip_traffic, tcp_traffic, tls_traffic)
+        p1_features = p1_features.fillna(0)
+        logger.info(f"Extracted {p1_features.shape[0]} features")
+        # Save p1_features to CSV
+        p1_features.to_csv(out_csv, index=False)
+        return ips, p1_features
+    else:
+        logger.warning("There is no ip traffic")
+        return {},{}
+
+def main(input_csv, output_csv):
+    """
+    Main function to process input CSV file and save p1_features to output CSV file.
+    :param input_csv: Input .csv report file
+    :param output_csv: Output file to save p1_features
+    """
+    logger.info("Processing CSV file for feature extraction...")
+    ips, p1_features = eventsToFeatures1(input_csv, output_csv)
+    logger.info("Finished processing.")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Process input CSV file and save p1_features to output CSV file.")
+    parser.add_argument("input_csv", help="Input .csv report file")
+    parser.add_argument("output_csv", help="Output file to save p1_features")
+    args = parser.parse_args()
+
+    main(args.input_csv, args.output_csv)

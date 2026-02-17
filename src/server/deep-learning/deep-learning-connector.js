@@ -27,6 +27,7 @@ const {
 
 const fs = require('fs');
 const path = require('path');
+const sessionManager = require('../utils/sessionManager');
 
 /**
  * The building status
@@ -39,7 +40,8 @@ const buildingStatus = {
 };
 
 /**
- * The prediction status
+ * DEPRECATED: The prediction status - kept for backward compatibility
+ * Use predictionSessionManager instead for multi-user support
  */
 const predictingStatus = {
   isRunning: false, // indicate if the predicting process is ongoing
@@ -411,14 +413,21 @@ const startPredicting = async (predictConfig, callback) => {
                 error: `The input traffic ${JSON.stringify(value)} doest not exist`,
               });
             } else {
-              predictingStatus.isRunning = true;
-              predictingStatus.config = predictConfig;
-              predictingStatus.lastPredictedAt = Date.now();
-              predictingStatus.lastPredictedId = predictionId;
+              // Create session in session manager
+              const session = sessionManager.createSession('prediction', predictionId, 'offline', { config: predictConfig });
+              
               spawnCommand(PYTHON_CMD, [`${DEEP_LEARNING_PATH}/prediction.py`, csvPath, modelPath, predictionPath], logFile, () => {
-                predictingStatus.isRunning = false;
+                // Mark session as completed
+                sessionManager.completeSession('prediction', predictionId);
               });
-              callback(predictingStatus);
+              
+              // Return session data in legacy format
+              callback({
+                isRunning: session.isRunning,
+                lastPredictedAt: session.createdAt,
+                lastPredictedId: session.sessionId,
+                config: session.config
+              });
             }
           });
           break;
@@ -434,14 +443,20 @@ const startPredicting = async (predictConfig, callback) => {
             console.log(mmtStatus);
             if (mmtStatus && mmtStatus.isRunning) {
               // MMT has been started, start processing the report
-              // Start processing the generated data by checking the .sem file.
-              predictingStatus.isRunning = true;
-              predictingStatus.config = predictConfig;
-              predictingStatus.lastPredictedAt = Date.now();
-              predictingStatus.lastPredictedId = predictionId;
+              // Create session in session manager
+              const session = sessionManager.createSession('prediction', predictionId, 'online', { config: predictConfig });
+              
               const { sessionId } = mmtStatus;
               const csvRootPath = `${REPORT_PATH}/report-${sessionId}`;
-              callback(predictingStatus);
+              
+              // Return session data in legacy format
+              callback({
+                isRunning: session.isRunning,
+                lastPredictedAt: session.createdAt,
+                lastPredictedId: session.sessionId,
+                config: session.config
+              });
+              
               startOnlinePrediction(csvRootPath, modelPath, predictionPath, logFile, 0);
             }
           });
@@ -465,8 +480,12 @@ const startPredicting = async (predictConfig, callback) => {
 };
 /**
  * Get status of the current prediction
+ * Returns legacy format for backward compatibility
  */
-const getPredictingStatus = () => predictingStatus;
+const getPredictingStatus = () => {
+  // Return legacy status format from session manager
+  return sessionManager.getLegacyStatus('prediction');
+};
 
 
 module.exports = {

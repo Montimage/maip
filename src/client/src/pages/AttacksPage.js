@@ -17,17 +17,20 @@ import {
 import {
   requestViewModelDatasets,
   requestViewPoisonedDatasets,
+  requestQueueAttack,
+  requestAttackJobStatus,
 } from "../api";
 import Papa from "papaparse";
 import { Column } from '@ant-design/plots';
-import { Spin, message, Col, Row, Divider, Slider, Form, Button, Checkbox, Select, Tooltip } from 'antd';
-import { QuestionOutlined } from "@ant-design/icons";
+import { Spin, notification, Col, Row, Divider, Slider, Form, Button, Checkbox, Select, Tooltip, Card, Statistic, Space, Alert, Typography } from 'antd';
+import { WarningOutlined, ExperimentOutlined, PercentageOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import {
-  FORM_LAYOUT, BOX_STYLE,
+  FORM_LAYOUT,
   ATTACK_OPTIONS, ATTACKS_SLIDER_MARKS, 
   AC_OUTPUT_LABELS, AD_OUTPUT_LABELS,
   AC_CLASS_MAPPING, AD_CLASS_MAPPING,
 } from "../constants";
+const { Text } = Typography;
 
 let isModelIdPresent = getLastPath() !== "attacks";
 
@@ -38,11 +41,15 @@ class AttacksPage extends Component {
       modelId: null,
       csvDataOriginal: [],
       csvDataPoisoned: [],
-      poisoningRate: 50,
+      poisoningRate: 10,
       selectedAttack: null,
       targetClass: null,
       checkboxValues: [],
       isRunning: false,
+      currentJobId: null,
+      jobStatus: null,
+      queuePosition: null,
+      progress: 0,
     };
     this.handleTargetClass = this.handleTargetClass.bind(this);
   }
@@ -64,7 +71,12 @@ class AttacksPage extends Component {
     const { modelId } = this.state;
     let targetClass = null;
     if (checkedValues.length > 1) {
-      message.error('You can only select one option');
+      notification.error({
+        message: 'Invalid Selection',
+        description: 'You can only select one option',
+        placement: 'topRight',
+        duration: 2,
+      });
       this.setState({ targetClass: null, checkboxValues: [] });
     } else {
       if (checkedValues.length === 1) {
@@ -75,7 +87,12 @@ class AttacksPage extends Component {
         if (targetClasses.length > 0) {
             targetClass = parseInt(targetClasses[0]);
         } else {
-            message.error(`Invalid option for ${isACModel(modelId) ? 'AC' : 'AD'} model`);
+            notification.error({
+              message: 'Invalid Option',
+              description: `Invalid option for ${isACModel(modelId) ? 'AC' : 'AD'} model`,
+              placement: 'topRight',
+              duration: 2,
+            });
         }
       }
       this.setState({ targetClass, checkboxValues: checkedValues });
@@ -116,7 +133,7 @@ class AttacksPage extends Component {
       }
     }
 
-    if (prevState.modelId !== this.state.modelId) {
+    if (prevState.modelId !== this.state.modelId && modelId) {
       try {
         const csvDataString = await requestViewModelDatasets(modelId, datasetType);
     
@@ -146,11 +163,111 @@ class AttacksPage extends Component {
   async handlePerformAttackClick(modelId, selectedAttack, poisoningRate, targetClass) {
     const { isRunning } = this.state;
     if (!isRunning) {
-      this.setState({ isRunning: true });        
-      this.props.fetchPerformAttack(modelId, selectedAttack, poisoningRate, targetClass);
-      this.intervalId = setInterval(() => { // start interval when button is clicked
-        this.props.fetchAttacksStatus();
-      }, 1000);
+      // Clear previous results
+      this.setState({ 
+        isRunning: true, 
+        progress: 0, 
+        queuePosition: null, 
+        jobStatus: 'queuing',
+        csvDataPoisoned: [] // Clear previous attack results
+      });
+      
+      try {
+        // Queue the attack
+        const queueResponse = await requestQueueAttack(modelId, selectedAttack, poisoningRate, targetClass);
+        const { jobId, position, estimatedTime } = queueResponse;
+        
+        console.log(`Attack queued: jobId=${jobId}, position=${position}, estimated=${estimatedTime}s`);
+        
+        this.setState({
+          currentJobId: jobId,
+          queuePosition: position,
+          jobStatus: 'queued',
+        });
+        
+        notification.success({
+          message: 'Attack Job Queued',
+          description: position > 1 
+            ? `Your attack is #${position} in queue. Estimated wait: ${estimatedTime}s`
+            : 'Attack has been queued successfully.',
+          placement: 'topRight',
+          duration: 2,
+        });
+        
+        // Poll job status
+        this.intervalId = setInterval(async () => {
+          try {
+            const jobStatus = await requestAttackJobStatus(this.state.currentJobId);
+            console.log('Attack job status:', jobStatus.status, 'Progress:', jobStatus.progress, '%');
+            
+            this.setState({
+              jobStatus: jobStatus.status,
+              progress: jobStatus.progress || 0,
+              queuePosition: jobStatus.queuePosition,
+            });
+            
+            if (jobStatus.status === 'completed') {
+              clearInterval(this.intervalId);
+              this.intervalId = null;
+              
+              // Load results - use state values to ensure they're current
+              console.log('Loading poisoned dataset...');
+              const currentModelId = this.state.modelId;
+              const currentAttack = this.state.selectedAttack;
+              
+              this.setState({ 
+                isRunning: false, 
+                progress: 100,
+                jobStatus: 'completed',
+                queuePosition: null,
+              });
+              
+              notification.success({
+                message: 'Attack Completed',
+                description: `${currentAttack.toUpperCase()} attack completed successfully for model ${currentModelId}`,
+                placement: 'topRight',
+                duration: 5,
+              });
+              
+              if (currentModelId && currentAttack) {
+                await this.fetchCSVPoisonedDataset(currentModelId, currentAttack);
+              }
+              
+            } else if (jobStatus.status === 'failed') {
+              clearInterval(this.intervalId);
+              this.intervalId = null;
+              this.setState({ 
+                isRunning: false,
+                jobStatus: 'failed',
+                queuePosition: null,
+              });
+              console.error('Attack failed:', jobStatus.failedReason);
+              notification.error({
+                message: 'Attack Failed',
+                description: jobStatus.failedReason || 'Unknown error occurred',
+                placement: 'topRight',
+                duration: 6,
+              });
+            }
+          } catch (error) {
+            console.error('Error polling attack job status:', error);
+            // Don't stop polling on transient errors
+          }
+        }, 5000); // Poll every 5 seconds
+        
+      } catch (error) {
+        console.error('Error queueing attack:', error);
+        this.setState({ 
+          isRunning: false,
+          jobStatus: 'failed',
+        });
+        notification.error({
+          message: 'Failed to Queue Attack',
+          description: error.message,
+          placement: 'topRight',
+          duration: 6,
+        });
+      }
     }
   }
 
@@ -215,6 +332,9 @@ class AttacksPage extends Component {
       selectedAttack,
       targetClass,
       isRunning,
+      jobStatus,
+      queuePosition,
+      progress,
     } = this.state;
     const {
       app,
@@ -232,115 +352,216 @@ class AttacksPage extends Component {
 
     return (
       <LayoutPage pageTitle="Adversarial Attacks" pageSubTitle={subTitle}>
-        <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 700 }}>
-          <Form.Item name="model" label="Model" 
-            style={{ flex: 'none', marginBottom: 10 }}
-            rules={[
-              {
-                required: true,
-                message: 'Please select a model!',
-              },
-            ]}
-          > 
-            <Tooltip title="Select a model to perform attacks.">
-              <Select
-                placeholder="Select a model ..."
-                style={{ width: '100%' }}
-                allowClear showSearch
-                value={this.state.modelId}
-                disabled={isModelIdPresent}
-                onClear={() => this.setState({ csvDataOriginal: [], csvDataPoisoned: [] })}
-                onChange={(value) => {
-                  this.setState({ modelId: value });
-                  console.log(`Select model ${value}`);
-                }}
-                options={modelsOptions}
+        
+        <Divider orientation="left">
+          <h2 style={{ fontSize: '20px' }}>Configuration</h2>
+        </Divider>
+        
+        <Row gutter={24} style={{ marginBottom: 24 }}>
+          {/* Left: Attack Configuration (single card with overview) */}
+          <Col xs={24} lg={24}>
+            <Card
+              bordered={false}
+              style={{ height: '100%' }}
+            >
+              <Row gutter={24}>
+                <Col xs={24} lg={12} style={{ display: 'flex', justifyContent: 'center' }}>
+                  <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 560, width: '100%', margin: '0 auto' }}>
+            <Form.Item 
+              name="model" 
+              label={<strong><span style={{ color: 'red' }}>* </span>Model</strong>}
+              style={{ marginBottom: 16 }}
+            > 
+              <Tooltip title="Select a model to perform attacks.">
+                <Select
+                  placeholder="Select a model ..."
+                  style={{ width: '100%' }}
+                  allowClear 
+                  showSearch
+                  value={this.state.modelId}
+                  disabled={isModelIdPresent}
+                  onClear={() => this.setState({ csvDataOriginal: [], csvDataPoisoned: [] })}
+                  onChange={(value) => {
+                    this.setState({ modelId: value });
+                    console.log(`Select model ${value}`);
+                  }}
+                  options={modelsOptions}
+                />
+              </Tooltip>
+            </Form.Item>
+            
+            <Form.Item 
+              name="slider" 
+              label={<strong>Poisoning Rate</strong>}
+              style={{ marginBottom: 16 }}
+            >
+              <Slider
+                marks={ATTACKS_SLIDER_MARKS}
+                min={0} 
+                max={100} 
+                defaultValue={poisoningRate}
+                value={poisoningRate}
+                onChange={value => this.setState({ poisoningRate: value })}
               />
-            </Tooltip>
-          </Form.Item>
-          <Form.Item name="slider" label="Poisoning percentage"
-            style={{ marginBottom: 0 }}
-          >
-            <Slider
-              marks={ATTACKS_SLIDER_MARKS}
-              min={0} max={100} defaultValue={poisoningRate}
-              value={poisoningRate}
-              onChange={value => this.setState({ poisoningRate: value })}
-            />
-          </Form.Item>
+            </Form.Item>
 
-          <Form.Item name="attack" label="Adversarial attack" 
-            style={{ flex: 'none', marginBottom: 10 }}
-            rules={[
-              {
-                required: true,
-                message: 'Please select an attack!',
-              },
-            ]}
-          >
-            <Tooltip title="Select an adversarial attack to be performed against the model.">
-              <Select
-                style={{
-                  width: '100%',
-                }}
-                allowClear
-                placeholder="Select an attack ..."
-                onChange={this.handleChangeSelectedAttack}
-                onClear={() => this.setState({ csvDataPoisoned: [] })}
-                optionLabelProp="label"
-                options={ATTACK_OPTIONS}
+            <Form.Item 
+              name="attack" 
+              label={<strong><span style={{ color: 'red' }}>* </span>Attack Type</strong>}
+              style={{ marginBottom: 16 }}
+            >
+              <Tooltip title="Select an adversarial attack to be performed against the model.">
+                <Select
+                  style={{ width: '100%' }}
+                  allowClear
+                  placeholder="Select an attack ..."
+                  onChange={this.handleChangeSelectedAttack}
+                  onClear={() => this.setState({ csvDataPoisoned: [] })}
+                  optionLabelProp="label"
+                  options={ATTACK_OPTIONS}
+                />
+              </Tooltip>
+            </Form.Item>
+            
+            <Form.Item 
+              name="checkbox" 
+              label={<strong>Target Class</strong>}
+              valuePropName="checked"
+              style={{ marginBottom: 24 }}
+            >
+              <Checkbox.Group 
+                options={targetOptions}
+                value={this.state.checkboxValues}
+                disabled={this.state.selectedAttack !== 'tlf'}
+                onChange={this.handleTargetClass}
               />
-            </Tooltip>
-          </Form.Item>
-          <Form.Item name="checkbox" label="Target class" 
-            valuePropName="checked"
-            style={{ flex: 'none', marginBottom: 10 }}
-          >
-            <Checkbox.Group 
-              options={targetOptions}
-              value={this.state.checkboxValues}
-              disabled={this.state.selectedAttack !== 'tlf'}
-              onChange={this.handleTargetClass}
-            />
-          </Form.Item>
-          <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <Button type="primary"
-              onClick={() => {
-                console.log({ modelId, selectedAttack, poisoningRate, targetClass });
-                this.handlePerformAttackClick(modelId, selectedAttack, poisoningRate, targetClass);
-              }}
-              disabled={ isRunning || !this.state.modelId || !this.state.selectedAttack || 
-                (this.state.selectedAttack === 'tlf' && this.state.targetClass === null) }
+            </Form.Item>
+            
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '16px', marginTop: 24 }}>
+              <Button 
+                type="primary"
+                loading={isRunning}
+                onClick={() => {
+                  console.log({ modelId, selectedAttack, poisoningRate, targetClass });
+                  this.handlePerformAttackClick(modelId, selectedAttack, poisoningRate, targetClass);
+                }}
+                disabled={ isRunning || !this.state.modelId || !this.state.selectedAttack || 
+                  (this.state.selectedAttack === 'tlf' && this.state.targetClass === null) }
               >
                 Perform Attack
-                {isRunning && 
-                <Spin size="large" style={{ marginBottom: '8px' }}>
-                  <div className="content" />
-                </Spin>
-              }
-            </Button>
-          </div>
-        </Form>
-
-        {csvDataOriginal.length > 0 && csvDataPoisoned.length > 0 &&
-          <>
-            <Divider orientation="left">
-              <h1 style={{ fontSize: '24px' }}>Compare Original and Poisoned Training Datasets</h1>
-            </Divider>
-            <Row gutter={24}>
-              <Col className="gutter-row" span={12}>
-                <div style={BOX_STYLE}>          
-                  <div style={{ position: 'absolute', top: 10, right: 10 }}>
-                    <Tooltip title="The plot displays the frequency of output labels before and after an attack, represented as percentages. It provides a visual comparison of the distribution of labels in the original and poisoned training datasets.">
-                      <Button type="link" icon={<QuestionOutlined />} />
-                    </Tooltip>
+              </Button>
+              
+              <Button
+                type="primary"
+                onClick={() => {
+                  window.location.href = `/metrics/resilience/${modelId}?attack_type=${selectedAttack}`;
+                }}
+                disabled={!csvDataPoisoned || csvDataPoisoned.length === 0}
+              >
+                Compute Impact
+              </Button>
+            </div>
+                  </Form>
+                </Col>
+                <Col xs={24} lg={12} style={{ display: 'flex', justifyContent: 'center' }}>
+                  <div style={{ background: '#e6f4ff', border: '1px solid #91caff', borderRadius: 8, padding: '10px 12px', maxWidth: 560, width: '100%', margin: '0 auto' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <InfoCircleOutlined style={{ color: '#1677ff', fontSize: 16 }} />
+                      <Text strong style={{ color: '#1677ff', fontSize: 14 }}>Adversarial Attacks Overview</Text>
+                    </div>
+                    <ul style={{ margin: 0, marginBottom: 0, paddingLeft: 18, color: '#0958d9', lineHeight: 1.4, listStylePosition: 'outside' }}>
+                      <li style={{ marginBottom: 4, wordBreak: 'break-word', fontSize: 13 }}><strong>GAN-driven data poisoning:</strong> Generates synthetic adversarial samples to shift the training distribution and quietly degrade model reliability.</li>
+                      <li style={{ marginBottom: 4, wordBreak: 'break-word', fontSize: 13 }}><strong>Random swapping labels:</strong> Randomly exchanges labels between samples to inject noise and weaken the model's learning signal.</li>
+                      <li style={{ marginBottom: 0, wordBreak: 'break-word', fontSize: 13 }}><strong>Target labels flipping:</strong> Flips labels from/to a chosen class to bias predictions toward an attacker-defined outcome.</li>
+                    </ul>
                   </div>
-                  <Column {...configLabelsColumn} style={{ margin: '20px' }}/>
-                </div>
+                </Col>
+              </Row>
+            </Card>
+          </Col>
+        </Row>
+
+        {/* Results Section */}
+        <Divider orientation="left">
+          <h2 style={{ fontSize: '20px' }}>Results</h2>
+        </Divider>
+        {csvDataPoisoned && csvDataPoisoned.length > 0 && (
+          <>
+            {/* Attack Summary Statistics */}
+            <Card style={{ marginBottom: 24 }}>
+              <div style={{ textAlign: 'center', marginBottom: 12 }}>
+                <strong style={{ fontSize: 16 }}>Attack Summary</strong>
+              </div>
+              <Row gutter={16}>
+              <Col xs={24} sm={24} md={8}>
+                <Card hoverable style={{ textAlign: 'center' }}>
+                  <Statistic
+                    title="Attack Type"
+                    value={ATTACK_OPTIONS.find(a => a.value === selectedAttack)?.label || selectedAttack}
+                    prefix={<WarningOutlined style={{ color: '#ff4d4f' }} />}
+                    valueStyle={{ fontSize: 16, fontWeight: 'bold' }}
+                  />
+                </Card>
               </Col>
-            </Row>
+              <Col xs={24} sm={24} md={8}>
+                <Card hoverable style={{ textAlign: 'center' }}>
+                  <Statistic
+                    title="Poisoning Rate"
+                    value={poisoningRate.toFixed(1)}
+                    prefix={<PercentageOutlined />}
+                    valueStyle={{ 
+                      fontSize: 16, 
+                      fontWeight: 'bold',
+                      color: poisoningRate > 50 ? '#ff4d4f' : poisoningRate > 30 ? '#faad14' : '#52c41a' 
+                    }}
+                  />
+                </Card>
+              </Col>
+              <Col xs={24} sm={24} md={8}>
+                <Card hoverable style={{ textAlign: 'center' }}>
+                  <Statistic
+                    title="Poisoned Samples"
+                    value={Math.round(csvDataOriginal.length * (poisoningRate / 100))}
+                    suffix={`/ ${csvDataOriginal.length}`}
+                    prefix={<ExperimentOutlined style={{ color: '#1890ff' }} />}
+                    valueStyle={{ fontSize: 16, fontWeight: 'bold' }}
+                  />
+                </Card>
+              </Col>
+              </Row>
+            </Card>
+
+            {/* Dataset Comparison */}
+            <Card style={{ marginBottom: 24 }}>
+              <div style={{ textAlign: 'center', marginBottom: 12 }}>
+                <strong style={{ fontSize: 16 }}>Dataset Comparison</strong>
+              </div>
+              <Row gutter={24}>
+                <Col xs={24} lg={16}>
+                  <div style={{ padding: '20px' }}>
+                    <Column {...configLabelsColumn} />
+                  </div>
+                </Col>
+                <Col xs={24} lg={8}>
+                  <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                    <Alert
+                      message="Dataset Statistics"
+                      description={
+                        <div>
+                          <p><strong>Original Dataset:</strong> {csvDataOriginal.length} samples</p>
+                          <p><strong>Poisoned Dataset:</strong> {csvDataPoisoned.length} samples</p>
+                          <p><strong>Modified Samples:</strong> {Math.round(csvDataOriginal.length * (poisoningRate / 100))} samples</p>
+                        </div>
+                      }
+                      type="info"
+                      showIcon
+                    />
+                  </Space>
+                </Col>
+              </Row>
+            </Card>
           </>
-        }
+        )}
       </LayoutPage>
     );
   }

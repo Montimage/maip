@@ -6,6 +6,12 @@ const {
   getXAIStatus,
   runSHAP,
   runLIME,
+  runLIMEForFlow,
+  runSHAPForFlow,
+  runSHAPQueued,
+  runLIMEQueued,
+  runSHAPForFlowQueued,
+  runLIMEForFlowQueued,
 } = require('../deep-learning/xai-connector');
 const {
   listFiles,
@@ -14,10 +20,9 @@ const {
 
 const {
   XAI_PATH,
+  AC_OUTPUT_LABELS,
+  AD_OUTPUT_LABELS_SHORT,
 } = require('../constants');
-const {
-  AC_OUTPUT_LABELS, AD_OUTPUT_LABELS_SHORT,
-} = require('../../client/src/constants');
 
 const isACModel = modelId => modelId && modelId.startsWith('ac-');
 
@@ -31,32 +36,144 @@ router.get('/', (_, res) => {
   });
 });
 
-router.post('/shap', async (req, res) => {
-  const {
-    shapConfig,
-  } = req.body;
-  if (!shapConfig) {
-    res.status(401).send({
-      error: 'Missing SHAP configuration. Please read the docs',
-    });
-  } else {
-    runSHAP(shapConfig, (xaiStatus) => {
+// Run SHAP for a specific flow instance based on prediction outputs
+router.post('/shap/flow', async (req, res) => {
+  try {
+    const { shapFlowConfig, useQueue } = req.body;
+    if (!shapFlowConfig) {
+      return res.status(401).send({ error: 'Missing SHAP flow configuration. Please read the docs' });
+    }
+    
+    // Queue-based approach controlled by USE_QUEUE_BY_DEFAULT
+    const useQueueDefault = process.env.USE_QUEUE_BY_DEFAULT !== 'false';
+    const shouldUseQueue = useQueue !== undefined ? useQueue : useQueueDefault;
+    
+    if (shouldUseQueue) {
+      console.log('[XAI] Using queue-based processing for SHAP flow');
+      const result = await runSHAPForFlowQueued(shapFlowConfig);
+      return res.json(result);
+    }
+    
+    // OLD: Direct processing (blocking)
+    runSHAPForFlow(shapFlowConfig, (xaiStatus) => {
       res.send(xaiStatus);
+    });
+  } catch (error) {
+    console.error('[XAI] SHAP flow error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });
 
-router.post('/lime', (req, res) => {
-  const {
-    limeConfig,
-  } = req.body;
-  if (!limeConfig) {
-    res.status(401).send({
-      error: 'Missing LIME configuration. Please read the docs',
+router.post('/shap', async (req, res) => {
+  try {
+    const { shapConfig, useQueue } = req.body;
+    if (!shapConfig) {
+      return res.status(401).send({
+        error: 'Missing SHAP configuration. Please read the docs',
+      });
+    }
+    
+    // Queue-based approach controlled by USE_QUEUE_BY_DEFAULT
+    const useQueueDefault = process.env.USE_QUEUE_BY_DEFAULT !== 'false';
+    const shouldUseQueue = useQueue !== undefined ? useQueue : useQueueDefault;
+    
+    if (shouldUseQueue) {
+      console.log('[XAI] Using queue-based processing for SHAP');
+      const result = await runSHAPQueued(shapConfig);
+      return res.json(result);
+    }
+    
+    // OLD: Direct processing (blocking) - only if useQueue=false
+    console.log('[XAI] Using direct processing (blocking) for SHAP');
+    runSHAP(shapConfig, (xaiStatus) => {
+      res.send(xaiStatus);
     });
-  } else {
+  } catch (error) {
+    console.error('[XAI] SHAP error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get instance-level predicted probabilities (flow-based LIME)
+router.get('/lime/instance-probs/:modelId', (req, res) => {
+  const { modelId } = req.params;
+  const modelDir = modelId.replace('.h5', '');
+  const probsFile = `${XAI_PATH}${modelDir}/instance_probs.json`;
+  isFileExist(probsFile, (ret) => {
+    if (!ret) {
+      res.status(404).send(`The instance probabilities file ${probsFile} does not exist`);
+    } else {
+      res.sendFile(probsFile);
+    }
+  });
+});
+
+// Run LIME for a specific flow instance based on prediction outputs
+router.post('/lime/flow', async (req, res) => {
+  try {
+    const { limeFlowConfig, useQueue } = req.body;
+    if (!limeFlowConfig) {
+      return res.status(401).send({ error: 'Missing LIME flow configuration. Please read the docs' });
+    }
+    
+    // Queue-based approach controlled by USE_QUEUE_BY_DEFAULT
+    const useQueueDefault = process.env.USE_QUEUE_BY_DEFAULT !== 'false';
+    const shouldUseQueue = useQueue !== undefined ? useQueue : useQueueDefault;
+    
+    if (shouldUseQueue) {
+      console.log('[XAI] Using queue-based processing for LIME flow');
+      const result = await runLIMEForFlowQueued(limeFlowConfig);
+      return res.json(result);
+    }
+    
+    // OLD: Direct processing (blocking)
+    runLIMEForFlow(limeFlowConfig, (xaiStatus) => {
+      res.send(xaiStatus);
+    });
+  } catch (error) {
+    console.error('[XAI] LIME flow error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+router.post('/lime', async (req, res) => {
+  try {
+    const { limeConfig, useQueue } = req.body;
+    if (!limeConfig) {
+      return res.status(401).send({
+        error: 'Missing LIME configuration. Please read the docs',
+      });
+    }
+    
+    // Queue-based approach controlled by USE_QUEUE_BY_DEFAULT
+    const useQueueDefault = process.env.USE_QUEUE_BY_DEFAULT !== 'false';
+    const shouldUseQueue = useQueue !== undefined ? useQueue : useQueueDefault;
+    
+    if (shouldUseQueue) {
+      console.log('[XAI] Using queue-based processing for LIME');
+      const result = await runLIMEQueued(limeConfig);
+      return res.json(result);
+    }
+    
+    // OLD: Direct processing (blocking) - only if useQueue=false
+    console.log('[XAI] Using direct processing (blocking) for LIME');
     runLIME(limeConfig, (xaiStatus) => {
-        res.send(xaiStatus);
+      res.send(xaiStatus);
+    });
+  } catch (error) {
+    console.error('[XAI] LIME error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });

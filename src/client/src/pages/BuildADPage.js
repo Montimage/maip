@@ -1,9 +1,10 @@
 import React, { Component, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import LayoutPage from './LayoutPage';
 import { connect } from "react-redux";
-import { Row, Col, Tooltip, message, notification, Upload, Spin, Button, InputNumber, Space, Form, Input, Select, Checkbox } from 'antd';
-import { UploadOutlined } from "@ant-design/icons";
-import { Collapse } from 'antd';
+import { Row, Col, Tooltip, message, notification, Upload, Spin, Button, InputNumber, Space, Form, Input, Select, Checkbox, Card, Divider, Tag, Statistic } from 'antd';
+import { UploadOutlined, RocketOutlined, LockOutlined } from "@ant-design/icons";
+import { useUserRole } from '../hooks/useUserRole';
 import {
   requestMMTStatus,
   requestBuildModel,
@@ -16,10 +17,6 @@ import {
   FEATURES_OPTIONS,
 } from "../constants";
 
-const { Panel } = Collapse;
-
-// TODO: if building a model is done, jump to ModelsPage -> seems to be difficult!
-
 class BuildADPage extends Component {
   constructor(props) {
     super(props);
@@ -31,10 +28,10 @@ class BuildADPage extends Component {
       featureList: "Raw Features",
       training_ratio: 0.7,
       training_parameters: {
-        nb_epoch_cnn: 2,
-        nb_epoch_sae: 5,
-        batch_size_cnn: 32,
-        batch_size_sae: 16,
+        nb_epoch_cnn: 5,
+        nb_epoch_sae: 3,
+        batch_size_cnn: 16,
+        batch_size_sae: 32,
       },
       isRunning: props.buildStatus.isRunning,
     };
@@ -69,27 +66,28 @@ class BuildADPage extends Component {
     console.log(`MMT offline analysis of pcap file ${file}`);
     return data;
   }
-  
+
   async handleButtonBuild() {
     const delay = ms => new Promise(res => setTimeout(res, ms));
-    const { 
-      attackDataset, 
+    const {
+      attackDataset,
       normalDataset,
       attackPcapFile,
       normalPcapFile,
-      training_ratio, 
+      training_ratio,
       training_parameters,
       isRunning,
-    } = this.state; 
+    } = this.state;
     const { mmtStatus } = this.props;
     console.log(`mmtStatus: ${mmtStatus.isRunning}`);
-    let datasets;
+    let datasets = null;
     if (!isRunning) {
       console.log("update isRunning state!");
-      this.setState({ isRunning: true });        
-      this.intervalId = setInterval(() => { // start interval when button is clicked
-        this.props.fetchBuildStatus();
-      }, 5000);   
+      
+      // Disable button and show spinner immediately
+      this.setState({ isRunning: true });
+      
+      try {
 
       if (attackDataset && normalDataset) {
         datasets = [
@@ -97,15 +95,46 @@ class BuildADPage extends Component {
           { datasetId: normalDataset, isAttack: false },
         ];
       } else if (attackPcapFile && normalPcapFile) {
-        await this.requestMMTOffline(attackPcapFile.name);
-        const attackMMTStatus = await this.requestMMTStatus();
-        this.setState({ attackDataset: `report-${attackMMTStatus.sessionId}` });
+        // Start MMT for attack pcap and wait until completion
+        const startAttack = await this.requestMMTOffline(attackPcapFile);
+        if (!startAttack || !startAttack.sessionId) {
+          console.error('Failed to start MMT for attack pcap');
+          return;
+        }
+        {
+          const targetSessionId = startAttack.sessionId;
+          const maxAttempts = 60; // ~2 minutes
+          const intervalMs = 2000;
+          let attempt = 0;
+          while (attempt < maxAttempts) {
+            const status = await this.requestMMTStatus();
+            if (!status.isRunning && status.sessionId === targetSessionId) break;
+            await delay(intervalMs);
+            attempt += 1;
+          }
+          this.setState({ attackDataset: `report-${targetSessionId}` });
+        }
 
-        await delay(3000); // TODO: improve?
-        await this.requestMMTOffline(normalPcapFile.name);
-        const normalMMTStatus = await this.requestMMTStatus();
-        this.setState({ normalDataset: `report-${normalMMTStatus.sessionId}` });
-        
+        // Start MMT for normal pcap and wait until completion
+        const startNormal = await this.requestMMTOffline(normalPcapFile);
+        if (!startNormal || !startNormal.sessionId) {
+          console.error('Failed to start MMT for normal pcap');
+          return;
+        }
+        {
+          const targetSessionId = startNormal.sessionId;
+          const maxAttempts = 60; // ~2 minutes
+          const intervalMs = 2000;
+          let attempt = 0;
+          while (attempt < maxAttempts) {
+            const status = await this.requestMMTStatus();
+            if (!status.isRunning && status.sessionId === targetSessionId) break;
+            await delay(intervalMs);
+            attempt += 1;
+          }
+          this.setState({ normalDataset: `report-${targetSessionId}` });
+        }
+
         const { attackDataset, normalDataset } = this.state;
         console.log({ attackDataset, normalDataset });
 
@@ -113,25 +142,44 @@ class BuildADPage extends Component {
           { datasetId: attackDataset, isAttack: true },
           { datasetId: normalDataset, isAttack: false },
         ];
-
-        await delay(5000); // TODO: test again option of uploading pcaps
       }
 
-      if (!datasets) {
-        console.error('No valid datasets or pcap files provided');
-        return;
-      }
-
-      const buildConfig = {
-        buildConfig: {
-          datasets,
-          training_ratio,
-          training_parameters,
+        if (!datasets) {
+          console.error('No valid datasets or pcap files provided');
+          this.setState({ isRunning: false });
+          return;
         }
-      };
-      console.log(buildConfig);
+        
+        // Start polling for build status
+        this.intervalId = setInterval(() => {
+          this.props.fetchBuildStatus();
+        }, 5000);
+        
+        const buildConfig = {
+          buildConfig: {
+            datasets,
+            training_ratio,
+            training_parameters,
+          }
+        };
+        console.log(buildConfig);
 
-      this.props.fetchBuildModel(datasets, training_ratio, training_parameters);
+        // Dispatch build model action
+        this.props.fetchBuildModel(datasets, training_ratio, training_parameters);
+        // isRunning is already set to true at the beginning
+        
+      } catch (error) {
+        console.error('Error during model building:', error);
+        notification.error({
+          message: 'Build Failed',
+          description: error.message || 'An error occurred while building the model.',
+          placement: 'topRight',
+        });
+        this.setState({ isRunning: false });
+        if (this.intervalId) {
+          clearInterval(this.intervalId);
+        }
+      }
     }
   }
 
@@ -145,7 +193,7 @@ class BuildADPage extends Component {
       this.setState({ isRunning: this.props.buildStatus.isRunning });
       if (!this.props.buildStatus.isRunning) {
         let builtModelId = this.props.buildStatus.lastBuildId;
-        console.log('isRunning changed from True to False');  
+        console.log('isRunning changed from True to False');
         clearInterval(this.intervalId);
         notification.success({
           message: 'Success',
@@ -153,9 +201,13 @@ class BuildADPage extends Component {
           placement: 'topRight',
         });
         this.setState({
-          attackDataset: null, 
+          attackDataset: null,
           normalDataset: null,
         });
+        // Navigate to models page after successful build
+        if (this.props.navigate) {
+          this.props.navigate('/models/all');
+        }
       }
     }
   }
@@ -172,7 +224,7 @@ class BuildADPage extends Component {
   handleUploadPcap = async (info, typePcap) => {
     const { status, response, name } = info.file;
     console.log({ status, response, name });
-  
+
     if (status === 'uploading') {
       console.log(`Uploading ${name}`);
     } else if (status === 'done') {
@@ -180,9 +232,11 @@ class BuildADPage extends Component {
         'attack': 'attackPcapFile',
         'normal': 'normalPcapFile'
       };
-      
+
       if (pcapTypeToFileState[typePcap]) {
-        this.setState({ [pcapTypeToFileState[typePcap]]: info.file.originFileObj });
+        // Use the filename returned by the server (e.g., { pcapFile: 'file.pcap' })
+        const uploadedPcapName = (response && response.pcapFile) || (info.file.response && info.file.response.pcapFile) || null;
+        this.setState({ [pcapTypeToFileState[typePcap]]: uploadedPcapName });
         console.log(`Uploaded successfully ${name}`);
       } else {
         console.error('Type of pcap file is invalid');
@@ -218,12 +272,12 @@ class BuildADPage extends Component {
   }
 
   render() {
-    const { mmtStatus, buildStatus, reports } = this.props;
+    const { mmtStatus, buildStatus, reports, isSignedIn, isAdmin } = this.props;
     //console.log(reports);
-    const { 
+    const {
       attackPcapFile,
       normalPcapFile,
-      isRunning 
+      isRunning
     } = this.state;
 
     console.log({ attackPcapFile, normalPcapFile, isRunning });
@@ -238,21 +292,60 @@ class BuildADPage extends Component {
       label: feature,
     })) : [];
 
-    // TODO: disable button Upload pcaps if users selected already datasets and vice versa
+    // Frozen overlay style for non-admin users
+    const frozenOverlayStyle = {
+      position: 'relative',
+      pointerEvents: isAdmin ? 'auto' : 'none',
+      opacity: isAdmin ? 1 : 0.5,
+    };
+
+    const overlayMessageStyle = {
+      position: 'fixed',
+      top: '50%',
+      left: 'calc(50% + 135px)',
+      transform: 'translate(-50%, -50%)',
+      zIndex: 1000,
+      background: 'rgba(255, 255, 255, 0.95)',
+      padding: '24px 32px',
+      borderRadius: '8px',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+      textAlign: 'center',
+      border: '2px solid #ff4d4f',
+      maxWidth: '500px',
+    };
+
     return (
       <LayoutPage pageTitle="Build Models" pageSubTitle="Build a new AI model for anomaly detection">
-        <Row>
+        {/* Overlay message for non-admin users */}
+        {!isAdmin && (
+          <div style={overlayMessageStyle}>
+            <LockOutlined style={{ fontSize: '48px', color: '#ff4d4f', marginBottom: '16px' }} />
+            <h3 style={{ fontSize: '20px', marginBottom: '8px', fontWeight: 600 }}>Administrator Access Required</h3>
+            <p style={{ fontSize: '14px', color: '#8c8c8c', marginBottom: 0 }}>
+              Only administrators can build and train AI models
+            </p>
+          </div>
+        )}
+        
+        <div style={frozenOverlayStyle}>
+        
+        <Divider orientation="left">
+          <h2 style={{ fontSize: '20px' }}>Configuration</h2>
+        </Divider>
+        
+        <Row gutter={16}>
         <Col span={12}>
-        <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 700 }}>
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 16 }}>
+            <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Dataset Selection</h3>
+            <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+              Select datasets or upload PCAP files for malicious and normal traffic
+            </span>
+          </div>
+        <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 700 }} className="bold-labels">
           <Form.Item
-            label="Malicious Dataset"
+            label={<strong><span style={{ color: 'red' }}>* </span>Malicious Dataset</strong>}
             name="attackDataset"
-            rules={[
-              {
-                required: true,
-                message: 'Please select an malicious dataset!',
-              },
-            ]}
           >
             <Tooltip title="Select MMT's analyzing reports of malicious traffic.">
               <Select
@@ -267,7 +360,7 @@ class BuildADPage extends Component {
             <Upload
               beforeUpload={this.beforeUploadPcap}
               action={`${SERVER_URL}/api/pcaps`}
-              onChange={(info) => this.handleUploadPcap(info, "attack")} 
+              onChange={(info) => this.handleUploadPcap(info, "attack")}
               customRequest={this.processUploadPcap}
               onRemove={() => {
                 this.setState({ attackPcapFile: null });
@@ -279,13 +372,7 @@ class BuildADPage extends Component {
             </Upload>
           </Form.Item>
 
-          <Form.Item label="Normal Dataset" name="normalDataset"
-            rules={[
-              {
-                required: true,
-                message: 'Please select a normal dataset!',
-              },
-            ]}
+          <Form.Item label={<strong><span style={{ color: 'red' }}>* </span>Normal Dataset</strong>} name="normalDataset"
           >
             <Tooltip title="Select MMT's analyzing reports of normal traffic.">
               <Select
@@ -300,7 +387,7 @@ class BuildADPage extends Component {
             <Upload
               beforeUpload={this.beforeUploadPcap}
               action={`${SERVER_URL}/api/pcaps`}
-              onChange={(info) => this.handleUploadPcap(info, "normal")} 
+              onChange={(info) => this.handleUploadPcap(info, "normal")}
               customRequest={this.processUploadPcap}
               onRemove={() => {
                 this.setState({ normalPcapFile: null });
@@ -311,7 +398,18 @@ class BuildADPage extends Component {
               </Button>
             </Upload>
           </Form.Item>
-          <Form.Item label="Feature List" name="featureList">
+        </Form>
+        </Card>
+        
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 16 }}>
+            <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Training Configuration</h3>
+            <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+              Configure feature selection and training parameters
+            </span>
+          </div>
+        <Form {...FORM_LAYOUT} name="control-hooks-2" style={{ maxWidth: 700 }} className="bold-labels">
+          <Form.Item label={<strong>Feature List</strong>} name="featureList">
             <Tooltip title="Select feature lists used to build models.">
               <Select
                 value={this.state.featureList}
@@ -320,7 +418,7 @@ class BuildADPage extends Component {
               />
             </Tooltip>
           </Form.Item>
-          <Form.Item label="Training Ratio" name="training_ratio">
+          <Form.Item label={<strong>Training Ratio</strong>} name="training_ratio">
             <Tooltip title="The training ratio refers to the proportion of data used for training a machine learning model compared to the total dataset. The training ratio is 0.7, meaning 70% for training and 30% for testing/validation.">
               <InputNumber
                 name="training_ratio"
@@ -330,14 +428,18 @@ class BuildADPage extends Component {
               />
             </Tooltip>
           </Form.Item>
-          <Collapse>
-            <Panel header="Training Parameters">
-              <Form.Item label="Number of Epochs (CNN)" name="nb_epoch_cnn">
+          
+          <Divider style={{ margin: '20px 0 16px 0' }}>Training Parameters</Divider>
+          
+          <Row gutter={24}>
+            <Col span={12}>
+              <Form.Item label={<strong>Epochs (CNN)</strong>} name="nb_epoch_cnn" style={{ marginBottom: '16px' }}>
                 <Tooltip title="In convolutional neural networks (CNN), the number of epochs determines how many times the model will iterate over the training data during the training process.">
                   <InputNumber
                     name="nb_epoch_cnn"
                     value={this.state.nb_epoch_cnn}
-                    min={1} max={1000} defaultValue={2}
+                    min={1} max={1000} defaultValue={5}
+                    style={{ width: '100%' }}
                     onChange={(v) =>
                       this.setState({
                         training_parameters: { ...this.state.training_parameters, nb_epoch_cnn: v },
@@ -346,26 +448,15 @@ class BuildADPage extends Component {
                   />
                 </Tooltip>
               </Form.Item>
-              <Form.Item label="Number of Epochs (SAE)" name="nb_epoch_sae">
-                <Tooltip title="In Stacked Autoencoder (SAE), the number of epochs determines how many times this encoding-decoding process is repeated during training.">
-                  <InputNumber
-                    name="nb_epoch_sae"
-                    value={this.state.nb_epoch_sae}
-                    min={1} max={1000} defaultValue={5}
-                    onChange={(v) =>
-                      this.setState({
-                        training_parameters: { ...this.state.training_parameters, nb_epoch_sae: v },
-                      })
-                    }
-                  />
-                </Tooltip>
-              </Form.Item>
-              <Form.Item label="Batch Size (CNN)" name="batch_size_cnn">
+            </Col>
+            <Col span={12}>
+              <Form.Item label={<strong>Batch Size</strong>} name="batch_size_cnn" style={{ marginBottom: '16px' }}>
                 <Tooltip title="Batch size in CNN refers to the number of samples that are processed together in a single forward and backward pass during each epoch of training. The training dataset is divided into smaller batches, and the model's parameters are updated based on the average gradients computed from each batch.">
                   <InputNumber
                     name="batch_size_cnn"
                     value={this.state.batch_size_cnn}
-                    min={1} max={1000} defaultValue={32}
+                    min={1} max={1000} defaultValue={16}
+                    style={{ width: '100%' }}
                     onChange={(v) =>
                       this.setState({
                         training_parameters: { ...this.state.training_parameters, batch_size_cnn: v },
@@ -374,12 +465,35 @@ class BuildADPage extends Component {
                   />
                 </Tooltip>
               </Form.Item>
-              <Form.Item label="Batch Size (SAE)" name="batch_size_sae">
+            </Col>
+          </Row>
+          
+          <Row gutter={24}>
+            <Col span={12}>
+              <Form.Item label={<strong>Epochs (SAE)</strong>} name="nb_epoch_sae" style={{ marginBottom: '8px' }}>
+                <Tooltip title="In Stacked Autoencoder (SAE), the number of epochs determines how many times this encoding-decoding process is repeated during training.">
+                  <InputNumber
+                    name="nb_epoch_sae"
+                    value={this.state.nb_epoch_sae}
+                    min={1} max={1000} defaultValue={3}
+                    style={{ width: '100%' }}
+                    onChange={(v) =>
+                      this.setState({
+                        training_parameters: { ...this.state.training_parameters, nb_epoch_sae: v },
+                      })
+                    }
+                  />
+                </Tooltip>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label={<strong>Batch Size</strong>} name="batch_size_sae" style={{ marginBottom: '8px' }}>
                 <Tooltip title="Batch size in a SAE determines the number of samples processed together in each training iteration.">
                   <InputNumber
                     name="batch_size_sae"
                     value={this.state.batch_size_sae}
-                    min={1} max={1000} defaultValue={16}
+                    min={1} max={1000} defaultValue={32}
+                    style={{ width: '100%' }}
                     onChange={(v) =>
                       this.setState({
                         training_parameters: { ...this.state.training_parameters, batch_size_sae: v },
@@ -388,34 +502,85 @@ class BuildADPage extends Component {
                   />
                 </Tooltip>
               </Form.Item>
-            </Panel>
-          </Collapse>
-          <div style={{ textAlign: 'center' }}>
-            <Button
-              type="primary"
-              style={{ marginTop: '16px' }}
-              disabled={ isRunning || 
-                !((this.state.attackDataset && this.state.normalDataset) ||
-                (this.state.attackPcapFile && this.state.normalPcapFile))
-              }
-              onClick={this.handleButtonBuild}
-            >
-              Build Model
-              {isRunning && 
-                <Spin size="large" style={{ marginBottom: '8px' }}>
-                  <div className="content" />
-                </Spin>
-              }
-            </Button>
+            </Col>
+          </Row>
+          <div style={{ textAlign: 'center', marginTop: '24px' }}>
+            <Tooltip title={!this.props.isAdmin ? "Administrator privileges required to build models" : ""}>
+              <Button
+                type="primary"
+                icon={!this.props.isAdmin ? <LockOutlined /> : <RocketOutlined />}
+                loading={isRunning}
+                disabled={ isRunning ||
+                  !this.props.isAdmin ||
+                  !((this.state.attackDataset && this.state.normalDataset) ||
+                  (this.state.attackPcapFile && this.state.normalPcapFile))
+                }
+                onClick={this.handleButtonBuild}
+              >
+                Build Model {!this.props.isAdmin && '(Admin Only)'}
+              </Button>
+            </Tooltip>
           </div>
         </Form>
+        </Card>
         </Col>
-        <Col span={12} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-          <Tooltip title="This is the description of the image">
-            <img src="../../img/architecture.png" style={{ width: '40%' }} />
-          </Tooltip>
+        
+        <Col span={12}>
+          <Card style={{ marginBottom: 16 }}>
+            <div style={{ marginBottom: 16 }}>
+              <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Model Training Architecture</h3>
+              <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+                Dataset preparation, feature extraction, model training, and evaluation pipeline
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
+              <Tooltip title="CNN and SAE models process network traffic data through feature extraction and classification stages" placement="bottom">
+                <img src="../../img/architecture.png" style={{ width: '100%', maxWidth: '320px', cursor: 'help' }} alt="Model Architecture Diagram" />
+              </Tooltip>
+            </div>
+          </Card>
         </Col>
         </Row>
+        
+        <Divider orientation="left">
+          <h2 style={{ fontSize: '20px' }}>Build Status</h2>
+        </Divider>
+        
+        <Card style={{ marginBottom: 24 }}>
+          <Row gutter={16}>
+            <Col span={8}>
+              <Statistic
+                title="Status"
+                value={
+                  isRunning ? 'Building' : 
+                  ((this.state.attackDataset && this.state.normalDataset) || 
+                   (this.state.attackPcapFile && this.state.normalPcapFile)) ? 'Ready' : 'Waiting'
+                }
+                valueStyle={{ 
+                  color: isRunning ? '#1890ff' : 
+                         ((this.state.attackDataset && this.state.normalDataset) || 
+                          (this.state.attackPcapFile && this.state.normalPcapFile)) ? '#52c41a' : '#faad14',
+                  fontSize: '20px' 
+                }}
+              />
+            </Col>
+            <Col span={8}>
+              <Statistic
+                title="Malicious Dataset"
+                value={this.state.attackDataset || this.state.attackPcapFile || 'Not selected'}
+                valueStyle={{ fontSize: '14px' }}
+              />
+            </Col>
+            <Col span={8}>
+              <Statistic
+                title="Normal Dataset"
+                value={this.state.normalDataset || this.state.normalPcapFile || 'Not selected'}
+                valueStyle={{ fontSize: '14px' }}
+              />
+            </Col>
+          </Row>
+        </Card>
+        </div>
       </LayoutPage>
     );
   }
@@ -433,4 +598,18 @@ const mapDispatchToProps = (dispatch) => ({
   fetchAllReports: () => dispatch(requestAllReports()),
 });
 
-export default connect(mapPropsToStates, mapDispatchToProps)(BuildADPage);
+// React Router v6: inject navigate into class component via HOC
+function withNavigation(ComponentWithNav) {
+  return function WrappedComponent(props) {
+    const navigate = useNavigate();
+    return <ComponentWithNav {...props} navigate={navigate} />;
+  };
+}
+
+// Wrap with role check
+const BuildADPageWithRole = (props) => {
+  const userRole = useUserRole();
+  return <BuildADPage {...props} isAdmin={userRole.isAdmin} isSignedIn={userRole.isSignedIn} />;
+};
+
+export default connect(mapPropsToStates, mapDispatchToProps)(withNavigation(BuildADPageWithRole));

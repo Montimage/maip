@@ -1,7 +1,9 @@
 import React, { Component } from 'react';
 import LayoutPage from './LayoutPage';
 import { connect } from "react-redux";
-import { Collapse, Spin, Tooltip, Button, InputNumber, Form, Select } from 'antd';
+import { Row, Col, Card, Divider, Spin, Tooltip, Button, InputNumber, Form, Select, Statistic, notification } from 'antd';
+import { LockOutlined, RocketOutlined } from '@ant-design/icons';
+import { useUserRole } from '../hooks/useUserRole';
 import {
   requestApp,
   requestAllModels,
@@ -25,7 +27,6 @@ import {
   isACApp,
   isRunningApp,
 } from "../utils";
-const { Panel } = Collapse;
 
 let isModelIdPresent = getLastPath() !== "retrain";
 
@@ -46,6 +47,9 @@ class RetrainPage extends Component {
         batch_size_sae: 16,
       },
       isRunning: isRunningApp(this.props.app, this.props.retrainACStatus, this.props.retrainStatus),
+      currentJobId: null,  // For queue-based retraining
+      retrainId: null,     // Result from completed retrain
+      retrainResult: null, // Full result data from retrain job
     };
     this.handleInputChange = this.handleInputChange.bind(this);
     this.handleButtonRetrain = this.handleButtonRetrain.bind(this);
@@ -71,46 +75,102 @@ class RetrainPage extends Component {
     this.props.fetchApp();
   }
 
-  handleButtonRetrain() {
+  async handleButtonRetrain() {
     const { modelId, trainingDataset, testingDataset, trainingParameters, isRunning } = this.state;
-    
-    console.log(isRunning);
-    console.log(this.props.app);
 
     if (!isRunning) {
       const fetchModelId = isModelIdPresent ? getLastPath() : modelId;
       
-      this.setState({ isRunning: true });     
-      // TODO: after changing the app, fetch status is not called even retraining model works   
-      this.intervalId = setInterval(() => { 
-        isACApp(this.props.app) ? this.props.fetchRetrainStatusAC() : this.props.fetchRetrainStatus();
-      }, 1000);
-      
-      // const retrainConfig = isACApp(this.props.app) ? 
-      //   { retrainConfig: { modelId: fetchModelId, datasetsConfig: { trainingDataset, testingDataset } } } :
-      //   { retrainConfig: { modelId: fetchModelId, trainingDataset, testingDataset, training_parameters: trainingParameters } };
-      // console.log(retrainConfig);
-      
-      isACApp(this.props.app) ? 
-        this.props.fetchRetrainModelAC(modelId, trainingDataset, testingDataset) :
-        this.props.fetchRetrainModel(modelId, trainingDataset, testingDataset, trainingParameters);
+      // Clear previous results and start new retrain
+      this.setState({ 
+        isRunning: true,
+        retrainResult: null,
+        retrainId: null
+      });
+
+      try {
+        const { requestRetrainOfflineQueued, requestRetrainJobStatus } = require('../api');
+        
+        // Queue the retrain job
+        const queueResponse = await requestRetrainOfflineQueued(
+          fetchModelId, 
+          trainingDataset, 
+          testingDataset, 
+          trainingParameters,
+          isACApp(this.props.app)
+        );
+        
+        this.setState({ 
+          currentJobId: queueResponse.jobId,
+        });
+        
+        notification.success({
+          message: 'Retrain Job Queued',
+          description: 'Model retraining has been queued successfully.',
+          placement: 'topRight',
+          duration: 2,
+        });
+        
+        // Poll job status
+        this.intervalId = setInterval(async () => {
+          try {
+            const jobStatus = await requestRetrainJobStatus(this.state.currentJobId);
+            
+            if (jobStatus.status === 'completed') {
+              clearInterval(this.intervalId);
+              this.intervalId = null;
+              this.setState({ 
+                isRunning: false,
+                retrainId: jobStatus.result?.retrainId,
+                retrainResult: jobStatus.result
+              });
+              
+              notification.success({
+                message: 'Retrain Completed',
+                description: `Model retrained successfully! View the results below.`,
+                placement: 'topRight',
+                duration: 6,
+              });
+              
+            } else if (jobStatus.status === 'failed') {
+              clearInterval(this.intervalId);
+              this.intervalId = null;
+              this.setState({ isRunning: false });
+              
+              notification.error({
+                message: 'Retrain Failed',
+                description: jobStatus.failedReason || 'Unknown error occurred',
+                placement: 'topRight',
+                duration: 6,
+              });
+            }
+          } catch (error) {
+            console.error('Error polling retrain job status:', error);
+          }
+        }, 5000); // Poll every 5 seconds
+        
+      } catch (error) {
+        console.error('Error starting retrain:', error);
+        this.setState({ isRunning: false });
+        notification.error({
+          message: 'Failed to Queue Retrain',
+          description: error.message,
+          placement: 'topRight',
+          duration: 6,
+        });
+      }
+    }
+  }
+
+  componentWillUnmount() {
+    // Clean up polling interval
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
     }
   }
 
   componentDidUpdate(prevProps) {
-    const isRunningProp = isACApp(this.props.app) ? 
-                            this.props.retrainACStatus.isRunning : 
-                            this.props.retrainStatus.isRunning;
-    
-    if ((prevProps.retrainStatus.isRunning !== isRunningProp || 
-        prevProps.retrainACStatus.isRunning !== isRunningProp) &&
-        this.state.isRunning !== isRunningProp) {
-      this.setState({ isRunning: isRunningProp });
-      if (!isRunningProp) {
-        clearInterval(this.intervalId);
-      }
-    }
-
+    // Clear state when app changes (e.g., switching between AD and AC)
     if (prevProps.app !== this.props.app) {
       clearInterval(this.intervalId);
       this.setState({ 
@@ -133,7 +193,7 @@ class RetrainPage extends Component {
 
   render() {
     const { modelId, modelDatasets, attacksDatasets } = this.state;
-    const { app, models } = this.props;
+    const { app, models, isAdmin, isSignedIn } = this.props;
 
     let trainingDatasetsOptions = [], testingDatasetsOptions = []; 
     let allDatasets = [...modelDatasets];
@@ -160,16 +220,62 @@ class RetrainPage extends Component {
       `Retrain the model ${modelId} using different datasets and hyperparameters` : 
       'Retrain models using different datasets and hyperparameters';
 
+    // Use queue-based isRunning state
+    const isRunningNow = this.state.isRunning;
+    const isReady = this.state.modelId && this.state.trainingDataset && this.state.testingDataset;
+
+    // Frozen overlay style for non-admin users
+    const frozenOverlayStyle = {
+      position: 'relative',
+      pointerEvents: isAdmin ? 'auto' : 'none',
+      opacity: isAdmin ? 1 : 0.5,
+    };
+
+    const overlayMessageStyle = {
+      position: 'fixed',
+      top: '50%',
+      left: 'calc(50% + 135px)',
+      transform: 'translate(-50%, -50%)',
+      zIndex: 1000,
+      background: 'rgba(255, 255, 255, 0.95)',
+      padding: '24px 32px',
+      borderRadius: '8px',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+      textAlign: 'center',
+      border: '2px solid #ff4d4f',
+      maxWidth: '500px',
+    };
+
     return (
       <LayoutPage pageTitle="Models Retraining" pageSubTitle={subTitle}>
-        <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 600 }}>
-          <Form.Item name="model" label="Model" 
-            rules={[
-              {
-                required: true,
-                message: 'Please select a model!',
-              },
-            ]}
+        {/* Overlay message for non-admin users */}
+        {!isAdmin && (
+          <div style={overlayMessageStyle}>
+            <LockOutlined style={{ fontSize: '48px', color: '#ff4d4f', marginBottom: '16px' }} />
+            <h3 style={{ fontSize: '20px', marginBottom: '8px', fontWeight: 600 }}>Administrator Access Required</h3>
+            <p style={{ fontSize: '14px', color: '#8c8c8c', marginBottom: 0 }}>
+              Only administrators can retrain AI models
+            </p>
+          </div>
+        )}
+        
+        <div style={frozenOverlayStyle}>
+        
+        <Divider orientation="left">
+          <h2 style={{ fontSize: '20px' }}>Configuration</h2>
+        </Divider>
+        
+        <Row gutter={16}>
+        <Col span={12}>
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 16 }}>
+            <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Model & Dataset Selection</h3>
+            <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+              Select the model to retrain and choose training/testing datasets
+            </span>
+          </div>
+        <Form {...FORM_LAYOUT} name="control-hooks" style={{ maxWidth: 700 }} className="bold-labels">
+          <Form.Item name="model" label={<strong><span style={{ color: 'red' }}>* </span>Model</strong>}
           > 
             <Tooltip title="Select a model to retrain.">
               <Select
@@ -177,7 +283,7 @@ class RetrainPage extends Component {
                 style={{ width: '100%' }}
                 allowClear showSearch
                 value={this.state.modelId}
-                disabled={isModelIdPresent}
+                disabled={isModelIdPresent || isRunningNow}
                 onClear={() => this.setState({ 
                   modelDatasets: [], attacksDatasets: [],
                   trainingDataset: null, testingDataset: null  
@@ -201,18 +307,13 @@ class RetrainPage extends Component {
             </Tooltip>
           </Form.Item>
           <Form.Item
-            label="Training Dataset" name="trainingDataset"
-            rules={[
-              {
-                required: true,
-                message: 'Please enter a training dataset!',
-              },
-            ]}
+            label={<strong><span style={{ color: 'red' }}>* </span>Training Dataset</strong>} name="trainingDataset"
           >
             <Tooltip title="Select a training dataset.">
               <Select
                 placeholder="Select a training dataset ..."
                 showSearch allowClear
+                disabled={isRunningNow}
                 value={this.state.trainingDataset}
                 onChange={value => this.setState({ trainingDataset: value })}
                 options={trainingDatasetsOptions}
@@ -220,116 +321,218 @@ class RetrainPage extends Component {
             </Tooltip>
           </Form.Item>
           <Form.Item
-            label="Testing Dataset" name="testingDataset"
-            rules={[
-              {
-                required: true,
-                message: 'Please enter a testing dataset!',
-              },
-            ]}
+            label={<strong><span style={{ color: 'red' }}>* </span>Testing Dataset</strong>} name="testingDataset"
           >
             <Tooltip title="Select a testing dataset.">
               <Select
                 placeholder="Select a testing dataset ..."
                 showSearch allowClear
+                disabled={isRunningNow}
                 value={this.state.testingDataset}
                 onChange={value => this.setState({ testingDataset: value })}
                 options={testingDatasetsOptions}
               />
             </Tooltip>
           </Form.Item>
-          <Form.Item label="Feature List" name="featureList">
+        </Form>
+        </Card>
+        </Col>
+        
+        <Col span={12}>
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 16 }}>
+            <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Training Configuration</h3>
+            <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+              Configure feature selection and training parameters
+            </span>
+          </div>
+        <Form {...FORM_LAYOUT} name="control-hooks-2" style={{ maxWidth: 700 }} className="bold-labels">
+          <Form.Item label={<strong>Feature List</strong>} name="featureList">
             <Tooltip title="Select feature lists used to build models.">
               <Select
+                disabled={isRunningNow}
                 value={this.state.featureList}
                 onChange={value => this.setState({ featureList: value })}
                 options={featureOptions}
               />
             </Tooltip>
           </Form.Item>
+          
           { this.props.app === 'ad' && (
-            <Collapse>
-              <Panel header="Training Parameters">
-                <Form.Item
-                  label="Number of Epochs (CNN)"
-                  name="nb_epoch_cnn"
-                >
-                  <InputNumber
-                    name="nb_epoch_cnn"
-                    value={this.state.nb_epoch_cnn}
-                    min={1} max={1000} defaultValue={2}
-                    onChange={(v) =>
-                      this.setState({
-                        trainingParameters: { ...this.state.trainingParameters, nb_epoch_cnn: v },
-                      })
-                    }
-                  />
-                </Form.Item>
-                <Form.Item
-                  label="Number of Epochs (SAE)"
-                  name="nb_epoch_sae"
-                >
-                  <InputNumber
-                    name="nb_epoch_sae"
-                    value={this.state.nb_epoch_sae}
-                    min={1} max={1000} defaultValue={5}
-                    onChange={(v) =>
-                      this.setState({
-                        trainingParameters: { ...this.state.trainingParameters, nb_epoch_sae: v },
-                      })
-                    }
-                  />
-                </Form.Item>
-                <Form.Item
-                  label="Batch Size (CNN)"
-                  name="batch_size_cnn"
-                >
-                  <InputNumber
-                    name="batch_size_cnn"
-                    value={this.state.batch_size_cnn}
-                    min={1} max={1000} defaultValue={32}
-                    onChange={(v) =>
-                      this.setState({
-                        trainingParameters: { ...this.state.trainingParameters, batch_size_cnn: v },
-                      })
-                    }
-                  />
-                </Form.Item>
-                <Form.Item
-                  label="Batch Size (SAE)"
-                  name="batch_size_sae"
-                >
-                  <InputNumber
-                    name="batch_size_sae"
-                    value={this.state.batch_size_sae}
-                    min={1} max={1000} defaultValue={16}
-                    onChange={(v) =>
-                      this.setState({
-                        trainingParameters: { ...this.state.trainingParameters, batch_size_sae: v },
-                      })
-                    }
-                  />
-                </Form.Item>
-              </Panel>
-            </Collapse>
+            <>
+              <Divider style={{ margin: '20px 0 16px 0' }}>Training Parameters</Divider>
+              
+              <Row gutter={24}>
+                <Col span={12}>
+                  <Form.Item label={<strong>Epochs (CNN)</strong>} name="nb_epoch_cnn" style={{ marginBottom: '16px' }}>
+                    <Tooltip title="In convolutional neural networks (CNN), the number of epochs determines how many times the model will iterate over the training data during the training process.">
+                      <InputNumber
+                        name="nb_epoch_cnn"
+                        disabled={isRunningNow}
+                        value={this.state.nb_epoch_cnn}
+                        min={1} max={1000} defaultValue={2}
+                        style={{ width: '100%' }}
+                        onChange={(v) =>
+                          this.setState({
+                            trainingParameters: { ...this.state.trainingParameters, nb_epoch_cnn: v },
+                          })
+                        }
+                      />
+                    </Tooltip>
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item label={<strong>Batch Size</strong>} name="batch_size_cnn" style={{ marginBottom: '16px' }}>
+                    <Tooltip title="Batch size in CNN refers to the number of samples that are processed together in a single forward and backward pass during each epoch of training.">
+                      <InputNumber
+                        name="batch_size_cnn"
+                        disabled={isRunningNow}
+                        value={this.state.batch_size_cnn}
+                        min={1} max={1000} defaultValue={32}
+                        style={{ width: '100%' }}
+                        onChange={(v) =>
+                          this.setState({
+                            trainingParameters: { ...this.state.trainingParameters, batch_size_cnn: v },
+                          })
+                        }
+                      />
+                    </Tooltip>
+                  </Form.Item>
+                </Col>
+              </Row>
+              
+              <Row gutter={24}>
+                <Col span={12}>
+                  <Form.Item label={<strong>Epochs (SAE)</strong>} name="nb_epoch_sae" style={{ marginBottom: '8px' }}>
+                    <Tooltip title="In Stacked Autoencoder (SAE), the number of epochs determines how many times this encoding-decoding process is repeated during training.">
+                      <InputNumber
+                        name="nb_epoch_sae"
+                        disabled={isRunningNow}
+                        value={this.state.nb_epoch_sae}
+                        min={1} max={1000} defaultValue={5}
+                        style={{ width: '100%' }}
+                        onChange={(v) =>
+                          this.setState({
+                            trainingParameters: { ...this.state.trainingParameters, nb_epoch_sae: v },
+                          })
+                        }
+                      />
+                    </Tooltip>
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item label={<strong>Batch Size</strong>} name="batch_size_sae" style={{ marginBottom: '8px' }}>
+                    <Tooltip title="Batch size in a SAE determines the number of samples processed together in each training iteration.">
+                      <InputNumber
+                        name="batch_size_sae"
+                        disabled={isRunningNow}
+                        value={this.state.batch_size_sae}
+                        min={1} max={1000} defaultValue={16}
+                        style={{ width: '100%' }}
+                        onChange={(v) =>
+                          this.setState({
+                            trainingParameters: { ...this.state.trainingParameters, batch_size_sae: v },
+                          })
+                        }
+                      />
+                    </Tooltip>
+                  </Form.Item>
+                </Col>
+              </Row>
+            </>
           )}
-          <div style={{ textAlign: 'center', marginTop: 10 }}>
+          
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '16px', marginTop: 24 }}>
             <Button
               type="primary"
+              icon={<RocketOutlined />}
+              loading={isRunningNow}
               onClick={ this.handleButtonRetrain } 
-              disabled={ isRunningApp(this.props.app, this.props.retrainACStatus, this.props.retrainStatus) || 
-                !this.state.modelId || !(this.state.trainingDataset && this.state.testingDataset)
-              }
+              disabled={ isRunningNow || !isReady }
             >
-              Retrain model
-              {isRunningApp(this.props.app, this.props.retrainACStatus, this.props.retrainStatus) && 
-                <Spin size="large" style={{ marginBottom: '8px' }}>
-                  <div className="content" />
-                </Spin>
-              }
+              Retrain Model
+            </Button>
+            <Button
+              type="primary"
+              disabled={!this.state.retrainId}
+              onClick={() => {
+                const originalModelId = this.state.modelId;
+                const retrainId = this.state.retrainId;
+                window.location.href = `/models/comparison?model1=${originalModelId}&model2=${retrainId}`;
+              }}
+            >
+              Compare with Original Model
             </Button>
           </div>
         </Form>
+        </Card>
+        </Col>
+        </Row>
+        
+        <Divider orientation="left">
+          <h2 style={{ fontSize: '20px' }}>Retraining Results</h2>
+        </Divider>
+        
+        <Card style={{ marginBottom: 24 }}>
+          <div style={{ textAlign: 'center', marginBottom: 12 }}>
+            <strong style={{ fontSize: 16 }}>Retraining Summary</strong>
+          </div>
+          <Row gutter={12}>
+            <Col span={6}>
+              <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                <Statistic
+                  title="Status"
+                  value={
+                    isRunningNow ? 'Retraining' : 
+                    this.state.retrainId ? 'Completed' :
+                    isReady ? 'Ready' : 'Waiting'
+                  }
+                  valueStyle={{ 
+                    fontSize: 14,
+                    fontWeight: 'bold',
+                    color: isRunningNow ? '#1890ff' : 
+                           this.state.retrainId ? '#52c41a' :
+                           isReady ? '#52c41a' : '#faad14'
+                  }}
+                />
+              </Card>
+            </Col>
+            <Col span={6}>
+              <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                <Statistic
+                  title="Model Type"
+                  value={this.props.app === 'ad' ? 'Anomaly Detection' : 'Attack Classification'}
+                  valueStyle={{ fontSize: 14, fontWeight: 'bold', color: '#722ed1' }}
+                />
+              </Card>
+            </Col>
+            <Col span={6}>
+              <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                <Statistic
+                  title="Original Model"
+                  value={this.state.modelId || 'Not Selected'}
+                  valueStyle={{ fontSize: 14, fontWeight: 'bold', color: '#1890ff' }}
+                />
+              </Card>
+            </Col>
+            <Col span={6}>
+              <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                <Statistic
+                  title="Retrain ID"
+                  value={this.state.retrainId || 'N/A'}
+                  valueStyle={{ 
+                    fontSize: 13, 
+                    fontWeight: 'bold',
+                    color: this.state.retrainId ? '#52c41a' : '#d9d9d9',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                  }}
+                />
+              </Card>
+            </Col>
+          </Row>
+        </Card>
+        </div>
       </LayoutPage>
     );
   }
@@ -350,4 +553,10 @@ const mapDispatchToProps = (dispatch) => ({
     dispatch(requestRetrainModelAC({ modelId, trainingDataset, testingDataset })),
 });
 
-export default connect(mapPropsToStates, mapDispatchToProps)(RetrainPage);
+// Wrap with role check
+const RetrainPageWithRole = (props) => {
+  const userRole = useUserRole();
+  return <RetrainPage {...props} isAdmin={userRole.isAdmin} isSignedIn={userRole.isSignedIn} />;
+};
+
+export default connect(mapPropsToStates, mapDispatchToProps)(RetrainPageWithRole);

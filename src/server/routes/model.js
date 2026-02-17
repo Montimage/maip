@@ -111,24 +111,64 @@ router.get('/:modelId/download', (req, res, next) => {
  */
 router.get('/:modelId/build-config', (req, res, next) => {
   const { modelId } = req.params;
-  readTextFile(`${TRAINING_PATH}${modelId.replace('.h5', '')}/build-config.json`, (err, buildConfig) => {
-    if (err) {
-      res.status(401).send({ error: 'Something went wrong!' });
-    } else {
-      res.send({ buildConfig });
-    }
-  });
+  const basePath = `${TRAINING_PATH}${modelId.replace('.h5', '')}`;
+  
+  // Check which config file exists first to avoid error logs
+  const buildConfigPath = `${basePath}/build-config.json`;
+  const retrainConfigPath = `${basePath}/retrain-config.json`;
+  
+  if (fs.existsSync(buildConfigPath)) {
+    // Regular built model
+    readTextFile(buildConfigPath, (err, buildConfig) => {
+      if (err) {
+        res.status(401).send({ error: 'Something went wrong!' });
+      } else {
+        res.send({ buildConfig });
+      }
+    });
+  } else if (fs.existsSync(retrainConfigPath)) {
+    // Retrained model
+    readTextFile(retrainConfigPath, (err, retrainConfig) => {
+      if (err) {
+        res.status(401).send({ error: 'Something went wrong!' });
+      } else {
+        res.send({ buildConfig: retrainConfig });
+      }
+    });
+  } else {
+    res.status(401).send({ error: 'Something went wrong!' });
+  }
 });
 
 router.get('/:modelId/confusion-matrix', (req, res, next) => {
   const { modelId } = req.params;
-  readTextFile(`${TRAINING_PATH}${modelId.replace('.h5', '')}/results/confusion_matrix.csv`, (err, matrix) => {
-    if (err) {
-      res.status(401).send({ error: 'Something went wrong!' });
-    } else {
-      res.send({ matrix });
-    }
-  });
+  const basePath = `${TRAINING_PATH}${modelId.replace('.h5', '')}`;
+  
+  // Check which file exists first to avoid error logs
+  const retrainedPath = `${basePath}/confusion_matrix.csv`;
+  const regularPath = `${basePath}/results/confusion_matrix.csv`;
+  
+  if (fs.existsSync(retrainedPath)) {
+    // Retrained model (no results/ subdirectory)
+    readTextFile(retrainedPath, (err, matrix) => {
+      if (err) {
+        res.status(401).send({ error: 'Something went wrong!' });
+      } else {
+        res.send({ matrix });
+      }
+    });
+  } else if (fs.existsSync(regularPath)) {
+    // Regular model (with results/ subdirectory)
+    readTextFile(regularPath, (err, matrix) => {
+      if (err) {
+        res.status(401).send({ error: 'Something went wrong!' });
+      } else {
+        res.send({ matrix });
+      }
+    });
+  } else {
+    res.status(401).send({ error: 'Something went wrong!' });
+  }
 });
 
 router.get('/:modelId/datasets/training', (req, res, next) => {
@@ -157,9 +197,19 @@ router.get('/:modelId/datasets/testing', (req, res, next) => {
 
 router.get('/:modelId/stats', (req, res, next) => {
   const { modelId } = req.params;
-  readTextFile(`${TRAINING_PATH}${modelId.replace('.h5', '')}/results/stats.csv`, (err, stats) => {
+  const basePath = `${TRAINING_PATH}${modelId.replace('.h5', '')}`;
+  
+  // Try retrained model location first (no results/ subdirectory)
+  readTextFile(`${basePath}/stats.csv`, (err, stats) => {
     if (err) {
-      res.status(401).send({ error: 'Something went wrong!' });
+      // Fall back to regular model location (with results/ subdirectory)
+      readTextFile(`${basePath}/results/stats.csv`, (err2, stats2) => {
+        if (err2) {
+          res.status(401).send({ error: 'Something went wrong!' });
+        } else {
+          res.send({ stats: stats2 });
+        }
+      });
     } else {
       res.send({ stats });
     }
@@ -168,13 +218,30 @@ router.get('/:modelId/stats', (req, res, next) => {
 
 router.get('/:modelId', (req, res, next) => {
   const { modelId } = req.params;
+  const basePath = `${TRAINING_PATH}${modelId.replace('.h5', '')}`;
 
-  // Get the stats for the model
-  readTextFile(`${TRAINING_PATH}${modelId.replace('.h5', '')}/results/stats.csv`, (err, stats) => {
-    if (err) {
-      res.status(401).send({ error: 'Something went wrong!' });
+  // Try retrained model location first (no results/ subdirectory)
+  readTextFile(`${basePath}/stats.csv`, (err, stats) => {
+    if (!err) {
+      // This is a retrained model - return simplified response
+      readTextFile(`${basePath}/confusion_matrix.csv`, (err2, matrix) => {
+        res.send({
+          stats: stats,
+          confusionMatrix: matrix || '',
+          lastBuildAt: new Date().toISOString(),
+          buildConfig: '{}',
+          isRetrainedModel: true
+        });
+      });
       return;
     }
+    
+    // Fall back to regular model location (with results/ subdirectory)
+    readTextFile(`${basePath}/results/stats.csv`, (err, stats) => {
+      if (err) {
+        res.status(401).send({ error: 'Something went wrong!' });
+        return;
+      }
 
     // Get the last build time for the model
     readTextFile(`${TRAINING_PATH}${modelId.replace('.h5', '')}/buildingStatus.json`, (err, buildingStatus) => {
@@ -230,6 +297,7 @@ router.get('/:modelId', (req, res, next) => {
         });
       });
     });
+    });
   });
 });
 
@@ -250,16 +318,33 @@ router.get('/:modelId/probabilities', (req, res, next) => {
 // TODO: combine 'predictions.csv' and 'predicted_probabilities.csv' into 1 csv file ???
 router.get('/:modelId/predictions', (req, res, next) => {
   const { modelId } = req.params;
-  readTextFile(`${TRAINING_PATH}${modelId.replace('.h5', '')}/results/predictions.csv`, (err, predictions) => {
-    if (err) {
-      res.status(401).send(`The predictions file of model ${modelId} does not exist`);
-      return;
-    } else {
-      res.send({
-        predictions: predictions,
-      });  
-    }
-  });
+  const basePath = `${TRAINING_PATH}${modelId.replace('.h5', '')}`;
+  
+  // Check which file exists first to avoid error logs
+  const retrainedPath = `${basePath}/predictions.csv`;
+  const regularPath = `${basePath}/results/predictions.csv`;
+  
+  if (fs.existsSync(retrainedPath)) {
+    // Retrained model (no results/ subdirectory)
+    readTextFile(retrainedPath, (err, predictions) => {
+      if (err) {
+        res.status(401).send(`The predictions file of model ${modelId} does not exist`);
+      } else {
+        res.send({ predictions });
+      }
+    });
+  } else if (fs.existsSync(regularPath)) {
+    // Regular model (with results/ subdirectory)
+    readTextFile(regularPath, (err, predictions) => {
+      if (err) {
+        res.status(401).send(`The predictions file of model ${modelId} does not exist`);
+      } else {
+        res.send({ predictions });
+      }
+    });
+  } else {
+    res.status(401).send(`The predictions file of model ${modelId} does not exist`);
+  }
 });
 
 router.put('/:modelId', async (req, res, next) => {

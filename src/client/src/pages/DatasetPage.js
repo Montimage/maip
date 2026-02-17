@@ -1,16 +1,13 @@
 import React, { Component } from "react";
 import LayoutPage from "./LayoutPage";
 import { connect } from "react-redux";
-import { QuestionOutlined } from "@ant-design/icons";
+// import { QuestionOutlined } from "@ant-design/icons";
 import { 
   getBeforeLastPath,
   getLastPath,
   getNumberFeaturesModel,
   getFilteredFeaturesModel,
   getConfigScatterPlot,
-  getConfigBarPlot,
-  getConfigHistogram,
-  getTableDatasetsStats,
   isACModel,
 } from "../utils";
 import {
@@ -19,16 +16,13 @@ import {
 import {
   requestApp,
 } from "../actions";
-import { Menu, Button, Tooltip, Select, Col, Row, Table } from 'antd';
+import { Col, Row, Table, Card, Statistic } from 'antd';
+import { ClockCircleOutlined, DatabaseOutlined, FileTextOutlined, AppstoreOutlined } from '@ant-design/icons';
 import Papa from "papaparse";
-import { Bar, Scatter, Histogram } from '@ant-design/plots';
+import FeatureCharts from '../components/FeatureCharts';
+import FeatureDescriptions from '../components/FeatureDescriptions';
 
-const {
-  BOX_STYLE,
-  BIN_CHOICES, DATASET_TABLE_STATS, DATASET_MENU_ITEMS,
-  COLUMNS_ALL_FEATURES,
-} = require('../constants');
-const { Option } = Select;
+// const { Option } = Select;
 
 let featuresDescriptions = {};
 
@@ -37,11 +31,6 @@ class DatasetPage extends Component {
     super(props);
     this.state = {
       csvData: [],
-      selectedFeature: null,
-      binWidthChoice: 'square-root',
-      xScatterFeature: null,
-      yScatterFeature: null,
-      barFeature: null,
     };
   }
 
@@ -108,11 +97,6 @@ class DatasetPage extends Component {
     const datasetType = getLastPath();
     const { 
       csvData, 
-      selectedFeature, 
-      binWidthChoice,
-      xScatterFeature,
-      yScatterFeature,
-      barFeature,
     } = this.state;
 
     const numberFeatures = getNumberFeaturesModel(modelId);
@@ -146,220 +130,100 @@ class DatasetPage extends Component {
       },
     })) : [];
 
-    const binWidthOptions = BIN_CHOICES.map(choice => ({
-      value: choice,
-      label: choice,
-    }));
-
-    const dataDatasetsStats = getTableDatasetsStats(csvData, selectedFeature);
-    const configHistogram = getConfigHistogram(csvData, selectedFeature, binWidthChoice);
-    const configScatter = getConfigScatterPlot(modelId, csvData, xScatterFeature, yScatterFeature);
-    const configBar = getConfigBarPlot(csvData, barFeature);
+    const scatterBuilder = (data, x, y) => getConfigScatterPlot(modelId, data, x, y);
 
     return (
       <LayoutPage pageTitle="Dataset" 
         pageSubTitle={`${datasetType.charAt(0).toUpperCase() + datasetType.slice(1)}ing dataset of the model ${modelId}`}>
 
-        <Menu mode="horizontal" style={{ backgroundColor: 'transparent', fontSize: '18px' }}>
-          {DATASET_MENU_ITEMS.map(item => (
-            <Menu.Item key={item.key}>
-              <a href={item.link}>{item.label}</a>
-            </Menu.Item>
-          ))}
-        </Menu>
-
-        {/* TODO: Fix "ResizeObserver loop limit exceeded", fixed header ? */}    
-        <Row gutter={24} style={{ marginTop: '20px' }} id="data">
-          <Col className="gutter-row" span={24}>
-          <div style={{ ...BOX_STYLE, marginTop: '100px' }} >
-            <h2>&nbsp;&nbsp;&nbsp;Data</h2>
-            <div style={{ fontSize: '16px', marginTop: '20px' }}>
-              &nbsp;&nbsp;&nbsp;Total number of samples: <strong>{csvData.length}</strong>;
-              Total number of features: <strong>{numberFeatures}</strong>
-            </div>
-            <div style={{ maxWidth: '100vw', overflowX: 'auto', marginTop: '20px', height: 490 }}>
-              <Table columns={columns} 
-                dataSource={csvData} 
-                size="small" bordered
-                scroll={{ x: 'max-content', /* y: 400 */ }}
-                pagination={{ pageSize: 10 }}
-              />
-            </div>
+        {/* Dataset Summary */}
+        <Card style={{ marginBottom: 24 }}>
+          <div style={{ textAlign: 'center', marginBottom: 12 }}>
+            <strong style={{ fontSize: 16 }}>Dataset Summary</strong>
           </div>
-          </Col>
-        </Row>
+          <Row gutter={16}>
+            <Col span={6}>
+              <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff', minHeight: '92px' }}>
+                <Statistic
+                  title="Type"
+                  value={`${datasetType.charAt(0).toUpperCase() + datasetType.slice(1)} Dataset`}
+                  prefix={<FileTextOutlined />}
+                  valueStyle={{ fontSize: 18, fontWeight: 'bold', color: '#722ed1' }}
+                />
+              </Card>
+            </Col>
+            <Col span={6}>
+              <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff', minHeight: '92px' }}>
+                <Statistic
+                  title="Model ID"
+                  value={modelId}
+                  prefix={<AppstoreOutlined />}
+                  valueStyle={{ fontSize: modelId.length > 15 ? 14 : 18, fontWeight: 'bold', color: '#fa8c16', wordBreak: 'break-word', whiteSpace: 'normal', lineHeight: '1.3', display: 'block', maxWidth: '100%' }}
+                />
+              </Card>
+            </Col>
+            <Col span={6}>
+              <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff', minHeight: '92px' }}>
+                <Statistic
+                  title="Total Samples"
+                  value={csvData.length.toLocaleString()}
+                  prefix={<ClockCircleOutlined />}
+                  valueStyle={{ fontSize: 18, fontWeight: 'bold', color: '#1890ff' }}
+                />
+              </Card>
+            </Col>
+            <Col span={6}>
+              <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff', minHeight: '92px' }}>
+                <Statistic
+                  title="Total Features"
+                  value={numberFeatures}
+                  prefix={<DatabaseOutlined />}
+                  valueStyle={{ fontSize: 18, fontWeight: 'bold', color: '#52c41a' }}
+                />
+              </Card>
+            </Col>
+          </Row>
+        </Card>
 
-        <Row gutter={24} style={{ marginTop: '20px' }} id="feature_descriptions">
-          <Col className="gutter-row" span={24}>
-            <div style={{ ...BOX_STYLE, marginTop: '100px' }}>
-              <h2>&nbsp;&nbsp;&nbsp;Feature Descriptions</h2>
-              <div style={{ position: 'absolute', top: 110, right: 10 }}>
-                <Tooltip title={`Displays all features with detailed description.`}>
-                  <Button type="link" icon={<QuestionOutlined />} />
-                </Tooltip>
-              </div>
-              <Table dataSource={allFeatures} columns={COLUMNS_ALL_FEATURES} 
-                size="small" style={{ marginTop: '10px' }}
-              />
-            </div>
-          </Col>
-        </Row>
+        {/* Dataset Table */}    
+        <Card style={{ marginBottom: 16 }} id="data">
+          <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Dataset</h3>
+          <div style={{ marginBottom: 12, fontSize: '13px', color: '#8c8c8c' }}>
+            Complete dataset with all features and samples
+          </div>
+          <div style={{ overflow: 'auto' }}>
+            <Table 
+              columns={columns} 
+              dataSource={csvData} 
+              size="small" 
+              scroll={{ x: 'max-content' }}
+              pagination={{ 
+                pageSize: 10, 
+                showTotal: (total) => `Total ${total} records`,
+                showSizeChanger: true,
+                pageSizeOptions: ['10', '20', '50', '100']
+              }}
+            />
+          </div>
+        </Card>
 
-        <Row gutter={24} style={{ marginTop: '20px' }} id="histogram_plot">
-          <Col className="gutter-row" span={24}>
-            {features.length > 0 && (
-              <div style={{ ...BOX_STYLE, marginTop: '100px' }}>
-                <h2>&nbsp;&nbsp;&nbsp;Histogram Plot</h2>
-                <div style={{ marginBottom: '30px', marginTop: '10px' }}>
-                  <div style={{ position: 'absolute', top: 110, right: 10 }}>
-                    <Tooltip title="A table contains different statistics of the feature, such as the number of unique values, number of missing values, mean, standard deviation, median, minimum, and maximum value. A histogram plot for each feature of the database shows the distribution of values in that feature.">
-                      <Button type="link" icon={<QuestionOutlined />} />
-                    </Tooltip>
-                  </div>
-                  &nbsp;&nbsp;&nbsp;
-                  <Tooltip title="Select the feature to plot on the histogram">
-                    <Select
-                      showSearch allowClear
-                      placeholder="Select a feature ..."
-                      value={this.state.selectedFeature}
-                      onChange={value => this.setState({ selectedFeature: value })}
-                      optionFilterProp="children"
-                      filterOption={(input, option) => (option?.value ?? '').includes(input)}
-                      style={{ width: 300, marginTop: '10px' }}
-                    >
-                      {features.map((header) => (
-                        <Option key={header} value={header}>
-                          {header}
-                        </Option>
-                      ))}
-                    </Select>
-                  </Tooltip>
-                  &nbsp;&nbsp;&nbsp;
-                  <Tooltip title="Select the bin selection algorithm">
-                    <Select
-                      showSearch allowClear
-                      placeholder="Select bin width ..."
-                      options={binWidthOptions}
-                      defaultValue="square-root"
-                      onChange={value => this.setState({ binWidthChoice: value })}
-                      optionFilterProp="children"
-                      filterOption={(input, option) => (option?.value ?? '').includes(input)}
-                      style={{ width: 250 }}
-                    >
-                      {features.map((header) => (
-                        <Option key={header} value={header}>
-                          {header}
-                        </Option>
-                      ))}
-                    </Select>
-                  </Tooltip>
-                </div>
-                {selectedFeature && (
-                  <Table columns={DATASET_TABLE_STATS} dataSource={dataDatasetsStats} pagination={false}
-                    style={{marginTop: '10px'}}
-                  />
-                )}
-                {selectedFeature && binWidthChoice && (
-                  <Histogram {...configHistogram} style={{ margin: '20px' }}/>
-                )}
-              </div>
-            )}
-          </Col>
-        </Row>
+        {/* Feature Descriptions */}
+        <Card style={{ marginBottom: 16 }} id="feature_descriptions">
+          <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Feature Descriptions</h3>
+          <div style={{ marginBottom: 12, fontSize: '13px', color: '#8c8c8c' }}>
+            Detailed metadata and explanations for each extracted feature
+          </div>
+          <FeatureDescriptions data={csvData} showTitle={false} />
+        </Card>
 
-        <Row gutter={24} style={{ marginTop: '20px' }} id="scatter_plot">
-          <Col className="gutter-row" span={24}>
-            <div style={{ ...BOX_STYLE, marginTop: '100px' }}>
-              <h2>&nbsp;&nbsp;&nbsp;Scatter Plot</h2>
-              <div style={{ marginBottom: '30px', marginTop: '10px' }}>
-                <div style={{ position: 'absolute', top: 110, right: 10 }}>
-                  <Tooltip title="The scatter plot represents the relationship between two features of a dataset, each data point as a circle on a two-dimensional coordinate system. The color of each circle represents whether the traffic was Malware or Normal. Malware traffic is denoted with the color blue, while Normal traffic is denoted with the color red.">
-                    <Button type="link" icon={<QuestionOutlined />} />
-                  </Tooltip>
-                </div>
-                &nbsp;&nbsp;&nbsp;
-                <Tooltip title="Select a feature displayed on x-axis">
-                  <Select
-                    showSearch allowClear
-                    placeholder="Select a feature ..."
-                    value={this.state.xScatterFeature}
-                    onChange={value => this.setState({ xScatterFeature: value })}
-                    optionFilterProp="children"
-                    filterOption={(input, option) => (option?.value ?? '').includes(input)}
-                    style={{ width: 300, marginTop: '10px' }}
-                  >
-                    {features.map((header) => (
-                      <Option key={header} value={header}>
-                        {header}
-                      </Option>
-                    ))}
-                  </Select>
-                </Tooltip>
-                &nbsp;&nbsp;&nbsp;
-                <Tooltip title="Select a feature displayed on y-axis">
-                  <Select
-                    showSearch allowClear
-                    placeholder="Select a feature ..."
-                    value={this.state.yScatterFeature}
-                    onChange={value => this.setState({ yScatterFeature: value })}
-                    optionFilterProp="children"
-                    filterOption={(input, option) => (option?.value ?? '').includes(input)}
-                    style={{ width: 300, marginTop: '10px' }}
-                  >
-                    {features.map((header) => (
-                      <Option key={header} value={header}>
-                        {header}
-                      </Option>
-                    ))}
-                  </Select>
-                </Tooltip>
-              </div>
-              {xScatterFeature && yScatterFeature &&
-                <Scatter {...configScatter} style={{ margin: '20px' }}/>
-              }
-            </div>
-          </Col>
-        </Row>
-
-        <Row gutter={24} style={{ marginTop: '20px' }} id="bar_plot">
-          <Col className="gutter-row" span={12}>
-            <div style={{ ...BOX_STYLE, marginTop: '100px' }}>
-              <h2>&nbsp;&nbsp;&nbsp;Bar Plot</h2>
-              <div style={{ marginBottom: '30px', marginTop: '10px' }}>
-                <div style={{ position: 'absolute', top: 110, right: 10 }}>
-                  <Tooltip title="The bar plot displays the frequency or proportion of a categorical feature.">
-                    <Button type="link" icon={<QuestionOutlined />} />
-                  </Tooltip>
-                </div>
-                &nbsp;&nbsp;&nbsp;
-                <Tooltip title="Select a categorical feature">
-                  <Select
-                    showSearch allowClear
-                    value={this.state.barFeature}
-                    placeholder="Select a feature ..."
-                    onChange={value => this.setState({ barFeature: value })}
-                    optionFilterProp="children"
-                    filterOption={(input, option) => (option?.value ?? '').includes(input)}
-                    style={{ width: 300, marginTop: '10px' }}
-                  >
-                    {categoricalFeatures.map((header) => (
-                      <Option key={header} value={header}>
-                        {header}
-                      </Option>
-                    ))}
-                  </Select>
-                </Tooltip>
-              </div>
-              {barFeature && <Bar {...configBar} style={{ margin: '10px' }} />}
-            </div>
-          </Col>
-
-          {/* <Col className="gutter-row" span={12} id="heatmap_plot">
-            <div style={{ ...BOX_STYLE, marginTop: '100px' }}>
-              <h2>&nbsp;&nbsp;&nbsp;Heatmap Plot</h2>
-            </div>
-          </Col> */}
-        </Row>
+        {/* Feature Charts */}
+        <FeatureCharts 
+          data={csvData} 
+          scatterConfigBuilder={scatterBuilder} 
+          showSectionTitle={false}
+          barFeatureOptions={categoricalFeatures}
+          restrictBarToOptionsOnly={true}
+        />
         
       </LayoutPage>
     );

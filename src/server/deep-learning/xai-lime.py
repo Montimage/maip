@@ -1,3 +1,8 @@
+#!/usr/bin/env python3
+# Fix sys.path BEFORE any imports to prevent TensorFlow errors
+import sys
+sys.path = [str(p) if not isinstance(p, str) else p for p in sys.path]
+
 import json
 import os
 import shutil
@@ -11,8 +16,16 @@ import timeit
 from lime import lime_tabular
 from lime.lime_tabular import LimeTabularExplainer
 from pathlib import Path
+
+# Fix sys.path again before importing local modules that might modify it
+sys.path = [str(p) if not isinstance(p, str) else p for p in sys.path]
+
 from trafficToFeature import trafficToFeatures
 from createDatasetMMT import createTrainTestSet
+
+# Fix sys.path one more time right before TensorFlow import
+sys.path = [str(p) if not isinstance(p, str) else p for p in sys.path]
+
 from tensorflow.keras.models import load_model
 from pydoc import classname
 from datetime import datetime
@@ -20,9 +33,8 @@ from tools import dataScale_cnn
 import constants
 
 deepLearningPath = str(Path.cwd()) + '/src/server/deep-learning/'
-features = constants.AD_FEATURES[3:]
 
-def running_lime(sampleId, numberFeatures):
+def running_lime(sampleId, numberFeatures, features):
 
   """
     Produce explanations of a particular sample
@@ -85,7 +97,9 @@ if __name__ == "__main__":
   if len(sys.argv) != 4:
     print('Invalid inputs')
     print('python xai-lime.py modelId sampleId numberFeatures')
-  else:
+    sys.exit(1)
+  
+  try:
     modelId = sys.argv[1]
     sampleId = sys.argv[2]
     numberFeatures = sys.argv[3]
@@ -104,15 +118,25 @@ if __name__ == "__main__":
     test_data = pd.read_csv(test_data_path, delimiter=",")
     test_data.drop(columns=['ip.session_id', 'meta.direction'], inplace=True)
 
+    # Get actual feature names from the training data (excluding the label column)
+    features = [col for col in train_data.columns if col != 'malware']
+    print(f"Number of features: {len(features)}")
+
     d = datetime.now()
     x_train_norm, x_train_mal, x_test_norm, x_test_mal, x_train, y_train, x_test, y_test, scaler = dataScale_cnn(output_path,
       train_data, test_data, datetime=d)
 
-    #running_lime(sampleId, numberFeatures)
+    # Verify feature count matches data shape
+    if x_train.shape[1] != len(features):
+        print(f"Warning: Data has {x_train.shape[1]} features but feature list has {len(features)} names")
+        print(f"Using only the first {x_train.shape[1]} feature names")
+        features = features[:x_train.shape[1]]
+
+    #running_lime(sampleId, numberFeatures, features)
 
     # Compute time for producing explanations and save it to file
     generation_iters = 1
-    time_taken =  timeit.timeit(lambda: running_lime(sampleId, numberFeatures), number=generation_iters)
+    time_taken =  timeit.timeit(lambda: running_lime(sampleId, numberFeatures, features), number=generation_iters)
     print("Time taken for LIME in seconds: ", time_taken)
     xai_path = deepLearningPath + '/xai/' + model_name
     statsfile = os.path.join(xai_path, 'time_stats_lime.txt')
@@ -120,3 +144,12 @@ if __name__ == "__main__":
     with open(statsfile, "w") as f:
       f.write(str(time_taken))
       f.close()
+    
+    print("LIME explanations generated successfully")
+    sys.exit(0)
+  
+  except Exception as e:
+    print(f"Error generating LIME explanations: {str(e)}")
+    import traceback
+    traceback.print_exc()
+    sys.exit(1)

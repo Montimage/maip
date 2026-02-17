@@ -1,8 +1,7 @@
 import React, { Component } from 'react';
 import { connect } from "react-redux";
 import LayoutPage from './LayoutPage';
-import { Spin, Menu, Select, Col, Row, Button, Tooltip, Form } from 'antd';
-import { QuestionOutlined } from "@ant-design/icons";
+import { Select, Col, Row, Button, Card, Statistic, Divider, message, notification } from 'antd';
 import { Heatmap } from '@ant-design/plots';
 import {
   requestApp,
@@ -19,8 +18,6 @@ import {
   requestAttacksDatasets,
 } from "../api";
 import {
-  BOX_STYLE,
-  RES_METRICS_MENU_ITEMS,
   ATTACK_DATASETS_MAPPING,
 } from "../constants";
 import {
@@ -54,6 +51,8 @@ class ResilienceMetricsPage extends Component {
       attacksPredictions: [],
       attacksConfusionMatrix: null,
       isRunning: false,
+      currentJobId: null,  // For queue-based retraining
+      retrainId: null,     // Result from completed retrain
     }
   }
 
@@ -67,7 +66,35 @@ class ResilienceMetricsPage extends Component {
       console.log(buildConfig);
       const attacksDatasets = await requestAttacksDatasets(modelId);
       console.log(attacksDatasets);
-      this.setState({ buildConfig, attacksDatasets });
+      
+      // Check for attack_type parameter in URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const attackType = urlParams.get('attack_type');
+      
+      if (attackType) {
+        const attackDatasetMap = {
+          'rsl': 'rsl_poisoned_dataset.csv',
+          'tlf': 'tlf_poisoned_dataset.csv',
+          'ctgan': 'ctgan_poisoned_dataset.csv'
+        };
+        const dataset = attackDatasetMap[attackType];
+        if (dataset && attacksDatasets && attacksDatasets.includes(dataset)) {
+          this.setState({ buildConfig, attacksDatasets, selectedAttack: dataset }, () => {
+            // Auto-trigger computation when navigating from Attack page
+            notification.info({
+              message: 'Auto-computing Impact',
+              description: `Automatically computing resilience metrics for ${attackType.toUpperCase()} attack...`,
+              placement: 'topRight',
+            });
+            // Trigger computation automatically after state is set
+            setTimeout(() => this.handleButtonComputeMetric(dataset), 1000);
+          });
+        } else {
+          this.setState({ buildConfig, attacksDatasets });
+        }
+      } else {
+        this.setState({ buildConfig, attacksDatasets });
+      }
     }
     this.props.fetchAllModels();
   }
@@ -94,7 +121,27 @@ class ResilienceMetricsPage extends Component {
       this.props.fetchModel(modelId);
       this.loadPredictions();
       const buildConfig = await requestBuildConfigModel(modelId);
-      this.setState({ buildConfig });
+      const attacksDatasets = await requestAttacksDatasets(modelId);
+      
+      // Check for attack_type parameter in URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const attackType = urlParams.get('attack_type');
+      
+      if (attackType) {
+        const attackDatasetMap = {
+          'rsl': 'rsl_poisoned_dataset.csv',
+          'tlf': 'tlf_poisoned_dataset.csv',
+          'ctgan': 'ctgan_poisoned_dataset.csv'
+        };
+        const dataset = attackDatasetMap[attackType];
+        if (dataset && attacksDatasets && attacksDatasets.includes(dataset)) {
+          this.setState({ buildConfig, attacksDatasets, selectedAttack: dataset });
+        } else {
+          this.setState({ buildConfig, attacksDatasets });
+        }
+      } else {
+        this.setState({ buildConfig, attacksDatasets });
+      }
       console.log(buildConfig);
     }
 
@@ -135,6 +182,48 @@ class ResilienceMetricsPage extends Component {
     });
   }
 
+  async loadRetrainedResults(retrainId, attackName) {
+    try {
+      const { requestRetrainedPredictions } = require('../api');
+      const predictionsValues = await requestRetrainedPredictions(retrainId);
+      
+      if (!predictionsValues || predictionsValues.trim() === '') {
+        throw new Error('No prediction data received');
+      }
+      
+      const predictions = predictionsValues.split('\n')
+        .filter(line => line.trim() !== '')
+        .map((d) => ({
+          prediction: parseFloat(d.split(',')[0]),
+          trueLabel: parseInt(d.split(',')[1]),
+        }));
+      
+      this.setState({ attacksPredictions: predictions });
+      const attCM = updateConfusionMatrix(this.props.app, predictions, this.state.cutoffProb);
+      
+      this.setState({
+        stats: attCM.stats,
+        attacksConfusionMatrix: attCM.confusionMatrix,
+        classificationData: attCM.classificationData,
+        selectedAttack: attackName
+      });
+      
+      notification.success({
+        message: 'Success',
+        description: 'Impact metrics computed successfully!',
+        placement: 'topRight',
+      });
+      
+    } catch (error) {
+      console.error('Error loading retrained results:', error);
+      notification.error({
+        message: 'Error',
+        description: 'Failed to load impact metrics: ' + error.message,
+        placement: 'topRight',
+      });
+    }
+  }
+
   async loadPredictions() {
     const { modelId, cutoffProb } = this.state;
 
@@ -170,24 +259,96 @@ class ResilienceMetricsPage extends Component {
 
     if (!isRunning) {
       this.setState({ isRunning: true });
-      console.log("update isRunning state!");
+      console.log("Starting queue-based retrain for impact metric computation");
 
-      if (isACApp(app)) {
-        this.props.fetchRetrainModelAC(
-          modelId, trainingDataset, testingDataset,
+      try {
+        const { requestRetrainOfflineQueued, requestRetrainJobStatus } = require('../api');
+        
+        let params = {};
+        if (!isACApp(app) && buildConfig) {
+          try {
+            const transformedBuildConfig = removeCsvPath(JSON.parse(buildConfig));
+            params = transformedBuildConfig.training_parameters || {};
+          } catch (e) {
+            params = {
+              nb_epoch_cnn: 50,
+              nb_epoch_sae: 50,
+              batch_size_cnn: 32,
+              batch_size_sae: 32
+            };
+          }
+        }
+        
+        // Queue the retrain job
+        const queueResponse = await requestRetrainOfflineQueued(
+          modelId, 
+          trainingDataset, 
+          testingDataset, 
+          params,
+          isACApp(app)
         );
-      } else {
-        const transformedBuildConfig = removeCsvPath(JSON.parse(buildConfig));
-        const { training_parameters } = transformedBuildConfig;
-        console.log(training_parameters);
-        this.props.fetchRetrainModel(
-          modelId, trainingDataset, testingDataset, training_parameters,
-        );
+        this.setState({ 
+          currentJobId: queueResponse.jobId,
+        });
+        
+        notification.success({
+          message: 'Retrain Job Queued',
+          description: 'Model retraining has been queued successfully.',
+          placement: 'topRight',
+          duration: 2,
+        });
+        
+        // Poll job status
+        this.intervalId = setInterval(async () => {
+          try {
+            const jobStatus = await requestRetrainJobStatus(this.state.currentJobId);
+            
+            if (jobStatus.status === 'completed') {
+              clearInterval(this.intervalId);
+              this.intervalId = null;
+              const retrainId = jobStatus.result?.retrainId;
+              
+              this.setState({ 
+                isRunning: false,
+                retrainId 
+              });
+              
+              // Load the confusion matrix from the retrained model
+              if (retrainId) {
+                this.loadRetrainedResults(retrainId, selectedAttack);
+              } else {
+                notification.error({
+                  message: 'Error',
+                  description: 'Failed to load retrain results: No retrainId found',
+                  placement: 'topRight',
+                });
+              }
+              
+            } else if (jobStatus.status === 'failed') {
+              clearInterval(this.intervalId);
+              this.intervalId = null;
+              this.setState({ isRunning: false });
+              console.error('Retrain failed:', jobStatus.failedReason);
+              notification.error({
+                message: 'Retrain Failed',
+                description: jobStatus.failedReason,
+                placement: 'topRight',
+              });
+            }
+          } catch (error) {
+            console.error('Error polling retrain job status:', error);
+          }
+        }, 5000); // Poll every 5 seconds
+        
+      } catch (error) {
+        console.error('Error starting retrain:', error);
+        this.setState({ isRunning: false });
+        notification.error({
+          message: 'Error',
+          description: 'Failed to start retrain: ' + error.message,
+          placement: 'topRight',
+        });
       }
-
-      this.intervalId = setInterval(() => {
-        isACApp(app) ? this.props.fetchRetrainStatusAC() : this.props.fetchRetrainStatus();
-      }, 3000);
     }
   }
 
@@ -220,144 +381,189 @@ class ResilienceMetricsPage extends Component {
     }
 
     const subTitle = isModelIdPresent ?
-      `Resilience metrics of the model ${modelId}` :
-      'Relisience metrics of models';
+      `Resilience metrics for model ${modelId}` :
+      'Analyze model resilience against adversarial attacks';
 
     return (
       <LayoutPage pageTitle="Resilience Metrics" pageSubTitle={subTitle}>
-        <Menu mode="horizontal" style={{ backgroundColor: 'transparent', fontSize: '18px' }}>
-          {RES_METRICS_MENU_ITEMS.map(item => (
-            <Menu.Item key={item.key}>
-              <a href={item.link}>{item.label}</a>
-            </Menu.Item>
-          ))}
-        </Menu>
-        <Row type="flex" justify="center">
-          <Col>
-            <Form name="control-hooks" style={{ maxWidth: 700 }}>
-              <Form.Item name="model" label="Model"
-                style={{ flex: 'none', marginTop: 20, marginBottom: 10 }}
-                rules={[
-                  {
-                    required: true,
-                    message: 'Please select a model!',
-                  },
-                ]}
+        <Divider orientation="left">
+          <h2 style={{ fontSize: '20px' }}>Configuration</h2>
+        </Divider>
+
+        <Card style={{ marginBottom: 16 }}>
+          <Row gutter={16} align="middle" justify="center">
+            <Col flex="none">
+              <strong style={{ marginRight: 4 }}><span style={{ color: 'red' }}>* </span>Model:</strong>
+            </Col>
+            <Col>
+              <Select
+                placeholder="Select a model ..."
+                style={{ width: 300 }}
+                allowClear
+                showSearch
+                value={this.state.modelId}
+                disabled={isModelIdPresent}
+                onChange={(value) => {
+                  this.setState({ modelId: value }, async () => {
+                    try {
+                      if (value) {
+                        const attacksDatasets = await requestAttacksDatasets(value);
+                        this.setState({ attacksDatasets });
+                      }
+                    } catch (error) {
+                      console.error("Error loading attacks datasets:", error);
+                    }
+                  });
+                }}
+                onClear={() => this.setState({
+                                selectedAttack: null,
+                                attacksConfusionMatrix: null,
+                                attacksDatasets: null
+                              })}
+                options={modelsOptions}
+              />
+            </Col>
+
+            <Col flex="none" style={{ marginLeft: 24 }}>
+              <strong style={{ marginRight: 4 }}><span style={{ color: 'red' }}>* </span>Attack:</strong>
+            </Col>
+            <Col>
+              <Select
+                style={{ width: 280 }}
+                value={this.state.selectedAttack}
+                allowClear
+                showSearch
+                placeholder="Select an attack ..."
+                disabled={new URLSearchParams(window.location.search).has('attack_type')}
+                onChange={value => {
+                  if (value) {
+                    this.setState({ selectedAttack: value });
+                  }
+                  this.setState({ attacksConfusionMatrix: null });
+                }}
+                onClear={() => this.setState({ selectedAttack: null, attacksConfusionMatrix: null })}
+                options={attacksDatasetsOptions}
+              />
+            </Col>
+
+            <Col style={{ marginLeft: 24 }}>
+              <Button
+                type="primary"
+                loading={isRunning}
+                disabled={!this.state.modelId || !this.state.selectedAttack}
+                onClick={() => this.handleButtonComputeMetric(this.state.selectedAttack)}
               >
-                <Tooltip title="Select a model to perform attacks.">
-                  <Select
-                    placeholder="Select a model ..."
-                    style={{ width: '350px' }}
-                    allowClear showSearch
-                    value={this.state.modelId}
-                    disabled={isModelIdPresent}
-                    onChange={(value) => {
-                      this.setState({ modelId: value }, async () => {
-                        try {
-                          if (value) {
-                            const attacksDatasets = await requestAttacksDatasets(value);
-                            this.setState({ attacksDatasets });
-                          }
-                        } catch (error) {
-                          console.error("Error loading attacks datasets:", error);
-                        }
-                      });
-                    }}
-                    onClear={() => this.setState({
-                                    selectedAttack: null,
-                                    attacksConfusionMatrix: null,
-                                    attacksDatasets: null
-                                  })}
-                    options={modelsOptions}
-                  />
-                </Tooltip>
-              </Form.Item>
-            </Form>
+                Compute Impact
+              </Button>
+            </Col>
+          </Row>
+        </Card>
+
+        <Divider orientation="left">
+          <h2 style={{ fontSize: '20px' }}>Impact Metrics</h2>
+        </Divider>
+
+        <Row gutter={[24, 24]}>
+          {attacksConfusionMatrix && (
+            <Col span={24}>
+              <Card style={{ marginBottom: 16 }}>
+                <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                  <strong style={{ fontSize: 16 }}>Impact Metrics Summary</strong>
+                </div>
+                <Row gutter={16}>
+                  <Col span={6}>
+                    <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                      <Statistic 
+                        title="Accuracy Drop" 
+                        value={impact} 
+                        precision={2} 
+                        suffix="%" 
+                        valueStyle={{ 
+                          fontSize: 20,
+                          fontWeight: 'bold',
+                          color: impact > 10 ? '#f5222d' : impact > 5 ? '#faad14' : '#52c41a'
+                        }}
+                      />
+                    </Card>
+                  </Col>
+                  <Col span={6}>
+                    <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                      <Statistic 
+                        title="Resilience Level" 
+                        value={impact > 10 ? 'Low' : impact > 5 ? 'Medium' : 'High'}
+                        valueStyle={{ 
+                          fontSize: 20,
+                          fontWeight: 'bold',
+                          color: impact > 10 ? '#f5222d' : impact > 5 ? '#faad14' : '#52c41a'
+                        }}
+                      />
+                    </Card>
+                  </Col>
+                  <Col span={6}>
+                    <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                      <Statistic 
+                        title="Impact Category" 
+                        value={impact > 10 ? 'Critical' : impact > 5 ? 'Moderate' : 'Minor'}
+                        valueStyle={{ 
+                          fontSize: 20,
+                          fontWeight: 'bold',
+                          color: impact > 10 ? '#f5222d' : impact > 5 ? '#faad14' : '#52c41a'
+                        }}
+                      />
+                    </Card>
+                  </Col>
+                  <Col span={6}>
+                    <Card hoverable size="small" style={{ textAlign: 'center', backgroundColor: '#fff' }}>
+                      <Statistic 
+                        title="Risk Assessment" 
+                        value={impact > 10 ? 'High Risk' : impact > 5 ? 'Medium Risk' : 'Low Risk'}
+                        valueStyle={{ 
+                          fontSize: 20,
+                          fontWeight: 'bold',
+                          color: impact > 10 ? '#f5222d' : impact > 5 ? '#faad14' : '#52c41a'
+                        }}
+                      />
+                    </Card>
+                  </Col>
+                </Row>
+              </Card>
+            </Col>
+          )}
+
+          <Col span={12}>
+            <Card style={{ marginBottom: 16, height: '100%' }}>
+              <div style={{ marginBottom: 16 }}>
+                <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Model Before Attack</h3>
+                <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+                  Original model confusion matrix on test data
+                </span>
+              </div>
+              {attacksConfusionMatrix && (
+                <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+                  <div className={cmStyle}>
+                    <Heatmap {...configCM} />
+                  </div>
+                </div>
+              )}
+            </Card>
           </Col>
-        </Row>
-        <Row gutter={24} style={{ marginTop: '10px' }}>
-          <Col className="gutter-row" span={24} id="impact">
-            <div style={{ position: 'absolute', top: 110, right: 10 }}>
-              <Tooltip title="Impact metric shows difference between the original accuracy of a benign model compared to the accuracy of the compromised model after a successful poisoning attack.">
-                <Button type="link" icon={<QuestionOutlined />} />
-              </Tooltip>
-            </div>
-            <div style={{ ...BOX_STYLE, marginTop: '100px' }}>
-              <h2>&nbsp;&nbsp;&nbsp;Impact Metric</h2>
-              &nbsp;&nbsp;&nbsp;
-              <Form name="control-hooks" style={{ maxWidth: 700 }}>
-                <Form.Item name="attack" label="Attack"
-                  rules={[
-                    {
-                      required: true,
-                      message: 'Please select an adversarial attack!',
-                    },
-                  ]}
-                >
-                  <Row gutter={8}>
-                    <Col>
-                      <Tooltip title="Select an adversarial attack to measure resilience metrics.">
-                        <Select style={{ width: '250px' }}
-                          value={this.state.selectedAttack}
-                          allowClear showSearch
-                          placeholder="Select an attack ..."
-                          onChange={value => {
-                            if (value) {
-                              this.setState({ selectedAttack: value });
-                            }
-                            this.setState({ attacksConfusionMatrix: null });
-                          }}
-                          onClear={() => this.setState({ selectedAttack: null, attacksConfusionMatrix: null })}
-                          options={attacksDatasetsOptions}
-                        />
-                      </Tooltip>
-                    </Col>
 
-                    <Col>
-                      <Button
-                        type="primary"
-                        disabled={ isRunning || !this.state.modelId || !this.state.selectedAttack }
-                        onClick={() => this.handleButtonComputeMetric(this.state.selectedAttack)}
-                      >
-                        Compute Impact Metric
-                        {isRunning &&
-                          <Spin size="large" style={{ marginBottom: '8px' }}>
-                            <div className="content" />
-                          </Spin>
-                        }
-                      </Button>
-                    </Col>
-                  </Row>
-                </Form.Item>
-              </Form>
-
-              { attacksConfusionMatrix &&
-                <h3>&nbsp;&nbsp;&nbsp;Score: {impact}</h3>
-              }
-              <Row gutter={24} style={{height: '400px'}}>
-
-                <Col className="gutter-row" span={12} style={{ display: 'flex', justifyContent: 'center' }}>
-                  <div style={{ display: 'flex', justifyContent: 'center', width: '100%', flex: 1, flexWrap: 'wrap', marginTop: '20px' }}>
-                    <div className={cmStyle}>
-                      <h3> Model before attack </h3>
-                      { attacksConfusionMatrix &&
-                        <Heatmap {...configCM} />
-                      }
-                    </div>
+          <Col span={12}>
+            <Card style={{ marginBottom: 16, height: '100%' }}>
+              <div style={{ marginBottom: 16 }}>
+                <h3 style={{ fontSize: '16px', marginBottom: 4, fontWeight: 600 }}>Model After Attack</h3>
+                <span style={{ fontSize: '13px', color: '#8c8c8c' }}>
+                  Compromised model confusion matrix after poisoning
+                </span>
+              </div>
+              {attacksConfusionMatrix && (
+                <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+                  <div className={cmStyle}>
+                    <Heatmap {...configAttacksCM} />
                   </div>
-                </Col>
-                <Col className="gutter-row" span={12} style={{ display: 'flex', justifyContent: 'center' }}>
-                  <div style={{ display: 'flex', justifyContent: 'center', width: '100%', flex: 1, flexWrap: 'wrap', marginTop: '20px' }}>
-                    <div className={cmStyle}>
-                      <h3> Model after attack </h3>
-                      { attacksConfusionMatrix &&
-                        <Heatmap {...configAttacksCM} />
-                      }
-                    </div>
-                  </div>
-                </Col>
-              </Row>
-            </div>
+                </div>
+              )}
+            </Card>
           </Col>
         </Row>
       </LayoutPage>

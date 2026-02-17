@@ -1,8 +1,8 @@
 {
   "openapi" : "3.0.2",
   "info" : {
-    "title" : "Montimage AI Platform (MAIP)",
-    "description" : "The APIs provided by MAIP",
+    "title" : "Network Detection and Response (NDR)",
+    "description" : "The APIs provided by the NDR component",
     "termsOfService" : "https://github.com/Montimage/maip",
     "contact" : {
       "email" : "developer@montimage.com"
@@ -41,17 +41,38 @@
     "name" : "pcaps",
     "description" : "List/upload trace file for analysing"
   }, {
+    "name" : "dpi",
+    "description" : "Deep Packet Inspection for protocol analysis"
+  }, {
+    "name" : "network",
+    "description" : "Network topology and traffic analysis"
+  }, {
     "name" : "logs",
     "description" : "Access to the log of MMT Tools"
+  }, {
+    "name" : "security",
+    "description" : "API relates to security operations including rule-based detection, IP blocking, and NATS messaging"
   }, {
     "name" : "models",
     "description" : "API relates to the model and the building model process"
   }, {
+    "name" : "features",
+    "description" : "API for feature extraction from PCAP files"
+  }, {
     "name" : "predictions",
     "description" : "API relates to the prediction process"
   }, {
+    "name" : "online",
+    "description" : "API relates to online packet capture with tcpdump"
+  }, {
     "name" : "xai",
     "description" : "API relates to XAI"
+  }, {
+    "name" : "assistant",
+    "description" : "AI assistant for explaining flows and XAI results"
+  }, {
+    "name" : "queue",
+    "description" : "Job queue management for long-running tasks"
   } ],
   "paths" : {
     "/mmt/" : {
@@ -956,6 +977,119 @@
         }
       }
     },
+    "/retrain/offline" : {
+      "post" : {
+        "tags" : [ "models" ],
+        "summary" : "Queue-based offline retraining",
+        "description" : "Retrain model using job queue for non-blocking execution",
+        "operationId" : "retrainOffline",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "object",
+                "properties" : {
+                  "modelId" : {
+                    "type" : "string"
+                  },
+                  "trainingDataset" : {
+                    "type" : "string"
+                  },
+                  "testingDataset" : {
+                    "type" : "string"
+                  },
+                  "training_parameters" : {
+                    "$ref" : "#/components/schemas/trainingParameters"
+                  },
+                  "useQueue" : {
+                    "type" : "boolean"
+                  }
+                }
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "properties" : {
+                    "success" : {
+                      "type" : "boolean"
+                    },
+                    "jobId" : {
+                      "type" : "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/retrain/job/{jobId}" : {
+      "get" : {
+        "tags" : [ "models" ],
+        "summary" : "Get queued retrain job status",
+        "description" : "Get the status of a queued retrain job",
+        "operationId" : "getRetrainJobStatus",
+        "parameters" : [ {
+          "name" : "jobId",
+          "in" : "path",
+          "description" : "Job ID",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/jobStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/retrain/predictions/{retrainId}" : {
+      "get" : {
+        "tags" : [ "models" ],
+        "summary" : "Get predictions from retrain",
+        "description" : "Get predictions generated during retraining",
+        "operationId" : "getRetrainPredictions",
+        "parameters" : [ {
+          "name" : "retrainId",
+          "in" : "path",
+          "description" : "Retrain ID",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation",
+            "content" : {
+              "text/csv" : {
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/ac/retrain/" : {
       "get" : {
         "tags" : [ "models" ],
@@ -1527,6 +1661,124 @@
         }
       }
     },
+    "/predict/interfaces" : {
+      "get" : {
+        "tags" : [ "predictions" ],
+        "summary" : "Get available network interfaces",
+        "description" : "Get list of available network interfaces for online prediction",
+        "operationId" : "getNetworkInterfaces",
+        "parameters" : [ ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "properties" : {
+                    "interfaces" : {
+                      "type" : "array",
+                      "items" : {
+                        "type" : "string",
+                        "example" : "enp0s1"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/predict/offline" : {
+      "post" : {
+        "tags" : [ "predictions" ],
+        "summary" : "Queue-based offline prediction",
+        "description" : "Start offline prediction using job queue for non-blocking execution",
+        "operationId" : "predictOffline",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "object",
+                "properties" : {
+                  "modelId" : {
+                    "type" : "string",
+                    "example" : "6d9aebed-aa34-47c5-be80-b41280c32163.h5"
+                  },
+                  "reportId" : {
+                    "type" : "string",
+                    "example" : "report-honeypot.pcap-342727c9"
+                  },
+                  "reportFileName" : {
+                    "type" : "string",
+                    "example" : "1675893004.993760_0_honeypot.pcap.csv"
+                  },
+                  "useQueue" : {
+                    "type" : "boolean",
+                    "example" : true
+                  }
+                }
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "properties" : {
+                    "success" : {
+                      "type" : "boolean"
+                    },
+                    "jobId" : {
+                      "type" : "string"
+                    },
+                    "predictionId" : {
+                      "type" : "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/predict/job/{jobId}" : {
+      "get" : {
+        "tags" : [ "predictions" ],
+        "summary" : "Get queued prediction job status",
+        "description" : "Get the status of a queued prediction job",
+        "operationId" : "getPredictionJobStatus",
+        "parameters" : [ {
+          "name" : "jobId",
+          "in" : "path",
+          "description" : "Job ID",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/jobStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/predictions/" : {
       "get" : {
         "tags" : [ "predictions" ],
@@ -1875,6 +2127,140 @@
         }
       }
     },
+    "/xai/lime/importance-values/{modelId}/{labelId}" : {
+      "get" : {
+        "tags" : [ "xai" ],
+        "summary" : "Get LIME importance values for a label",
+        "description" : "Get LIME feature importance values for a specific label",
+        "operationId" : "limeImportanceValues",
+        "parameters" : [ {
+          "name" : "modelId",
+          "in" : "path",
+          "description" : "Name of the model",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "labelId",
+          "in" : "path",
+          "description" : "Label ID",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/xai/lime/instance-probs/{modelId}" : {
+      "get" : {
+        "tags" : [ "xai" ],
+        "summary" : "Get LIME instance probabilities",
+        "description" : "Get instance probability predictions for LIME",
+        "operationId" : "limeInstanceProbs",
+        "parameters" : [ {
+          "name" : "modelId",
+          "in" : "path",
+          "description" : "Name of the model",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/xai/shap/flow" : {
+      "post" : {
+        "tags" : [ "xai" ],
+        "summary" : "Run SHAP for specific flow",
+        "description" : "Generate SHAP explanations for a specific network flow",
+        "operationId" : "shapFlow",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "object",
+                "properties" : {
+                  "modelId" : {
+                    "type" : "string"
+                  },
+                  "flowData" : {
+                    "type" : "object"
+                  },
+                  "useQueue" : {
+                    "type" : "boolean"
+                  }
+                }
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation"
+          }
+        }
+      }
+    },
+    "/xai/lime/flow" : {
+      "post" : {
+        "tags" : [ "xai" ],
+        "summary" : "Run LIME for specific flow",
+        "description" : "Generate LIME explanations for a specific network flow",
+        "operationId" : "limeFlow",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "object",
+                "properties" : {
+                  "modelId" : {
+                    "type" : "string"
+                  },
+                  "flowData" : {
+                    "type" : "object"
+                  },
+                  "useQueue" : {
+                    "type" : "boolean"
+                  }
+                }
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation"
+          }
+        }
+      }
+    },
     "/xai/explanations/{modelId}" : {
       "get" : {
         "tags" : [ "xai" ],
@@ -2184,6 +2570,736 @@
           },
           "401" : {
             "description" : "The poisoned training dataset does not exist"
+          }
+        }
+      }
+    },
+    "/attacks/poisoning/{typeAttack}/{modelId}/view" : {
+      "get" : {
+        "tags" : [ "attacks" ],
+        "summary" : "View the poisoned training dataset",
+        "description" : "View the poisoned training dataset content as CSV",
+        "operationId" : "viewPoisonedDataset",
+        "parameters" : [ {
+          "name" : "typeAttack",
+          "in" : "path",
+          "description" : "Type of poisoning attacks",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "ctgan", "rsl", "tlf" ]
+          }
+        }, {
+          "name" : "modelId",
+          "in" : "path",
+          "description" : "Name of the model file",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation",
+            "content" : {
+              "text/csv" : {
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/security/rule-based/status" : {
+      "get" : {
+        "tags" : [ "security" ],
+        "summary" : "Get rule-based detection status",
+        "description" : "Get the status of rule-based detection (mmt-security)",
+        "operationId" : "getRuleBasedStatus",
+        "parameters" : [ {
+          "name" : "sessionId",
+          "in" : "query",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "ownerToken",
+          "in" : "query",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "properties" : {
+                    "ok" : {"type" : "boolean"},
+                    "running" : {"type" : "boolean"},
+                    "sessionId" : {"type" : "string"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/security/rule-based/alerts" : {
+      "get" : {
+        "tags" : [ "security" ],
+        "summary" : "Get rule-based alerts",
+        "description" : "Get security alerts from rule-based detection",
+        "operationId" : "getRuleBasedAlerts",
+        "parameters" : [ {
+          "name" : "sessionId",
+          "in" : "query",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "schema" : {
+            "type" : "number"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation"
+          }
+        }
+      }
+    },
+    "/security/rule-based/online/start" : {
+      "post" : {
+        "tags" : [ "security" ],
+        "summary" : "Start online rule-based detection",
+        "description" : "Start real-time rule-based intrusion detection",
+        "operationId" : "startRuleBasedOnline",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "object",
+                "properties" : {
+                  "iface" : {"type" : "string"},
+                  "intervalSec" : {"type" : "number"},
+                  "verbose" : {"type" : "boolean"},
+                  "excludeRules" : {"type" : "array", "items" : {"type" : "string"}},
+                  "cores" : {"type" : "number"}
+                }
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successfully started"
+          }
+        }
+      }
+    },
+    "/security/rule-based/online/stop" : {
+      "post" : {
+        "tags" : [ "security" ],
+        "summary" : "Stop online rule-based detection",
+        "description" : "Stop real-time rule-based intrusion detection",
+        "operationId" : "stopRuleBasedOnline",
+        "responses" : {
+          "200" : {
+            "description" : "Successfully stopped"
+          }
+        }
+      }
+    },
+    "/security/rule-based/offline" : {
+      "post" : {
+        "tags" : [ "security" ],
+        "summary" : "Run offline rule-based detection",
+        "description" : "Analyze PCAP file with rule-based detection",
+        "operationId" : "runRuleBasedOffline",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "object",
+                "properties" : {
+                  "pcapFile" : {"type" : "string"},
+                  "filePath" : {"type" : "string"},
+                  "useQueue" : {"type" : "boolean"},
+                  "verbose" : {"type" : "boolean"},
+                  "excludeRules" : {"type" : "array", "items" : {"type" : "string"}},
+                  "cores" : {"type" : "number"}
+                }
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Analysis complete"
+          }
+        }
+      }
+    },
+    "/security/block-ip" : {
+      "post" : {
+        "tags" : [ "security" ],
+        "summary" : "Block IP address",
+        "description" : "Block traffic from/to IP address using iptables",
+        "operationId" : "blockIP",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "object",
+                "properties" : {
+                  "ip" : {"type" : "string"},
+                  "direction" : {"type" : "string", "enum" : ["in", "out", "both"]}
+                }
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "IP blocked successfully"
+          }
+        }
+      }
+    },
+    "/security/block-port" : {
+      "post" : {
+        "tags" : [ "security" ],
+        "summary" : "Block port",
+        "description" : "Block traffic on specific port using iptables",
+        "operationId" : "blockPort",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "object",
+                "properties" : {
+                  "port" : {"type" : "number"},
+                  "protocol" : {"type" : "string"}
+                }
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Port blocked successfully"
+          }
+        }
+      }
+    },
+    "/security/nats-publish" : {
+      "post" : {
+        "tags" : [ "security" ],
+        "summary" : "Publish message to NATS",
+        "description" : "Publish a message to NATS message broker",
+        "operationId" : "publishNATS",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "object",
+                "properties" : {
+                  "subject" : {"type" : "string"},
+                  "payload" : {"type" : "object"}
+                }
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Message published"
+          }
+        }
+      }
+    },
+    "/online/status" : {
+      "get" : {
+        "tags" : [ "online" ],
+        "summary" : "Get online capture status",
+        "description" : "Get status of online packet capture",
+        "operationId" : "getOnlineStatus",
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "properties" : {
+                    "running" : {"type" : "boolean"},
+                    "pid" : {"type" : "number"},
+                    "iface" : {"type" : "string"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/online/files" : {
+      "get" : {
+        "tags" : [ "online" ],
+        "summary" : "List captured files",
+        "description" : "Get list of captured PCAP files",
+        "operationId" : "getOnlineFiles",
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "properties" : {
+                    "files" : {"type" : "array", "items" : {"type" : "string"}}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/online/start" : {
+      "post" : {
+        "tags" : [ "online" ],
+        "summary" : "Start online packet capture",
+        "description" : "Start capturing packets with tcpdump",
+        "operationId" : "startOnlineCapture",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "object",
+                "properties" : {
+                  "iface" : {"type" : "string"},
+                  "windowSec" : {"type" : "number"},
+                  "totalDurationSec" : {"type" : "number"},
+                  "filter" : {"type" : "string"}
+                }
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Capture started"
+          }
+        }
+      }
+    },
+    "/online/stop" : {
+      "post" : {
+        "tags" : [ "online" ],
+        "summary" : "Stop online packet capture",
+        "description" : "Stop the running packet capture",
+        "operationId" : "stopOnlineCapture",
+        "responses" : {
+          "200" : {
+            "description" : "Capture stopped"
+          }
+        }
+      }
+    },
+    "/assistant/" : {
+      "get" : {
+        "tags" : [ "assistant" ],
+        "summary" : "Get AI assistant status",
+        "description" : "Get AI assistant configuration and status",
+        "operationId" : "getAssistantStatus",
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "properties" : {
+                    "ok" : {"type" : "boolean"},
+                    "provider" : {"type" : "string"},
+                    "model" : {"type" : "string"},
+                    "unlimited" : {"type" : "boolean"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/assistant/explain/flow" : {
+      "post" : {
+        "tags" : [ "assistant" ],
+        "summary" : "AI explanation of network flow",
+        "description" : "Get AI-powered explanation of a network flow",
+        "operationId" : "explainFlow",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "object",
+                "properties" : {
+                  "flowRecord" : {"type" : "object"},
+                  "modelId" : {"type" : "string"},
+                  "predictionId" : {"type" : "string"},
+                  "extra" : {"type" : "object"}
+                }
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Explanation generated",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "properties" : {
+                    "text" : {"type" : "string"},
+                    "provider" : {"type" : "string"},
+                    "model" : {"type" : "string"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/assistant/explain/xai" : {
+      "post" : {
+        "tags" : [ "assistant" ],
+        "summary" : "AI explanation of XAI results",
+        "description" : "Get AI-powered explanation of XAI results",
+        "operationId" : "explainXAI",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "object",
+                "properties" : {
+                  "method" : {"type" : "string"},
+                  "modelId" : {"type" : "string"},
+                  "label" : {"type" : "string"},
+                  "explanation" : {"type" : "array"},
+                  "context" : {"type" : "object"}
+                }
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Explanation generated"
+          }
+        }
+      }
+    },
+    "/assistant/tokens" : {
+      "get" : {
+        "tags" : [ "assistant" ],
+        "summary" : "Get token usage statistics",
+        "description" : "Get AI assistant token usage stats",
+        "operationId" : "getTokenStats",
+        "responses" : {
+          "200" : {
+            "description" : "Token stats retrieved"
+          }
+        }
+      }
+    },
+    "/features/extract" : {
+      "post" : {
+        "tags" : [ "features" ],
+        "summary" : "Extract features from PCAP",
+        "description" : "Extract network features from PCAP file",
+        "operationId" : "extractFeatures",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "object",
+                "properties" : {
+                  "pcapFile" : {"type" : "string"},
+                  "isMalicious" : {"type" : "boolean"},
+                  "useQueue" : {"type" : "boolean"}
+                }
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Features extracted",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "properties" : {
+                    "ok" : {"type" : "boolean"},
+                    "sessionId" : {"type" : "string"},
+                    "csvFile" : {"type" : "string"},
+                    "jobId" : {"type" : "string"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/features/status/{jobId}" : {
+      "get" : {
+        "tags" : [ "features" ],
+        "summary" : "Get feature extraction job status",
+        "description" : "Get status of queued feature extraction job",
+        "operationId" : "getFeatureJobStatus",
+        "parameters" : [ {
+          "name" : "jobId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Job status retrieved"
+          }
+        }
+      }
+    },
+    "/queue/stats" : {
+      "get" : {
+        "tags" : [ "queue" ],
+        "summary" : "Get queue statistics",
+        "description" : "Get statistics for all job queues",
+        "operationId" : "getQueueStats",
+        "responses" : {
+          "200" : {
+            "description" : "Queue stats retrieved",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "properties" : {
+                    "success" : {"type" : "boolean"},
+                    "stats" : {"type" : "object"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/queue/health" : {
+      "get" : {
+        "tags" : [ "queue" ],
+        "summary" : "Queue health check",
+        "description" : "Check health status of queue system",
+        "operationId" : "getQueueHealth",
+        "responses" : {
+          "200" : {
+            "description" : "Health check complete"
+          }
+        }
+      }
+    },
+    "/queue/status/{queueName}/{jobId}" : {
+      "get" : {
+        "tags" : [ "queue" ],
+        "summary" : "Get job status",
+        "description" : "Get status of a queued job",
+        "operationId" : "getJobStatus",
+        "parameters" : [ {
+          "name" : "queueName",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "jobId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Job status retrieved"
+          }
+        }
+      }
+    },
+    "/dpi/status" : {
+      "get" : {
+        "tags" : [ "dpi" ],
+        "summary" : "Get DPI status",
+        "description" : "Get deep packet inspection analysis status",
+        "operationId" : "getDPIStatus",
+        "responses" : {
+          "200" : {
+            "description" : "Status retrieved",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "properties" : {
+                    "isRunning" : {"type" : "boolean"},
+                    "sessionId" : {"type" : "string"},
+                    "mode" : {"type" : "string"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dpi/start/offline" : {
+      "post" : {
+        "tags" : [ "dpi" ],
+        "summary" : "Start offline DPI analysis",
+        "description" : "Start deep packet inspection on PCAP file",
+        "operationId" : "startDPIOffline",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "object",
+                "properties" : {
+                  "pcapFile" : {"type" : "string"},
+                  "useQueue" : {"type" : "boolean"}
+                }
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "DPI analysis started"
+          }
+        }
+      }
+    },
+    "/dpi/start/online" : {
+      "post" : {
+        "tags" : [ "dpi" ],
+        "summary" : "Start online DPI analysis",
+        "description" : "Start real-time deep packet inspection",
+        "operationId" : "startDPIOnline",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "object",
+                "properties" : {
+                  "interface" : {"type" : "string"}
+                }
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "DPI started"
+          }
+        }
+      }
+    },
+    "/dpi/data" : {
+      "get" : {
+        "tags" : [ "dpi" ],
+        "summary" : "Get DPI analysis data",
+        "description" : "Get protocol hierarchy and traffic statistics",
+        "operationId" : "getDPIData",
+        "parameters" : [ {
+          "name" : "sessionId",
+          "in" : "query",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "DPI data retrieved",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "properties" : {
+                    "hierarchy" : {"type" : "object"},
+                    "trafficData" : {"type" : "array"},
+                    "statistics" : {"type" : "object"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dpi/interfaces" : {
+      "get" : {
+        "tags" : [ "dpi" ],
+        "summary" : "List network interfaces",
+        "description" : "Get available network interfaces for DPI",
+        "operationId" : "getDPIInterfaces",
+        "responses" : {
+          "200" : {
+            "description" : "Interfaces retrieved"
+          }
+        }
+      }
+    },
+    "/network/analysis" : {
+      "get" : {
+        "tags" : [ "network" ],
+        "summary" : "Analyze network traffic",
+        "description" : "Get network topology and traffic analysis",
+        "operationId" : "analyzeNetwork",
+        "parameters" : [ {
+          "name" : "pcap",
+          "in" : "query",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Analysis complete",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "properties" : {
+                    "topUsers" : {"type" : "array"},
+                    "geoLocations" : {"type" : "array"},
+                    "topology" : {"type" : "object"},
+                    "topLinks" : {"type" : "array"}
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -2766,6 +3882,28 @@
           "lastRunAt": {
             "type": "string",
             "example": "1694699830518"
+          }
+        }
+      },
+      "jobStatus": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["completed", "failed", "processing", "waiting"],
+            "example": "completed"
+          },
+          "result": {
+            "type": "object",
+            "description": "Job result data when completed"
+          },
+          "failedReason": {
+            "type": "string",
+            "description": "Error message if job failed"
+          },
+          "progress": {
+            "type": "number",
+            "description": "Job progress percentage (0-100)"
           }
         }
       }

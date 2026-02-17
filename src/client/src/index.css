@@ -11,3 +11,35 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+/* Bold table borders for all Ant Design tables */
+.ant-table {
+  border: 2px solid #f0f0f0 !important;
+}
+
+.ant-table-bordered .ant-table-container {
+  border: 2px solid #f0f0f0 !important;
+}
+
+.ant-table-bordered .ant-table-cell {
+  border-right: 2px solid #f0f0f0 !important;
+  border-bottom: 2px solid #f0f0f0 !important;
+}
+
+.ant-table-bordered .ant-table-thead > tr > th {
+  border-right: 2px solid #f0f0f0 !important;
+  border-bottom: 2px solid #f0f0f0 !important;
+}
+
+.ant-table-bordered .ant-table-tbody > tr > td {
+  border-right: 2px solid #f0f0f0 !important;
+  border-bottom: 2px solid #f0f0f0 !important;
+}
+
+.ant-table-bordered .ant-table-content {
+  border: 2px solid #f0f0f0 !important;
+}
+
+.ant-table thead > tr > th {
+  border-bottom: 2px solid #f0f0f0 !important;
+}

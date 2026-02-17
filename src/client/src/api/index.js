@@ -1,9 +1,11 @@
 import {
   getLabelsListXAI,
 } from "../utils";
+import { fetchWithAuth } from '../utils/fetchWithAuth';
 
 const {
   SERVER_URL,
+  ASSISTANT_URL,
 } = require('../constants');
 
 
@@ -97,15 +99,16 @@ export const requestMMTStatus = async () => {
   return data.mmtStatus;
 };
 
-export const requestMMTOffline = async (file) => {
+export const requestMMTOffline = async (file, userRole) => {
   const url = `${SERVER_URL}/api/mmt/offline`;
-  const response = await fetch(url, {
+  const { fetchWithAuth } = require('../utils/fetchWithAuth');
+  const response = await fetchWithAuth(url, {
     method: "POST",
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ fileName: file }),
-  });
+  }, userRole);
   const data = await response.json();
   console.log(`MMT offline analysis of pcap file ${file}`);
   return data;
@@ -331,7 +334,7 @@ export const requestXAIStatus = async () => {
   return data.xaiStatus;
 };
 
-export const requestRunShap = async (modelId, numberBackgroundSamples, numberExplainedSamples, maxDisplay) => {
+export const requestRunShap = async (modelId, numberBackgroundSamples, numberExplainedSamples, maxDisplay, useQueue = true) => {
   const url = `${SERVER_URL}/api/xai/shap`;
   const shapConfig = {
     "modelId": modelId,
@@ -344,10 +347,10 @@ export const requestRunShap = async (modelId, numberBackgroundSamples, numberExp
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ shapConfig }),
+    body: JSON.stringify({ shapConfig, useQueue }),
   });
   const data = await response.json();
-  console.log(`Run SHAP on server with config ${shapConfig}`);
+  console.log(`Run SHAP on server with config`, shapConfig);
   return data;
 };
 
@@ -361,7 +364,7 @@ export const requestShapValues = async (modelId, labelId) => {
   return shapValues;
 };
 
-export const requestRunLime = async (modelId, sampleId, numberFeature) => {
+export const requestRunLime = async (modelId, sampleId, numberFeature, useQueue = true) => {
   const url = `${SERVER_URL}/api/xai/lime`;
   const limeConfig = {
     "modelId": modelId,
@@ -373,7 +376,7 @@ export const requestRunLime = async (modelId, sampleId, numberFeature) => {
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ limeConfig }),
+    body: JSON.stringify({ limeConfig, useQueue }),
   });
   const data = await response.json();
   console.log(`Run LIME on server with config ${limeConfig}`);
@@ -450,6 +453,56 @@ export const requestRetrainModel = async (modelId, trainingDataset, testingDatas
   const data = await response.json();
   console.log(`Retrain a model on server with config ${retrainADConfig}`);
   return data;
+};
+
+export const requestRetrainOfflineQueued = async (modelId, trainingDataset, testingDataset, params, isACApp = false) => {
+  const url = `${SERVER_URL}/api/retrain/offline`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ 
+      modelId, 
+      trainingDataset, 
+      testingDataset, 
+      training_parameters: params,
+      isACApp,
+      useQueue: true 
+    })
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    try {
+      const errorData = JSON.parse(errorText);
+      throw new Error(errorData.message || errorData.error || errorText);
+    } catch (e) {
+      throw new Error(errorText);
+    }
+  }
+  return response.json();
+};
+
+export const requestRetrainJobStatus = async (jobId) => {
+  const url = `${SERVER_URL}/api/retrain/job/${jobId}`;
+  const response = await fetch(url, {
+    headers: {
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache'
+    },
+    cache: 'no-store'  // Force fresh fetch, no cache
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to get retrain job status: ${response.statusText}`);
+  }
+  return response.json();
+};
+
+export const requestRetrainedPredictions = async (retrainId) => {
+  const url = `${SERVER_URL}/api/retrain/predictions/${retrainId}`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to get retrained predictions: ${response.statusText}`);
+  }
+  return response.text();
 };
 
 export const requestMetricCurrentness = async (modelId) => {
@@ -542,6 +595,60 @@ export const requestPerformAttack = async (modelId, selectedAttack, poisoningRat
   return data;
 };
 
+// Queue-based attack API functions
+export const requestQueueAttack = async (modelId, selectedAttack, poisoningRate, targetClass) => {
+  const url = `${SERVER_URL}/api/queue/attack`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      modelId,
+      selectedAttack,
+      poisoningRate,
+      targetClass,
+      priority: 5, // Default priority
+    }),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to queue attack');
+  }
+  
+  const data = await response.json();
+  console.log(`Queued attack ${selectedAttack} for model ${modelId}, jobId: ${data.jobId}`);
+  
+  // Transform response to match expected format
+  return {
+    jobId: data.jobId,
+    position: data.position,
+    estimatedTime: data.estimatedWait?.seconds || 60,
+  };
+};
+
+export const requestAttackJobStatus = async (jobId) => {
+  const url = `${SERVER_URL}/api/queue/status/adversarial-attacks/${jobId}`;
+  const response = await fetch(url);
+  
+  if (!response.ok) {
+    throw new Error(`Failed to fetch attack job status for ${jobId}`);
+  }
+  
+  const data = await response.json();
+  
+  // Transform response to match expected format
+  return {
+    jobId: data.jobId,
+    status: data.status || data.state,  // Backend returns 'status', fallback to 'state'
+    progress: data.progress || 0,
+    queuePosition: data.position,
+    result: data.result,
+    failedReason: data.failedReason,
+  };
+};
+
 export const requestPredictStatus = async () => {
   const url = `${SERVER_URL}/api/predict`;
   const response = await fetch(url);
@@ -553,7 +660,13 @@ export const requestPredictStatus = async () => {
   return data.predictingStatus;
 };
 
-export const requestPredict = async (modelId, reportId, reportFileName) => {
+export const requestPredict = async (modelId, reportId, reportFileName, useQueue = true) => {
+  // NEW: Use queue-based endpoint by default
+  if (useQueue) {
+    return requestPredictOfflineQueued(modelId, reportId, reportFileName);
+  }
+  
+  // OLD: Legacy endpoint for backward compatibility
   const url = `${SERVER_URL}/api/predict`;
 
   const predictConfig = {
@@ -577,6 +690,34 @@ export const requestPredict = async (modelId, reportId, reportFileName) => {
   const data = await response.json();
   console.log(`Prediction on server with config ${predictConfig}`);
   return data;
+};
+
+export const requestPredictOfflineQueued = async (modelId, reportId, reportFileName) => {
+  const url = `${SERVER_URL}/api/predict/offline`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ modelId, reportId, reportFileName, useQueue: true })
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    try {
+      const errorData = JSON.parse(errorText);
+      throw new Error(errorData.message || errorData.error || errorText);
+    } catch (e) {
+      throw new Error(errorText);
+    }
+  }
+  return response.json();
+};
+
+export const requestPredictJobStatus = async (jobId) => {
+  const url = `${SERVER_URL}/api/predict/job/${jobId}`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to get job status: ${response.statusText}`);
+  }
+  return response.json();
 };
 
 export const requestPredictionsModel = async (modelId) => {
@@ -603,4 +744,196 @@ export const requestPredictStats = async (predictionId) => {
   }
   console.log(data.prediction);
   return data.prediction;
+};
+
+export const requestPredictionAttack = async (predictionId) => {
+  const url = `${SERVER_URL}/api/predictions/${predictionId}/attack`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch attack details for prediction ${predictionId}`);
+  }
+  const csvText = await response.text();
+  return csvText;
+};
+
+// Assistant API: Explain a malicious flow using GPT
+export const requestAssistantExplainFlow = async ({ flowRecord, modelId, predictionId, extra, userId, isAdmin }) => {
+  const url = `${ASSISTANT_URL}/explain/flow`;
+  const body = { flowRecord, modelId, predictionId, extra };
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 
+      'Content-Type': 'application/json',
+      'x-user-id': userId || '',
+      'x-is-admin': isAdmin ? 'true' : 'false',
+    },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  return response.json();
+};
+
+// Rule-based detection (mmt_security)
+export const requestRuleStatus = async ({ ownerToken, sessionId } = {}) => {
+  let url = `${SERVER_URL}/api/security/rule-based/status`;
+  const params = [];
+  if (ownerToken) params.push(`ownerToken=${encodeURIComponent(ownerToken)}`);
+  if (sessionId) params.push(`sessionId=${encodeURIComponent(sessionId)}`);
+  if (params.length > 0) url += `?${params.join('&')}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+};
+
+export const requestRuleAlerts = async (limit = 500, sessionId) => {
+  let url = `${SERVER_URL}/api/security/rule-based/alerts?limit=${encodeURIComponent(limit)}`;
+  if (sessionId) {
+    url += `&sessionId=${encodeURIComponent(sessionId)}`;
+  }
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json(); // { ok, file, count, alerts }
+};
+
+export const requestRuleOnlineStart = async ({ iface, intervalSec = 5, verbose = true, excludeRules, cores } = {}) => {
+  const url = `${SERVER_URL}/api/security/rule-based/online/start`;
+  const payload = { iface, intervalSec, verbose };
+  if (excludeRules) payload.excludeRules = excludeRules;
+  if (cores) payload.cores = cores;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    // Try to parse as JSON for better error handling (especially 409)
+    try {
+      const errorData = JSON.parse(errorText);
+      // For 409, include the error data in the message so frontend can extract sessionId
+      if (res.status === 409) {
+        const error = new Error(errorData.message || errorData.error || 'Online detection already running');
+        error.code = 409;
+        error.data = errorData;
+        throw error;
+      }
+      throw new Error(errorData.message || errorData.error || errorText);
+    } catch (e) {
+      if (e.code === 409) throw e; // Re-throw 409 errors
+      throw new Error(errorText);
+    }
+  }
+  return res.json();
+};
+
+export const requestRuleOnlineStop = async () => {
+  const url = `${SERVER_URL}/api/security/rule-based/online/stop`;
+  const res = await fetch(url, { 
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({})
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    // Try to parse as JSON for better error handling
+    try {
+      const errorData = JSON.parse(errorText);
+      throw new Error(errorData.message || errorData.error || errorText);
+    } catch (e) {
+      throw new Error(errorText);
+    }
+  }
+  return res.json();
+};
+
+export const requestRuleOffline = async ({ pcapFile, filePath, verbose = false, excludeRules, cores, userRole } = {}) => {
+  const url = `${SERVER_URL}/api/security/rule-based/offline`;
+  const body = {};
+  if (filePath) body.filePath = filePath;
+  if (pcapFile) body.pcapFile = pcapFile;
+  if (verbose) body.verbose = true;
+  if (excludeRules) body.excludeRules = excludeRules;
+  if (cores) body.cores = cores;
+  const { fetchWithAuth } = require('../utils/fetchWithAuth');
+  const res = await fetchWithAuth(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }, userRole);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json(); // { ok, file, count, alerts }
+};
+
+// Feature extraction API: run end-to-end extraction on an uploaded PCAP
+export const requestExtractFeatures = async ({ pcapFile, isMalicious, userRole } = {}) => {
+  const url = `${SERVER_URL}/api/features/extract`;
+  const body = { pcapFile };
+  if (typeof isMalicious === 'boolean') {
+    body.isMalicious = isMalicious;
+  }
+  const response = await fetchWithAuth(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }, userRole);
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || 'Feature extraction failed');
+  }
+  return response.json(); // { ok, id, csvFile, csvContent }
+};
+
+// Assistant API: Explain XAI output (LIME/SHAP) using GPT
+export const requestAssistantExplainXAI = async ({ method, modelId, label, explanation, context, userId, isAdmin }) => {
+  const url = `${ASSISTANT_URL}/explain/xai`;
+  const body = { method, modelId, label, explanation, context };
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 
+      'Content-Type': 'application/json',
+      'x-user-id': userId || '',
+      'x-is-admin': isAdmin ? 'true' : 'false',
+    },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || 'Failed to get assistant explanation');
+  }
+  return response.json();
+};
+
+// Get token usage stats
+export const requestTokenStats = async (userId, isAdmin) => {
+  const url = `${ASSISTANT_URL}/tokens`;
+  const response = await fetch(url, {
+    headers: {
+      'x-user-id': userId || '',
+      'x-is-admin': isAdmin ? 'true' : 'false',
+    },
+  });
+  return response.json();
+};
+
+// Get assistant provider status (OpenAI or Ollama)
+export const requestAssistantStatus = async () => {
+  const url = `${ASSISTANT_URL}/`;
+  const response = await fetch(url);
+  return response.json();
+};
+
+/**
+ * Request job status from queue
+ */
+export const requestJobStatus = async (jobId, queueName) => {
+  const url = `${SERVER_URL}/api/queue/status/${queueName}/${jobId}`;
+  const response = await fetch(url);
+  const data = await response.json();
+  if (!data.success) {
+    throw new Error(data.message || 'Failed to get job status');
+  }
+  // Backend spreads status into response, so return the whole data object
+  return data;
 };

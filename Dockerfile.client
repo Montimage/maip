@@ -3,21 +3,56 @@ FROM ubuntu:20.04
 # Set environment variable for non-interactive frontend
 ARG DEBIAN_FRONTEND=noninteractive
 
+# Accept build arguments for React environment variables
+ARG REACT_APP_API_URL
+ARG REACT_APP_CLERK_PUBLISHABLE_KEY
+ARG REACT_APP_ADMIN_EMAILS
+ARG REACT_APP_ADMIN_USER_IDS
+ARG REACT_APP_ADMIN_ORG_ID
+
+# Set as environment variables for build process
+ENV REACT_APP_API_URL=$REACT_APP_API_URL
+ENV REACT_APP_CLERK_PUBLISHABLE_KEY=$REACT_APP_CLERK_PUBLISHABLE_KEY
+ENV REACT_APP_ADMIN_EMAILS=$REACT_APP_ADMIN_EMAILS
+ENV REACT_APP_ADMIN_USER_IDS=$REACT_APP_ADMIN_USER_IDS
+ENV REACT_APP_ADMIN_ORG_ID=$REACT_APP_ADMIN_ORG_ID
+
 # Install necessary dependencies
 RUN apt-get update && \
-    apt-get install -y git wget cmake gcc g++ cpp curl software-properties-common
+    apt-get install -y git wget cmake gcc g++ cpp curl software-properties-common && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install Node.js and npm
-RUN curl -sL https://deb.nodesource.com/setup_14.x | bash - && \
-    apt-get install -y nodejs
+RUN curl -sL https://deb.nodesource.com/setup_18.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install serve globally
 RUN npm install -g serve
 
-COPY . /maip-app
-WORKDIR /maip-app/src/client
-RUN npm install
+# Set working directory
+WORKDIR /ndr-app
+
+# Copy package files first for better caching
+COPY src/client/package*.json ./src/client/
+
+# Install dependencies
+WORKDIR /ndr-app/src/client
+RUN npm install -f
+
+# Copy the rest of the application
+WORKDIR /ndr-app
+COPY . .
+
+# Build the React app
+WORKDIR /ndr-app/src/client
 RUN npm run build
+
 EXPOSE 3000
-WORKDIR /maip-app/src/client/build
-CMD ["serve", "-s", "."]
+
+# Add healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:3000 || exit 1
+
+WORKDIR /ndr-app/src/client/build
+CMD ["serve", "-s", ".", "-l", "3000"]

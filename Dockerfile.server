@@ -15,31 +15,36 @@ RUN apt-get update -y && apt-get install -y \
     libconfuse-dev \
     libpcap-dev \
     libxml2-dev \
-    net-tools
+    net-tools \
+    libcap2-bin \
+    sudo \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install Python 3.8.10
 RUN add-apt-repository ppa:deadsnakes/ppa -y && \
     apt-get update -y && \
-    apt-get install python3.8 python3.8-venv -y
+    apt-get install python3.8 python3.8-venv -y && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install specific pip version
-RUN curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && \
+RUN curl https://bootstrap.pypa.io/pip/3.8/get-pip.py -o get-pip.py && \
     python3.8 get-pip.py pip==20.0.2
 
 # Install NodeJS
 RUN curl -sL https://deb.nodesource.com/setup_19.x | bash && \
     apt-get install -y nodejs && \
-    npm install pm2 -g
+    npm install pm2 -g && \
+    rm -rf /var/lib/apt/lists/*
 
 # Create app directory and set working directory
-WORKDIR /maip-app
+WORKDIR /ndr-app
 
 # Copy only requirements file first
 COPY src/server/deep-learning/requirements.txt ./src/server/deep-learning/
 
 # Install Python dependencies
 RUN python3.8 -m pip install --upgrade pip && \
-    pip3 install -r src/server/deep-learning/requirements.txt
+    pip3 install --no-cache-dir -r src/server/deep-learning/requirements.txt
 
 # Copy package.json and package-lock.json
 COPY package*.json ./
@@ -50,16 +55,30 @@ RUN npm install
 # Now copy the rest of the application
 COPY . .
 
-# Copy env file
-RUN cp env.example .env
-
 # Install MMT packages
 RUN dpkg -i src/server/mmt-packages/mmt-dpi*.deb && \
     dpkg -i src/server/mmt-packages/mmt-security*.deb && \
     dpkg -i src/server/mmt-packages/mmt-probe*.deb 2>/dev/null||true && \
-    ldconfig
+    ldconfig && \
+    mkdir -p src/server/mmt/outputs && \
+    if [ -f /opt/mmt/security/bin/mmt_security ]; then setcap cap_net_raw,cap_net_admin+eip /opt/mmt/security/bin/mmt_security || true; fi
+
+# Create necessary directories
+RUN mkdir -p src/server/deep-learning/attacks \
+    src/server/deep-learning/models \
+    src/server/deep-learning/trainings \
+    src/server/deep-learning/predictions \
+    src/server/deep-learning/xai \
+    src/server/mmt/outputs
 
 ENV DOCKER_ENV=true
+ENV USE_SUDO=false
+ENV NODE_ENV=production
 
 EXPOSE 31057
-CMD ./start-server.sh
+
+# Add healthcheck endpoint support
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:31057/health || exit 1
+
+CMD ["./start-server.sh"]

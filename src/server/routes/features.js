@@ -1,0 +1,269 @@
+const express = require('express');
+const fs = require('fs');
+const path = require('path');
+const router = express.Router();
+
+const {
+  PCAP_PATH,
+  MMT_PROBE_CONFIG_PATH,
+  REPORT_PATH,
+  DEEP_LEARNING_PATH,
+  PYTHON_CMD,
+} = require('../constants');
+const { listFilesByTypeAsync } = require('../utils/file-utils');
+const { spawnCommand, getUniqueId } = require('../utils/utils');
+const { startMMTOffline, getMMTStatus } = require('../mmt/mmt-connector');
+const { identifyUser } = require('../middleware/userAuth');
+const { resolvePcapPath } = require('../utils/pcapResolver');
+
+// Apply user identification middleware to all routes
+router.use(identifyUser);
+
+// Import queue functions
+const {
+  queueFeatureExtraction,
+  getJobStatus
+} = require('../queue/job-queue');
+
+// POST /api/features/extract
+// Body: { pcapFile: string, isMalicious?: boolean, useQueue?: boolean }
+// NEW: Queue-based approach (non-blocking) - returns job ID immediately
+// OLD: Direct processing (blocking) - waits for completion
+router.post('/extract', async (req, res) => {
+  try {
+    const { pcapFile, isMalicious, useQueue } = req.body || {};
+    const userId = req.userId; // From identifyUser middleware
+    
+    if (!pcapFile || typeof pcapFile !== 'string') {
+      return res.status(400).send('Missing pcapFile');
+    }
+    
+    // Resolve pcap path from samples or user uploads
+    const inputPcap = resolvePcapPath(pcapFile, userId);
+    if (!inputPcap || !fs.existsSync(inputPcap)) {
+      return res.status(404).send(`PCAP not found: ${pcapFile}`);
+    }
+
+    // Queue-based approach is ENABLED BY DEFAULT for better performance with 30+ users
+    // Can be disabled via: USE_QUEUE_BY_DEFAULT=false in .env or useQueue:false in request
+    const useQueueDefault = process.env.USE_QUEUE_BY_DEFAULT !== 'false'; // Default: true
+    const shouldUseQueue = useQueue !== undefined ? useQueue : useQueueDefault;
+    
+    if (shouldUseQueue) {
+      console.log('[Features] Using queue-based processing for:', pcapFile);
+      
+      const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const result = await queueFeatureExtraction({
+        pcapFile,
+        sessionId,
+        isMalicious: isMalicious !== undefined ? isMalicious : null,
+        priority: 5,
+        userId: userId // Pass userId for path resolution
+      });
+      
+      const jobId = result.jobId;
+      console.log('[Features] Job queued:', jobId, 'Waiting for completion...');
+      
+      // Poll for job completion (non-blocking for other users, but waits for this request)
+      const maxWaitTime = 5 * 60 * 1000; // 5 minutes max
+      const pollInterval = 2000; // 2 seconds
+      const startTime = Date.now();
+      
+      const pollJob = async () => {
+        while (Date.now() - startTime < maxWaitTime) {
+          const status = await getJobStatus(jobId, 'feature-extraction');
+          
+          if (status.status === 'completed') {
+            console.log('[Features] Job completed:', jobId);
+            // Return result in the format frontend expects
+            // Use the MMT sessionId from the worker result (actual directory name)
+            const actualSessionId = status.result?.sessionId || sessionId;
+            return res.json({
+              ok: true,
+              sessionId: actualSessionId,
+              csvFile: status.result?.csvFile || 'features.csv',
+              csvContent: status.result?.csvContent || '',
+              queued: true,
+              jobId: jobId
+            });
+          } else if (status.status === 'failed') {
+            console.error('[Features] Job failed:', jobId, status.failedReason);
+            return res.status(500).send(status.failedReason || 'Feature extraction failed');
+          }
+          
+          // Still processing, wait and check again
+          await new Promise(resolve => setTimeout(resolve, pollInterval));
+        }
+        
+        // Timeout
+        return res.status(408).json({
+          ok: false,
+          error: 'Feature extraction timeout',
+          jobId: jobId,
+          message: 'Job is still processing. Check status with /api/features/status/' + jobId
+        });
+      };
+      
+      return pollJob();
+    }
+
+    // OLD: Direct processing (blocking) - only if useQueue=false
+    console.log('[Features] Using direct processing (blocking) for:', pcapFile);
+    startMMTOffline(pcapFile, (status) => {
+      if (status && status.error) {
+        return res.status(401).send(status.error);
+      }
+      const { sessionId } = status;
+      if (!sessionId) {
+        return res.status(500).send('Failed to start MMT offline');
+      }
+      const startedSessionId = sessionId;
+      const outputDir = path.join(REPORT_PATH, `report-${startedSessionId}`);
+      const logFile = path.join(outputDir, `features_${startedSessionId}.log`);
+      const intervalMs = 2000;
+      const maxAttempts = 150;
+      let attempts = 0;
+      const poll = setInterval(() => {
+        const s = getMMTStatus();
+        const done = !s.isRunning && s.sessionId === startedSessionId;
+        attempts += 1;
+        if (done || attempts >= maxAttempts) {
+          clearInterval(poll);
+          if (!fs.existsSync(outputDir)) {
+            return res.status(500).send('Output directory not found');
+          }
+          try {
+            const csvFiles = listFilesByTypeAsync(outputDir, '.csv') || [];
+            const picked = csvFiles.find(f => f !== 'security-reports.csv') || csvFiles[0];
+            if (!picked) {
+              return res.status(500).send('No CSV generated by mmt-probe');
+            }
+            const finalReportCsv = path.join(outputDir, picked);
+            const baseName = path.parse(picked).name;
+            const outPkl = path.join(outputDir, `${baseName}.pkl`);
+            const outCsv = path.join(outputDir, `${baseName}.features.csv`);
+
+            // Determine label choice
+            const hasLabel = (isMalicious === true || isMalicious === false);
+            const featParams = [
+              path.join(DEEP_LEARNING_PATH, 'trafficToFeature.py'),
+              finalReportCsv,
+              outPkl,
+              String(Boolean(isMalicious)),
+            ];
+            spawnCommand(PYTHON_CMD, featParams, logFile, (err2) => {
+              if (err2) {
+                console.error('[features] trafficToFeature.py failed:', err2.message || err2);
+                return res.status(500).send('Feature extraction failed');
+              }
+
+              const pyInline = [
+                '-c',
+                [
+                  'import pandas as pd, numpy as np, sys; ',
+                  'inp=sys.argv[1]; out=sys.argv[2]; drop=(len(sys.argv)>3 and sys.argv[3]=="1"); ',
+                  'df=pd.read_pickle(inp); ',
+                  'df=df[df.notnull().all(axis=1)]; ',
+                  'df=df.replace([np.inf, -np.inf], 0)\n',
+                  'if drop:\n',
+                  '    cols=list(df.columns)\n',
+                  '    norm=[str(c).strip().lower() for c in cols]\n',
+                  '    to_drop=[cols[i] for i,n in enumerate(norm) if n=="malware"]\n',
+                  '    if to_drop: df=df.drop(columns=to_drop)\n',
+                  'df.to_csv(out, index=False)'
+                ].join(''),
+                outPkl,
+                outCsv,
+                hasLabel ? '0' : '1',
+              ];
+              spawnCommand(PYTHON_CMD, pyInline, logFile, (err3) => {
+                if (err3) {
+                  console.error('[features] PKL->CSV conversion failed:', err3.message || err3);
+                  return res.status(500).send('Failed to convert features to CSV');
+                }
+                try {
+                  const content = fs.readFileSync(outCsv, 'utf8');
+                  return res.send({ ok: true, sessionId: startedSessionId, csvFile: path.basename(outCsv), csvContent: content });
+                } catch (e) {
+                  console.error('[features] Failed reading CSV:', e.message || e);
+                  return res.status(500).send('Failed to read generated CSV');
+                }
+              });
+            });
+          } catch (e) {
+            console.error('[features] Unexpected during post-MMT processing:', e.message || e);
+            return res.status(500).send('Post-processing error');
+          }
+        }
+      }, intervalMs);
+    }, null, false, userId);
+  } catch (e) {
+    console.error('[features] unexpected error:', e);
+    res.status(500).send(e.message || 'Unexpected error');
+  }
+});
+
+// GET /api/features/status/:jobId
+// Check the status of a queued feature extraction job
+router.get('/status/:jobId', async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    
+    const status = await getJobStatus(jobId, 'feature-extraction');
+    
+    res.json({
+      ok: true,
+      ...status
+    });
+    
+  } catch (error) {
+    console.error('[Features] Error checking job status:', error);
+    res.status(500).json({
+      ok: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/features/retrieve/:reportId
+// Retrieves previously extracted features from a report directory
+router.get('/retrieve/:reportId', async (req, res) => {
+  try {
+    const { reportId } = req.params;
+    if (!reportId || typeof reportId !== 'string') {
+      return res.status(400).json({ error: 'Missing reportId parameter' });
+    }
+    
+    const reportDir = path.join(REPORT_PATH, reportId);
+    if (!fs.existsSync(reportDir)) {
+      return res.status(404).json({ error: `Report directory not found: ${reportId}` });
+    }
+    
+    // Find the features CSV file
+    const files = fs.readdirSync(reportDir);
+    const featuresCsv = files.find(f => f.endsWith('.features.csv'));
+    
+    if (!featuresCsv) {
+      return res.status(404).json({ error: 'No features CSV found in report directory' });
+    }
+    
+    const csvPath = path.join(reportDir, featuresCsv);
+    const csvContent = fs.readFileSync(csvPath, 'utf8');
+    
+    // Extract sessionId from reportId (format: report-{sessionId})
+    const sessionId = reportId.replace('report-', '');
+    
+    res.json({
+      ok: true,
+      sessionId,
+      csvFile: featuresCsv,
+      csvContent,
+    });
+  } catch (e) {
+    console.error('[features] Error retrieving features:', e);
+    res.status(500).json({ error: e.message || 'Failed to retrieve features' });
+  }
+});
+
+module.exports = router;
